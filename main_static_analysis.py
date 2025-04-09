@@ -1,6 +1,7 @@
 from py2cfg import CFGBuilder
 from pycallgraph import PyCallGraph
-from pycallgraph.output import GraphvizOutput
+
+from test_file_for_cfg import visualize_me
 
 
 def main():
@@ -10,13 +11,17 @@ def main():
 
 
 def pycallgraph():
-    from banana import Banana
 
     graphviz = GraphvizOutput(output_file='filter_none.png')
 
-    with PyCallGraph(output=graphviz):
-        banana = Banana()
-        banana.eat()
+    pygraph = PyCallGraph(output=graphviz)
+    pygraph.start()
+    visualize_me()
+    pygraph.stop()
+    # pygraph.done()
+    print(pygraph.output)
+    import pdb; pdb.set_trace()
+
 
 if __name__ == "__main__":
-    main()
+    pycallgraph()
