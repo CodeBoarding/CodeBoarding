@@ -1,8 +1,9 @@
 from pycallgraph import PyCallGraph
-from llm_graph_repr import print_CFG
-from custom_pycall_graph_output import LLMAwareOutput
 
-from test_file_for_cfg import visualize_me
+from llm_graph_repr import print_tree, print_adjacency_list
+from pycallflow_patch.custom_pycall_graph_output import LLMAwareOutput
+from pycallflow_patch.module_call_graph import ModuleCallGraph
+from resources.test_file_for_cfg import visualize_me
 
 
 def run_program():
@@ -14,13 +15,13 @@ def run_program():
 
 md = MarkItDown(enable_plugins=False) # Set to True to enable plugins
 result = md.convert("./resources/test.xlsx")
-print(result.text_content)
 """)
+
 
 def collect_CFG():
     llm_output_graph = LLMAwareOutput()
 
-    py_call_graph = PyCallGraph(output=llm_output_graph)
+    py_call_graph = ModuleCallGraph('markitdown', output=llm_output_graph)
     py_call_graph.start()
 
     run_program()
@@ -30,11 +31,10 @@ def collect_CFG():
 
     groups, nodes, edges = llm_output_graph.done()
     print(f"Groups: {len(groups)}, Nodes: {len(nodes)}, Edges: {len(edges)}")
-
-    # For MarkItDown it is too big and hits recursion depth exception
-    # print_CFG(llm_output_graph.nodes['__main__'])
+    print_tree(nodes['__main__'])
+    for node in nodes.keys():
+        print_adjacency_list(nodes[node].neighbours)
 
 
 if __name__ == "__main__":
     collect_CFG()
-    

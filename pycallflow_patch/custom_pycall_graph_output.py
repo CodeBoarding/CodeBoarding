@@ -24,11 +24,15 @@ class LLMAwareOutput(GraphvizOutput):
         return groups, nodes, edges
     
     def generate_groups(self):
-        # TODO: @IM. We need more advanced grouping (maybe). Atm the graph is huge
+        # Group the nodes and return the groups;
+        groups = {}        
         for group, nodes in self.processor.groups():
+            groups[group] = []
             for node in nodes:
                 self.nodes[node.name].to_group(group)
-        return super().generate_groups()
+                groups[group].append(node.name)
+        return groups
+
 
     def generate_nodes(self):
         for node in self.processor.nodes():
