@@ -1,6 +1,4 @@
 from pycallgraph import PyCallGraph
-from second_test_file import Calculator
-from pycallgraph.output import GraphvizOutput
 from llm_graph_repr import print_CFG
 from custom_pycall_graph_output import LLMAwareOutput
 
