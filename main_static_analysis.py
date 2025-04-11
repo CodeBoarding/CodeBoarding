@@ -1,9 +1,6 @@
-from pycallgraph import PyCallGraph
-
-from llm_graph_repr import print_tree, print_adjacency_list
-from pycallflow_patch.custom_pycall_graph_output import LLMAwareOutput
-from pycallflow_patch.module_call_graph import ModuleCallGraph
-from resources.test_file_for_cfg import visualize_me
+from static_analyzer.llm_graph import regroup_nodes, build_tree_string
+from static_analyzer.pycallflow_patch.custom_pycall_graph_output import LLMAwareOutput
+from static_analyzer.pycallflow_patch.module_call_graph import ModuleCallGraph
 
 
 def run_program():
@@ -31,9 +28,13 @@ def collect_CFG():
 
     groups, nodes, edges = llm_output_graph.done()
     print(f"Groups: {len(groups)}, Nodes: {len(nodes)}, Edges: {len(edges)}")
-    print_tree(nodes['__main__'])
-    for node in nodes.keys():
-        print_adjacency_list(nodes[node].neighbours)
+    # print_tree(nodes['__main__'])
+    # for node in nodes.keys():
+    #     print_adjacency_list(nodes[node].neighbours)
+    nnodes = regroup_nodes(nodes.values())
+    main_node = [n for n in nnodes if n.id == '__main__'][0]
+    res = build_tree_string(main_node)
+    print(res)
 
 
 if __name__ == "__main__":

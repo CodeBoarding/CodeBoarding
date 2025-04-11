@@ -1,4 +1,4 @@
-from llm_graph_repr import Node
+from static_analyzer.llm_graph import Node
 from pycallgraph.output import GraphvizOutput
 
 

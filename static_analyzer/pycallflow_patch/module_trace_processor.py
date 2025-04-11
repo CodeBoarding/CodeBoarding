@@ -8,7 +8,7 @@ class ModuleTraceProcessor(TraceProcessor):
     """
     A module tracer that collects information about function calls, however it is aware that we are interested only in
     concrete submodule. It is used to collect the CFG of a specific module.
-    The process method is lifted from the parent class with a small potch.
+    The process method is lifted from the parent class with a small patch.
     """
 
     def __init__(self, module_name, *args, **kwargs):

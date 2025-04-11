@@ -1,6 +1,6 @@
 from pycallgraph.tracer import SyncronousTracer
 
-from pycallflow_patch.module_trace_processor import ModuleTraceProcessor
+from static_analyzer.pycallflow_patch.module_trace_processor import ModuleTraceProcessor
 
 
 class ModuleSyncronousTracer(SyncronousTracer):
