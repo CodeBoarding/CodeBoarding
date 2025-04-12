@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -14,19 +17,21 @@ class Component(BaseModel):
     description: str = Field(description="High level description of the component.")
     communication: str = Field(description="How the component communicates with other components.")
 
+
 class InterestingModules(BaseModel):
     interesting_modules: list[Component] = Field(
         description="List of the interesting python modules from the control flow graph.")
 
 
-
 class AbstractionAgent:
     def __init__(self, project_name):
+        self._setup_env_vars()
         self.project_name = project_name
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=0,
             max_retries=2,
+            google_api_key=self.api_key
         )
         self.json_out_parser = JsonOutputParser(pydantic_object=InterestingModules)
         self.cfg_prompt = PromptTemplate(template=CFG_PROMPT_TEXT,
@@ -44,3 +49,7 @@ class AbstractionAgent:
         assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
 
         return self.json_out_parser.parse(agent_response.content)
+
+    def _setup_env_vars(self):
+        load_dotenv()
+        self.api_key = os.getenv("GOOGLE_API_KEY")

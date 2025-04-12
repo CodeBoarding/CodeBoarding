@@ -57,6 +57,8 @@ class ModuleTraceProcessor(TraceProcessor):
             if module:
                 module_name = module.__name__
                 module_path = module.__file__
+                # Override from our side: Here we are interested in the module with name: module_name
+                # By default all modules which are part of the environment will be skipped - we override this
                 if (not self.config.include_stdlib and self.is_module_stdlib(module_path))\
                         and (not self.is_traced_module(module_name)):
                     keep = False
