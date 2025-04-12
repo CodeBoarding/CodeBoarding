@@ -44,12 +44,6 @@ def regroup_nodes(nodes):
             if neighb.grouping_name.startswith("_"):
                 # Filter out system private module calls
                 continue
-            # if any(n.grouping_name == neighb.grouping_name for n in new_neighbours):
-            #     nb = [i for i in filter(lambda n: n.grouping_name == neighb.grouping_name, new_neighbours)][0]
-            #     nb.num_calls += neighb.num_calls
-            #     if nb.grouping_name == 'markitdown.converters._xlsx_converter.XlsxConverter':
-            #         import pdb; pdb.set_trace()
-            #     continue
             new_neighbours.append(neighb)
         node.neighbours = new_neighbours
         new_nodes.append(node)
