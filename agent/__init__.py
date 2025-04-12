@@ -6,7 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from agent.tools import read_module_tool
-from prompts import CFG_PROMPT_TEXT, SYSTEM_MESSAGE
+from agent.prompts import CFG_PROMPT_TEXT, SYSTEM_MESSAGE
 
 
 class Component(BaseModel):
