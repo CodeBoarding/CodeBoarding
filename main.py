@@ -10,7 +10,7 @@ def main():
 # result = md.convert("./resources/test.xlsx")
 # """
 
-    entrypoints = EntrypointScanner(root="markitdown").run()
+    entrypoints = EntrypointScanner(root="./repos/markitdown").run()
     for entrypoint in entrypoints.root:
 
         stat_analyzer = Analyzer(module_name='markitdown', code=entrypoint.python_code)

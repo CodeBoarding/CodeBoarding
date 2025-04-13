@@ -10,7 +10,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 def init_llm():
     load_dotenv()
-    api_key = os.getenv("API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     return ChatGoogleGenerativeAI(
         model="gemini-2.0-flash-001",
         temperature=0,
