@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# Ignore all repositories downloaded for analysis
+repos/
+repos/*
+
+.idea
+.idea/*
