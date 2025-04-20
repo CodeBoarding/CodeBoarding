@@ -7,7 +7,7 @@ app = FastAPI()
 @app.post("/generate_repository")
 async def analyze_repo():
     mermaid_str = analyze()
-    with open("/home/ivan/StartUp/CodeBoarding/repos/markitdown/README.md", "r") as f:
+    with open("/home/ivan/StartUp/CodeBoarding/repos/markitdown/README_original.md", "r") as f:
         existing_content = f.read()
     with open("/home/ivan/StartUp/CodeBoarding/repos/markitdown/README.md", "w") as f:
         f.write("# High Level Diagram\n")
