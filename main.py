@@ -1,32 +1,41 @@
-from agent import AbstractionAgent, Component
-from static_analyzer import Analyzer
+from pathlib import Path
+
+from agent import AbstractionAgent
+from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
+from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
+from static_analyzer.pylint_graph_transform import DotGraphTransformer
+
+
+def generate_on_boarding_documentation(repo_location: Path, project_name: str):
+    dot_suffix = '_structure.dot'
+    graph_builder = StructureGraphBuilder(repo_location, dot_suffix, verbose=True)
+    graph_builder.build()
+    # Now I have to find and collect the _structure.dot files
+    # Scan the current directory for files which end on dot_suffix
+    structures = []
+    for path in Path('.').rglob(f'*{dot_suffix}'):
+        with open(path, 'r') as f:
+            structures.append((path.name.split(dot_suffix)[0], f.read()))
+
+    builder = CallGraphBuilder(repo_location, max_depth=15, verbose=True)
+    builder.build()
+    builder.write_dot('./call_graph.dot')
+    # Now transform the call_graph
+    call_graph_str = DotGraphTransformer('./call_graph.dot', project_name).transform()
+
+    return structures, call_graph_str
 
 
 def main():
-    code = """from markitdown import MarkItDown
-
-md = MarkItDown(enable_plugins=False) # Set to True to enable plugins
-result = md.convert("./resources/test.xlsx")
-"""
-    stat_analyzer = Analyzer(module_name='markitdown', code=code)
-    cfg_str, groups, nodes, edges = stat_analyzer.analyze()
-
-    agent = AbstractionAgent("MarkItDown")
-    abstract_modules = agent.get_interesting_modules(cfg_str)
-    mermaid_str = "```mermaid\nflowchart LR\n"
-    modules = abstract_modules['interesting_modules']
-    for id in range(len(modules) - 1):
-        # For now I will just do a naive diagram generation
-        node, next_node = modules[id], modules[id + 1]
-        node, next_node = Component.model_validate(node), Component.model_validate(next_node)
-        descr = node.description.replace("(", "").replace(")", "")
-        next_descr = next_node.description.replace("(", "").replace(")", "")
-        mm_string = f"    {node.name}[<b>{node.name}</b><br><i>{descr}</i>] -- {node.communication} --> {next_node.name}[<b>{next_node.name}</b><br><i>{next_descr}</i>]\n"
-        mermaid_str += mm_string
-    mermaid_str += '```'
-    with open("markitdown_diagram.md", "w") as f:
-        f.write(mermaid_str)
-
+    strucutres, call_graph_str = generate_on_boarding_documentation(
+        Path("/home/ivan/StartUp/CodeBoarding/repos/WhatWaf"), "lib")
+    agent = AbstractionAgent("markitdown")
+    agent.step_cfg(call_graph_str)
+    for structure in strucutres:
+        agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
+    markdown_file = agent.step_source()
+    with open("on_boarding.md", "w") as f:
+        f.write(markdown_file)
 
 if __name__ == "__main__":
     main()

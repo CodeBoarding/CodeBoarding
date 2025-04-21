@@ -4,9 +4,59 @@ from pathlib import Path
 from typing import Set
 
 import networkx as nx
-from astroid import MANAGER, nodes
+from astroid import InferenceError, nodes, Uninferable, MANAGER
 
 from static_analyzer.pylint_analyze import _banner
+
+
+def _expr_to_str(expr: nodes.NodeNG) -> str:
+    """
+    Best‑effort pretty representation of an astroid expression.
+    Falls back to `as_string()` if the value cannot be folded.
+    """
+    try:
+        inferred = next(expr.infer())
+        if inferred is not Uninferable and isinstance(inferred, nodes.Const):
+            # a real constant – print its Python value
+            return repr(inferred.value)
+    except (InferenceError, StopIteration, AttributeError):
+        # AttributeError covers the case "expr" is not a NodeNG at all
+        pass
+
+    # astroid >= 2.15 always implements as_string()
+    try:
+        return expr.as_string()
+    except Exception:  # pragma: no cover
+        return str(expr)
+
+
+def _collect_arguments(call: nodes.Call) -> tuple[list[str], dict[str, str]]:
+    """
+    Return two objects describing what was literally written at the
+    call‑site.
+      • positional arguments (order is preserved)
+      • keyword arguments  (mapping name -> expression)
+
+    Works with astroid 2.x *and* 3.x.
+    """
+    positional: list[str] = []
+    keywords: dict[str, str] = {}
+
+    # ---------- positional ---------------------------------
+    for arg in call.args:  # astroid 3.x
+        if isinstance(arg, nodes.Starred):  # *argument
+            positional.append('*' + _expr_to_str(arg.value))
+        else:
+            positional.append(_expr_to_str(arg))
+
+    # ---------- keyword ------------------------------------
+    for kw in call.keywords or []:  # works for 2.x & 3.x
+        if kw.arg is None:  # **kwargs expression
+            keywords['**'] = _expr_to_str(kw.value)
+        else:  # normal name=value
+            keywords[kw.arg] = _expr_to_str(kw.value)
+
+    return positional, keywords
 
 
 class CallGraphBuilder:
@@ -26,7 +76,6 @@ class CallGraphBuilder:
         self.max_depth = max_depth
         self.verbose = verbose
 
-    # ──────────────────── public API ────────────────────────
     def build(self) -> nx.DiGraph:
         _banner("Building ASTs…", self.verbose)
         for pyfile in self._iter_py_files():
@@ -39,7 +88,6 @@ class CallGraphBuilder:
         )
         return self.graph
 
-    # ──────────────────── helpers ────────────────────────
     def _iter_py_files(self):
         base_depth = len(self.root.parts)
         for path, _, files in os.walk(self.root):
@@ -58,7 +106,6 @@ class CallGraphBuilder:
         except Exception as e:  # pylint: disable=broad-except
             print(f"!! Failed to parse {file_path}: {e}")
             _banner(f"!! Failed to parse {file_path}", self.verbose)
-            _banner(traceback.format_exc(), self.verbose)
             return
 
         self._visited_files.add(file_path)
@@ -66,7 +113,6 @@ class CallGraphBuilder:
         module_qualname = module.name  # dotted import path if resolvable
         self._visit_module(module, module_qualname)
 
-    # -------------------- AST walk ------------------------
     def _visit_module(self, module: nodes.Module, module_qname: str):
         for node in module.body:
             if isinstance(node, (nodes.FunctionDef, nodes.AsyncFunctionDef)):
@@ -79,7 +125,8 @@ class CallGraphBuilder:
                         )
 
     def _qual_name(self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str) -> str:
-        return f"{owner}:{func.name}@{func.lineno}"
+        return f"{owner}:{func.name}"
+        # return f"{owner}:{func.name}@{func.lineno}"
 
     def _visit_function(
             self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str
@@ -89,15 +136,33 @@ class CallGraphBuilder:
 
         for call in func.nodes_of_class(nodes.Call):
             callee_label = self._resolve_callee(call)
-            self.graph.add_edge(src, callee_label)
 
-    # -------------------- call target resolution ------------------------
+            pos_args, kw_args = _collect_arguments(call)
+
+            # one edge per call site, keep line number to distinguish calls
+            dst = f"{callee_label}"#@{call.lineno}"
+            self.graph.add_edge(
+                src,
+                dst,
+                pos_args=pos_args,
+                kw_args=kw_args,
+                lineno=call.lineno,
+            )
+
     @staticmethod
     def _resolve_callee(call: nodes.Call) -> str:
         """
         Try to obtain a printable name for the call target.
         """
         func = call.func
+        try:
+            inferred = next(func.infer(), None)
+            if inferred is not None:
+                return inferred.qname()
+        except (InferenceError, StopIteration):
+            pass
+
+        # Fallback for dynamic or unresolved calls
         if isinstance(func, nodes.Attribute):
             base = CallGraphBuilder._as_string(func.expr)
             return f"{base}.{func.attrname}"
@@ -113,10 +178,8 @@ class CallGraphBuilder:
             return f"{CallGraphBuilder._as_string(expr.expr)}.{expr.attrname}"
         return "<?>"
 
-    # ──────────────────── serialisation ────────────────────────
     def write_dot(self, filename: Path):
         from networkx.drawing.nx_agraph import write_dot  # Lazy import
-
         write_dot(self.graph, filename)
 
     def write_json(self, filename: Path):
