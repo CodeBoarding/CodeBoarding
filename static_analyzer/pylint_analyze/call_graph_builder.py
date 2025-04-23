@@ -79,6 +79,8 @@ class CallGraphBuilder:
     def build(self) -> nx.DiGraph:
         _banner("Building ASTs…", self.verbose)
         for pyfile in self._iter_py_files():
+            if "test" in pyfile.parts or "tests" in pyfile.parts:
+                continue
             self._process_file(pyfile)
 
         _banner(
@@ -110,7 +112,17 @@ class CallGraphBuilder:
 
         self._visited_files.add(file_path)
 
-        module_qualname = module.name  # dotted import path if resolvable
+        # Avoid circular imports by using the module name as a prefix
+        module_qualname = module.name
+
+        # Custom patch if the module is just the path to the file
+        if str(self.root) in module_qualname:
+            module_qualname = module.name.split(str(self.root))[1].replace("/", ".")
+            if module_qualname.startswith("."):
+                module_qualname = module_qualname[1:]
+            if module_qualname.endswith(".py"):
+                module_qualname = module_qualname[:-3]
+
         self._visit_module(module, module_qualname)
 
     def _visit_module(self, module: nodes.Module, module_qname: str):

@@ -27,8 +27,3 @@ class DotGraphTransformer:
                 edge_s += f" [{k}={v}]"
             result.append(edge_s)
         return "\n".join(result)
-
-if __name__ == "__main__":
-    transformer = DotGraphTransformer("/home/ivan/StartUp/CodeBoarding/static_analyzer/pylint_analyze/test_out.dot", "markitdown")
-    transformed_graph = transformer.transform()
-    print(transformed_graph)

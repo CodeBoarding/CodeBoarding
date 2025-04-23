@@ -1,16 +1,19 @@
+import json
 import os
+import re
 from typing import List
 
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from agent.prompts import CFG_MESSAGE, STRUCTURE_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE
-from agent.tools import read_module_tool
+from agent.tools import CodeExplorerTool
 
 class Component(BaseModel):
     name: str = Field(description="Name of the abstract component")
@@ -36,9 +39,25 @@ class AnalysisInsights(BaseModel):
         body = "\n\n".join(ac.llm_str() for ac in self.abstract_components)
         return title + body
 
+
+def custom_parse(response):
+    """Custom parsing logic for CFG response."""
+    # This is a placeholder. You can implement your own logic here.
+    # For example, you can use regex or other parsing techniques.
+    pattern = re.compile(r"```(json)?(.*)", re.DOTALL)
+    match = pattern.search(response)
+    if match:
+        json_str = match.group(0)
+        json_str = json_str.split("```json" )[-1].strip()
+        json_str = json_str.split("```")[0].strip()
+        return AnalysisInsights.model_validate(json.loads(json_str))
+    raise OutputParserException(response)
+
+
 class AbstractionAgent:
-    def __init__(self, project_name):
+    def __init__(self, root_dir, project_name):
         self._setup_env_vars()
+        self.root_dir = root_dir
         self.project_name = project_name
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
@@ -63,7 +82,7 @@ class AbstractionAgent:
         }
 
         # Define or import agents/tools for deep reading, as needed
-        self.read_module_tool = read_module_tool
+        self.read_module_tool = CodeExplorerTool(root_project_dir=self.root_dir)
         self.agent = create_react_agent(model=self.llm, tools=[self.read_module_tool])
 
     def _setup_env_vars(self):
@@ -73,7 +92,11 @@ class AbstractionAgent:
     def step_cfg(self, cfg_str):
         prompt = self.prompts["cfg"].format(project_name=self.project_name, cfg_str=cfg_str)
         response = self._invoke(prompt)
-        parsed = self.parsers["cfg"].parse(response)
+        try:
+            parsed = self.parsers["cfg"].parse(response)
+        except OutputParserException as e:
+            print(f"[Error] Failed to parse CFG response: {e}")
+            parsed = custom_parse(response)
         self.context['cfg_insight'] = parsed  # Store for next step
         return parsed
 
