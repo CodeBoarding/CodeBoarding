@@ -132,9 +132,7 @@ class CallGraphBuilder:
             elif isinstance(node, nodes.ClassDef):
                 for sub in node.body:
                     if isinstance(sub, (nodes.FunctionDef, nodes.AsyncFunctionDef)):
-                        self._visit_function(
-                            sub, f"{module_qname}.{node.name}"
-                        )
+                        self._visit_function(sub, f"{module_qname}.{node.name}")
 
     def _qual_name(self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str) -> str:
         return f"{owner}:{func.name}"

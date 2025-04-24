@@ -22,7 +22,7 @@ def generate_on_boarding_documentation(repo_location: Path, project_name: str):
     builder.build()
     builder.write_dot('./call_graph.dot')
     # Now transform the call_graph
-    call_graph_str = DotGraphTransformer('./call_graph.dot', project_name).transform()
+    call_graph_str = DotGraphTransformer('./call_graph.dot', repo_location).transform()
 
     return structures, call_graph_str
 
@@ -33,18 +33,20 @@ def clean_dot_files(directory):
         if f.endswith('.dot'):
             os.remove(os.path.join(directory, f))
 
-def main():
-    root_dir = Path("/home/ivan/StartUp/CodeBoarding/repos/browser-use")
-    project_name = "browser_use"
-    strucutres, call_graph_str = generate_on_boarding_documentation(root_dir, project_name)
-    agent = AbstractionAgent(root_dir, project_name)
+
+def main(repo_name):
+    ROOT = "/home/ivan/StartUp/CodeBoarding/repos/"
+    root_dir = Path(f"{ROOT}{repo_name}")
+    structures, call_graph_str = generate_on_boarding_documentation(root_dir, repo_name)
+    agent = AbstractionAgent(root_dir, repo_name)
     agent.step_cfg(call_graph_str)
-    for structure in strucutres:
+    for structure in structures:
         agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
     markdown_file = agent.step_source()
     with open("on_boarding.md", "w") as f:
         f.write(markdown_file)
     clean_dot_files(Path('./'))
 
+
 if __name__ == "__main__":
-    main()
+    main("flask")
