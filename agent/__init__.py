@@ -90,6 +90,7 @@ class AbstractionAgent:
         self.api_key = os.getenv("GOOGLE_API_KEY")
 
     def step_cfg(self, cfg_str):
+        print(f"[INFO] Analyzing CFG for project: {self.project_name}")
         prompt = self.prompts["cfg"].format(project_name=self.project_name, cfg_str=cfg_str)
         response = self._invoke(prompt)
         try:
@@ -101,6 +102,7 @@ class AbstractionAgent:
         return parsed
 
     def step_structure(self, structure_graph):
+        print(f"[INFO] Analyzing Structure for project: {self.project_name}")
         prompt = self.prompts["structure"].format(
             cfg_insight=self.context.get('cfg_insight').llm_str(),
             structure_graph=structure_graph
@@ -111,6 +113,7 @@ class AbstractionAgent:
         return parsed
 
     def step_source(self):
+        print(f"[INFO] Analyzing Source for project: {self.project_name}")
         insight_str = ""
         for insight_type, anaylsys_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"

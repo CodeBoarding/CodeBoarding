@@ -29,7 +29,7 @@ class DotGraphTransformer:
                 continue
 
             # Check if this directory has an __init__.py file
-            if '__init__.py' in entries and "test" not in current_dir and "tests" not in current_dir:
+            if '__init__.py' in entries and "test" not in current_dir and "example" not in current_dir:
                 package_name = Path(current_dir).name
                 self.packages.append(package_name)
                 continue

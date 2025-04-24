@@ -49,4 +49,4 @@ def main(repo_name):
 
 
 if __name__ == "__main__":
-    main("flask")
+    main("django")
