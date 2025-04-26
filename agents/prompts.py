@@ -3,11 +3,15 @@ You are a software architecture expert. You will be given Control Flow Graph (CF
 
 **Your tasks:**
 1. Examine the flow in the CFG.
-2. Examine the structure diagram of the program.
-3. Identify the most important and central modules or functions (HAVE TO BE LESS THAN 10).
-4. Investigate the code of these modules to understand their purpose and functionality.
-5. For each important module, state its main responsibility in 1-2 sentences.
-6. Summarize the core abstractions the project seems to implement.
+2. Identify the most important and central modules or functions (HAVE TO BE LESS THAN 20).
+3. Investigate the code of these modules to understand their purpose and functionality. Use that information to generate a high-level components.
+4. For each important component, state its main responsibility in 1-2 sentences and how it interacts with its neighbouring components.
+5. Generate a high-level overview of the project with these components, its purpose and functionality.
+
+Whenever you think a tool could help you complete the analysis, **call the tool**.
+After observing the output, continue reasoning.
+
+You MUST use the tools to complete your tasks.
 """
 
 CFG_MESSAGE = """
@@ -15,7 +19,16 @@ You are an expert in software system architecture. Currently at step 1 (think ab
 Here is the Control Flow Graph (CFG) for the project `{project_name}`.
 {cfg_str}
 
-Please identify important modules and functions from the CFG. You can use the following format:
+We want to reduce the Control Flow Graph to good abstractions, each abstraction should group together subgroups of modules and functions that are related to each other.
+You can also use the packages information to help you with the initial grouping.
+
+**Your Tasks:**
+1. Identify important modules and functions from the CFG.
+2. Start grouping classes and functions into high-level abstractions. Use the structure information with the **read_class_structure** tool.
+3. For the groupings you have done use the `package_relations` tool to identify the packages that are related to the groupings, and change them accordingly if needed.
+4. Identify the most important and central pieces of the control flow graph.
+
+Please do the above analysis and give me the results in the following format:
 {format_instructions}
 """
 
@@ -32,7 +45,7 @@ Now, here is the project’s main package/directory structure, expressed as hier
 
 **Your Tasks:**
 1. Map the previously identified key modules and abstractions to specific packages/directories/files.
-2. Identify any additional important components that are evident from the structure (e.g., large packages, central directories, or clearly separated components).
+2. Identify any additional important components that are evident from the structure (e.g., large packages, central directories, or clearly separated components). You can now also group the CFG abstractions even further if needed.
 3. Suggest a set of high-level abstract classes or components that best represent the project as a whole, considering both the raw structure and your earlier insight.
 
 **Instructions:**
@@ -42,7 +55,7 @@ Now, here is the project’s main package/directory structure, expressed as hier
 SOURCE_MESSAGE = """
 You a software architecture expert.
 
-Here is a summary of the most important modules, components, and abstract classes suggested so far from doing steps 1-3 in your tasks:
+Here is a summary of the most important modules, components, and abstract classes suggested so far from doing steps 1,2 in your tasks:
 {insight_so_far}
 
 You have access to the source code of the project via the provided `read_source_code` tool.
@@ -50,7 +63,7 @@ You have access to the source code of the project via the provided `read_source_
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
 2. Refine or expand the earlier high-level classes/components, in the end you have to have NO MORE than 10 components (best if they are 5), based on new details from the source code.
-3. Define each component by its name, relevant documents and a short concise description.
+3. Define each component by its name, relevant documents and most importantly **what roles does it have with-in the project**, how it relates to its neighbouring components. For that again you can consult with the CFG.
 
 **Instructions:**
 {format_instructions}
@@ -62,17 +75,14 @@ You are the software architecture expert for the project `{project_name}`.
 You have run CFG analysis and came to the following conclusions:
 {cfg_insight}
 
-You have run structure analysis and came to the following conclusions:
-{structure_insight}
-
 Finally looking through the codebase you identified the **final components**:
 {source_insight}
 
 **Your Tasks:**
 Generate an onboarding document that describes the project and its components.
 1. Generate a short description of the project, what is its purpose and functionality.
-2. Generate a flow diagram (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB..
-3. Do a short one paragraph description of each component from the Mermaid diagram, what is its purpose and functionality is.
+2. Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB..
+3. Do a short one paragraph description of each component from the Mermaid diagram, what is its purpose and functionality is, **how it relates to the its neighbouring components**.
 """
 
 SYSTEM_MESSAGE_DETAILS = """

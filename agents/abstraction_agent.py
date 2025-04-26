@@ -44,6 +44,14 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context['cfg_insight'] = parsed  # Store for next step
         return parsed
 
+    def step_packages(self, packages):
+        print(f"[INFO] Analyzing Packages for project: {self.project_name}")
+        insight_str = ""
+        for pkg in packages:
+            insight_str += f"- `{pkg}`\n"
+        insight_str += "\n"
+        self.context['packages'] = insight_str
+
     def step_structure(self, structure_graph):
         print(f"[INFO] Analyzing Structure for project: {self.project_name}")
         prompt = self.prompts["structure"].format(
@@ -58,12 +66,12 @@ class AbstractionAgent(CodeBoardingAgent):
     def step_source(self):
         print(f"[INFO] Analyzing Source for project: {self.project_name}")
         insight_str = ""
-        for insight_type, anaylsys_insight in self.context.items():
+        for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if type(anaylsys_insight) is list:
-                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in anaylsys_insight]) + "\n\n"
+            if type(analysis_insight) is list:
+                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
             else:
-                insight_str += anaylsys_insight.llm_str() + "\n\n"
+                insight_str += analysis_insight.llm_str() + "\n\n"
 
         prompt = self.prompts["source"].format(
             insight_so_far=insight_str,
@@ -77,7 +85,7 @@ class AbstractionAgent(CodeBoardingAgent):
         prompt = self.prompts["markdown"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),
-            structure_insight="\n".join([insight.llm_str() for insight in self.context['structure_insight']]),
+            # structure_insight="\n".join([insight.llm_str() for insight in self.context['structure_insight']]),
             source_insight=self.context.get('source').llm_str()
         )
         response = self._invoke(prompt)

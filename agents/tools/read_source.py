@@ -39,6 +39,7 @@ class CodeExplorerTool(BaseTool):
         """
         Run the tool with the given input.
         """
+        print(f"[Source Tool] Reading source code for {python_code_reference}")
         try:
             return self.read_module_tool(python_code_reference=python_code_reference)
         except ImportError:

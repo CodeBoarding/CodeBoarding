@@ -8,6 +8,8 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from agents.tools import CodeExplorerTool
+from agents.tools.read_packages import PackageRelationsTool
+from agents.tools.read_structure import CodeStructureTool
 
 
 class Component(BaseModel):
@@ -47,10 +49,12 @@ class CodeBoardingAgent:
             max_retries=2,
             google_api_key=self.api_key
         )
-        self.read_module_tool = CodeExplorerTool(root_project_dir=root_dir)
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_module_tool])
+        self.read_source_code = CodeExplorerTool(root_project_dir=root_dir)
+        self.read_packages_tool = PackageRelationsTool(root_project_dir=root_dir)
+        self.read_structure_tool = CodeStructureTool(root_project_dir=root_dir)
+        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_code, self.read_packages_tool,
+                                                               self.read_structure_tool])
         self.system_message = SystemMessage(content=system_message)
-
 
     def _setup_env_vars(self):
         load_dotenv()

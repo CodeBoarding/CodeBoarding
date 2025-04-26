@@ -13,7 +13,7 @@ from static_analyzer.pylint_graph_transform import DotGraphTransformer
 
 
 def generate_on_boarding_documentation(repo_location: Path):
-    dot_suffix = '_structure.dot'
+    dot_suffix = 'structure.dot'
     graph_builder = StructureGraphBuilder(repo_location, dot_suffix, verbose=True)
     graph_builder.build()
     # Now I have to find and collect the _structure.dot files
@@ -29,7 +29,13 @@ def generate_on_boarding_documentation(repo_location: Path):
     # Now transform the call_graph
     call_graph_str = DotGraphTransformer('./call_graph.dot', repo_location).transform()
 
-    return structures, call_graph_str
+    packages = []
+    for path in Path('.').rglob(f'packages_*.dot'):
+        with open(path, 'r') as f:
+            # The file name is the package name
+            package_name = path.name.split('_')[1].split('.dot')[0]
+            packages.append((package_name, f.read()))
+    return structures, packages, call_graph_str
 
 
 def clean_files(directory):
@@ -39,6 +45,7 @@ def clean_files(directory):
             os.remove(os.path.join(directory, f))
         if f.endswith('.md') and f != "README.md":
             os.remove(os.path.join(directory, f))
+    print("Files clean up done.")
 
 
 def upload_onboarding_materials(project_name):
@@ -65,26 +72,28 @@ def upload_onboarding_materials(project_name):
 def main(repo_name):
     ROOT = "/home/ivan/StartUp/CodeBoarding/repos/"
     root_dir = Path(f"{ROOT}{repo_name}")
-    structures, call_graph_str = generate_on_boarding_documentation(root_dir)
+    structures, packages, call_graph_str = generate_on_boarding_documentation(root_dir)
     abstraction_agent = AbstractionAgent(root_dir, repo_name)
     abstraction_agent.step_cfg(call_graph_str)
-    for structure in structures:
-        abstraction_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
+    # for structure in structures:
+    #     abstraction_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
     analysis_insights = abstraction_agent.step_source()
 
     markdown_file = abstraction_agent.generate_markdown()
     with open("on_boarding.md", "w") as f:
         f.write(markdown_file.strip())
 
-    details_agent = DetailsAgent(root_dir, repo_name)
-    for component in tqdm(analysis_insights.abstract_components, desc="Analyzing details"):
-        details_agent.step_cfg(call_graph_str, component)
-        for structure in structures:
-            details_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}", component)
-        details_md = details_agent.step_source()
-        comp_name = component.name.replace('/', '_')
-        with open(f"{comp_name}_details.md", "w") as f:
-            f.write(details_md)
+    # details_agent = DetailsAgent(root_dir, repo_name)
+    # for component in tqdm(analysis_insights.abstract_components, desc="Analyzing details"):
+    #     # Here I want to filter out based on the qualified names:
+    #     cfg_str = DotGraphTransformer("./call_graph.dot", root_dir).subset_transform(component.qualified_names)
+    #     details_agent.step_cfg(cfg_str, component)
+    #     for structure in structures:
+    #         details_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}", component)
+    #     details_md = details_agent.step_source()
+    #     comp_name = component.name.replace('/', '_')
+    #     with open(f"{comp_name}_details.md", "w") as f:
+    #         f.write(details_md)
 
     # Upload the onboarding materials to the repo
     upload_onboarding_materials(repo_name)
@@ -92,8 +101,7 @@ def main(repo_name):
 
 if __name__ == "__main__":
     try:
-        main("browser-use")
+        main("django")
     finally:
         # Clean up the files
         clean_files(Path('./'))
-        print("Cleaned up the files.")
