@@ -47,13 +47,38 @@ class DotGraphTransformer:
             src = edge.get_source()
             dst = edge.get_destination()
             attrs = edge.get_attributes()
-            skip_entry = False
+            src_entry = False
+            dst_entry = False
             for package in self.packages:
-                # Check if the package is in the source or destination
-                if package.lower() not in src.lower() or package.lower() not in dst.lower():
-                    skip_entry = True
-                    break
-            if skip_entry:
+                if package in src:
+                    src_entry = True
+                if package in dst:
+                    dst_entry = True
+
+            if not (src_entry and dst_entry):
+                continue
+
+            edge_s = ""
+            edge_s += f"{src} -> {dst}"
+
+            for k, v in attrs.items():
+                edge_s += f" [{k}={v}]"
+            result.append(edge_s)
+        return "\n".join(result)
+
+    def subset_transform(self, special_packages):
+        result = []
+        print(f"Source code packages: {self.packages}")
+        for edge in self.G.get_edges():
+            src = edge.get_source()
+            dst = edge.get_destination()
+            attrs = edge.get_attributes()
+            keep_entry = False
+            for package in special_packages:
+                if package in src or package in dst:
+                    keep_entry = True
+
+            if not keep_entry:
                 continue
 
             edge_s = ""
