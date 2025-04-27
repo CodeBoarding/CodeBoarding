@@ -51,6 +51,8 @@ class CodeExplorerTool(BaseTool):
         """
         Read the file from the given path.
         """
+        if ":" in python_code_reference:
+            python_code_reference = python_code_reference.split(":")[0]
         for path in self.cached_files:
             sub_path = python_code_reference.replace('.', '/')
             if sub_path in str(path):
