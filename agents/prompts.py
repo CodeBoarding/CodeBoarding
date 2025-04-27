@@ -85,63 +85,85 @@ Generate a high-level data-flow diagram which is accompanied with descriptions f
 1. Generate a short description of the project, what is its purpose and functionality.
 2. Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB..
 3. Do a short one paragraph description of each component from the Mermaid diagram, what is its purpose and functionality is, **how it relates to the its neighbouring components**.
+
+**Instructions:**
+{format_instructions}
 """
 
 SYSTEM_MESSAGE_DETAILS = """
 You are a software architecture expert.
-We are exploring one of the components of a big project `{project_name}`.
+We are exploring one of the subsystems of a big project `{project_name}`.
 Your task now is to generate a general overview of the component, its structure, flow, and its purpose.
 
 **Your tasks:**
-1. Examine the full project Control Flow Graph and identify the relevant part.
-2. Examine the structure diagram of the project and identify the relevant part.
-3. Identify the most important and central modules or functions (HAVE TO BE LESS THAN 10).
-4. Investigate the code of these modules to understand their purpose and functionality.
-5. Identify the main flow within the component, abstract away the details. Define a small sequence diagram.
-6. Identify the main structure of the component, what are the main classes and methods. Create a class diagram.
+1. Examine the full project Control Flow Graph and identify the relevant part for the subsystem.
+2. Now working on the subset of the Control Flow Graph which is relevant - identify the most important and central components - classes/modules/files (HAVE TO BE LESS THAN 20).
+3. Investigate the structure of the interesting modules and identify the relevant components.
+4. Investigate the source code of interesting files to understand their purpose and functionality.
+5. For each important component, state its main responsibility in 1-2 sentences and how it interacts with its neighbouring components.
+6. Generate a high-level overview flow diagram with these components, their purpose and functionality.
+
+Whenever you think a tool could help you complete for the analysis, **call the tool**.
+After observing the output, continue reasoning.
+
+You MUST use the tools to complete your tasks.
 """
 
 
-CFG_DETAILS_MESSAGE = """
-You are an expert in software system architecture. Working on step 1 (think about step 3) of the analysis tasks.
+SUBCFG_DETAILS_MESSAGE = """
+You are an expert in software system architecture. Working on step 1 of the analysis tasks.
 At this moment we are analyzing the Control Flow Graph (CFG) for the project `{project_name}`.
 Identify only the relevant components in the CFG for {component}.
 
 Here is the CFG:
 {cfg_str}
 
-Please identify important modules and functions from the CFG. You can use the following format:
-{format_instructions}
+**Format Instructions:**
+Give me just the subgraph, no sentences or explanations.
 """
 
-STRUCTURE_DETAILS_MESSAGE = """
-You are an expert in software system architecture.
-Currently at step 2 (think about step 3) of the analysis tasks.
-At this moment we are analyzing the structure diagram for the project `{project_name}`.
-Identify only the relevant components in the structure for {component}
+CFG_DETAILS_MESSAGE = """
+You are an expert in software system architecture. Now working on step 2.
+Using the Control Flow Graph (CFG) for a subsystem of the project `{project_name}`. Identify only the most important interactions in the CFG:
+{cfg_str}
 
-From the CFG analysis, we have identified the following important modules and abstractions:
-{cfg_insight}
-
-Here is the structure diagram:
-{structure_graph}
+To get better understanding of these interactions you can look at their source code using the `read_source_code` tool.
 
 Please identify important modules and functions from the structure. You can use the following format:
 {format_instructions}
 """
 
-
-DETAILS_MESSAGE = """
-You are a software architecture expert.
-Here is a summary of the most important modules, components, and abstract classes suggested so far from doing steps 1-3 in your tasks:
+ENHANCE_STRUCTURE_MESSAGE = """
+You are an expert in software system architecture. Now working on step 3 and 4.
+Using the insights from the Control Flow Graph (CFG) for the subsystem associated with {component} of the project `{project_name}`.
+Having the following insights:
 {insight_so_far}
 
-You have access to the source code of the component via the provided `read_source_code` tool.
+In order to validate the found relationships and to get more details, possible create new abstractions please make use of relevant structure information with the `read_structure` tool.
+To further group elements if needed you can make use of the `package_relations` tool to get how packages related to each other.
+
+**Your Tasks:**
+1. Validate previous abstractions and relationships with the given tools.
+2. Expand or refine the earlier high-level classes/components, we need to understand the structure of the component and its purpose.
+
+**Instructions:**
+{format_instructions}
+"""
+
+
+DETAILS_MESSAGE = """
+You are a software architecture expert. We are at the final step of the analysis tasks.
+Now you have to design an overview for {component}
+Here is a summary of the most important modules, components, and abstract classes suggested so far from doing steps 1-4 in your tasks:
+{insight_so_far}
 
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
-2. Refine or expand the earlier high-level classes/components, we need to understand the structure of the component and its purpose.
-3. Generate a document:
-    - Generate a brief description of the component, what are the main classes and what is their purpose.
-    - From the insights so far for the component, decide on a visualization technique to represent the component **USE JUST ONE**. It can be a flow diagram, class diagram, or any other visualization technique that best represents the component. For the visualization use Mermaid format.
+2. Decide what type of diagram is best to represent the current component. If it is a simple component use a class diagram, accompanied with sequence diagram. If it has more than 5 classes, make use of component flow diagram.
+3. Generate markdown content for the component, including:
+    - Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB.
+    - For each component of the diagram generate a short description of its purpose and functionality, how it relates to the its neighbouring components. **List all relevant source files**.
+
+** Instructions: **
+{format_instructions}
 """

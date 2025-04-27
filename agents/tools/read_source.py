@@ -12,6 +12,8 @@ class ModuleInput(BaseModel):
 
 
 
+# TODO: This has to become even more sophisticated as now we are matching by a greedy algorithm. We should let the agent
+# decide which file to read and not just the first one which matches the path.
 class CodeExplorerTool(BaseTool):
     name: str = "read_source_code"
     description: str = ("Tool which can read the source code of a python code reference. "
@@ -54,14 +56,26 @@ class CodeExplorerTool(BaseTool):
             if sub_path in str(path):
                 with open(path, 'r') as f:
                     return f"Source code for {python_code_reference}:\n{f.read()}"
-            # maybe the path is to function so we have to check if the path is in the file
+
+
+        # maybe the path is to function so we have to check if the path is in the file
+        for path in self.cached_files:
             sub_group = "/".join(python_code_reference.split('.')[:-1])
             # Check if the path leads to a file and not a directory
             if sub_group in str(path) and str(path).endswith('.py'):
                 with open(path, 'r') as f:
                     return f"Source code for {python_code_reference}:\n{f.read()}"
-        print(f"[Tool Error] File for {python_code_reference} not found. Available files are: {self.cached_files}")
-        return f"[Tool Error] File for {python_code_reference} not found. Available files are: {self.cached_files}"
+
+        # Last resolution the packages is file.Class.method:
+        for path in self.cached_files:
+            # Maybe the file is one ClassFile.method ->
+            sub_group = "/".join(python_code_reference.split('.')[:-2])
+            if sub_group in str(path) and str(path).endswith('.py'):
+                with open(path, 'r') as f:
+                    return f"Source code for {python_code_reference}:\n{f.read()}"
+
+        print(f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {self.cached_files}")
+        return f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {self.cached_files}"
 
     @staticmethod
     def read_module_tool(python_code_reference: str) -> str:
@@ -101,5 +115,5 @@ class CodeExplorerTool(BaseTool):
             raise ImportError(f"Attribute {'.'.join(attrs)} not found in module {path}.")
         except ImportError as e:
             # This means we cannot import, so now it is time to try to read the file:
-            print(f"[Tool warn]: ImportError for {python_code_reference}: {e}")
+            print(f"[Source Tool -  warn]: ImportError for {python_code_reference}: {e}")
             raise e

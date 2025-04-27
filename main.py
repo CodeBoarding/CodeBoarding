@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
+from agents.tools.utils import clean_dot_file_str
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
@@ -28,7 +29,7 @@ def generate_on_boarding_documentation(repo_location: Path):
     builder.write_dot('./call_graph.dot')
     # Now transform the call_graph
     call_graph_str = DotGraphTransformer('./call_graph.dot', repo_location).transform()
-
+    call_graph_str = clean_dot_file_str(call_graph_str)
     packages = []
     for path in Path('.').rglob(f'packages_*.dot'):
         with open(path, 'r') as f:
@@ -77,31 +78,32 @@ def main(repo_name):
     abstraction_agent.step_cfg(call_graph_str)
     # for structure in structures:
     #     abstraction_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
-    analysis_insights = abstraction_agent.step_source()
+    abstraction_agent.step_source()
 
-    markdown_file = abstraction_agent.generate_markdown()
+    final_response = abstraction_agent.generate_markdown()
     with open("on_boarding.md", "w") as f:
-        f.write(markdown_file.strip())
+        f.write(final_response.content.strip())
 
-    # details_agent = DetailsAgent(root_dir, repo_name)
-    # for component in tqdm(analysis_insights.abstract_components, desc="Analyzing details"):
-    #     # Here I want to filter out based on the qualified names:
-    #     cfg_str = DotGraphTransformer("./call_graph.dot", root_dir).subset_transform(component.qualified_names)
-    #     details_agent.step_cfg(cfg_str, component)
-    #     for structure in structures:
-    #         details_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}", component)
-    #     details_md = details_agent.step_source()
-    #     comp_name = component.name.replace('/', '_')
-    #     with open(f"{comp_name}_details.md", "w") as f:
-    #         f.write(details_md)
+    details_agent = DetailsAgent(root_dir, repo_name)
+    for component in tqdm(final_response.components, desc="Analyzing details"):
+        # Here I want to filter out based on the qualified names:
+        if details_agent.step_subcfg(call_graph_str, component) == None:
+            print(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
+            continue
+        details_agent.step_cfg(component)
+        details_agent.step_enhance_structure(component)
+        details_results = details_agent.step_markdown(component)
+        if type(details_results) is str:
+            content = details_results
+        else:
+            content = details_results.content
+        with open(f"{component.name}.md", "w") as f:
+            f.write(content)
 
     # Upload the onboarding materials to the repo
     upload_onboarding_materials(repo_name)
 
 
 if __name__ == "__main__":
-    try:
-        main("django")
-    finally:
-        # Clean up the files
-        clean_files(Path('./'))
+    clean_files(Path('./'))
+    main("gpf")

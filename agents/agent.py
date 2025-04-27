@@ -28,6 +28,10 @@ class Component(BaseModel):
         return "\n".join([n, d, qn]).strip()
 
 
+class SubControlFlowGraph(BaseModel):
+    sub_graph: str = Field(description="The sub control flow graph in DOT format.")
+
+
 class AnalysisInsights(BaseModel):
     abstract_components: List[Component] = Field(
         description="List of the abstract components identified in the project.")
@@ -38,6 +42,14 @@ class AnalysisInsights(BaseModel):
         title = "# 📦 Abstract Components Overview\n"
         body = "\n\n".join(ac.llm_str() for ac in self.abstract_components)
         return title + body
+
+
+class MarkdownOutput(BaseModel):
+    content: str = Field(description="Analysis with abstract diagram in markdown format.")
+    components: List[Component] = Field(description="List of the abstract components from the diagram.")
+
+    def llm_str(self):
+        return self.content.strip()
 
 
 class CodeBoardingAgent:

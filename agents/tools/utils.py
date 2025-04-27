@@ -7,8 +7,12 @@ def read_dot_file(file_path: str) -> str:
     with open(file_path, 'r') as file:
         content = file.read()
 
+    return clean_dot_file_str(content)
+
+
+def clean_dot_file_str(dot_file_str: str):
     cleaned_lines = []
-    for line in content.splitlines():
+    for line in dot_file_str.splitlines():
         # Remove anything inside brackets [] including the brackets
         cleaned_line = re.sub(r'\[.*?\]', '', line)
         cleaned_lines.append(cleaned_line)

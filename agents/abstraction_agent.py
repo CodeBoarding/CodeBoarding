@@ -1,7 +1,8 @@
 from langchain.prompts import PromptTemplate
+from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 
-from agents.agent import CodeBoardingAgent, AnalysisInsights
+from agents.agent import CodeBoardingAgent, AnalysisInsights, MarkdownOutput
 from agents.prompts import CFG_MESSAGE, STRUCTURE_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, MARKDOWN_MESSAGE
 
 
@@ -19,6 +20,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "structure": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "source": PydanticOutputParser(pydantic_object=AnalysisInsights),
+            "markdown": PydanticOutputParser(pydantic_object=MarkdownOutput),
         }
 
         self.prompts = {
@@ -33,7 +35,9 @@ class AbstractionAgent(CodeBoardingAgent):
                                          "format_instructions": self.parsers["source"].get_format_instructions()}),
             "markdown": PromptTemplate(template=MARKDOWN_MESSAGE,
                                        input_variables=["project_name", "cfg_insight", "structure_insight",
-                                                        "source_insight"]),
+                                                        "source_insight"],
+                                       partial_variables={
+                                           "format_instructions": self.parsers["markdown"].get_format_instructions()}),
         }
 
     def step_cfg(self, cfg_str):
@@ -80,7 +84,9 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = self.parsers["source"].parse(response)
         return self.context["source"]
 
-    def generate_markdown(self):
+    def generate_markdown(self, rerun=3):
+        if rerun < 0:
+            raise Exception("Max rerun attempts exceeded.")
         print(f"[INFO] Generating markdown for project: {self.project_name}")
         prompt = self.prompts["markdown"].format(
             project_name=self.project_name,
@@ -89,4 +95,8 @@ class AbstractionAgent(CodeBoardingAgent):
             source_insight=self.context.get('source').llm_str()
         )
         response = self._invoke(prompt)
-        return response
+        try:
+            return self.parsers["markdown"].parse(response)
+        except OutputParserException as e:
+            print(f"[ERROR] Error in parsing markdown: {e}")
+            return self.generate_markdown(rerun=rerun - 1)
