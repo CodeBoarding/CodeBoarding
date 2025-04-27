@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
+from agents.markdown_enhancement import MarkdownEnhancer
 from agents.tools.utils import clean_dot_file_str
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
@@ -97,13 +98,38 @@ def main(repo_name):
             content = details_results
         else:
             content = details_results.content
+        if "/" in component.name:
+            component.name = component.name.replace("/", "-")
         with open(f"{component.name}.md", "w") as f:
             f.write(content)
 
     # Upload the onboarding materials to the repo
+
+    # Final touches:
+    md_enhancer = MarkdownEnhancer()
+    current_files = os.listdir("./")
+    for file in tqdm(current_files, desc="Enhancing the markdown files"):
+        if file.endswith('.md') and file != "README.md":
+            with open(file, 'r') as f:
+                content = f.read()
+            content = md_enhancer.fix_diagram(content)
+            if file.endswith("on_boarding.md"):
+                content = md_enhancer.link_components(content, repo_name, current_files)
+                with open(file, 'w') as f:
+                    f.write(content)
+
     upload_onboarding_materials(repo_name)
 
 
+def generate_docs(repo_name):
+    try:
+        clean_files(Path('./'))
+        main(repo_name)
+    except Exception as e:
+        print(f"[ERROR] Error in generating docs: {e}")
+        pass
+
 if __name__ == "__main__":
-    clean_files(Path('./'))
-    main("gpf")
+    repos = ["browser-use", "django", "django-rest-framework", "explorer", "fastapi", "flask", "gpf","invariant", "invariant-sdk", "markitdown", "mcp-scan", "simplemonitor", "WhatWaf"]
+    for repo in tqdm(repos, desc="Generating docs for repos"):
+        generate_docs(repo)
