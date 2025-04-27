@@ -3,11 +3,12 @@ from typing import Optional, List
 from langchain_core.tools import ArgsSchema, BaseTool
 
 from .read_packages import PackageInput, NoRootPackageFoundError
+from .utils import read_dot_file
 
 
 class CodeStructureTool(BaseTool):
     name: str = "read_class_structure"
-    description: str = "Tool which gives class structure relationships as a graph in a .dot format."
+    description: str = "Tool which gives class structure relationships."
     args_schema:Optional[ArgsSchema] = PackageInput
     return_direct:bool = False
     cached_files: Optional[List[str]] = None
@@ -41,8 +42,8 @@ class CodeStructureTool(BaseTool):
         """
         for path in self.cached_files:
             if root_package in path.name:
-                with open(path, 'r') as f:
-                    return f"Package relations for: {root_package}:\n{f.read()}"
+                content = read_dot_file(path)
+                return f"Package relations for: {root_package}:\n{content}"
 
         package_names = [path.name.split("_structure.dot")[-1] for path in self.cached_files]
         raise NoRootPackageFoundError(f"Could not find package {root_package}, available packages are: {package_names}")

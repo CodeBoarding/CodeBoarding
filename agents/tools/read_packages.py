@@ -3,6 +3,8 @@ from typing import Optional, List
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
+from agents.tools.utils import read_dot_file
+
 
 class PackageInput(BaseModel):
     root_package: str = Field(
@@ -18,8 +20,8 @@ class NoRootPackageFoundError(Exception):
 
 class PackageRelationsTool(BaseTool):
     name: str = "package_relations"
-    description: str = ("Tool which can give package relationships for a root package. "
-                        "It gives the root pacakge and its relationships to other root packages as well as it's children packages.")
+    description: str = ("Tool which can give package relationships for a  package. "
+                        "The tool gives the relationships and hierarchy of packages of the requested package.")
     args_schema:Optional[ArgsSchema] = PackageInput
     return_direct:bool = False
     cached_files: Optional[List[str]] = None
@@ -54,8 +56,8 @@ class PackageRelationsTool(BaseTool):
         """
         for path in self.cached_files:
             if root_package in path.name:
-                with open(path, 'r') as f:
-                    return f"Package relations for: {root_package}:\n{f.read()}"
+                content = read_dot_file(path)
+                return f"Package relations for: {root_package}:\n{content}"
 
         package_names = [path.name.split("packages_")[-1].split(".dot")[0] for path in self.cached_files]
         raise NoRootPackageFoundError(f"Could not find package {root_package}, available packages are: {package_names}")
