@@ -27,7 +27,7 @@ Use class structure and package structure to help you with that.
 **Your Tasks:**
 1. Identify important modules and functions from the CFG.
 2. Start grouping classes and functions into high-level abstractions. Get more structure information with the **read_class_structure** tool.
-3. For further grouping you can use the `package_relations` tool to get how packages related to each other.
+3. For further grouping you can use the **package_relations** tool to get how packages related to each other. **Make so that the grouping is meaningful and related to the package structure.**
 4. Identify the most important and central pieces of the abstract control flow graph.
 
 Please do the above analysis and give me the results in the following format:

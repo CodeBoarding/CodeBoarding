@@ -37,7 +37,7 @@ class MarkdownEnhancer:
 
 For each component in the **mermaid diagram**, make it a clickable link like: **click A href "{base_url}/RelevantFile.md"**.
 
-Example of valid mermaid:
+Example of linked valid mermaid:
 ```mermaid
 graph LR
     A([Request Handling]) -- Receives --> B([URL Routing])
@@ -53,7 +53,7 @@ click D href "{base_url}/Data%20Models%20(ORM).md"
 The available files are: {files}. DON\'T change anything else, just add the links. Return the full markdown string.
 For the links use the full links, not relative links.
 
-Return the full markdown string. It should not start and end with ```markdown```. Just give the content as if you are writing a markdown file.
+Return the full markdown string with clickable linked mermaid components. It should not start with ```markdown and end with ```. Just give the content as if you are writing a markdown file.
 '''
         response = self.llm.invoke(prompt)
         return response.content

@@ -112,7 +112,7 @@ def main(repo_name):
         if file.endswith('.md') and file != "README.md":
             with open(file, 'r') as f:
                 content = f.read()
-            content = md_enhancer.fix_diagram(content)
+            # content = md_enhancer.fix_diagram(content)
             if file.endswith("on_boarding.md"):
                 content = md_enhancer.link_components(content, repo_name, current_files)
                 with open(file, 'w') as f:
@@ -122,14 +122,11 @@ def main(repo_name):
 
 
 def generate_docs(repo_name):
-    try:
-        clean_files(Path('./'))
-        main(repo_name)
-    except Exception as e:
-        print(f"[ERROR] Error in generating docs: {e}")
-        pass
+    clean_files(Path('./'))
+    main(repo_name)
+
 
 if __name__ == "__main__":
-    repos = ["browser-use", "django", "django-rest-framework", "explorer", "fastapi", "flask", "gpf","invariant", "invariant-sdk", "markitdown", "mcp-scan", "simplemonitor", "WhatWaf"]
+    repos = ["django", "flask", "fastapi"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs(repo)

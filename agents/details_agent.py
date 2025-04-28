@@ -66,7 +66,9 @@ class DetailsAgent(CodeBoardingAgent):
         self.context['structure_insight'] = parsed
         return parsed
 
-    def step_markdown(self, component):
+    def step_markdown(self, component, retry=3):
+        if retry < 0:
+            return f"Max retries reached, failed to generate documentation for {component.llm_str()}"
         print(f"[Details Agent - INFO] Generating details documentation")
         prompt = self.prompts["document"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
@@ -76,4 +78,4 @@ class DetailsAgent(CodeBoardingAgent):
         try:
             return self.parsers["document"].parse(response)
         except OutputParserException:
-            return response
+            return self.step_markdown(component, retry=retry - 1)

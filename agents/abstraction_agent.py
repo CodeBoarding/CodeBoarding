@@ -98,5 +98,5 @@ class AbstractionAgent(CodeBoardingAgent):
         try:
             return self.parsers["markdown"].parse(response)
         except OutputParserException as e:
-            print(f"[ERROR] Error in parsing markdown: {e}")
+            print(f"[Warn] Error in parsing markdown: {e}")
             return self.generate_markdown(rerun=rerun - 1)

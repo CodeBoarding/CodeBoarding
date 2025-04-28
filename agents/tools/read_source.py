@@ -117,5 +117,4 @@ class CodeExplorerTool(BaseTool):
             raise ImportError(f"Attribute {'.'.join(attrs)} not found in module {path}.")
         except ImportError as e:
             # This means we cannot import, so now it is time to try to read the file:
-            print(f"[Source Tool -  warn]: ImportError for {python_code_reference}: {e}")
             raise e
