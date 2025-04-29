@@ -73,9 +73,10 @@ def upload_onboarding_materials(project_name):
 
 def main(repo_name):
     ROOT = "/home/ivan/StartUp/CodeBoarding/repos/"
-    root_dir = Path(f"{ROOT}{repo_name}")
-    structures, packages, call_graph_str = generate_on_boarding_documentation(root_dir)
-    abstraction_agent = AbstractionAgent(root_dir, repo_name)
+    root_repo_dir = Path(f"{ROOT}{repo_name}")
+    root_dir = "/home/ivan/StartUp/CodeBoarding/"
+    structures, packages, call_graph_str = generate_on_boarding_documentation(root_repo_dir)
+    abstraction_agent = AbstractionAgent(root_dir, root_repo_dir, repo_name)
     abstraction_agent.step_cfg(call_graph_str)
     # for structure in structures:
     #     abstraction_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
@@ -85,10 +86,10 @@ def main(repo_name):
     with open("on_boarding.md", "w") as f:
         f.write(final_response.content.strip())
 
-    details_agent = DetailsAgent(root_dir, repo_name)
+    details_agent = DetailsAgent(root_dir, root_repo_dir, repo_name)
     for component in tqdm(final_response.components, desc="Analyzing details"):
         # Here I want to filter out based on the qualified names:
-        if details_agent.step_subcfg(call_graph_str, component) == None:
+        if details_agent.step_subcfg(call_graph_str, component) is None:
             print(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
             continue
         details_agent.step_cfg(component)
@@ -127,6 +128,6 @@ def generate_docs(repo_name):
 
 
 if __name__ == "__main__":
-    repos = ["django", "flask", "fastapi"]
+    repos = ["gpf"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs(repo)

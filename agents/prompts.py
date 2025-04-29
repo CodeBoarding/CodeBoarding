@@ -34,26 +34,6 @@ Please do the above analysis and give me the results in the following format:
 {format_instructions}
 """
 
-STRUCTURE_MESSAGE = """
-You are an expert in software system architecture. Currently at step 2 (think about step 3) of the analysis tasks
-
-I previously provided you with an analysis of important modules and abstractions, based on the project's Control Flow Graph (CFG):
-
-{cfg_insight}
-
-Now, here is the project’s main package/directory structure, expressed as hierarchy/graphs:
-
-{structure_graph}
-
-**Your Tasks:**
-1. Map the previously identified key modules and abstractions to specific packages/directories/files.
-2. Identify any additional important components that are evident from the structure (e.g., large packages, central directories, or clearly separated components). You can now also group the CFG abstractions even further if needed.
-3. Suggest a set of high-level abstract classes or components that best represent the project as a whole, considering both the raw structure and your earlier insight.
-
-**Instructions:**
-{format_instructions}
-"""
-
 SOURCE_MESSAGE = """
 You a software architecture expert. Now you have observed the CFG and got insights from the structure of the project.
 
@@ -64,10 +44,10 @@ Now as final step in order to validate and enhance their relationship you can ma
 
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
-2. Refine or expand the earlier high-level classes/components, in the end you have to have NO MORE than 10 components (best if they are 5), based on new details from the source code.
-3. Define each component by its name, relevant documents and most importantly **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
+2. Refine or expand the earlier high-level classes/components, in the end you have to have **LESS THAN 10 COMPONENTS** (best if they are 5), based on new details from the source code.
+3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents and most importantly **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
 
-**Instructions:**
+**Format Instructions:**
 {format_instructions}
 """
 
@@ -81,16 +61,18 @@ With enhancing that analysis with source code reading you identified the **final
 {source_insight}
 
 **Final Tasks:**
-Generate a high-level data-flow diagram which is accompanied with descriptions for each component.
+Generate a high-level data-flow diagram which is accompanied with descriptions for each component. **Keep the number of components less than 10** (OPTIMAL 5).
 1. Generate a short description of the project, what is its purpose and functionality.
-2. Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB..
+2. Generate a **data flow diagram which is LR** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB. Avoid self loop as they are not well supported in mermaid.
 3. Do a short one paragraph description of each component from the Mermaid diagram, what is its purpose and functionality is, **how it relates to the its neighbouring components**.
 
-**Instructions:**
+Alongside the markdown please for each of the components please retain which are the related files and their short descriptions.
+
+**Format Instructions:**
 {format_instructions}
 """
 
-SYSTEM_MESSAGE_DETAILS = """
+SYSTEM_DETAILS_MESSAGE = """
 You are a software architecture expert.
 We are exploring one of the subsystems of a big project `{project_name}`.
 Your task now is to generate a general overview of the component, its structure, flow, and its purpose.
@@ -108,7 +90,6 @@ After observing the output, continue reasoning.
 
 You MUST use the tools to complete your tasks.
 """
-
 
 SUBCFG_DETAILS_MESSAGE = """
 You are an expert in software system architecture. Working on step 1 of the analysis tasks.
@@ -129,7 +110,9 @@ Using the Control Flow Graph (CFG) for a subsystem of the project `{project_name
 
 To get better understanding of these interactions you can look at their source code using the `read_source_code` tool.
 
-Please identify important modules and functions from the structure. You can use the following format:
+Please identify important modules and functions from the structure. For each component have the name, description and related source code.
+
+Use the following format:
 {format_instructions}
 """
 
@@ -146,10 +129,12 @@ To further group elements if needed you can make use of the `package_relations` 
 1. Validate previous abstractions and relationships with the given tools.
 2. Expand or refine the earlier high-level classes/components, we need to understand the structure of the component and its purpose.
 
-**Instructions:**
+
+Collect the newly identified components with their names, descriptions and related source code.
+
+** Format Instructions: **
 {format_instructions}
 """
-
 
 DETAILS_MESSAGE = """
 You are a software architecture expert. We are at the final step of the analysis tasks.
@@ -164,6 +149,6 @@ Here is a summary of the most important modules, components, and abstract classe
     - Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB.
     - For each component of the diagram generate a short description of its purpose and functionality, how it relates to the its neighbouring components. **List all relevant source files**.
 
-** Instructions: **
+** Format Instructions: **
 {format_instructions}
 """

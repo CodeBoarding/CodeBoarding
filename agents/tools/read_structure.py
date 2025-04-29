@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Optional, List
 
 from langchain_core.tools import ArgsSchema, BaseTool
@@ -23,13 +25,16 @@ class CodeStructureTool(BaseTool):
         """
         Walk the directory and collect all files.
         """
-        for path in root_project_dir.rglob('*_structure.dot'):
-            self.cached_files.append(path)
+        for file in os.listdir(root_project_dir):
+            if file.endswith('_structure.dot'):
+                self.cached_files.append(Path(f'{root_project_dir}/{file}'))
 
     def _run(self, root_package: str) -> str:
         """
         Run the tool with the given input.
         """
+        if root_package.startswith("repos."):
+            root_package = root_package.split("repos.")[-1]
         print(f"[Structure Tool] Reading structure for {root_package}")
         try:
             return self.read_file(root_package)

@@ -3,14 +3,13 @@ from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 
 from agents.agent import CodeBoardingAgent, AnalysisInsights, MarkdownOutput
-from agents.prompts import CFG_MESSAGE, STRUCTURE_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, MARKDOWN_MESSAGE
+from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, MARKDOWN_MESSAGE
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, root_dir, project_name):
-        super().__init__(root_dir, SYSTEM_MESSAGE)
+    def __init__(self, root_dir, root_repo_dir, project_name):
+        super().__init__(root_dir, root_repo_dir, SYSTEM_MESSAGE)
 
-        self.root_dir = root_dir
         self.project_name = project_name
 
         self.context = {"structure_insight": []}  # Store evolving insights here
@@ -18,7 +17,6 @@ class AbstractionAgent(CodeBoardingAgent):
         # Define your prompts for each stage, and their parsers
         self.parsers = {
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
-            "structure": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "source": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "markdown": PydanticOutputParser(pydantic_object=MarkdownOutput),
         }
@@ -27,9 +25,6 @@ class AbstractionAgent(CodeBoardingAgent):
             "cfg": PromptTemplate(template=CFG_MESSAGE, input_variables=["project_name", "cfg_str"],
                                   partial_variables={
                                       "format_instructions": self.parsers["cfg"].get_format_instructions()}),
-            "structure": PromptTemplate(template=STRUCTURE_MESSAGE, input_variables=["cfg_insight", "structure_graph"],
-                                        partial_variables={"format_instructions": self.parsers[
-                                            "structure"].get_format_instructions()}),
             "source": PromptTemplate(template=SOURCE_MESSAGE, input_variables=["insight_so_far"],
                                      partial_variables={
                                          "format_instructions": self.parsers["source"].get_format_instructions()}),
@@ -56,16 +51,6 @@ class AbstractionAgent(CodeBoardingAgent):
         insight_str += "\n"
         self.context['packages'] = insight_str
 
-    def step_structure(self, structure_graph):
-        print(f"[INFO] Analyzing Structure for project: {self.project_name}")
-        prompt = self.prompts["structure"].format(
-            cfg_insight=self.context.get('cfg_insight').llm_str(),
-            structure_graph=structure_graph
-        )
-        response = self._invoke(prompt)
-        parsed = self.parsers["structure"].parse(response)
-        self.context['structure_insight'].append(parsed)
-        return parsed
 
     def step_source(self):
         print(f"[INFO] Analyzing Source for project: {self.project_name}")
@@ -98,5 +83,10 @@ class AbstractionAgent(CodeBoardingAgent):
         try:
             return self.parsers["markdown"].parse(response)
         except OutputParserException as e:
+            print(response)
             print(f"[Warn] Error in parsing markdown: {e}")
+            return self.generate_markdown(rerun=rerun - 1)
+        except Exception as e:
+            print(response)
+            print(f"[Warn] Error in generating markdown: {e}")
             return self.generate_markdown(rerun=rerun - 1)
