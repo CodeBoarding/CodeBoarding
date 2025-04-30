@@ -59,8 +59,12 @@ class PackageRelationsTool(BaseTool):
         """
         Read the file from the given path.
         """
+
+        root_package = root_package.split(".")[0]
+
         for path in self.cached_files:
             if root_package in path.name:
+                print(f"[Package Tool] Found file {path}")
                 content = read_dot_file(path)
                 return f"Package relations for: {root_package}:\n{content}"
 
