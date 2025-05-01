@@ -44,7 +44,7 @@ Now as final step in order to validate and enhance their relationship you can ma
 
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
-2. Refine or expand the earlier high-level classes/components, in the end you have to have **LESS THAN 10 COMPONENTS** (best if they are 5), based on new details from the source code.
+2. Refine or expand the earlier high-level classes/components, in the end you have to have **LESS THAN 10 COMPONENTS**, based on new details from the source code.
 3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents and most importantly **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
 
 **Format Instructions:**
