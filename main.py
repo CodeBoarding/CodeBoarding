@@ -1,10 +1,11 @@
 import os
 import shutil
+import logging
 from pathlib import Path
-
+from dotenv import load_dotenv
 from git import Repo
 from tqdm import tqdm
-
+from utils import caching_enabled
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.markdown_enhancement import MarkdownEnhancer
@@ -12,7 +13,7 @@ from agents.tools.utils import clean_dot_file_str
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
-
+from logging_config import setup_logging
 
 def generate_on_boarding_documentation(repo_location: Path):
     dot_suffix = 'structure.dot'
@@ -47,24 +48,31 @@ def clean_files(directory):
             os.remove(os.path.join(directory, f))
         if f.endswith('.md') and f != "README.md":
             os.remove(os.path.join(directory, f))
-    print("Files clean up done.")
+    logger.info("Cleaned up old .dot and .md files in %s", directory)
 
 
-def upload_onboarding_materials(project_name):
-    onboarding_repo = "/home/ivan/StartUp/GeneratedOnBoardings/"
-    repo = Repo(onboarding_repo)
+def onboarding_materials_exist(project_name, source_dir="/home/ivan/StartUp/GeneratedOnBoardings/"):
+    repo = Repo(source_dir)
     origin = repo.remote(name='origin')
     origin.pull()
 
-    onboarding_repo_location = onboarding_repo + project_name
+    onboarding_repo_path = os.path.join(source_dir, project_name)
+    return os.path.isdir(onboarding_repo_path) and len(os.listdir(onboarding_repo_path))
+
+
+def upload_onboarding_materials(project_name, repo_dir="/home/ivan/StartUp/GeneratedOnBoardings/"):
+    repo = Repo(repo_dir)
+    origin = repo.remote(name='origin')
+    origin.pull()
+
+    onboarding_repo_location = os.path.join(repo_dir, project_name)
     if os.path.exists(onboarding_repo_location):
-        # remove the directory
         shutil.rmtree(onboarding_repo_location)
     os.makedirs(onboarding_repo_location)
-    current_files = os.listdir("./")
-    for file in current_files:
-        if file.endswith('.md') and file != "README.md":
-            shutil.copy(file, os.path.join(onboarding_repo_location, file))
+
+    for filename in os.listdir("./"):
+        if filename.endswith('.md') and filename != "README.md":
+            shutil.copy(filename, os.path.join(onboarding_repo_location, filename))
     # Now commit the changes
     repo.git.add(A=True)  # Equivalent to `git add .`
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
@@ -72,25 +80,29 @@ def upload_onboarding_materials(project_name):
 
 
 def main(repo_name):
-    ROOT = "/home/ivan/StartUp/CodeBoarding/repos/"
-    root_repo_dir = Path(f"{ROOT}{repo_name}")
-    root_dir = "/home/ivan/StartUp/CodeBoarding/"
-    structures, packages, call_graph_str = generate_on_boarding_documentation(root_repo_dir)
-    abstraction_agent = AbstractionAgent(root_dir, root_repo_dir, repo_name)
+    load_dotenv()
+    ROOT = os.getenv("ROOT")
+    ROOT_RESULT = os.getenv("ROOT_RESULT")
+    repo_dir = Path(ROOT) / 'repos' / repo_name
+
+    if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
+        logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
+        return
+
+    structures, packages, call_graph_str = generate_on_boarding_documentation(repo_dir)
+    abstraction_agent = AbstractionAgent(ROOT, repo_dir, repo_name)
     abstraction_agent.step_cfg(call_graph_str)
-    # for structure in structures:
-    #     abstraction_agent.step_structure(f"**{structure[0]}**\n, {structure[1]}")
     abstraction_agent.step_source()
 
     final_response = abstraction_agent.generate_markdown()
     with open("on_boarding.md", "w") as f:
         f.write(final_response.content.strip())
 
-    details_agent = DetailsAgent(root_dir, root_repo_dir, repo_name)
+    details_agent = DetailsAgent(ROOT, repo_dir, repo_name)
     for component in tqdm(final_response.components, desc="Analyzing details"):
         # Here I want to filter out based on the qualified names:
         if details_agent.step_subcfg(call_graph_str, component) is None:
-            print(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
+            logging.info(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
             continue
         details_agent.step_cfg(component)
         details_agent.step_enhance_structure(component)
@@ -119,15 +131,20 @@ def main(repo_name):
                 with open(file, 'w') as f:
                     f.write(content)
 
-    upload_onboarding_materials(repo_name)
+    upload_onboarding_materials(repo_name, ROOT_RESULT)
 
 
 def generate_docs(repo_name):
     clean_files(Path('./'))
     main(repo_name)
 
+def clone_repository(repo_url: str):
+    pass
 
 if __name__ == "__main__":
-    repos = ["gpf"]
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("Starting up…")
+    repos = ["markitdown"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs(repo)
