@@ -52,10 +52,11 @@ class StructureGraphBuilder:
 
 def collect_paths(root: Path) -> list[Path]:
     collected: list[Path] = []
-
+    
+    exclude_dirs = {"test", "tests", "testing", "examples"}
     def _walk(dir_: Path):
         # Skip tests for now.
-        if "tests" in dir_.parts:
+        if any(part in exclude_dirs for part in dir_.parts):
             return
         if (dir_ / "__init__.py").is_file():
             collected.append(dir_)
