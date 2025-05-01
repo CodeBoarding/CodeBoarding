@@ -1,7 +1,7 @@
 import os
 from collections import deque
 from pathlib import Path
-
+import logging
 import pydot
 
 
@@ -26,6 +26,7 @@ class DotGraphTransformer:
             try:
                 entries = os.listdir(current_dir)
             except PermissionError:
+                logging.warning(f"Permission denied scanning directory: {current_dir!r}")
                 continue
 
             # Check if this directory has an __init__.py file
