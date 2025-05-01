@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 def init_llm():
-    load_dotenv()
     api_key = os.getenv("API_KEY")
 
     return ChatGoogleGenerativeAI(
@@ -14,3 +13,6 @@ def init_llm():
         max_retries=2,
         google_api_key=api_key,
     )
+
+def caching_enabled():
+    return os.getenv('CACHING', 'false').lower() in ('1', 'true', 'yes')
