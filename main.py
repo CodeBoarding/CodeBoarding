@@ -80,7 +80,6 @@ def push_onboarding_materials(project_name, repo_dir="/home/ivan/StartUp/Generat
 
 
 def main(repo_name):
-    load_dotenv(override=True)
     ROOT = os.getenv("ROOT")
     ROOT_RESULT = os.getenv("ROOT_RESULT")
     repo_dir = Path(ROOT) / 'repos' / repo_name
@@ -174,12 +173,14 @@ def clone_repository(repo_url: str) -> Path:
 
 
 if __name__ == "__main__":
+    load_dotenv(override=True)
     setup_logging()
     logger = logging.getLogger(__name__)
     logger.info("Starting up…")
     repo_urls = [
-        "git@github.com:The-Pocket/PocketFlow.git",
-    ]
+    "https://github.com/torvalds/linux",
+]
+
     for url in tqdm(repo_urls, desc="Generating docs for repos"):
         local_repo_dir = clone_repository(url)
         clean_files(Path('./'))
