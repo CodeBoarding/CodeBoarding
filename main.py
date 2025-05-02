@@ -3,9 +3,9 @@ import shutil
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from git import Repo
+from git import Repo, GitCommandError
 from tqdm import tqdm
-from utils import caching_enabled
+from utils import caching_documentation_enabled, caching_repo_enabled
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.markdown_enhancement import MarkdownEnhancer
@@ -60,7 +60,7 @@ def onboarding_materials_exist(project_name, source_dir="/home/ivan/StartUp/Gene
     return os.path.isdir(onboarding_repo_path) and len(os.listdir(onboarding_repo_path))
 
 
-def upload_onboarding_materials(project_name, repo_dir="/home/ivan/StartUp/GeneratedOnBoardings/"):
+def push_onboarding_materials(project_name, repo_dir="/home/ivan/StartUp/GeneratedOnBoardings/"):
     repo = Repo(repo_dir)
     origin = repo.remote(name='origin')
     origin.pull()
@@ -80,13 +80,14 @@ def upload_onboarding_materials(project_name, repo_dir="/home/ivan/StartUp/Gener
 
 
 def main(repo_name):
-    load_dotenv()
+    load_dotenv(override=True)
     ROOT = os.getenv("ROOT")
     ROOT_RESULT = os.getenv("ROOT_RESULT")
     repo_dir = Path(ROOT) / 'repos' / repo_name
 
-    if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
+    if caching_documentation_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
         logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
+        print(os.getenv("CACHING"))
         return
 
     structures, packages, call_graph_str = generate_on_boarding_documentation(repo_dir)
@@ -131,20 +132,55 @@ def main(repo_name):
                 with open(file, 'w') as f:
                     f.write(content)
 
-    upload_onboarding_materials(repo_name, ROOT_RESULT)
+    push_onboarding_materials(repo_name, ROOT_RESULT)
 
 
-def generate_docs(repo_name):
-    clean_files(Path('./'))
-    main(repo_name)
+def clone_repository(repo_url: str) -> Path:
+    """
+    Clone the given repo_url into $ROOT/repos/<repo_name> if it doesn't exist.
+    If it does already exist, pull the latest changes instead.
+    Returns the Path to the local repo.
+    """
+    root = Path(os.getenv("ROOT"))
+    repos_dir = root / 'repos'
+    repos_dir.mkdir(parents=True, exist_ok=True)
 
-def clone_repository(repo_url: str):
-    pass
+    repo_name = Path(repo_url).stem  # strips off ".git" if present
+    repo_path = repos_dir / repo_name
+
+    if caching_repo_enabled() and repo_path.exists():
+        logging.info(f"Caching enabled and repository '{repo_name}' already exists; skipping clone/pull.")
+        return repo_path
+
+    if repo_path.exists():
+        try:
+            repo = Repo(repo_path)
+            origin = repo.remote(name='origin')
+            logging.info(f"Repository '{repo_name}' already exists; pulling latest changes…")
+            origin.pull()
+        except GitCommandError as e:
+            logging.error(f"Failed to pull updates for {repo_name}: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error when updating {repo_name}: {e}")
+    else:
+        try:
+            logging.info(f"Cloning '{repo_url}' into '{repo_path}'…")
+            repo = Repo.clone_from(repo_url, str(repo_path))
+        except GitCommandError as e:
+            logging.error(f"Failed to clone {repo_url}: {e}")
+            raise
+
+    return repo_path
+
 
 if __name__ == "__main__":
     setup_logging()
     logger = logging.getLogger(__name__)
     logger.info("Starting up…")
-    repos = ["markitdown"]
-    for repo in tqdm(repos, desc="Generating docs for repos"):
-        generate_docs(repo)
+    repo_urls = [
+        "git@github.com:The-Pocket/PocketFlow.git",
+    ]
+    for url in tqdm(repo_urls, desc="Generating docs for repos"):
+        local_repo_dir = clone_repository(url)
+        clean_files(Path('./'))
+        main(local_repo_dir)
