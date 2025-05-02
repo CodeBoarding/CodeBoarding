@@ -14,5 +14,8 @@ def init_llm():
         google_api_key=api_key,
     )
 
-def caching_enabled():
-    return os.getenv('CACHING', 'false').lower() in ('1', 'true', 'yes')
+def caching_documentation_enabled():
+    return os.getenv('CACHING_DOCUMENTATION').lower() in ('1', 'true', 'yes')
+
+def caching_repo_enabled():
+    return os.getenv('CACHING_REPO').lower() in ('1', 'true', 'yes')
