@@ -11,12 +11,20 @@ from agents.tools import CodeExplorerTool
 from agents.tools.read_packages import PackageRelationsTool
 from agents.tools.read_structure import CodeStructureTool
 
+class Relation(BaseModel):
+    relation: str = Field(description="Single phrase used for the relationship of two components.")
+    src_name: str = Field(description="Source component name")
+    dst_name: str = Field(description="Target component name")
+
+    def llm_str(self):
+        return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
 class Component(BaseModel):
     name: str = Field(description="Name of the abstract component")
     description: str = Field(description="A short description of the component.")
     qualified_names: List[str] = Field(
-        description="A list of qualified names of related methods and classes to the component.")
+        description="A list of qualified names of related methods and classes to the component."
+    )
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
@@ -35,22 +43,17 @@ class SubControlFlowGraph(BaseModel):
 class AnalysisInsights(BaseModel):
     abstract_components: List[Component] = Field(
         description="List of the abstract components identified in the project.")
+    components_relations: List[Relation] = Field(
+        description="List of relations among the abstract components."
+    )
 
     def llm_str(self):
         if not self.abstract_components:
             return "No abstract components found."
         title = "# 📦 Abstract Components Overview\n"
-        body = "\n\n".join(ac.llm_str() for ac in self.abstract_components)
-        return title + body
-
-
-class MarkdownOutput(BaseModel):
-    content: str = Field(description="Analysis with abstract diagram in markdown format.")
-    components: List[Component] = Field(description="List of the abstract components from the diagram.")
-
-    def llm_str(self):
-        return self.content.strip()
-
+        body = "\n".join(ac.llm_str() for ac in self.abstract_components)
+        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
+        return title + body + relations
 
 class CodeBoardingAgent:
     def __init__(self, root_dir, root_repo_dir, system_message):

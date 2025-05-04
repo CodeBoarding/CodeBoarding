@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from git import Repo
 from tqdm import tqdm
 from utils import caching_enabled
+from utils import generate_mermaid
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.markdown_enhancement import MarkdownEnhancer
@@ -116,12 +117,15 @@ def generate_docs(repo_name):
     abstraction_agent.step_cfg(call_graph_str)
     abstraction_agent.step_source()
 
+    
     final_response = abstraction_agent.generate_markdown()
+    markdown_response = generate_mermaid(final_response)
+
     with open("on_boarding.md", "w") as f:
-        f.write(final_response.content.strip())
+        f.write(markdown_response.strip())
 
     details_agent = DetailsAgent(ROOT, repo_path, repo_name)
-    for component in tqdm(final_response.components, desc="Analyzing details"):
+    for component in tqdm(final_response.abstract_components, desc="Analyzing details"):
         # Here I want to filter out based on the qualified names:
         if details_agent.step_subcfg(call_graph_str, component) is None:
             logging.info(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
@@ -129,14 +133,12 @@ def generate_docs(repo_name):
         details_agent.step_cfg(component)
         details_agent.step_enhance_structure(component)
         details_results = details_agent.step_markdown(component)
-        if type(details_results) is str:
-            content = details_results
-        else:
-            content = details_results.content
+
+        details_markdown = generate_mermaid(details_results)
         if "/" in component.name:
             component.name = component.name.replace("/", "-")
         with open(f"{component.name}.md", "w") as f:
-            f.write(content)
+            f.write(details_markdown)
 
     # Upload the onboarding materials to the repo
 
@@ -192,6 +194,6 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/t-dillon/tdoku"]
+    repos = ["https://github.com/microsoft/markitdown"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
-        generate_docs_remote(repo)
+        generate_docs_remote(repo, local_dev=True)

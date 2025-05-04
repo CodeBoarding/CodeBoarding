@@ -28,7 +28,7 @@ Use class structure and package structure to help you with that.
 1. Identify important modules and functions from the CFG.
 2. Start grouping classes and functions into high-level abstractions. Get more structure information with the **read_class_structure** tool.
 3. For further grouping you can use the **package_relations** tool to get how packages related to each other. **Make so that the grouping is meaningful and related to the package structure.**
-4. Identify the most important and central pieces of the abstract control flow graph.
+4. Identify the most important **components** of the abstract control flow graph and their **relationships** with other components.
 
 Please do the above analysis and give me the results in the following format:
 {format_instructions}
@@ -45,26 +45,26 @@ Now as final step in order to validate and enhance their relationship you can ma
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
 2. Refine or expand the earlier high-level classes/components, in the end you have to have **LESS THAN 10 COMPONENTS**, based on new details from the source code.
-3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents and most importantly **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
+3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents, relationship to other components, and most importantly **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
 
 **Format Instructions:**
 {format_instructions}
 """
 
-MARKDOWN_MESSAGE = """
+CONCLUSIVE_ANALYSIS_MESSAGE = """
 As the software architecture expert for the project `{project_name}`, you are now at the last step.
 
 You have the CFG analysis and came to the following conclusions:
 {cfg_insight}
 
-With enhancing that analysis with source code reading you identified the **final components**:
+With enhancing that analysis with source code analysis reading you identified the **final components**:
 {source_insight}
 
 **Final Tasks:**
 Generate a high-level data-flow diagram which is accompanied with descriptions for each component. **Keep the number of components less than 10** (OPTIMAL 5).
-1. Generate a short description of the project, what is its purpose and functionality.
-2. Generate a **data flow diagram which is LR** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB. Avoid self loop as they are not well supported in mermaid.
-3. Do a short one paragraph description of each component from the Mermaid diagram, what is its purpose and functionality is, **how it relates to the its neighbouring components**.
+1. Dive into the control-flow graph conclusions to pinpoint critical interaction pathways, highlight central modules/functions, and map out dependency chains.
+2. Examine the source-level analysis to confirm each component’s responsibilities, interface contracts, and communication patterns.
+3. Aggregate these insights and produce the final components with their names, descriptions, related source files, and relations to other components.
 
 Alongside the markdown please for each of the components please retain which are the related files and their short descriptions.
 
@@ -146,8 +146,7 @@ Here is a summary of the most important modules, components, and abstract classe
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
 2. Decide what type of diagram is best to represent the current component. If it is a simple component use a class diagram, accompanied with sequence diagram. If it has more than 5 classes, make use of component flow diagram.
 3. Generate markdown content for the component, including:
-    - Generate a **data flow diagram** (in Mermaid format) that describes the main flow of the project, it has to be a high-level overview of the project. The connections between the components should be clear and have to be described with one word like ("uses", "calls", "sends document"), in mermaid always use ComponentA--ConnectionDescription-->ComponentB.
-    - For each component of the diagram generate a short description of its purpose and functionality, how it relates to the its neighbouring components. **List all relevant source files**.
+    - For each component of the diagram generate a short description of its purpose and functionality, its relationship to other components, how it relates to the its neighbouring components. **List all relevant source files**.
 
 ** Format Instructions: **
 {format_instructions}

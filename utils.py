@@ -1,4 +1,7 @@
+import re
 import os
+from typing import Callable
+from agents.agent import AnalysisInsights
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from git import Git, GitCommandError
@@ -51,3 +54,45 @@ def sanitize_repo_url(repo_url: str) -> str:
     if not clean:
         raise ValueError("Repo URL is empty after sanitization")
     return clean
+
+
+def generate_mermaid(insights: AnalysisInsights) -> str:
+    """
+    Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
+    """
+
+    def sanitize(name: str) -> str:
+        # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
+        return re.sub(r'\W+', '_', name)
+
+    lines = ["```mermaid", "graph LR"]
+
+    # 1. Define each component as a node, including its description
+    for comp in insights.abstract_components:
+        node_id = sanitize(comp.name)
+        # Show name and short description in the node label
+        label = f"{comp.name}"
+        lines.append(f'    {node_id}["{label}"]')
+
+    # 2. Add relations as labeled edges
+    for rel in insights.components_relations:
+        src_id = sanitize(rel.src_name)
+        dst_id = sanitize(rel.dst_name)
+        # Use the relation phrase as the edge label
+        lines.append(f'    {src_id} -- "{rel.relation}" --> {dst_id}')
+
+    lines.append("```")
+
+    detail_lines = ["\n## Component Details\n"]
+    for comp in insights.abstract_components:
+        detail_lines.append(f"### {comp.name}")
+        detail_lines.append(f"{comp.description}")
+        if comp.qualified_names:
+            qn_list = ", ".join(f"`{qn}`" for qn in comp.qualified_names)
+            detail_lines.append(f"- **Related Classes/Methods**: {qn_list}")
+        else:
+            detail_lines.append(f"- **Related Classes/Methods**: _None_")
+        detail_lines.append("")  # blank line between components
+
+
+    return "\n".join(lines + detail_lines)

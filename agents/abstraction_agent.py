@@ -4,8 +4,8 @@ from langchain.prompts import PromptTemplate
 from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 
-from agents.agent import CodeBoardingAgent, AnalysisInsights, MarkdownOutput
-from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, MARKDOWN_MESSAGE
+from agents.agent import CodeBoardingAgent, AnalysisInsights
+from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE
 
 
 class AbstractionAgent(CodeBoardingAgent):
@@ -20,7 +20,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.parsers = {
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "source": PydanticOutputParser(pydantic_object=AnalysisInsights),
-            "markdown": PydanticOutputParser(pydantic_object=MarkdownOutput),
+            "markdown": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
 
         self.prompts = {
@@ -30,7 +30,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "source": PromptTemplate(template=SOURCE_MESSAGE, input_variables=["insight_so_far"],
                                      partial_variables={
                                          "format_instructions": self.parsers["source"].get_format_instructions()}),
-            "markdown": PromptTemplate(template=MARKDOWN_MESSAGE,
+            "markdown": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
                                        input_variables=["project_name", "cfg_insight", "structure_insight",
                                                         "source_insight"],
                                        partial_variables={

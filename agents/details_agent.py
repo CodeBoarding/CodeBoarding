@@ -6,9 +6,9 @@ from langchain_core.prompts import PromptTemplate
 
 from utils import CFGGenerationError
 
-from agents.agent import CodeBoardingAgent, AnalysisInsights, SubControlFlowGraph, MarkdownOutput
+from agents.agent import CodeBoardingAgent, AnalysisInsights, SubControlFlowGraph
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
-    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE
+    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE
 
 
 class DetailsAgent(CodeBoardingAgent):
@@ -19,7 +19,7 @@ class DetailsAgent(CodeBoardingAgent):
         self.parsers = {
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "structure": PydanticOutputParser(pydantic_object=AnalysisInsights),
-            "document": PydanticOutputParser(pydantic_object=MarkdownOutput),
+            "document": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
 
         self.prompts = {
@@ -92,7 +92,7 @@ class DetailsAgent(CodeBoardingAgent):
         logging.info(f"[Details Agent - INFO] Generating details documentation")
         prompt = self.prompts["document"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
-            component=component.llm_str()
+            component=component.llm_str(),
         )
         response = self._invoke(prompt)
         try:
