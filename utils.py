@@ -7,17 +7,22 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from git import Git, GitCommandError
 from typing import Optional
 
+
 class NoGithubTokenFoundError(Exception):
     pass
+
 
 class CFGGenerationError(Exception):
     pass
 
+
 class RepoDontExistError(Exception):
     pass
 
+
 class RepoIsNone(Exception):
     pass
+
 
 def init_llm():
     api_key = os.getenv("API_KEY")
@@ -31,8 +36,10 @@ def init_llm():
         google_api_key=api_key,
     )
 
+
 def caching_enabled():
     return os.getenv('CACHING_DOCUMENTATION', 'false').lower() in ('1', 'true', 'yes')
+
 
 def remote_repo_exists(repo_url: str) -> bool:
     if repo_url is None:
@@ -47,6 +54,7 @@ def remote_repo_exists(repo_url: str) -> bool:
         # something else went wrong (auth, network); re-raise so caller can decide
         raise
 
+
 def sanitize_repo_url(repo_url: str) -> str:
     if not repo_url or not isinstance(repo_url, str):
         raise RepoIsNone("No repo URL provided")
@@ -56,7 +64,7 @@ def sanitize_repo_url(repo_url: str) -> str:
     return clean
 
 
-def generate_mermaid(insights: AnalysisInsights) -> str:
+def generate_mermaid(insights: AnalysisInsights, project: str = "") -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
@@ -68,7 +76,7 @@ def generate_mermaid(insights: AnalysisInsights) -> str:
     lines = ["```mermaid", "graph LR"]
 
     # 1. Define each component as a node, including its description
-    for comp in insights.abstract_components:
+    for comp in insights.components:
         node_id = sanitize(comp.name)
         # Show name and short description in the node label
         label = f"{comp.name}"
@@ -81,18 +89,24 @@ def generate_mermaid(insights: AnalysisInsights) -> str:
         # Use the relation phrase as the edge label
         lines.append(f'    {src_id} -- "{rel.relation}" --> {dst_id}')
 
+    # 3. Add clickable links to the components
+    if project != "":
+        for comp in insights.components:
+            node_id = sanitize(comp.name)
+            # Use the component name as the link text
+            lines.append(f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{comp.name}.md" "Details"')
+
     lines.append("```")
 
     detail_lines = ["\n## Component Details\n"]
-    for comp in insights.abstract_components:
+    for comp in insights.components:
         detail_lines.append(f"### {comp.name}")
         detail_lines.append(f"{comp.description}")
-        if comp.qualified_names:
-            qn_list = ", ".join(f"`{qn}`" for qn in comp.qualified_names)
+        if comp.source_code_files:
+            qn_list = ", ".join(f"`{qn}`" for qn in comp.source_code_files)
             detail_lines.append(f"- **Related Classes/Methods**: {qn_list}")
         else:
             detail_lines.append(f"- **Related Classes/Methods**: _None_")
         detail_lines.append("")  # blank line between components
-
 
     return "\n".join(lines + detail_lines)

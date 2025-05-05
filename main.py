@@ -1,32 +1,35 @@
+import logging
 import os
 import shutil
-import logging
+import subprocess
 from pathlib import Path
+
 from dotenv import load_dotenv
 from git import Repo
 from tqdm import tqdm
-from utils import caching_enabled
-from utils import generate_mermaid
+
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.markdown_enhancement import MarkdownEnhancer
 from agents.tools.utils import clean_dot_file_str
+from logging_config import setup_logging
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
-from logging_config import setup_logging
+from utils import caching_enabled
+from utils import generate_mermaid
 from utils import remote_repo_exists, RepoDontExistError, sanitize_repo_url, NoGithubTokenFoundError
-import subprocess
-from opencensus.ext.azure.log_exporter import AzureLogHandler
 
 setup_logging()
 logger = logging.getLogger(__name__)
-#logger.addHandler(AzureLogHandler(connection_string=os.environ["CONNECTION_STRING"]))
+
+
+# logger.addHandler(AzureLogHandler(connection_string=os.environ["CONNECTION_STRING"]))
 
 def store_token():
     if os.environ['GITHUB_TOKEN']:
         raise NoGithubTokenFoundError()
-    logging.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}") # only first 7 for safety
+    logging.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
     cred = (
         "protocol=https\n"
         "host=github.com\n"
@@ -35,6 +38,7 @@ def store_token():
         "\n"
     ).encode()
     subprocess.run(["git", "credential", "approve"], input=cred)
+
 
 def generate_on_boarding_documentation(repo_location: Path):
     dot_suffix = 'structure.dot'
@@ -117,15 +121,14 @@ def generate_docs(repo_name):
     abstraction_agent.step_cfg(call_graph_str)
     abstraction_agent.step_source()
 
-    
     final_response = abstraction_agent.generate_markdown()
-    markdown_response = generate_mermaid(final_response)
+    markdown_response = generate_mermaid(final_response, repo_name)
 
     with open("on_boarding.md", "w") as f:
         f.write(markdown_response.strip())
 
     details_agent = DetailsAgent(ROOT, repo_path, repo_name)
-    for component in tqdm(final_response.abstract_components, desc="Analyzing details"):
+    for component in tqdm(final_response.components, desc="Analyzing details"):
         # Here I want to filter out based on the qualified names:
         if details_agent.step_subcfg(call_graph_str, component) is None:
             logging.info(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
@@ -139,21 +142,6 @@ def generate_docs(repo_name):
             component.name = component.name.replace("/", "-")
         with open(f"{component.name}.md", "w") as f:
             f.write(details_markdown)
-
-    # Upload the onboarding materials to the repo
-
-    # Final touches:
-    md_enhancer = MarkdownEnhancer()
-    current_files = os.listdir("./")
-    for file in tqdm(current_files, desc="Enhancing the markdown files"):
-        if file.endswith('.md') and file != "README.md":
-            with open(file, 'r') as f:
-                content = f.read()
-            # content = md_enhancer.fix_diagram(content)
-            if file.endswith("on_boarding.md"):
-                content = md_enhancer.link_components(content, repo_name, current_files)
-                with open(file, 'w') as f:
-                    f.write(content)
 
     upload_onboarding_materials(repo_name, ROOT_RESULT)
 
@@ -174,10 +162,9 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
     repo_url = sanitize_repo_url(repo_url)
     if not remote_repo_exists(repo_url):
         raise RepoDontExistError()
-    # 1) sanitize URL
-    # 2) derive repo name without the .git suffix
-    base = repo_url.rstrip("/").split("/")[-1]  # e.g. "markitdown.git"
-    name, ext = os.path.splitext(base)         # ("markitdown", ".git")
+
+    base = repo_url.rstrip("/").split("/")[-1]
+    name, ext = os.path.splitext(base)
     repo_name = name
 
     dest = target_dir / repo_name
@@ -187,13 +174,14 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
         repo.remotes.origin.pull()
     else:
         logging.info(f"Cloning {repo_url} into {dest}")
-        repo = Repo.clone_from(repo_url, dest)
+        Repo.clone_from(repo_url, dest)
     logging.info("Cloning finished!")
     return repo_name
+
 
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/microsoft/markitdown"]
+    repos = ["https://github.com/django/django"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs_remote(repo, local_dev=True)
