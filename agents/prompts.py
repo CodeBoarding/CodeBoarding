@@ -7,7 +7,7 @@ Your aim is to analyze the CFG and generate a high-level data flow overview of t
 2. Identify the most important and central modules or functions (HAVE TO BE LESS THAN 20).
 3. Investigate the structure of the project and identify the relevant packages and modules.
 3. Investigate the source code of interesting files to understand their purpose and functionality.
-4. For each important component, come up with a name which reflects its functionality. Do a description with state its main responsibility in a single paragraph.
+4. For each important component, come up with a name which reflects its functionality. Do a description and state its main responsibility in a single paragraph.
 5. Lastly identify the relationships between the components and how they interact with each other.
 
 Whenever you think a tool could help you complete for the analysis, **call the tool**.
@@ -28,7 +28,8 @@ Use class structure and package structure to help you with that.
 1. Identify important modules and functions from the CFG.
 2. Start grouping classes and functions into high-level abstractions. Get more structure information with the **read_class_structure** tool.
 3. For further grouping you can use the **package_relations** tool to get how packages related to each other. **Make so that the grouping is meaningful and related to the package structure.**
-4. Identify the most important components with their names and descriptions as well as related source code files. Furthermore, identify the relationships between the components and how they interact with each other. **Keep the number of components less than 20.**
+4. Identify the most important components with their names and descriptions as well as related source code files. **Keep the number of components less than 20.**
+5. Furthermore, identify the relationships between the components and how they interact with each other. 
 
 Please do the above analysis and give me the results in the following format:
 {format_instructions}

@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
-from agents.markdown_enhancement import MarkdownEnhancer
 from agents.tools.utils import clean_dot_file_str
 from logging_config import setup_logging
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
@@ -182,6 +181,6 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/django/django"]
+    repos = ["https://github.com/browser-use/browser-use"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs_remote(repo, local_dev=True)
