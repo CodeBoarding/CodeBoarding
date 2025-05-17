@@ -109,7 +109,8 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "") -> str:
 
     lines.append("```")
 
-    detail_lines = ["\n## Component Details\n"]
+    detail_lines = ["\n## Component Details\n", f"{insights.description}\n"]
+
     for comp in insights.components:
         detail_lines.append(f"### {comp.name}")
         detail_lines.append(f"{comp.description}")

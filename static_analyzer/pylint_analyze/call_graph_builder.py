@@ -178,10 +178,12 @@ class CallGraphBuilder:
             pos_args, kw_args = _collect_arguments(call)
 
             # one edge per call site, keep line number to distinguish calls
-            dst = f"{callee_label}"#@{call.lineno}"
+            dst = f"{callee_label}"  # @{call.lineno}"
+
+            # Handle dynamic calls
             self.graph.add_edge(
-                src,
-                dst,
+                self.remove_repo_prefix(src),
+                self.remove_repo_prefix(dst),
                 pos_args=pos_args,
                 kw_args=kw_args,
                 lineno=call.lineno,
@@ -224,3 +226,11 @@ class CallGraphBuilder:
                     label = f" [label=\"{attrs.get('lineno', '')}\"]"
                     f.write(f'  "{src}" -> "{dst}"{label};\n')
             f.write('}\n')
+
+    @staticmethod
+    def remove_repo_prefix(qualified_name):
+        if "repos" in qualified_name:
+            qualified_name = qualified_name.split("repos")[1]
+            if qualified_name.startswith(".") or qualified_name.startswith("/"):
+                qualified_name = qualified_name[1:]
+        return qualified_name

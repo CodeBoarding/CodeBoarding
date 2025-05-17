@@ -41,6 +41,7 @@ class SubControlFlowGraph(BaseModel):
 
 
 class AnalysisInsights(BaseModel):
+    description: str = Field("One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
     components: List[Component] = Field(
         description="List of the components identified in the project.")
     components_relations: List[Relation] = Field(
