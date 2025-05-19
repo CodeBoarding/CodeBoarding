@@ -48,6 +48,7 @@ class DotGraphTransformer:
         for edge in self.G.get_edges():
             src = edge.get_source()
             dst = edge.get_destination()
+            attrs = edge.get_attributes()
             src_entry = False
             dst_entry = False
             for package in self.packages:
