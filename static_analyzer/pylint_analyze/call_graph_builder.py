@@ -182,8 +182,8 @@ class CallGraphBuilder:
 
             # Handle dynamic calls
             self.graph.add_edge(
-                self.remove_repo_prefix(src),
-                self.remove_repo_prefix(dst),
+                self.fix_reference_name(src),
+                self.fix_reference_name(dst),
                 pos_args=pos_args,
                 kw_args=kw_args,
                 lineno=call.lineno,
@@ -228,9 +228,13 @@ class CallGraphBuilder:
             f.write('}\n')
 
     @staticmethod
-    def remove_repo_prefix(qualified_name):
+    def fix_reference_name(qualified_name):
         if "repos" in qualified_name:
             qualified_name = qualified_name.split("repos")[1]
             if qualified_name.startswith(".") or qualified_name.startswith("/"):
-                qualified_name = qualified_name[1:]
+                qualified_name = qualified_name[1:]            
+        if "/" in qualified_name:
+            # Check if there is .py
+            qualified_name = "".join(qualified_name.split(".py"))
+            qualified_name = ".".join(qualified_name.split("/"))
         return qualified_name

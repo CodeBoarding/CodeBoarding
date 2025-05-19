@@ -1,4 +1,5 @@
 import os
+import json
 from collections import deque
 from pathlib import Path
 import logging
@@ -42,7 +43,7 @@ class DotGraphTransformer:
 
     def transform(self):
         # Perform transformation logic here
-        result = []
+        result = {}
         print(f"[Transformer] Source code packages: {self.packages}")
         for edge in self.G.get_edges():
             src = edge.get_source()
@@ -58,14 +59,11 @@ class DotGraphTransformer:
 
             if not (src_entry and dst_entry):
                 continue
-
-            edge_s = ""
-            edge_s += f"{src} -> {dst}"
-
-            for k, v in attrs.items():
-                edge_s += f" [{k}={v}]"
-            result.append(edge_s)
-        return "\n".join(result)
+            if src not in result:
+                result[src] = [dst]
+            else:
+                result[src].append(dst)
+        return json.dumps(result)
 
     def subset_transform(self, special_packages):
         result = []
@@ -89,3 +87,7 @@ class DotGraphTransformer:
                 edge_s += f" [{k}={v}]"
             result.append(edge_s)
         return "\n".join(result)
+    
+if __name__ == '__main__':
+    dgt = DotGraphTransformer("/home/imilev/CodeBoarding/temp/793db182def94213a64dc860f0d224d0/call_graph.dot", "/home/imilev/CodeBoarding/repos/browser-use/")
+    print(dgt.transform())

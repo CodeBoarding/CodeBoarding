@@ -21,6 +21,9 @@ You are an expert in software system architecture. Currently at steps 1 and 2 of
 Here is the Control Flow Graph (CFG) for the project `{project_name}`.
 {cfg_str}
 
+The control flow graph is in json fromat like:
+    "from_method_call": ["invoked_method_1", "invoked_method_2"]
+
 We want to reduce the Control Flow Graph to good abstractions, each abstraction should group together subgroups of modules, classes and functions that are related to each other.
 Use class structure and package structure to help you with that. 
 
@@ -102,6 +105,9 @@ Identify only the relevant components in the CFG for {component}.
 Here is the CFG:
 {cfg_str}
 
+The control flow graph is in json fromat like:
+    "from_method_call": ["invoked_method_1", "invoked_method_2"]
+
 **Format Instructions:**
 Give me just the subgraph, no sentences or explanations.
 """
@@ -110,6 +116,9 @@ CFG_DETAILS_MESSAGE = """
 You are an expert in software system architecture. Now working on step 2.
 Using the Control Flow Graph (CFG) for a subsystem of the project `{project_name}`. Identify only the most important interactions in the CFG:
 {cfg_str}
+
+The control flow graph is in json fromat like:
+    "from_method_call": ["invoked_method_1", "invoked_method_2"]
 
 To get better understanding of these interactions you can look at their source code using the `read_source_code` tool.
 
