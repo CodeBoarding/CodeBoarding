@@ -108,12 +108,12 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
     load_dotenv()
     ROOT = os.getenv("ROOT", "./")  # Default to current directory if ROOT is not set
     ROOT_RESULT = os.getenv("ROOT_RESULT", "./generated_results")  # Default path if not set
-    
+
     # Create directories if they don't exist
     repo_root = Path(ROOT)
     repos_dir = repo_root / 'repos'
     repos_dir.mkdir(parents=True, exist_ok=True)
-    
+
     repo_path = repos_dir / repo_name
 
     if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
@@ -133,7 +133,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
             fname = "on_boarding" if fname.endswith("analysis") else fname
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
-    
+
     # Also check if ROOT_RESULT exists before uploading
     if os.path.exists(ROOT_RESULT):
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
