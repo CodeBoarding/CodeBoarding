@@ -87,7 +87,3 @@ class DotGraphTransformer:
                 edge_s += f" [{k}={v}]"
             result.append(edge_s)
         return "\n".join(result)
-    
-if __name__ == '__main__':
-    dgt = DotGraphTransformer("/home/imilev/CodeBoarding/temp/793db182def94213a64dc860f0d224d0/call_graph.dot", "/home/imilev/CodeBoarding/repos/browser-use/")
-    print(dgt.transform())
