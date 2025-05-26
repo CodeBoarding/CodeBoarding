@@ -106,8 +106,14 @@ class CallGraphBuilder:
 
     def build(self) -> DiGraph:
         _banner("Building ASTs…", self.verbose)
+        exclude_dirs = {"test", "tests", "testing", "examples", "__pycache__", ".venv", ".git", ".tox"}
         for pyfile in self._iter_py_files():
-            if "test" in pyfile.parts or "tests" in pyfile.parts:
+            skip = False
+            for exluded_dir in exclude_dirs:
+                if exluded_dir in pyfile.parts:
+                    skip = True
+                    break
+            if skip:
                 continue
             self._process_file(pyfile)
 

@@ -31,7 +31,7 @@ class StructureGraphBuilder:
             # pyreverse calls sys.exit() after finishing.
             if e.code not in (0, None):
                 raise
-        
+
         root_name = Path(package.name).resolve().name.replace("-", "_")
         produced = Path().glob(f"{self.output_dir}/*{root_name}*.dot")
         picked = None
@@ -53,8 +53,9 @@ class StructureGraphBuilder:
 
 def collect_paths(root: Path) -> list[Path]:
     collected: list[Path] = []
-    
-    exclude_dirs = {"test", "tests", "testing", "examples"}
+
+    exclude_dirs = {"test", "tests", "testing", "examples", "__pycache__", ".venv", ".git", ".tox"}
+
     def _walk(dir_: Path):
         # Skip tests for now.
         if any(part in exclude_dirs for part in dir_.parts):
