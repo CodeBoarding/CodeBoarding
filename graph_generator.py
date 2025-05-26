@@ -1,9 +1,8 @@
-import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
