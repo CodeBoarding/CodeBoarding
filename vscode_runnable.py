@@ -19,7 +19,7 @@ setup_logging(log_dir=args.output_dir)
 logger = logging.getLogger(__name__)
 
 def main():
-    
+
     repo_location = Path(args.repo)
 
     temp_folder = Path(f"{args.output_dir}/{args.project_name}")
