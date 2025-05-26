@@ -14,6 +14,7 @@ from agents.tools.read_structure import CodeStructureTool
 from static_analyzer.reference_lines import find_fqn_location
 
 
+
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, system_message):
         self._setup_env_vars()
