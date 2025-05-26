@@ -1,13 +1,9 @@
 import logging
 
-
-from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from utils import CFGGenerationError
-
-from agents.agent import CodeBoardingAgent, AnalysisInsights, SubControlFlowGraph
+from agents.agent import CodeBoardingAgent, AnalysisInsights
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
     DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE
 
@@ -36,69 +32,43 @@ class DetailsAgent(CodeBoardingAgent):
                                             "format_instructions": self.parsers[
                                                 "structure"].get_format_instructions()}),
             "final_analysis": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"],
-                                       partial_variables={
-                                           "format_instructions": self.parsers["final_analysis"].get_format_instructions()}),
+                                             partial_variables={
+                                                 "format_instructions": self.parsers[
+                                                     "final_analysis"].get_format_instructions()}),
         }
         self.context = {}
 
-    def step_subcfg(self, cfg_str, component, retry=3):
-        if retry < 0:
-            raise Exception(f"Max retries reached, failed to generate subcfg for {component.llm_str()}")
+    def step_subcfg(self, cfg_str, component):
         logging.info(f"[Details Agent - INFO] Analyzing details on subcfg for {component.name}")
         prompt = self.prompts["subcfg"].format(project_name=self.project_name, cfg_str=cfg_str,
                                                component=component.llm_str())
-        try:
-            response = self._invoke(prompt)
-            self.context['subcfg_insight'] = response
-            return response
-        except OutputParserException as e:
-            logging.info(f"[Details Agent - INFO] Retrying subcfg generation for {component.name}, {e}, {response}")
-            return self.step_subcfg(cfg_str, component, retry=retry - 1)
+        response = self._invoke(prompt)
+        self.context['subcfg_insight'] = response
 
-    def step_cfg(self, component, retry=3):
-        if retry < 0:
-            raise CFGGenerationError(f"Max retries reached, failed to generate cfg for {component.llm_str()}")
+    def step_cfg(self, component):
         logging.info(f"[Details Agent - INFO] Analyzing details on cfg for {component.name}")
         prompt = self.prompts["cfg"].format(project_name=self.project_name,
                                             cfg_str=self.context['subcfg_insight'],
                                             component=component.llm_str())
-        response = self._invoke(prompt)
-        try:
-            parsed = self.parsers["cfg"].parse(response)
-            self.context['cfg_insight'] = parsed  # Store for next step
-            return parsed
-        except OutputParserException as e:
-            logging.info(f"[Details Agent - INFO] Retrying cfg generation for {component.name}, {e}, {response}")
-            return self.step_cfg(component, retry=retry - 1)
+        parsed = self._parse_invoke(prompt, self.parsers["cfg"])
+        self.context['cfg_insight'] = parsed  # Store for next step
+        return parsed
 
-    def step_enhance_structure(self, component, retry=3):
-        if retry < 0:
-            raise Exception(f"Max retries reached, failed to enhance structure for {component.llm_str()}")
+    def step_enhance_structure(self, component):
         logging.info(f"[Details Agent - INFO] Analyzing details on structure for {component.name}")
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
             insight_so_far=self.context.get('cfg_insight').llm_str(),
             component=component.llm_str()
         )
-        response = self._invoke(prompt)
-        try:
-            parsed = self.parsers["structure"].parse(response)
-            self.context['structure_insight'] = parsed
-            return parsed
-        except OutputParserException as e:
-            logging.info(f"[Details Agent - INFO] Retrying structure generation for {component.name}, {e}, {response}")
-            return self.step_enhance_structure(component, retry=retry - 1)
+        parsed = self._parse_invoke(prompt, self.parsers["structure"])
+        self.context['structure_insight'] = parsed
+        return parsed
 
-    def step_analysis(self, component, retry=3):
+    def step_analysis(self, component):
         logging.info(f"[Details Agent - INFO] Generating details documentation")
         prompt = self.prompts["final_analysis"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
         )
-        response = self._invoke(prompt)
-        try:
-            return self.parsers["final_analysis"].parse(response)
-        except OutputParserException:
-            if retry == 0:
-                return response
-            return self.step_analysis(component, retry=retry - 1)
+        return self._parse_invoke(prompt, self.parsers["final_analysis"])

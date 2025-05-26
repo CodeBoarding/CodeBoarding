@@ -1,7 +1,10 @@
 import logging
+import os
 from pathlib import Path
 
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.tools.utils import clean_dot_file_str
@@ -10,42 +13,62 @@ from static_analyzer.pylint_analyze.structure_graph_builder import StructureGrap
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
 
 
-class GraphGenerator():
+class GraphGenerator:
     def __init__(self, repo_location, temp_folder, repo_name, output_dir):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
 
+        self.details_agent = None
+        self.abstraction_agent = None
+
+    def process_component(self, component):
+        self.details_agent.step_subcfg(self.call_graph_str, component)
+        self.details_agent.step_cfg(component)
+        self.details_agent.step_enhance_structure(component)
+
+        details_results = self.details_agent.step_analysis(component)
+
+        if "/" in component.name:
+            component.name = component.name.replace("/", "-")
+
+        output_path = os.path.join(self.output_dir, f"{component.name}.json")
+        with open(output_path, "w") as f:
+            f.write(details_results.model_dump_json(indent=2))
+
+        return output_path
+
     def generate_analysis(self):
         """
         Generate the graph analysis for the given repository.
         The output is stored in json files in output_dir.
         """
-        structures, packages, call_graph_str = self.generate_static_analysis()
-        abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, project_name=self.repo_name)
-        abstraction_agent.step_cfg(call_graph_str)
-        abstraction_agent.step_source()
+        files = []
+        structures, packages, self.call_graph_str = self.generate_static_analysis()
 
-        analysis_response = abstraction_agent.generate_analysis()
+        self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
+                                          project_name=self.repo_name)
+        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
+                                                  project_name=self.repo_name)
 
-        details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, project_name=self.repo_name)
-        for component in tqdm(analysis_response.components, desc="Analyzing details"):
-            # Here I want to filter out based on the qualified names:
-            if details_agent.step_subcfg(call_graph_str, component) is None:
-                logging.info(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
-                continue
-            details_agent.step_cfg(component)
-            details_agent.step_enhance_structure(component)
-            details_results = details_agent.step_analysis(component)
+        self.abstraction_agent.step_cfg(self.call_graph_str)
+        self.abstraction_agent.step_source()
 
-            if "/" in component.name:
-                component.name = component.name.replace("/", "-")
-            # now serialize the details_results to a file:
-            with open(f"{self.output_dir}/{component.name}.json", "w") as f:
-                f.write(details_results.model_dump_json(indent=2))
+        analysis_response = self.abstraction_agent.generate_analysis()
+
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self.process_component, component) for component in
+                       analysis_response.components]
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing details"):
+                result = future.result()
+                if result:
+                    files.append(result)
+
+        files.append(f"{self.output_dir}/analysis.json")
         with open(f"{self.output_dir}/analysis.json", "w") as f:
             f.write(analysis_response.model_dump_json(indent=2))
+        return files
 
     def generate_static_analysis(self):
         dot_suffix = 'structure.dot'

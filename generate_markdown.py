@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 from git import Repo
 from tqdm import tqdm
 
-from agents.abstraction_agent import AbstractionAgent
-from agents.details_agent import DetailsAgent
+from agents.agent import AnalysisInsights
 from agents.tools.utils import clean_dot_file_str
+from graph_generator import GraphGenerator
 from logging_config import setup_logging
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
@@ -96,13 +96,13 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
 
     for filename in os.listdir(output_dir):
         if filename.endswith('.md') and filename != "README.md":
-            shutil.copy(os.path.join(output_dir,filename), os.path.join(onboarding_repo_location, filename))
+            shutil.copy(os.path.join(output_dir, filename), os.path.join(onboarding_repo_location, filename))
     # Now commit the changes
     repo.git.add(A=True)  # Equivalent to `git add .`
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
 
-# TODO: refactor this to use the GraphGenerator class instead of duplicating the logic here
+
 def generate_docs(repo_name: str, temp_repo_folder: Path):
     clean_files(Path('./'))
     load_dotenv()
@@ -114,33 +114,19 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
         logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
 
-    structures, packages, call_graph_str = generate_static_analysis(repo_path, temp_repo_folder)
-    abstraction_agent = AbstractionAgent(repo_dir=repo_path, output_dir=temp_repo_folder, project_name=repo_name)
-    abstraction_agent.step_cfg(call_graph_str)
-    abstraction_agent.step_source()
+    generator = GraphGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
+                               output_dir=temp_repo_folder)
+    analysis_files = generator.generate_analysis()
 
-    final_response = abstraction_agent.generate_analysis()
-    markdown_response = generate_mermaid(final_response, repo_name)
-
-    with open(f"{temp_repo_folder}/on_boarding.md", "w") as f:
-        f.write(markdown_response.strip())
-
-    details_agent = DetailsAgent(repo_dir=repo_path, output_dir=temp_repo_folder, project_name=repo_name)
-    for component in tqdm(final_response.components, desc="Analyzing details"):
-        # Here I want to filter out based on the qualified names:
-        if details_agent.step_subcfg(call_graph_str, component) is None:
-            logging.info(f"[Details Agent - ERROR] Failed to analyze subcfg for {component.name}")
-            continue
-        details_agent.step_cfg(component)
-        details_agent.step_enhance_structure(component)
-        details_results = details_agent.step_analysis(component)
-
-        details_markdown = generate_mermaid(details_results)
-        if "/" in component.name:
-            component.name = component.name.replace("/", "-")
-        with open(f"{temp_repo_folder}/{component.name}.md", "w") as f:
-            f.write(details_markdown)
-
+    for file in analysis_files:
+        with open(file, 'r') as f:
+            analysis = AnalysisInsights.model_validate_json(f.read())
+            logging.info(f"Generated analysis file: {file}")
+            markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file))
+            fname = Path(file).name.split(".json")[0]
+            fname = "on_boarding" if fname.endswith("analysis") else fname
+            with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
+                f.write(markdown_response.strip())
     upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
 
 
@@ -180,8 +166,8 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/azmon6/FitnessCalculator"]
+    repos = ["https://github.com/browser-use/browser-use"]
     temp_repo_folder = create_temp_repo_folder()
     for repo in tqdm(repos, desc="Generating docs for repos"):
-        generate_docs_remote(repo,temp_repo_folder,local_dev=True)
+        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
     remove_temp_repo_folder(temp_repo_folder)

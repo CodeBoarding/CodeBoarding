@@ -1,11 +1,12 @@
-# app.py
 import logging
+
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
+
+from generate_markdown import generate_docs_remote
 from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
-from main import generate_docs_remote
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,14 +29,16 @@ app.add_middleware(
     allow_headers=["Content-Type", "ngrok-skip-browser-warning"],
 )
 
-@app.options("/myroute")
+
+@app.options("/generate_markdown")
 async def preflight():
     # FastAPI + CORSMiddleware handles this automatically,
     # but you can still explicitly return 204 if you like:
     return PlainTextResponse(status_code=204)
 
+
 @app.get(
-    "/myroute",
+    "/generate_markdown",
     response_class=PlainTextResponse,
     summary="Generate onboarding docs for a GitHub repo",
     responses={
@@ -44,7 +47,7 @@ async def preflight():
         500: {"description": "Internal server error"},
     },
 )
-async def myroute(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
+async def generate_markdown(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
     """
     Example:
         GET /myroute?url=https://github.com/your/repo
@@ -84,8 +87,3 @@ async def myroute(url: str = Query(..., description="The HTTPS URL of the GitHub
     finally:
         # cleanup temp folder for this run
         remove_temp_repo_folder(temp_repo_folder)
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
