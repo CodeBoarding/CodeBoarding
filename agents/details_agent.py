@@ -9,7 +9,7 @@ from utils import CFGGenerationError
 
 from agents.agent import CodeBoardingAgent, AnalysisInsights, SubControlFlowGraph
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
-    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE
+    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE
 
 
 class DetailsAgent(CodeBoardingAgent):
@@ -20,7 +20,7 @@ class DetailsAgent(CodeBoardingAgent):
         self.parsers = {
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "structure": PydanticOutputParser(pydantic_object=AnalysisInsights),
-            "document": PydanticOutputParser(pydantic_object=AnalysisInsights),
+            "final_analysis": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
 
         self.prompts = {
@@ -35,9 +35,9 @@ class DetailsAgent(CodeBoardingAgent):
                                         partial_variables={
                                             "format_instructions": self.parsers[
                                                 "structure"].get_format_instructions()}),
-            "document": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"],
+            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"],
                                        partial_variables={
-                                           "format_instructions": self.parsers["document"].get_format_instructions()}),
+                                           "format_instructions": self.parsers["final_analysis"].get_format_instructions()}),
         }
         self.context = {}
 
@@ -89,16 +89,16 @@ class DetailsAgent(CodeBoardingAgent):
             logging.info(f"[Details Agent - INFO] Retrying structure generation for {component.name}, {e}, {response}")
             return self.step_enhance_structure(component, retry=retry - 1)
 
-    def step_markdown(self, component, retry=3):
+    def step_analysis(self, component, retry=3):
         logging.info(f"[Details Agent - INFO] Generating details documentation")
-        prompt = self.prompts["document"].format(
+        prompt = self.prompts["final_analysis"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
         )
         response = self._invoke(prompt)
         try:
-            return self.parsers["document"].parse(response)
+            return self.parsers["final_analysis"].parse(response)
         except OutputParserException:
             if retry == 0:
                 return response
-            return self.step_markdown(component, retry=retry - 1)
+            return self.step_analysis(component, retry=retry - 1)

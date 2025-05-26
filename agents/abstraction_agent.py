@@ -20,7 +20,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.parsers = {
             "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "source": PydanticOutputParser(pydantic_object=AnalysisInsights),
-            "markdown": PydanticOutputParser(pydantic_object=AnalysisInsights),
+            "final_analysis": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
 
         self.prompts = {
@@ -30,11 +30,11 @@ class AbstractionAgent(CodeBoardingAgent):
             "source": PromptTemplate(template=SOURCE_MESSAGE, input_variables=["insight_so_far"],
                                      partial_variables={
                                          "format_instructions": self.parsers["source"].get_format_instructions()}),
-            "markdown": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
+            "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
                                        input_variables=["project_name", "cfg_insight", "structure_insight",
                                                         "source_insight"],
                                        partial_variables={
-                                           "format_instructions": self.parsers["markdown"].get_format_instructions()}),
+                                           "format_instructions": self.parsers["final_analysis"].get_format_instructions()}),
         }
 
     def step_cfg(self, cfg_str):
@@ -71,24 +71,23 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = self.parsers["source"].parse(response)
         return self.context["source"]
 
-    def generate_markdown(self, rerun=3):
+    def generate_analysis(self, rerun=3):
         if rerun < 0:
             raise Exception("Max rerun attempts exceeded.")
         logging.info(f"[INFO] Generating markdown for project: {self.project_name}")
-        prompt = self.prompts["markdown"].format(
+        prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),
-            # structure_insight="\n".join([insight.llm_str() for insight in self.context['structure_insight']]),
             source_insight=self.context.get('source').llm_str()
         )
         response = self._invoke(prompt)
         try:
-            return self.parsers["markdown"].parse(response)
+            return self.parsers["final_analysis"].parse(response)
         except OutputParserException as e:
             logging.info(response)
             logging.info.infoint(f"[Warn] Error in parsing markdown: {e}")
-            return self.generate_markdown(rerun=rerun - 1)
+            return self.generate_analysis(rerun=rerun - 1)
         except Exception as e:
             logging.info(response)
             logging.info(f"[Warn] Error in generating markdown: {e}")
-            return self.generate_markdown(rerun=rerun - 1)
+            return self.generate_analysis(rerun=rerun - 1)

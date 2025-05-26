@@ -102,7 +102,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
 
-
+# TODO: refactor this to use the GraphGenerator class instead of duplicating the logic here
 def generate_docs(repo_name: str, temp_repo_folder: Path):
     clean_files(Path('./'))
     load_dotenv()
@@ -119,7 +119,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
     abstraction_agent.step_cfg(call_graph_str)
     abstraction_agent.step_source()
 
-    final_response = abstraction_agent.generate_markdown()
+    final_response = abstraction_agent.generate_analysis()
     markdown_response = generate_mermaid(final_response, repo_name)
 
     with open(f"{temp_repo_folder}/on_boarding.md", "w") as f:
@@ -133,7 +133,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
             continue
         details_agent.step_cfg(component)
         details_agent.step_enhance_structure(component)
-        details_results = details_agent.step_markdown(component)
+        details_results = details_agent.step_analysis(component)
 
         details_markdown = generate_mermaid(details_results)
         if "/" in component.name:
