@@ -2,6 +2,7 @@ import os
 from typing import List
 
 from dotenv import load_dotenv
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
@@ -11,6 +12,7 @@ from agents.tools import CodeExplorerTool
 from agents.tools.read_packages import PackageRelationsTool
 from agents.tools.read_structure import CodeStructureTool
 
+
 class Relation(BaseModel):
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
@@ -18,6 +20,7 @@ class Relation(BaseModel):
 
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
+
 
 class Component(BaseModel):
     name: str = Field(description="Name of the component")
@@ -41,7 +44,8 @@ class SubControlFlowGraph(BaseModel):
 
 
 class AnalysisInsights(BaseModel):
-    description: str = Field("One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
+    description: str = Field(
+        "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
     components: List[Component] = Field(
         description="List of the components identified in the project.")
     components_relations: List[Relation] = Field(
@@ -55,6 +59,7 @@ class AnalysisInsights(BaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
+
 
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, system_message):
@@ -87,3 +92,12 @@ class CodeBoardingAgent:
             return agent_response.content
         if type(agent_response.content) == list:
             return "".join([message for message in agent_response.content])
+
+    def _parse_invoke(self, prompt, parser, retry=3):
+        if retry < 0:
+            raise OutputParserException(f"Max retries reached for parsing: {prompt}")
+        try:
+            response = self._invoke(prompt)
+            return parser.parse(response)
+        except OutputParserException as e:
+            return self._parse_invoke(prompt, parser, retry=retry - 1)

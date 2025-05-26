@@ -1,7 +1,6 @@
 import logging
 
 from langchain.prompts import PromptTemplate
-from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 
 from agents.agent import CodeBoardingAgent, AnalysisInsights
@@ -31,28 +30,18 @@ class AbstractionAgent(CodeBoardingAgent):
                                      partial_variables={
                                          "format_instructions": self.parsers["source"].get_format_instructions()}),
             "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
-                                       input_variables=["project_name", "cfg_insight", "structure_insight",
-                                                        "source_insight"],
-                                       partial_variables={
-                                           "format_instructions": self.parsers["final_analysis"].get_format_instructions()}),
+                                             input_variables=["project_name", "cfg_insight", "structure_insight",
+                                                              "source_insight"],
+                                             partial_variables={"format_instructions": self.parsers[
+                                                 "final_analysis"].get_format_instructions()}),
         }
 
     def step_cfg(self, cfg_str):
         logging.info(f"[INFO] Analyzing CFG for project: {self.project_name}")
         prompt = self.prompts["cfg"].format(project_name=self.project_name, cfg_str=cfg_str)
-        response = self._invoke(prompt)
-        parsed = self.parsers["cfg"].parse(response)
-        self.context['cfg_insight'] = parsed  # Store for next step
-        return parsed
-
-    def step_packages(self, packages):
-        logging.info(f"[INFO] Analyzing Packages for project: {self.project_name}")
-        insight_str = ""
-        for pkg in packages:
-            insight_str += f"- `{pkg}`\n"
-        insight_str += "\n"
-        self.context['packages'] = insight_str
-
+        parsed_response = self._parse_invoke(prompt, self.parsers["cfg"])
+        self.context['cfg_insight'] = parsed_response
+        return parsed_response
 
     def step_source(self):
         logging.info(f"[INFO] Analyzing Source for project: {self.project_name}")
@@ -67,27 +56,15 @@ class AbstractionAgent(CodeBoardingAgent):
         prompt = self.prompts["source"].format(
             insight_so_far=insight_str,
         )
-        response = self._invoke(prompt)
-        self.context["source"] = self.parsers["source"].parse(response)
-        return self.context["source"]
+        parsed_response = self._parse_invoke(prompt, self.parsers["source"])
+        self.context["source"] = parsed_response
+        return parsed_response
 
-    def generate_analysis(self, rerun=3):
-        if rerun < 0:
-            raise Exception("Max rerun attempts exceeded.")
+    def generate_analysis(self):
         logging.info(f"[INFO] Generating markdown for project: {self.project_name}")
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),
             source_insight=self.context.get('source').llm_str()
         )
-        response = self._invoke(prompt)
-        try:
-            return self.parsers["final_analysis"].parse(response)
-        except OutputParserException as e:
-            logging.info(response)
-            logging.info.infoint(f"[Warn] Error in parsing markdown: {e}")
-            return self.generate_analysis(rerun=rerun - 1)
-        except Exception as e:
-            logging.info(response)
-            logging.info(f"[Warn] Error in generating markdown: {e}")
-            return self.generate_analysis(rerun=rerun - 1)
+        return self._parse_invoke(prompt, self.parsers["final_analysis"])
