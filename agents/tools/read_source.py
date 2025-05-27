@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import logging
 from typing import Optional, List
 import re
 from langchain_core.tools import ArgsSchema, BaseTool
@@ -39,7 +40,7 @@ class CodeExplorerTool(BaseTool):
         """
         Run the tool with the given input.
         """
-        print(f"[Source Tool] Reading source code for {python_code_reference}")
+        logging.info(f"[Source Tool] Reading source code for {python_code_reference}")
         try:
             return self.read_module_tool(python_code_reference=python_code_reference)
         except ImportError:
@@ -54,7 +55,7 @@ class CodeExplorerTool(BaseTool):
         for path in self.cached_files:
             sub_path = python_code_reference.replace('.', '/')
             if sub_path in str(path):
-                print(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return f"Source code for {python_code_reference}:\n{f.read()}"
 
@@ -63,7 +64,7 @@ class CodeExplorerTool(BaseTool):
             sub_group = "/".join(python_code_reference.split('.')[:-1])
             # Check if the path leads to a file and not a directory
             if sub_group in str(path) and str(path).endswith('.py'):
-                print(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return f"Source code for {python_code_reference}:\n{f.read()}"
 
@@ -72,7 +73,7 @@ class CodeExplorerTool(BaseTool):
             # Maybe the file is one ClassFile.method ->
             sub_group = "/".join(python_code_reference.split('.')[:-2])
             if sub_group in str(path) and str(path).endswith('.py'):
-                print(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return f"Source code for {python_code_reference}:\n{f.read()}"
 
@@ -81,8 +82,8 @@ class CodeExplorerTool(BaseTool):
         if transformed_path != python_code_reference:
             return self.read_file(transformed_path)
 
-        print(
-            f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {self.cached_files}")
+        logging.error(
+            f"[Source Tool] File for {python_code_reference} not found. Available files are: {self.cached_files}")
         return f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {self.cached_files}"
 
     @staticmethod
@@ -118,7 +119,7 @@ class CodeExplorerTool(BaseTool):
                     obj = getattr(module, attribute)
                     return f"Source code for {path + '.' + attribute}:\n{inspect.getsource(obj)}"
                 except Exception as e:
-                    print("Bad import ", e)
+                    logging.warning("Bad import ", e)
                     continue
             raise ImportError(f"Attribute {'.'.join(attrs)} not found in module {path}.")
         except ImportError as e:

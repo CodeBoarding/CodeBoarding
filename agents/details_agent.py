@@ -39,14 +39,14 @@ class DetailsAgent(CodeBoardingAgent):
         self.context = {}
 
     def step_subcfg(self, cfg_str, component):
-        logging.info(f"[Details Agent - INFO] Analyzing details on subcfg for {component.name}")
+        logging.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
         prompt = self.prompts["subcfg"].format(project_name=self.project_name, cfg_str=cfg_str,
                                                component=component.llm_str())
         response = self._invoke(prompt)
         self.context['subcfg_insight'] = response
 
     def step_cfg(self, component):
-        logging.info(f"[Details Agent - INFO] Analyzing details on cfg for {component.name}")
+        logging.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
         prompt = self.prompts["cfg"].format(project_name=self.project_name,
                                             cfg_str=self.context['subcfg_insight'],
                                             component=component.llm_str())
@@ -55,7 +55,7 @@ class DetailsAgent(CodeBoardingAgent):
         return parsed
 
     def step_enhance_structure(self, component):
-        logging.info(f"[Details Agent - INFO] Analyzing details on structure for {component.name}")
+        logging.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
             insight_so_far=self.context.get('cfg_insight').llm_str(),
@@ -66,7 +66,7 @@ class DetailsAgent(CodeBoardingAgent):
         return parsed
 
     def step_analysis(self, component):
-        logging.info(f"[Details Agent - INFO] Generating details documentation")
+        logging.info(f"[DetailsAgent] Generating details documentation")
         prompt = self.prompts["final_analysis"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
