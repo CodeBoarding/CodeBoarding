@@ -140,7 +140,6 @@ class CallGraphBuilder:
         try:
             module = MANAGER.ast_from_file(str(file_path))
         except Exception as e:  # pylint: disable=broad-except
-            print(f"!! Failed to parse {file_path}: {e}")
             _banner(f"!! Failed to parse {file_path}", self.verbose)
             return
 

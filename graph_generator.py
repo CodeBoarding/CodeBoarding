@@ -65,6 +65,7 @@ class GraphGenerator:
                     files.append(result)
 
         files.append(f"{self.output_dir}/analysis.json")
+        print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         with open(f"{self.output_dir}/analysis.json", "w") as f:
             f.write(analysis_response.model_dump_json(indent=2))
         return files

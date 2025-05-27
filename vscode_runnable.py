@@ -1,13 +1,19 @@
 import argparse
+import logging
 from pathlib import Path
 
 from graph_generator import GraphGenerator
+from logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 
 def args_parser():
     parser = argparse.ArgumentParser(description="Run a Python script with arguments.")
     parser.add_argument("--repo", type=str, help="The Python script to run.")
     parser.add_argument("--project_name", type=str, help="Arguments to pass to the script.")
+    parser.add_argument("--output_dir", type=str, default="./analysis", help="Output directory for the analysis files.")
     return parser
 
 
@@ -17,7 +23,7 @@ def main():
 
     repo_location = Path(args.repo)
 
-    temp_folder = Path(f"./analysis/{args.project_name}")
+    temp_folder = Path(f"{args.output_dir}/{args.project_name}")
     if not temp_folder.exists():
         temp_folder.mkdir(parents=True, exist_ok=True)
 

@@ -78,8 +78,7 @@ class CodeBoardingAgent:
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):
-        load_dotenv()
-        self.api_key = os.getenv("GOOGLE_API_KEY")
+        self.api_key = "AIzaSyCp6jlH3m0GunL3NrFHb0l7PxsioPKD4aY"
 
     def _invoke(self, prompt):
         """Unified agent invocation method."""

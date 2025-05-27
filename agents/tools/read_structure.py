@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import Optional, List
@@ -11,10 +12,9 @@ from .utils import read_dot_file
 class CodeStructureTool(BaseTool):
     name: str = "read_class_structure"
     description: str = "Tool which gives class structure relationships."
-    args_schema:Optional[ArgsSchema] = PackageInput
-    return_direct:bool = False
+    args_schema: Optional[ArgsSchema] = PackageInput
+    return_direct: bool = False
     cached_files: Optional[List[str]] = None
-
 
     def __init__(self, analysis_dir):
         super().__init__()
@@ -35,7 +35,7 @@ class CodeStructureTool(BaseTool):
         """
         if root_package.startswith("repos."):
             root_package = root_package.split("repos.")[-1]
-        print(f"[Structure Tool] Reading structure for {root_package}")
+        logging.info(f"[Structure Tool] Reading structure for {root_package}")
         try:
             return self.read_file(root_package)
         except NoRootPackageFoundError as e:
@@ -50,7 +50,7 @@ class CodeStructureTool(BaseTool):
 
         for path in self.cached_files:
             if root_package in path.name:
-                print(f"[Structure Tool] Found file {path}")
+                logging.info(f"[Structure Tool] Found file {path}")
                 content = read_dot_file(path)
                 return f"Package relations for: {root_package}:\n{content}"
 

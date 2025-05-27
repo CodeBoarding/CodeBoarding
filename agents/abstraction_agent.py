@@ -37,14 +37,14 @@ class AbstractionAgent(CodeBoardingAgent):
         }
 
     def step_cfg(self, cfg_str):
-        logging.info(f"[INFO] Analyzing CFG for project: {self.project_name}")
+        logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         prompt = self.prompts["cfg"].format(project_name=self.project_name, cfg_str=cfg_str)
         parsed_response = self._parse_invoke(prompt, self.parsers["cfg"])
         self.context['cfg_insight'] = parsed_response
         return parsed_response
 
     def step_source(self):
-        logging.info(f"[INFO] Analyzing Source for project: {self.project_name}")
+        logging.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
@@ -61,7 +61,7 @@ class AbstractionAgent(CodeBoardingAgent):
         return parsed_response
 
     def generate_analysis(self):
-        logging.info(f"[INFO] Generating markdown for project: {self.project_name}")
+        logging.info(f"[AbstractionAgent] Generating markdown for project: {self.project_name}")
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),

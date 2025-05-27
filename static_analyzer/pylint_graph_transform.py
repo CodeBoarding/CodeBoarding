@@ -43,7 +43,7 @@ class DotGraphTransformer:
     def transform(self):
         # Perform transformation logic here
         result = []
-        print(f"[Transformer] Source code packages: {self.packages}")
+        logging.info(f"[Transformer] Source code packages: {self.packages}")
         for edge in self.G.get_edges():
             src = edge.get_source()
             dst = edge.get_destination()
@@ -69,7 +69,7 @@ class DotGraphTransformer:
 
     def subset_transform(self, special_packages):
         result = []
-        print(f"Source code packages: {self.packages}")
+        logging.info(f"Source code packages: {self.packages}")
         for edge in self.G.get_edges():
             src = edge.get_source()
             dst = edge.get_destination()
