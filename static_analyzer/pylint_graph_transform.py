@@ -43,12 +43,11 @@ class DotGraphTransformer:
 
     def transform(self):
         # Perform transformation logic here
-        result = []
+        result = {}
         logging.info(f"[Transformer] Source code packages: {self.packages}")
         for edge in self.G.get_edges():
             src = edge.get_source()
             dst = edge.get_destination()
-            attrs = edge.get_attributes()
             src_entry = False
             dst_entry = False
             for package in self.packages:
@@ -64,26 +63,3 @@ class DotGraphTransformer:
             else:
                 result[src].append(dst)
         return json.dumps(result)
-
-    def subset_transform(self, special_packages):
-        result = []
-        logging.info(f"Source code packages: {self.packages}")
-        for edge in self.G.get_edges():
-            src = edge.get_source()
-            dst = edge.get_destination()
-            attrs = edge.get_attributes()
-            keep_entry = False
-            for package in special_packages:
-                if package in src or package in dst:
-                    keep_entry = True
-
-            if not keep_entry:
-                continue
-
-            edge_s = ""
-            edge_s += f"{src} -> {dst}"
-
-            for k, v in attrs.items():
-                edge_s += f" [{k}={v}]"
-            result.append(edge_s)
-        return "\n".join(result)
