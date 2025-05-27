@@ -118,11 +118,16 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
     for comp in insights.components:
         detail_lines.append(f"### {comp.name}")
         detail_lines.append(f"{comp.description}")
-        if comp.source_code_files:
-            qn_list = ", ".join(f"`{qn}`" for qn in comp.source_code_files)
+        if comp.related_source:
+            qn_list = ", ".join(f"`{qn}`" for qn in comp.related_source)
             detail_lines.append(f"- **Related Classes/Methods**: {qn_list}")
         else:
             detail_lines.append(f"- **Related Classes/Methods**: _None_")
+        if comp.related_source_files:
+            files_list = ", ".join(f"`{file}`" for file in comp.related_source_files)
+            detail_lines.append(f"- **Source Files**: {files_list}")
+        else:
+            detail_lines.append(f"- **Source Files**: _None_")
         detail_lines.append("")  # blank line between components
 
     return "\n".join(lines + detail_lines)

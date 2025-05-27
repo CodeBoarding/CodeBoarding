@@ -25,17 +25,19 @@ class Relation(BaseModel):
 class Component(BaseModel):
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
-    source_code_files: List[str] = Field(
+    related_source: List[str] = Field(
         description="A list of source code names of related methods and classes to the component."
     )
+    related_source_files: List[str] = Field(
+        description="A list of the source code files where the component is defined.")
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
         qn = ""
-        if self.source_code_files:
+        if self.related_source:
             qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q}`" for q in self.source_code_files)
+            qn += ", ".join(f"`{q}`" for q in self.related_source)
         return "\n".join([n, d, qn]).strip()
 
 

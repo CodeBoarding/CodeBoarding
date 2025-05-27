@@ -166,7 +166,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/browser-use/browser-use"]
+    repos = ["https://github.com/Ekultek/WhatWaf"]
     temp_repo_folder = create_temp_repo_folder()
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs_remote(repo, temp_repo_folder, local_dev=True)
