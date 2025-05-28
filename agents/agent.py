@@ -1,5 +1,7 @@
 import logging
+import os
 
+from dotenv import load_dotenv
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -29,7 +31,10 @@ class CodeBoardingAgent:
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):
-        self.api_key = "AIzaSyCp6jlH3m0GunL3NrFHb0l7PxsioPKD4aY"
+        load_dotenv()
+        # When compiling for VSCode paste the key here directly!
+        # As we cannot pass env files to someone's system
+        self.api_key = os.getenv("GOOGLE_API_KEY")
 
     def _invoke(self, prompt):
         """Unified agent invocation method."""
