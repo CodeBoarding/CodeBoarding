@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from git import Repo
 from tqdm import tqdm
 
-from agents.agent import AnalysisInsights
+from agents.agent_responses import AnalysisInsights
 from agents.tools.utils import clean_dot_file_str
 from graph_generator import GraphGenerator
 from logging_config import setup_logging

@@ -1,66 +1,15 @@
-import os
-from typing import List
+import logging
 
-from dotenv import load_dotenv
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel, Field
 
+from agents.agent_responses import AnalysisInsights
 from agents.tools import CodeExplorerTool
 from agents.tools.read_packages import PackageRelationsTool
 from agents.tools.read_structure import CodeStructureTool
-
-
-class Relation(BaseModel):
-    relation: str = Field(description="Single phrase used for the relationship of two components.")
-    src_name: str = Field(description="Source component name")
-    dst_name: str = Field(description="Target component name")
-
-    def llm_str(self):
-        return f"({self.src_name}, {self.relation}, {self.dst_name})"
-
-
-class Component(BaseModel):
-    name: str = Field(description="Name of the component")
-    description: str = Field(description="A short description of the component.")
-    related_source: List[str] = Field(
-        description="A list of source code names of related methods and classes to the component."
-    )
-    related_source_files: List[str] = Field(
-        description="A list of the source code files where the component is defined.")
-
-    def llm_str(self):
-        n = f"**Component:** `{self.name}`"
-        d = f"   - *Description*: {self.description}"
-        qn = ""
-        if self.related_source:
-            qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q}`" for q in self.related_source)
-        return "\n".join([n, d, qn]).strip()
-
-
-class SubControlFlowGraph(BaseModel):
-    sub_graph: str = Field(description="The sub control flow graph in DOT format.")
-
-
-class AnalysisInsights(BaseModel):
-    description: str = Field(
-        "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
-    components: List[Component] = Field(
-        description="List of the components identified in the project.")
-    components_relations: List[Relation] = Field(
-        description="List of relations among the components."
-    )
-
-    def llm_str(self):
-        if not self.components:
-            return "No abstract components found."
-        title = "# 📦 Abstract Components Overview\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
-        return title + body + relations
+from static_analyzer.reference_lines import find_fqn_location
 
 
 class CodeBoardingAgent:
@@ -102,3 +51,26 @@ class CodeBoardingAgent:
             return parser.parse(response)
         except OutputParserException as e:
             return self._parse_invoke(prompt, parser, retry=retry - 1)
+
+    def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
+        for component in analysis.components:
+            for reference in component.referenced_source_code:
+                file_ref, file_string = self.read_source_code.read_file(reference.qualified_name)
+                if file_ref is None:
+                    continue
+                reference.reference_file = str(file_ref)
+                file_string = "\n".join(file_string.split("\n")[1:])
+                try:
+                    qname = reference.qualified_name.replace(":", ".")
+                    parts = qname.split(".")
+                    for i in range(len(parts)):
+                        sub_fqn = ".".join(parts[i:])
+                        result = find_fqn_location(file_string, sub_fqn)
+                        if result:
+                            reference.reference_start_line = result[0]
+                            reference.reference_end_line = result[1]
+                            break
+                except Exception as e:
+                    logging.error(f"Error finding reference lines for {reference.qualified_name}: {e}")
+
+        return analysis

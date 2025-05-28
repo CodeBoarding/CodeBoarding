@@ -3,7 +3,8 @@ import logging
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
-from agents.agent import CodeBoardingAgent, AnalysisInsights
+from agents.agent import CodeBoardingAgent
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE
 
 
@@ -17,7 +18,7 @@ class AbstractionAgent(CodeBoardingAgent):
 
         # Define your prompts for each stage, and their parsers
         self.parsers = {
-            "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
+            "cfg": PydanticOutputParser(pydantic_object=CFGAnalysisInsights),
             "source": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "final_analysis": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
@@ -33,7 +34,7 @@ class AbstractionAgent(CodeBoardingAgent):
                                              input_variables=["project_name", "cfg_insight", "structure_insight",
                                                               "source_insight"],
                                              partial_variables={"format_instructions": self.parsers[
-                                                 "final_analysis"].get_format_instructions()}),
+                                                 "final_analysis"].get_format_instructions()})
         }
 
     def step_cfg(self, cfg_str):
@@ -61,10 +62,11 @@ class AbstractionAgent(CodeBoardingAgent):
         return parsed_response
 
     def generate_analysis(self):
-        logging.info(f"[AbstractionAgent] Generating markdown for project: {self.project_name}")
+        logging.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),
             source_insight=self.context.get('source').llm_str()
         )
-        return self._parse_invoke(prompt, self.parsers["final_analysis"])
+        analysis_result = self._parse_invoke(prompt, self.parsers["final_analysis"])
+        return self.fix_source_code_reference_lines(analysis_result)

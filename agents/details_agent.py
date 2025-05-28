@@ -3,7 +3,8 @@ import logging
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from agents.agent import CodeBoardingAgent, AnalysisInsights
+from agents.agent import CodeBoardingAgent
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
     DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE
 
@@ -14,7 +15,7 @@ class DetailsAgent(CodeBoardingAgent):
         self.project_name = project_name
 
         self.parsers = {
-            "cfg": PydanticOutputParser(pydantic_object=AnalysisInsights),
+            "cfg": PydanticOutputParser(pydantic_object=CFGAnalysisInsights),
             "structure": PydanticOutputParser(pydantic_object=AnalysisInsights),
             "final_analysis": PydanticOutputParser(pydantic_object=AnalysisInsights),
         }
@@ -71,4 +72,5 @@ class DetailsAgent(CodeBoardingAgent):
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
         )
-        return self._parse_invoke(prompt, self.parsers["final_analysis"])
+        analysis = self._parse_invoke(prompt, self.parsers["final_analysis"])
+        return self.fix_source_code_reference_lines(analysis)
