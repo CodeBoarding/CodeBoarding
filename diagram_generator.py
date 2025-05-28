@@ -12,7 +12,7 @@ from static_analyzer.pylint_analyze.structure_graph_builder import StructureGrap
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
 
 
-class GraphGenerator:
+class DiagramGenerator:
     def __init__(self, repo_location, temp_folder, repo_name, output_dir):
         self.repo_location = repo_location
         self.temp_folder = temp_folder

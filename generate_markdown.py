@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
 from agents.tools.utils import clean_dot_file_str
-from graph_generator import GraphGenerator
+from diagram_generator import DiagramGenerator
 from logging_config import setup_logging
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
@@ -114,8 +114,8 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
         logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
 
-    generator = GraphGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                               output_dir=temp_repo_folder)
+    generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
+                                 output_dir=temp_repo_folder)
     analysis_files = generator.generate_analysis()
 
     for file in analysis_files:
