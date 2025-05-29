@@ -7,16 +7,18 @@ def setup_logging(
     default_level: str = "INFO",
     log_filename: str = "app.log",
     max_bytes: int = 10 * 1024 * 1024,
-    backup_count: int = 5
+    backup_count: int = 5,
+    log_dir: Path = None,
 ):
     """
     Configure:
       - Console output at INFO level
       - Rotating file handler at DEBUG level writing into logs/app.log
     """
-    if not os.path.exists("logs"):
-        os.makedirs("logs", exist_ok=True)
-    log_path = Path("logs") / log_filename
+    if log_dir and not os.path.exists(f"{log_dir}/logs"):
+        os.makedirs(f"{log_dir}/logs", exist_ok=True)
+
+    log_dir = Path(f"{log_dir}/logs") / log_filename
 
     config = {
         "version": 1,
@@ -38,7 +40,7 @@ def setup_logging(
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "DEBUG",
                 "formatter": "standard",
-                "filename": str(log_path),
+                "filename": str(log_dir),
                 "maxBytes": max_bytes,
                 "backupCount": backup_count,
                 "encoding": "utf-8",
