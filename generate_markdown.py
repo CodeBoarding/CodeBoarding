@@ -19,14 +19,14 @@ from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_fol
 from utils import generate_mermaid
 from utils import remote_repo_exists, RepoDontExistError, sanitize_repo_url, NoGithubTokenFoundError
 
-setup_logging()
+setup_logging(log_dir=Path("./"))
 logger = logging.getLogger(__name__)
 
 
 # logger.addHandler(AzureLogHandler(connection_string=os.environ["CONNECTION_STRING"]))
 
 def store_token():
-    if os.environ['GITHUB_TOKEN']:
+    if not os.environ.get('GITHUB_TOKEN'):  # Using .get() for safer access
         raise NoGithubTokenFoundError()
     logging.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
     cred = (
@@ -106,9 +106,15 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
 def generate_docs(repo_name: str, temp_repo_folder: Path):
     clean_files(Path('./'))
     load_dotenv()
-    ROOT = os.getenv("ROOT")
-    ROOT_RESULT = os.getenv("ROOT_RESULT")
-    repo_path = Path(ROOT) / 'repos' / repo_name
+    ROOT = os.getenv("ROOT", "./")  # Default to current directory if ROOT is not set
+    ROOT_RESULT = os.getenv("ROOT_RESULT", "./generated_results")  # Default path if not set
+    
+    # Create directories if they don't exist
+    repo_root = Path(ROOT)
+    repos_dir = repo_root / 'repos'
+    repos_dir.mkdir(parents=True, exist_ok=True)
+    
+    repo_path = repos_dir / repo_name
 
     if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
         logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
@@ -127,7 +133,12 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
             fname = "on_boarding" if fname.endswith("analysis") else fname
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
-    upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
+    
+    # Also check if ROOT_RESULT exists before uploading
+    if os.path.exists(ROOT_RESULT):
+        upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
+    else:
+        logging.warning(f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials.")
 
 
 def generate_docs_remote(repo_url: str, temp_repo_folder: str, local_dev=False) -> Path:

@@ -77,7 +77,7 @@ class CodeExplorerTool(BaseTool):
         transformed_path = transform_path(python_code_reference)
         if transformed_path != python_code_reference:
             logging.info(f"[Source Tool] Found file {transformed_path}")
-            return transformed_path, self.read_file(transformed_path)
+            return self.read_file(transformed_path)
 
         logging.error(
             f"[Source Tool] File for {python_code_reference} not found. Available files are: {self.cached_files}")
