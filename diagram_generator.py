@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
-from agents.tools.utils import clean_dot_file_str
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
@@ -86,7 +85,6 @@ class DiagramGenerator:
         builder.write_dot(f'{self.temp_folder}/call_graph.dot')
         # Now transform the call_graph
         call_graph_str = DotGraphTransformer(f'{self.temp_folder}/call_graph.dot', self.repo_location).transform()
-        call_graph_str = clean_dot_file_str(call_graph_str)
         packages = []
         for path in Path('.').rglob(f'{self.temp_folder}/packages_*.dot'):
             with open(path, 'r') as f:

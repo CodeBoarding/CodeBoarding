@@ -25,7 +25,8 @@ class NoRootPackageFoundError(Exception):
 class PackageRelationsTool(BaseTool):
     name: str = "package_relations"
     description: str = ("Tool which can give package relationships for a  package. "
-                        "The tool gives the relationships and hierarchy of packages of the requested package.")
+                        "The tool gives the relationships and hierarchy of packages of the requested package in the following format:\n"
+                        "{<source_package>: [<destination_package1>, <destination_package2>, ...]}\n")
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False
     cached_files: Optional[List[str]] = None
