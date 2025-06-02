@@ -79,7 +79,7 @@ def sanitize_repo_url(repo_url: str) -> str:
     return clean
 
 
-def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=True) -> str:
+def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="") -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
@@ -119,14 +119,26 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
 
     detail_lines = ["\n## Component Details\n", f"{insights.description}\n"]
 
+    root_dir = os.getenv('ROOT') + "/repos/" + project
+
     for comp in insights.components:
         detail_lines.append(f"### {comp.name}")
         detail_lines.append(f"{comp.description}")
         if comp.referenced_source_code:
-            qn_list = ", ".join(f"{qn.llm_str()}" for qn in comp.referenced_source_code)
-            detail_lines.append(f"- **Related Classes/Methods**: {qn_list}")
+            qn_list = []
+            for reference in comp.referenced_source_code:
+                ref_url = repo_url + "/blob/master" + reference.reference_file.split(root_dir)[1] \
+                          + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
+                qn_list.append(
+                    f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference.llm_str()}</a>')
+            # Join the list into an unordered markdown list, without the leading dash
+            references = ""
+            for item in qn_list:
+                references += f"- {item}\n"
+
+            detail_lines.append(f"**Related Classes/Methods**:\n\n{references}")
         else:
-            detail_lines.append(f"- **Related Classes/Methods**: _None_")
+            detail_lines.append(f"**Related Classes/Methods**: _None_")
         detail_lines.append("")  # blank line between components
 
     return "\n".join(lines + detail_lines)
