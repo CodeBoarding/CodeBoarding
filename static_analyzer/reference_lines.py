@@ -17,7 +17,6 @@ def find_fqn_location(source_code: str, fqn: str):
 
     path = fqn.split('.')
     tree = ast.parse(source_code)
-
     def find_node(nodes, path):
         for node in nodes:
             if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):

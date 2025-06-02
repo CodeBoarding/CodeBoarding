@@ -121,7 +121,6 @@ pdfminer-six==20250327
 pdm==2.23.1
 pexpect==4.9.0
 pillow==11.1.0
-pip @ file:///croot/pip_1737991979965/work
 platformdirs==4.3.7
 prompt-toolkit==3.0.51
 proto-plus==1.26.1
@@ -187,7 +186,6 @@ unearth==0.17.5
 urllib3==2.4.0
 uv==0.6.14
 uvicorn==0.34.2
-uvloop==0.21.0
 virtualenv==20.30.0
 watchfiles==1.0.5
 websockets==15.0.1

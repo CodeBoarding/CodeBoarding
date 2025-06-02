@@ -5,9 +5,6 @@ from pathlib import Path
 from diagram_generator import DiagramGenerator
 from logging_config import setup_logging
 
-
-
-
 def args_parser():
     parser = argparse.ArgumentParser(description="Generate high-level diagrams for a local project.")
     parser.add_argument("--repo", type=str, help="Location of the local project (repository).")

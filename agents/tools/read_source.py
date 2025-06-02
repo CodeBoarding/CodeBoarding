@@ -1,8 +1,8 @@
-import importlib
-import inspect
 import logging
 from typing import Optional, List
 import re
+from pathlib import Path
+
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
@@ -50,7 +50,8 @@ class CodeExplorerTool(BaseTool):
             python_code_reference = python_code_reference.split(":")[0]
         for path in self.cached_files:
             sub_path = python_code_reference.replace('.', '/')
-            if sub_path in str(path):
+            sub_path = Path(sub_path)
+            if self.is_subsequence(sub_path, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f"Source code for {python_code_reference}:\n{f.read()}"
@@ -58,8 +59,17 @@ class CodeExplorerTool(BaseTool):
         # maybe the path is to function so we have to check if the path is in the file
         for path in self.cached_files:
             sub_group = "/".join(python_code_reference.split('.')[:-1])
+            sub_group = Path(sub_group)
+
             # Check if the path leads to a file and not a directory
-            if sub_group in str(path) and str(path).endswith('.py'):
+            if self.is_subsequence(sub_group, path):
+                logging.info(f"[Source Tool] Found file {path}")
+                with open(path, 'r') as f:
+                    return path, f"Source code for {python_code_reference}:\n{f.read()}"
+
+            # Check for a file with __init__.py
+            sub_group_init = Path(sub_group) /'__init__.py'
+            if self.is_subsequence(sub_group_init, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f"Source code for {python_code_reference}:\n{f.read()}"
@@ -68,7 +78,16 @@ class CodeExplorerTool(BaseTool):
         for path in self.cached_files:
             # Maybe the file is one ClassFile.method ->
             sub_group = "/".join(python_code_reference.split('.')[:-2])
-            if sub_group in str(path) and str(path).endswith('.py'):
+            sub_group = Path(sub_group)
+
+            if self.is_subsequence(sub_group, path):
+                logging.info(f"[Source Tool] Found file {path}")
+                with open(path, 'r') as f:
+                    return path, f"Source code for {python_code_reference}:\n{f.read()}"
+
+            # Check for a file with __init__.py
+            sub_group_init = Path(sub_group) / '__init__.py'
+            if self.is_subsequence(sub_group_init, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f"Source code for {python_code_reference}:\n{f.read()}"
@@ -82,6 +101,14 @@ class CodeExplorerTool(BaseTool):
         logging.error(
             f"[Source Tool] File for {python_code_reference} not found. Available files are: {self.cached_files}")
         return None, f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {self.cached_files}"
+
+    def is_subsequence(self, sub: Path, full: Path) -> bool:
+        sub = sub.parts
+        full = full.parts
+        for i in range(len(full) - len(sub) + 1):
+            if full[i:i+len(sub)] == sub:
+                return True
+        return False
 
 
 def pascal_to_snake_segment(text):
