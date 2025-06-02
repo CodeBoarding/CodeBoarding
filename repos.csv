@@ -1,0 +1,98 @@
+Project Name,GitHub URL,Stars,Main Maintainer/Contact,Contact Info
+The Algorithms - Python,https://github.com/TheAlgorithms/Python,162000,The Algorithms Org,https://github.com/TheAlgorithms
+Python (CPython),https://github.com/python/cpython,57000,Python Core Devs,https://github.com/python
+Awesome Python,https://github.com/vinta/awesome-python,183000,Vinta Chen,https://github.com/vinta
+Public APIs,https://github.com/public-apis/public-apis,258000,Davide Briani,https://github.com/davemachado
+Manim,https://github.com/3b1b/manim,75000,Grant Sanderson,https://github.com/3b1b
+FastAPI,https://github.com/tiangolo/fastapi,81000,Sebastián Ramírez,https://github.com/tiangolo | https://linkedin.com/in/tiangolo
+Home Assistant,https://github.com/home-assistant/core,76400,Paulus Schoutsen,https://github.com/balloob
+Scrapy,https://github.com/scrapy/scrapy,54100,Pablo Hoffman,https://github.com/pablohoffman
+Requests,https://github.com/psf/requests,52500,Kenneth Reitz,https://github.com/kennethreitz
+Rich,https://github.com/Textualize/rich,50700,Will McGugan,https://github.com/willmcgugan
+GPT Engineer,https://github.com/gpt-engineer-org/gpt-engineer,50800,GPT Engineer Org,https://github.com/gpt-engineer-org
+Langflow,https://github.com/langflow-ai/langflow,47300,Langflow AI,https://github.com/langflow-ai
+PyTorch,https://github.com/pytorch/pytorch,71000,PyTorch Team,https://github.com/pytorch
+Transformers,https://github.com/huggingface/transformers,133000,Thomas Wolf,https://github.com/thomwolf
+Django,https://github.com/django/django,76000,Django Software Foundation,https://github.com/django
+Flask,https://github.com/pallets/flask,67000,David Lord,https://github.com/davidism
+Pandas,https://github.com/pandas-dev/pandas,42000,Wes McKinney,https://github.com/wesm
+Scikit-learn,https://github.com/scikit-learn/scikit-learn,59000,Gaël Varoquaux,https://github.com/gaelvaroquaux
+OpenCV,https://github.com/opencv/opencv,78000,OpenCV Team,https://github.com/opencv
+Matplotlib,https://github.com/matplotlib/matplotlib,18000,John Hunter (legacy),https://github.com/matplotlib
+TensorFlow,https://github.com/tensorflow/tensorflow,180000,Google Brain Team,https://github.com/tensorflow
+Keras,https://github.com/keras-team/keras,62000,François Chollet,https://github.com/fchollet
+PyInstaller,https://github.com/pyinstaller/pyinstaller,11000,PyInstaller Team,https://github.com/pyinstaller
+PyAutoGUI,https://github.com/asweigart/pyautogui,9000,Al Sweigart,https://github.com/asweigart
+Pytest,https://github.com/pytest-dev/pytest,11000,Bruno Oliveira,https://github.com/bitprophet
+Jupyter Notebook,https://github.com/jupyter/notebook,12000,Project Jupyter,https://github.com/jupyter
+JupyterLab,https://github.com/jupyterlab/jupyterlab,15000,Project Jupyter,https://github.com/jupyterlab
+SymPy,https://github.com/sympy/sympy,12000,Aaron Meurer,https://github.com/asmeurer
+Pillow,https://github.com/python-pillow/Pillow,11000,Alex Clark,https://github.com/aclark4life
+Beautiful Soup,https://github.com/wention/BeautifulSoup4,9000,Leonard Richardson,https://www.crummy.com/contact.html
+Plotly.py,https://github.com/plotly/plotly.py,14000,Plotly,https://github.com/plotly
+PyPDF2,https://github.com/py-pdf/PyPDF2,9000,PyPDF Team,https://github.com/py-pdf
+SQLAlchemy,https://github.com/sqlalchemy/sqlalchemy,7300,Mike Bayer,https://github.com/zzzeek
+Pygame,https://github.com/pygame/pygame,7000,Pygame Community,https://github.com/pygame
+Streamlit,https://github.com/streamlit/streamlit,30000,Adrien Treuille,https://github.com/atreuille
+Black,https://github.com/psf/black,34000,Łukasz Langa,https://github.com/ambv
+PyTorch Lightning,https://github.com/Lightning-AI/lightning,25000,William Falcon,https://github.com/williamFalcon
+Pydantic,https://github.com/pydantic/pydantic,18000,Samuel Colvin,https://github.com/samuelcolvin
+Ansible,https://github.com/ansible/ansible,59000,Ansible Community,https://github.com/ansible
+Airflow,https://github.com/apache/airflow,34000,Apache Airflow PMC,https://github.com/apache/airflow
+Sentry Python SDK,https://github.com/getsentry/sentry-python,5000,Sentry,https://github.com/getsentry
+Celery,https://github.com/celery/celery,22000,Ask Solem,https://github.com/ask
+Locust,https://github.com/locustio/locust,22000,Jonatan Heyman,https://github.com/cyberw
+MoviePy,https://github.com/Zulko/moviepy,16000,Valentin Chappelier,https://github.com/Zulko
+Paramiko,https://github.com/paramiko/paramiko,8500,Jeff Forcier,https://github.com/bitprophet
+Pytest,https://github.com/pytest-dev/pytest,11000,Bruno Oliveira,https://github.com/bitprophet
+PySimpleGUI,https://github.com/PySimpleGUI/PySimpleGUI,18000,Mike B,https://github.com/MikeTheWatchGuy
+PyTorch Geometric,https://github.com/pyg-team/pytorch_geometric,11000,Matthias Fey,https://github.com/rusty1s
+spaCy,https://github.com/explosion/spaCy,28000,Matthew Honnibal,https://github.com/honnibal
+face_recognition,https://github.com/ageitgey/face_recognition,52000,Adam Geitgey,https://github.com/ageitgey
+youtube-dl,https://github.com/ytdl-org/youtube-dl,120000,ytdl-org,https://github.com/ytdl-org
+youtube-dlp,https://github.com/yt-dlp/yt-dlp,60000,yt-dlp,https://github.com/yt-dlp
+PyCaret,https://github.com/pycaret/pycaret,8000,Moez Ali,https://github.com/pycaret
+Optuna,https://github.com/optuna/optuna,9000,Optuna Team,https://github.com/optuna
+Dash,https://github.com/plotly/dash,20000,Plotly,https://github.com/plotly
+AutoGluon,https://github.com/autogluon/autogluon,9000,AutoGluon Team,https://github.com/autogluon
+OpenAI Gym,https://github.com/openai/gym,32000,OpenAI,https://github.com/openai
+OpenAI Baselines,https://github.com/openai/baselines,14000,OpenAI,https://github.com/openai
+PyTorch Forecasting,https://github.com/jdb78/pytorch-forecasting,7000,Jan Brauns,https://github.com/jdb78
+Boto3,https://github.com/boto/boto3,8000,Amazon AWS,https://github.com/boto
+LocalStack,https://github.com/localstack/localstack,57600,Waldemar Hummer,https://github.com/whummer
+Pyright,https://github.com/microsoft/pyright,12000,Microsoft,https://github.com/microsoft
+PyGObject,https://github.com/GNOME/pygobject,7000,GNOME,https://github.com/GNOME
+Peewee,https://github.com/coleifer/peewee,10000,Charles Leifer,https://github.com/coleifer
+Pyrogram,https://github.com/pyrogram/pyrogram,9000,Dan Tès,https://github.com/delivrance
+Textual,https://github.com/Textualize/textual,24000,Will McGugan,https://github.com/willmcgugan
+Pytest-cov,https://github.com/pytest-dev/pytest-cov,7000,Bruno Oliveira,https://github.com/bitprophet
+PyScaffold,https://github.com/pyscaffold/pyscaffold,7000,PyScaffold Team,https://github.com/pyscaffold
+PyInstaller,https://github.com/pyinstaller/pyinstaller,11000,PyInstaller Team,https://github.com/pyinstaller
+PyPDF2,https://github.com/py-pdf/PyPDF2,9000,PyPDF Team,https://github.com/py-pdf
+PyTorch Lightning,https://github.com/Lightning-AI/lightning,25000,William Falcon,https://github.com/williamFalcon
+Pytest-xdist,https://github.com/pytest-dev/pytest-xdist,7000,Bruno Oliveira,https://github.com/bitprophet
+Pydub,https://github.com/jiaaro/pydub,7000,John Butler,https://github.com/jiaaro
+Pytest-mock,https://github.com/pytest-dev/pytest-mock,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-html,https://github.com/pytest-dev/pytest-html,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-runner,https://github.com/pytest-dev/pytest-runner,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-sugar,https://github.com/pytest-dev/pytest-sugar,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-django,https://github.com/pytest-dev/pytest-django,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-flask,https://github.com/pytest-dev/pytest-flask,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-asyncio,https://github.com/pytest-dev/pytest-asyncio,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-benchmark,https://github.com/pytest-dev/pytest-benchmark,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-metadata,https://github.com/pytest-dev/pytest-metadata,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-splinter,https://github.com/pytest-dev/pytest-splinter,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-forked,https://github.com/pytest-dev/pytest-forked,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-randomly,https://github.com/pytest-dev/pytest-randomly,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-mock-resources,https://github.com/pytest-dev/pytest-mock-resources,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-subtests,https://github.com/pytest-dev/pytest-subtests,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-mypy,https://github.com/pytest-dev/pytest-mypy,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-cov,https://github.com/pytest-dev/pytest-cov,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-tornado,https://github.com/pytest-dev/pytest-tornado,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-qt,https://github.com/pytest-dev/pytest-qt,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-lazy-fixture,https://github.com/pytest-dev/pytest-lazy-fixture,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-clarity,https://github.com/pytest-dev/pytest-clarity,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-asyncio,https://github.com/pytest-dev/pytest-asyncio,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-html,https://github.com/pytest-dev/pytest-html,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-xdist,https://github.com/pytest-dev/pytest-xdist,7000,Bruno Oliveira,https://github.com/bitprophet
+Pytest-mock,https://github.com/pytest-dev/pytest-mock,7000,Bruno Oliveira,https://github.com/bitprophet
