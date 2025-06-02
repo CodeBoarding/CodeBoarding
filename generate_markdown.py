@@ -101,7 +101,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
     origin.push()
 
 
-def generate_docs(repo_name: str, temp_repo_folder: Path):
+def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     clean_files(Path('./'))
     load_dotenv()
     ROOT = os.getenv("ROOT", "./")  # Default to current directory if ROOT is not set
@@ -126,7 +126,8 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
         with open(file, 'r') as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
             logging.info(f"Generated analysis file: {file}")
-            markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file))
+            markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file),
+                                                 repo_url=repo_url)
             fname = Path(file).name.split(".json")[0]
             fname = "on_boarding" if fname.endswith("analysis") else fname
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
@@ -148,7 +149,7 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: str, local_dev=False) 
     if not local_dev:
         store_token()
     repo_name = clone_repository(repo_url)
-    generate_docs(repo_name, temp_repo_folder)
+    generate_docs(repo_name, temp_repo_folder, repo_url)
     return repo_name
 
 
@@ -176,8 +177,17 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/twilio/twilio-python"]
-    temp_repo_folder = create_temp_repo_folder()
+    # Load the repos.csv:
+    import csv
+
+    with open("repos.csv", "r") as f:
+        reader = csv.reader(f)
+        repos = [row[1] for row in reader if row][1:]  # Skip the header row
     for repo in tqdm(repos, desc="Generating docs for repos"):
-        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-    remove_temp_repo_folder(temp_repo_folder)
+        temp_repo_folder = create_temp_repo_folder()
+        try:
+            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+        except Exception as e:
+            logging.error(f"Failed to generate docs for {repo}: {e}")
+        finally:
+            remove_temp_repo_folder(temp_repo_folder)
