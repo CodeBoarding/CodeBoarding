@@ -9,7 +9,6 @@ from git import Repo
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
-from agents.tools.utils import clean_dot_file_str
 from diagram_generator import DiagramGenerator
 from logging_config import setup_logging
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
@@ -55,7 +54,6 @@ def generate_static_analysis(repo_location: Path, temp_repo_folder: Path):
     builder.write_dot(f'{temp_repo_folder}/call_graph.dot')
     # Now transform the call_graph
     call_graph_str = DotGraphTransformer(f'{temp_repo_folder}/call_graph.dot', repo_location).transform()
-    call_graph_str = clean_dot_file_str(call_graph_str)
     packages = []
     for path in Path('.').rglob(f'{temp_repo_folder}/packages_*.dot'):
         with open(path, 'r') as f:
@@ -138,7 +136,8 @@ def generate_docs(repo_name: str, temp_repo_folder: Path):
     if os.path.exists(ROOT_RESULT):
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
     else:
-        logging.warning(f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials.")
+        logging.warning(
+            f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials.")
 
 
 def generate_docs_remote(repo_url: str, temp_repo_folder: str, local_dev=False) -> Path:
@@ -177,7 +176,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
-    repos = ["https://github.com/Ekultek/WhatWaf"]
+    repos = ["https://github.com/twilio/twilio-python"]
     temp_repo_folder = create_temp_repo_folder()
     for repo in tqdm(repos, desc="Generating docs for repos"):
         generate_docs_remote(repo, temp_repo_folder, local_dev=True)

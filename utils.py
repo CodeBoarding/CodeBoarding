@@ -114,6 +114,9 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
 
     lines.append("```")
 
+    lines.append(
+        "[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20codeboarding@gmail.com-lightgrey?style=flat-square)](mailto:codeboarding@gmail.com)")
+
     detail_lines = ["\n## Component Details\n", f"{insights.description}\n"]
 
     for comp in insights.components:
