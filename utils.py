@@ -119,7 +119,7 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
 
     detail_lines = ["\n## Component Details\n", f"{insights.description}\n"]
 
-    root_dir = os.getenv('ROOT') + "/repos/" + project
+    root_dir = os.getenv('REPO_ROOT') + "/" + project
 
     for comp in insights.components:
         detail_lines.append(f"### {comp.name}")
@@ -127,6 +127,13 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
         if comp.referenced_source_code:
             qn_list = []
             for reference in comp.referenced_source_code:
+                print(reference.reference_file, root_dir)
+                if reference.reference_start_line is None or reference.reference_end_line is None:
+                    qn_list.append(f"{reference.llm_str()}")
+                    continue
+                if not reference.reference_file.startswith(root_dir):
+                    qn_list.append(f"{reference.llm_str()}")
+                    continue
                 ref_url = repo_url + "/blob/master" + reference.reference_file.split(root_dir)[1] \
                           + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(
@@ -136,9 +143,41 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
             for item in qn_list:
                 references += f"- {item}\n"
 
-            detail_lines.append(f"**Related Classes/Methods**:\n\n{references}")
+            detail_lines.append(f"\n\n**Related Classes/Methods**:\n\n{references}")
         else:
-            detail_lines.append(f"**Related Classes/Methods**: _None_")
+            detail_lines.append(f"\n\n**Related Classes/Methods**: _None_")
         detail_lines.append("")  # blank line between components
 
     return "\n".join(lines + detail_lines)
+
+
+if __name__ == "__main__":
+    # Example 
+    from dotenv import load_dotenv
+    load_dotenv()
+    dirs = os.listdir('./temp')
+    for subd in dirs:
+        # Read all json files in subd and load them in AnalysisInsights
+        subd_path = Path('./temp') / subd
+        if subd_path.is_dir():
+            json_files = list(subd_path.glob('*.json'))
+            project_name = None
+            repo_url = None
+            for json_file in json_files:
+                with open(json_file, 'r') as f:
+                    analysis = AnalysisInsights.model_validate_json(f.read())
+                    print(analysis.llm_str())
+                # Now create the markdown file
+                if project_name is None:
+                    project_name = input("Enter the project name: ")
+                    repo_url = input("Enter the repository URL (or leave empty for no links): ").strip()
+                if not repo_url:
+                    continue
+                markdown_response = generate_mermaid(analysis, project_name, link_files=("analysis.json" in json_file.name), repo_url=repo_url)
+                fname = json_file.name.split(".json")[0]
+                fname = "on_boarding" if fname.endswith("analysis") else fname
+                with open(f"{subd_path}/{fname}.md", "w") as f:
+                    f.write(markdown_response.strip())
+                    print(f"Generated markdown file: {fname}.md in {subd_path}")
+        else:
+            print(f"{subd} is not a directory, skipping.")
