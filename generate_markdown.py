@@ -104,12 +104,11 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
 def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     clean_files(Path('./'))
     load_dotenv()
-    ROOT = os.getenv("ROOT", "./")  # Default to current directory if ROOT is not set
     ROOT_RESULT = os.getenv("ROOT_RESULT", "./generated_results")  # Default path if not set
 
     # Create directories if they don't exist
-    repo_root = Path(ROOT)
-    repos_dir = repo_root / 'repos'
+    repos_dir = Path(os.getenv("REPO_ROOT"))
+
     repos_dir.mkdir(parents=True, exist_ok=True)
 
     repo_path = repos_dir / repo_name
@@ -146,9 +145,10 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: str, local_dev=False) 
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
     """
+    load_dotenv()
     if not local_dev:
         store_token()
-    repo_name = clone_repository(repo_url)
+    repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT")))
     generate_docs(repo_name, temp_repo_folder, repo_url)
     return repo_name
 
@@ -182,12 +182,12 @@ if __name__ == "__main__":
 
     with open("repos.csv", "r") as f:
         reader = csv.reader(f)
-        repos = [row[1] for row in reader if row][1:]  # Skip the header row
+        repos = [row[1] for row in reader if row][30:]  # Skip the header row
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
         except Exception as e:
             logging.error(f"Failed to generate docs for {repo}: {e}")
-        finally:
-            remove_temp_repo_folder(temp_repo_folder)
+        # finally:
+        #     remove_temp_repo_folder(temp_repo_folder)
