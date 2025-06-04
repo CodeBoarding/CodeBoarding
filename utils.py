@@ -154,7 +154,7 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
 
 
 if __name__ == "__main__":
-    # Example 
+    # Example
     from dotenv import load_dotenv
 
     load_dotenv()

@@ -21,7 +21,7 @@ You are an expert in software system architecture. Currently at steps 1 and 2 of
 Here is the Control Flow Graph (CFG) for the project `{project_name}`.
 {cfg_str}
 
-The control flow graph is in json format like:
+The control flow graph is in json fromat like:
     "from_method_call": ["invoked_method_1", "invoked_method_2"]
 
 We want to reduce the Control Flow Graph to good abstractions, each abstraction should group together subgroups of modules, classes and functions that are related to each other.
