@@ -178,11 +178,8 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:
-    import csv
 
-    with open("repos.csv", "r") as f:
-        reader = csv.reader(f)
-        repos = [row[1] for row in reader if row][30:]  # Skip the header row
+    repos = ["https://github.com/stripe/stripe-python"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:

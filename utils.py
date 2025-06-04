@@ -115,7 +115,7 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
     lines.append("```")
 
     lines.append(
-        "[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20codeboarding@gmail.com-lightgrey?style=flat-square)](mailto:codeboarding@gmail.com)")
+        "[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)")
 
     detail_lines = ["\n## Component Details\n", f"{insights.description}\n"]
 
@@ -148,12 +148,15 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
             detail_lines.append(f"\n\n**Related Classes/Methods**: _None_")
         detail_lines.append("")  # blank line between components
 
+    detail_lines.append(
+        "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)")
     return "\n".join(lines + detail_lines)
 
 
 if __name__ == "__main__":
     # Example 
     from dotenv import load_dotenv
+
     load_dotenv()
     dirs = os.listdir('./temp')
     for subd in dirs:
@@ -173,7 +176,8 @@ if __name__ == "__main__":
                     repo_url = input("Enter the repository URL (or leave empty for no links): ").strip()
                 if not repo_url:
                     continue
-                markdown_response = generate_mermaid(analysis, project_name, link_files=("analysis.json" in json_file.name), repo_url=repo_url)
+                markdown_response = generate_mermaid(analysis, project_name,
+                                                     link_files=("analysis.json" in json_file.name), repo_url=repo_url)
                 fname = json_file.name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 with open(f"{subd_path}/{fname}.md", "w") as f:

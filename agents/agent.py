@@ -14,12 +14,11 @@ from agents.tools.read_structure import CodeStructureTool
 from static_analyzer.reference_lines import find_fqn_location
 
 
-
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, system_message):
         self._setup_env_vars()
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash-preview-05-20",
             temperature=0,
             max_retries=2,
             google_api_key=self.api_key

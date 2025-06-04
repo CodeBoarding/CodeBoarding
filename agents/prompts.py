@@ -6,9 +6,9 @@ Your aim is to analyze the CFG and generate a high-level data flow overview of t
 1. Examine the flow in the CFG.
 2. Identify the most important and central modules or functions (HAVE TO BE LESS THAN 20).
 3. Investigate the structure of the project and identify the relevant packages and modules.
-3. Investigate the source code of interesting files to understand their purpose and functionality.
-4. For each important component, come up with a name which reflects its functionality. Do a description and state its main responsibility in a single paragraph.
-5. Lastly identify the relationships between the components and how they interact with each other.
+4. Investigate the source code of interesting files to understand their purpose and functionality.
+5. For each important component, come up with a name which reflects its functionality. Do a description and state its main responsibility in a single paragraph.
+6. Lastly identify the relationships between the components and how they interact with each other.
 
 Whenever you think a tool could help you complete for the analysis, **call the tool**.
 After observing the output, continue reasoning.
@@ -21,7 +21,7 @@ You are an expert in software system architecture. Currently at steps 1 and 2 of
 Here is the Control Flow Graph (CFG) for the project `{project_name}`.
 {cfg_str}
 
-The control flow graph is in json fromat like:
+The control flow graph is in json format like:
     "from_method_call": ["invoked_method_1", "invoked_method_2"]
 
 We want to reduce the Control Flow Graph to good abstractions, each abstraction should group together subgroups of modules, classes and functions that are related to each other.
@@ -34,8 +34,10 @@ Use class structure and package structure to help you with that.
 4. Identify the most important components with their names and descriptions as well as related source code files. **Keep the number of components less than 20.**
 5. Furthermore, identify the relationships between the components and how they interact with each other. 
 
-Please do the above analysis and give me the results in the following format:
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
 
 SOURCE_MESSAGE = """
@@ -49,12 +51,12 @@ Now as final step in order to validate and enhance their relationship you can ma
 **Your Tasks:**
 1. Use the read_source_code tool to read the source code of the modules and components you need further details about.
 2. Refine or expand the earlier high-level classes/components, in the end you have to have **LESS THAN 10 COMPONENTS**, based on new details from the source code.
-3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents, relationship to other components, and  **what roles does it have with-in the project** and **how it relates to its neighbouring components**. For that again you can consult with the CFG.
+3. Define each component by its name (make the name somewhat related to the codebase naming), relevant documents, relationship to other components, and **what roles does it have within the project** and **how it relates to its neighbouring components**.
 
-Keep the number of components less than 10.
-
-**Format Instructions:**
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """
@@ -69,13 +71,13 @@ With enhancing that analysis with source code analysis reading you identified th
 **Final Tasks:**
 Find the high level components and their relations. Each component has to be accompanied with a paragraph of descriptions. **Keep the number of components less than 10**.
 1. Dive into the control-flow graph conclusions to pinpoint critical interaction pathways, highlight central modules/functions, and map out dependency chains.
-2. Examine the source-level analysis to confirm each component’s responsibilities, interface contracts, and communication patterns.
+2. Examine the source-level analysis to confirm each component's responsibilities, interface contracts, and communication patterns.
 3. Aggregate these insights and produce the final components with their names, a paragraph descriptions, related source files, and finally record the relations between components.
 
-At the end try to keep the number of the components less than **10**.
-
-**Format Instructions:**
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
 
 SYSTEM_DETAILS_MESSAGE = """
@@ -125,8 +127,10 @@ To get better understanding of these interactions you can look at their source c
 Please identify important modules and functions from the structure. For each component have the name, description and related source code.
 As well as that identify the relationships between the components and how they interact with each other.
 
-Use the following format:
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
 
 ENHANCE_STRUCTURE_MESSAGE = """
@@ -143,8 +147,10 @@ To further group elements if needed you can make use of the `package_relations` 
 2. Expand or refine the earlier components, we need to understand the structure of the component and its purpose.
 3. Collect the newly identified components with their names, descriptions and related source code. As well as that identify the relationships between the components and how they interact with each other.
 
-** Format Instructions: **
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
 
 DETAILS_MESSAGE = """
@@ -161,6 +167,8 @@ Here is a summary of the most important modules, components, and abstract classe
 
 Finally keep the number of components less than **10**.
 
-** Format Instructions: **
+IMPORTANT: Your final response must be a valid, parseable JSON object that strictly follows the format below:
 {format_instructions}
+
+DO NOT include any explanations, notes, or additional text outside of the JSON object. Make sure all JSON attributes are properly escaped and formatted according to the specifications.
 """
