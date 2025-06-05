@@ -55,7 +55,7 @@ class DiagramGenerator:
 
         analysis_response = self.abstraction_agent.generate_analysis()
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = [executor.submit(self.process_component, component) for component in
                        analysis_response.components]
             for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing details"):

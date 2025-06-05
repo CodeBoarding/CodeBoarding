@@ -1,7 +1,9 @@
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
+from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -19,8 +21,8 @@ class CodeBoardingAgent:
         self._setup_env_vars()
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash-preview-05-20",
-            temperature=0,
-            max_retries=2,
+            temperature=0.1,
+            max_retries=0,
             google_api_key=self.api_key
         )
         self.read_source_code = CodeExplorerTool(repo_dir=repo_dir)
@@ -38,15 +40,21 @@ class CodeBoardingAgent:
 
     def _invoke(self, prompt):
         """Unified agent invocation method."""
-        response = self.agent.invoke(
-            {"messages": [self.system_message, HumanMessage(content=prompt)]}
-        )
-        agent_response = response["messages"][-1]
-        assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
-        if type(agent_response.content) == str:
-            return agent_response.content
-        if type(agent_response.content) == list:
-            return "".join([message for message in agent_response.content])
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.agent.invoke(
+                    {"messages": [self.system_message, HumanMessage(content=prompt)]}
+                )
+                agent_response = response["messages"][-1]
+                assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
+                if type(agent_response.content) == str:
+                    return agent_response.content
+                if type(agent_response.content) == list:
+                    return "".join([message for message in agent_response.content])
+            except ResourceExhausted as e:
+                logging.error(f"Resource exhausted, retrying... in 60 seconds {e}")
+                time.sleep(60)  # Wait before retrying
 
     def _parse_invoke(self, prompt, parser, retry=3):
         if retry < 0:
