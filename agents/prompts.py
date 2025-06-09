@@ -22,7 +22,7 @@ Tasks:
 2. Group classes/functions into high-level abstractions using **read_class_structure**
 3. Use **package_relations** to understand package relationships for meaningful grouping
 4. Identify top components (max 20) with names, descriptions, and source files
-5. Define component relationships and interactions
+5. Define component relationships and interactions. There should not be more thane 2 relationships between any two components.
 
 Output: Valid JSON only, no explanations.
 {format_instructions}"""
@@ -51,7 +51,7 @@ Source Analysis:
 Tasks:
 1. Identify critical interaction pathways and central modules from CFG
 2. Confirm component responsibilities and communication patterns from source analysis
-3. Produce final components (max 10) with names, descriptions, source files, and relationships
+3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships (No more than 2 relationships between any two components)
 
 Output: Valid JSON only, no explanations.
 {format_instructions}"""
@@ -62,7 +62,7 @@ Generate an overview of the component's structure, flow, and purpose.
 
 Tasks:
 1. Identify relevant CFG parts for the subsystem
-2. Find central components (max 20)
+2. Find central components (max 20 optimally 10)
 3. Investigate module structure
 4. Examine source code for functionality
 5. Define component responsibilities and interactions
@@ -88,7 +88,7 @@ Tasks:
 1. Identify important modules/functions
 2. Use **read_source_code** for interaction details
 3. Define components with names, descriptions, and source files
-4. Map component relationships and interactions
+4. Map component relationships and interactions (max 10 components and 2 relationships between any two components)
 
 Output: Valid JSON only, no explanations.
 {format_instructions}"""
@@ -115,7 +115,7 @@ Tasks:
 1. Use **read_source_code** for detailed component analysis
 2. Define components and relationships (max 10)
 3. Provide component names, descriptions, and source files
-4. Map component interactions
+4. Map component interactions (max 2 relationships between any two components)
 
 Output: Valid JSON only, no explanations.
 {format_instructions}"""

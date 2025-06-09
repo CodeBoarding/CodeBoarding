@@ -21,7 +21,7 @@ class CodeBoardingAgent:
         self._setup_env_vars()
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash-preview-05-20",
-            temperature=0.1,
+            temperature=0,
             max_retries=0,
             google_api_key=self.api_key
         )
