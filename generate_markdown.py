@@ -103,7 +103,6 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
 
 def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     clean_files(Path('./'))
-    load_dotenv()
     ROOT_RESULT = os.getenv("ROOT_RESULT", "./generated_results")  # Default path if not set
 
     # Create directories if they don't exist
@@ -145,7 +144,6 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: str, local_dev=False) 
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
     """
-    load_dotenv()
     if not local_dev:
         store_token()
     repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT")))
@@ -175,6 +173,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:

@@ -2,13 +2,17 @@ import logging
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from generate_markdown import generate_docs_remote
-from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
+from agents.agent_responses import AnalysisInsights
+from diagram_generator import DiagramGenerator
+from generate_markdown import generate_docs_remote, clone_repository
+from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder, \
+    generate_mermaid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,6 +22,7 @@ app = FastAPI(
     description="Generate docs/diagrams for a GitHub repo via `generate_docs_remote`",
     version="1.0.0",
 )
+load_dotenv()
 
 # ---- CORS setup ----
 origins = [
@@ -97,6 +102,13 @@ async def preflight_docs():
     return PlainTextResponse(status_code=204)
 
 
+def generate_documents(repo_path, temp_repo_folder, repo_name):
+    generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
+                                 output_dir=temp_repo_folder)
+    analysis_files = generator.generate_analysis()
+    return analysis_files
+
+
 @app.get(
     "/generate_docs",
     response_class=JSONResponse,
@@ -119,35 +131,44 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
     """
     logger.info("Received request to generate docs content for %s", url)
 
+    # clone the repo:
+    # repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
     # Setup a dedicated temp folder for this run
     temp_repo_folder = create_temp_repo_folder()
     try:
-        # generate the docs
-        repo_name = await run_in_threadpool(
-            generate_docs_remote,
-            repo_url=url,
-            temp_repo_folder=temp_repo_folder,
-            local_dev=True,
-        )
-
-        # Collect all generated markdown files
+        # # generate the docs
+        # analysis_files = await run_in_threadpool(
+        #     generate_documents,
+        #     repo_path=Path(os.getenv("REPO_ROOT")) / repo_name,
+        #     temp_repo_folder=temp_repo_folder,
+        #     repo_name=repo_name,
+        # )
+        #
+        # # Now for each foc create the markdown and send it back:
         docs_content = {}
-        temp_path = Path(temp_repo_folder)
-
-        for md_file in temp_path.glob("*.md"):
-            if md_file.name != "README.md":  # Skip README files
-                with open(md_file, 'r', encoding='utf-8') as f:
-                    docs_content[md_file.name] = f.read()
+        # for file in analysis_files:
+        #     with open(file, 'r') as f:
+        #         analysis = AnalysisInsights.model_validate_json(f.read())
+        #         logging.info(f"Generated analysis file: {file}")
+        #         markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file),
+        #                                              repo_url=url)
+        #         fname = Path(file).name.split(".json")[0]
+        #         fname = "on_boarding" if fname.endswith("analysis") else fname
+        for file in os.listdir("/home/ivan/StartUp/CodeBoarding/temp/026acd9955c0471baca2557f1e6de2a2"):
+            if file.endswith(".md"):
+                with open(f"/home/ivan/StartUp/CodeBoarding/temp/026acd9955c0471baca2557f1e6de2a2/{file}", 'r') as f:
+                    docs_content[file] = f.read()
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
             raise HTTPException(404, detail="No documentation files were generated")
 
         logger.info("Successfully generated %d doc files for %s", len(docs_content), url)
-        return JSONResponse(content={
-            "repository": repo_name,
+        resp = JSONResponse(content={
             "files": docs_content
         })
+        print(resp)
+        return resp
 
     except (RepoDontExistError, RepoIsNone):
         logger.warning("Repo not found or clone failed: %s", url)
