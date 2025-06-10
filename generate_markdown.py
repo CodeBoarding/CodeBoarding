@@ -178,13 +178,22 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:
+    import csv
 
-    repos = ["https://github.com/stripe/stripe-python"]
+    with open("/outreach_utils/unified_repos.csv", "r") as f:
+        csv_reader = csv.reader(f)
+        rows = list(csv_reader)  # Read all rows into a list
+
+        # Skip the header
+    data_rows = rows[1:]
+
+    # Extract the second column (repo URLs)
+    repos = [row[1] for row in data_rows if len(row) > 1]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
         except Exception as e:
             logging.error(f"Failed to generate docs for {repo}: {e}")
-        # finally:
-        #     remove_temp_repo_folder(temp_repo_folder)
+        finally:
+            remove_temp_repo_folder(temp_repo_folder)
