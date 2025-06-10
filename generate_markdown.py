@@ -127,7 +127,10 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
             markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file),
                                                  repo_url=repo_url)
             fname = Path(file).name.split(".json")[0]
-            fname = "on_boarding" if fname.endswith("analysis") else fname
+            if fname.endswith("analysis"):
+                fname = "on_boarding"
+                faq_header = "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)"
+                markdown_response =  markdown_response + faq_header
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
 
