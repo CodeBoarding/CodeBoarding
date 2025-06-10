@@ -12,7 +12,7 @@ from agents.agent_responses import AnalysisInsights
 from diagram_generator import DiagramGenerator
 from generate_markdown import generate_docs_remote, clone_repository
 from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder, \
-    generate_mermaid
+    generate_markdown
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

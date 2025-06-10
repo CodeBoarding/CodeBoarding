@@ -15,7 +15,7 @@ from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
 from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder
-from utils import generate_mermaid
+from utils import generate_markdown
 from utils import remote_repo_exists, RepoDontExistError, sanitize_repo_url, NoGithubTokenFoundError
 
 setup_logging(log_dir=Path("./"))
@@ -124,13 +124,12 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
         with open(file, 'r') as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
             logging.info(f"Generated analysis file: {file}")
-            markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file),
-                                                 repo_url=repo_url)
+            markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
+                                                  repo_url=repo_url)
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
-                faq_header = "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)"
-                markdown_response =  markdown_response + faq_header
+                markdown_response = markdown_response
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
 
