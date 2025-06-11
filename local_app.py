@@ -132,29 +132,30 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
     logger.info("Received request to generate docs content for %s", url)
 
     # clone the repo:
-    # repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
+    repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
     # Setup a dedicated temp folder for this run
     temp_repo_folder = create_temp_repo_folder()
     try:
-        # # generate the docs
-        # analysis_files = await run_in_threadpool(
-        #     generate_documents,
-        #     repo_path=Path(os.getenv("REPO_ROOT")) / repo_name,
-        #     temp_repo_folder=temp_repo_folder,
-        #     repo_name=repo_name,
-        # )
-        #
-        # # Now for each foc create the markdown and send it back:
+        # generate the docs
+        analysis_files = await run_in_threadpool(
+            generate_documents,
+            repo_path=Path(os.getenv("REPO_ROOT")) / repo_name,
+            temp_repo_folder=temp_repo_folder,
+            repo_name=repo_name,
+        )
+        
+        # Now for each foc create the markdown and send it back:
         docs_content = {}
-        # for file in analysis_files:
-        #     with open(file, 'r') as f:
-        #         analysis = AnalysisInsights.model_validate_json(f.read())
-        #         logging.info(f"Generated analysis file: {file}")
-        #         markdown_response = generate_mermaid(analysis, repo_name, link_files=("analysis.json" in file),
-        #                                              repo_url=url)
-        #         fname = Path(file).name.split(".json")[0]
-        #         fname = "on_boarding" if fname.endswith("analysis") else fname
-        for file in os.listdir("/home/ivan/StartUp/CodeBoarding/temp/026acd9955c0471baca2557f1e6de2a2"):
+        for file in analysis_files:
+            with open(file, 'r') as f:
+                analysis = AnalysisInsights.model_validate_json(f.read())
+                logging.info(f"Generated analysis file: {file}")
+                markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
+                                                     repo_url=url)
+                fname = Path(file).name.split(".json")[0]
+                fname = "on_boarding" if fname.endswith("analysis") else fname
+                docs_content[f"{fname}.md"] = markdown_response.strip()
+        for file in os.listdir():
             if file.endswith(".md"):
                 with open(f"/home/ivan/StartUp/CodeBoarding/temp/026acd9955c0471baca2557f1e6de2a2/{file}", 'r') as f:
                     docs_content[file] = f.read()
