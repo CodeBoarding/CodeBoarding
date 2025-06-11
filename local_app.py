@@ -131,6 +131,10 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
     """
     logger.info("Received request to generate docs content for %s", url)
 
+    # Ensure the URL starts with the correct prefix
+    if not url.startswith("https://github.com/"):
+        url = "https://github.com/" + url
+
     # clone the repo:
     repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
     # Setup a dedicated temp folder for this run
@@ -143,7 +147,7 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
             temp_repo_folder=temp_repo_folder,
             repo_name=repo_name,
         )
-        
+
         # Now for each foc create the markdown and send it back:
         docs_content = {}
         for file in analysis_files:
@@ -151,7 +155,7 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
                 analysis = AnalysisInsights.model_validate_json(f.read())
                 logging.info(f"Generated analysis file: {file}")
                 markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
-                                                     repo_url=url)
+                                                      repo_url=url)
                 fname = Path(file).name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 docs_content[f"{fname}.md"] = markdown_response.strip()
