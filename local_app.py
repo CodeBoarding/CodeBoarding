@@ -12,7 +12,7 @@ from agents.agent_responses import AnalysisInsights
 from diagram_generator import DiagramGenerator
 from generate_markdown import generate_docs_remote, clone_repository
 from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder, \
-    generate_markdown
+    generate_markdown_content
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -154,15 +154,11 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())
                 logging.info(f"Generated analysis file: {file}")
-                markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
+                markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
                                                       repo_url=url)
                 fname = Path(file).name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 docs_content[f"{fname}.md"] = markdown_response.strip()
-        for file in os.listdir():
-            if file.endswith(".md"):
-                with open(f"/home/ivan/StartUp/CodeBoarding/temp/026acd9955c0471baca2557f1e6de2a2/{file}", 'r') as f:
-                    docs_content[file] = f.read()
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
