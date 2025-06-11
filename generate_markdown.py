@@ -124,11 +124,10 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
             analysis = AnalysisInsights.model_validate_json(f.read())
             logging.info(f"Generated analysis file: {file}")
             markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
-                                                  repo_url=repo_url)
+                                                          repo_url=repo_url)
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
-                markdown_response = markdown_response
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
 

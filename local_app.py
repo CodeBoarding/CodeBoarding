@@ -169,7 +169,6 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
         resp = JSONResponse(content={
             "files": docs_content
         })
-        print(resp)
         return resp
 
     except (RepoDontExistError, RepoIsNone):

@@ -189,8 +189,9 @@ if __name__ == "__main__":
                     repo_url = input("Enter the repository URL (or leave empty for no links): ").strip()
                 if not repo_url:
                     continue
-                markdown_response = generate_markdown(analysis, project_name,
-                                                      link_files=("analysis.json" in json_file.name), repo_url=repo_url)
+                markdown_response = generate_markdown_content(analysis, project_name,
+                                                              link_files=("analysis.json" in json_file.name),
+                                                              repo_url=repo_url)
                 fname = json_file.name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 with open(f"{subd_path}/{fname}.md", "w") as f:
