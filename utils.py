@@ -89,7 +89,8 @@ def sanitize_repo_url(repo_url: str) -> str:
         raise ValueError("Unsupported URL format.")
 
 
-def generate_markdown_content(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="") -> str:
+def generate_markdown_content(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="",
+                              reference_link="https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/") -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
@@ -120,7 +121,7 @@ def generate_markdown_content(insights: AnalysisInsights, project: str = "", lin
             node_id = sanitize(comp.name)
             # Use the component name as the link text
             lines.append(
-                f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{comp.name}.md" "Details"')
+                f'    click {node_id} href "{reference_link}/{project}/{comp.name}.md" "Details"')
 
     lines.append("```")
 

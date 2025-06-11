@@ -155,7 +155,8 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
                 analysis = AnalysisInsights.model_validate_json(f.read())
                 logging.info(f"Generated analysis file: {file}")
                 markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
-                                                      repo_url=url)
+                                                              repo_url=url,
+                                                              reference_link=f"{url}/blob/main/.codeboarding/")
                 fname = Path(file).name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 docs_content[f"{fname}.md"] = markdown_response.strip()
