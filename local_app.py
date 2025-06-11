@@ -110,7 +110,7 @@ def generate_documents(repo_path, temp_repo_folder, repo_name):
 
 
 @app.get(
-    "/generate_docs",
+    "/github_action",
     response_class=JSONResponse,
     summary="Generate onboarding docs for a GitHub repo and return content",
     responses={
