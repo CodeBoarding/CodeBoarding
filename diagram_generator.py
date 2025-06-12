@@ -1,3 +1,4 @@
+import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -59,9 +60,12 @@ class DiagramGenerator:
             futures = [executor.submit(self.process_component, component) for component in
                        analysis_response.components]
             for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing details"):
-                result = future.result()
-                if result:
-                    files.append(result)
+                try:
+                    result = future.result()
+                    if result:
+                        files.append(result)
+                except Exception as e:
+                    logging.error(f"Error processing component: {e}")
 
         files.append(f"{self.output_dir}/analysis.json")
         print("Generated analysis files: %s", [os.path.abspath(file) for file in files])

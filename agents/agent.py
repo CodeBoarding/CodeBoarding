@@ -33,7 +33,8 @@ class CodeBoardingAgent:
         self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
 
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
-                                                               self.read_file_structure, self.read_structure_tool, ])
+                                                               self.read_file_structure, self.read_structure_tool,
+                                                               self.read_file_tool])
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):

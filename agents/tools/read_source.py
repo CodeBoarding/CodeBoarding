@@ -75,6 +75,7 @@ class CodeReferenceReader(BaseTool):
                 f"The specified Python element '{python_code_reference}' (qualified name '{qname}') "
                 f"was not found in its corresponding source file '{file_path}'. "
                 f"Please ensure the full qualified name is correct and points to an existing module, class, function, or method."
+                f"You can try to use a more specific name or check the file with the readFile tool."
             )
 
         relevant_lines = file_contents.split("\n")[start_line - 1:end_line]
