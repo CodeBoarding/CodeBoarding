@@ -66,8 +66,10 @@ class FileStructureTool(BaseTool):
                 break
 
         if searching_dir is None:
+            logging.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
             return f"Error: The specified directory does not exist or is empty. Available directories are: {', '.join([str(d) for d in self.cached_dirs])}"
         # now use the tree command to get the file structure
+        logging.info(f"[File Structure Tool] Reading file structure for {searching_dir}")
         tree_structure = get_tree_string(searching_dir)
         tree_structure = "\n".join(tree_structure)
         return f"The file tree for {dir} is:\n{tree_structure}"

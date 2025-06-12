@@ -11,7 +11,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent_responses import AnalysisInsights
 from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
-    MethodInvocationsTool
+    MethodInvocationsTool, ReadFileTool
 from static_analyzer.reference_lines import find_fqn_location
 
 
@@ -30,9 +30,12 @@ class CodeBoardingAgent:
         self.read_file_structure = FileStructureTool(analysis_dir=output_dir)
         self.read_cfg_tool = GetCFGTool(cfg=cfg)
         self.read_method_invocations_tool = MethodInvocationsTool(cfg=cfg)
+        self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
 
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
-                                                               self.read_structure_tool])
+                                                               self.read_file_structure, self.read_cfg_tool,
+                                                               self.read_structure_tool, self.read_file_tool,
+                                                               self.read_method_invocations_tool])
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):

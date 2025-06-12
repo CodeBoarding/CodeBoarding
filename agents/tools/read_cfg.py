@@ -1,9 +1,7 @@
-from pathlib import Path
-from typing import Optional, Any
+from typing import Any
+import logging
 
 from langchain_core.tools import BaseTool
-
-from agents.tools.utils import read_dot_file
 
 
 class GetCFGTool(BaseTool):
@@ -30,6 +28,7 @@ class GetCFGTool(BaseTool):
 
         # Now let's format the output as a incident response
         graph_str = ""
+        logging.info("[CFG Tool] Reading control flow graph")
         for k, v in self.cfg.items():
             graph_str += f"Method {k} is calling the following methods: {', '.join(v)}.\n"
         return f"Control Flow Graph:\n{graph_str.strip()}"

@@ -32,9 +32,6 @@ class PackageRelationsTool(BaseTool):
         "Retrieves the internal package dependencies for a given root package within a project. "
         "This tool is useful for understanding the hierarchical relationships and dependencies "
         "between different modules or sub-packages of a larger software component. "
-        "The output is a dictionary where each key is a source package and its value is a list "
-        "of destination packages it depends on, formatted as: "
-        "`{<source_package>: [<destination_package1>, <destination_package2>, ...]}`."
     )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False

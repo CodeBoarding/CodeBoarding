@@ -1,4 +1,5 @@
 from typing import Any
+import logging
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -36,6 +37,8 @@ class MethodInvocationsTool(BaseTool):
                 calls.extend(v)
             if method in v:
                 callees.append(k)
+
+        logging.info(f"[Method Invocations Tool] Reading method invocations for {method}")
 
         # Now let's format the output as a incident response
         graph_str = ""

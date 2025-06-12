@@ -49,7 +49,7 @@ class CodeReferenceReader(BaseTool):
         """
         Run the tool with the given input.
         """
-        logging.info(f"[Source Tool] Reading source code for {python_code_reference}")
+        logging.info(f"[Source Reference Tool] Reading source code for {python_code_reference}")
         file_path, file_contents = self.read_file(python_code_reference=python_code_reference)
 
         if file_path is None:
@@ -70,7 +70,7 @@ class CodeReferenceReader(BaseTool):
                 break
 
         if start_line == -1 or end_line == -1:
-            logging.error(f"[Source Tool] Qualified name {python_code_reference} not found in file contents.")
+            logging.error(f"[Source Reference Tool] Qualified name {python_code_reference} not found in file contents.")
             return (
                 f"The specified Python element '{python_code_reference}' (qualified name '{qname}') "
                 f"was not found in its corresponding source file '{file_path}'. "
@@ -84,7 +84,7 @@ class CodeReferenceReader(BaseTool):
         for line in relevant_lines:
             final_content += f"{start_line + i}:{line}\n"
             i += 1
-        logging.info(f"[Source Tool] Found code reference for {sub_fqn} in {file_path}")
+        logging.info(f"[Source Reference Tool] Found code reference for {sub_fqn} in {file_path}")
         return f"Found code reference for {sub_fqn} in {file_path}:\n{final_content}"
 
     def read_file(self, python_code_reference: str, read_part: int = 0):
@@ -100,7 +100,7 @@ class CodeReferenceReader(BaseTool):
                 sub_path += ".py"
             sub_path = Path(sub_path)
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
@@ -113,14 +113,14 @@ class CodeReferenceReader(BaseTool):
 
             # Check if the path leads to a file and not a directory
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
-                logging.info(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
@@ -133,25 +133,25 @@ class CodeReferenceReader(BaseTool):
             sub_path = Path(sub_path)
 
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
-                logging.info(f"[Source Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
         # Last chance: retry with class name being transformed to file name:
         transformed_path = transform_path(python_code_reference)
         if transformed_path != python_code_reference:
-            logging.info(f"[Source Tool] Found file {transformed_path}")
+            logging.info(f"[Source Reference Tool] Found file {transformed_path}")
             return self.read_file(transformed_path)
 
         logging.error(
-            f"[Source Tool] File for {python_code_reference} not found. # of available files is {len(self.cached_files)}")
+            f"[Source Reference Tool] File for {python_code_reference} not found. # of available files is {len(self.cached_files)}")
         return None, None
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
