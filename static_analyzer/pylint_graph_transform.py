@@ -66,3 +66,4 @@ class DotGraphTransformer:
         final_msg = "The control flow graph looks like:\n"
         for k, v in result.items():
             final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
+        return result, final_msg

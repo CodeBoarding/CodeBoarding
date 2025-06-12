@@ -89,11 +89,11 @@ class DiagramGenerator:
         builder.write_dot(f'{self.temp_folder}/call_graph.dot')
         # Now transform the call_graph
         graph_transformer = DotGraphTransformer(f'{self.temp_folder}/call_graph.dot', self.repo_location)
-        call_graph_str = graph_transformer.transform()
+        cfg, call_graph_str = graph_transformer.transform()
         packages = []
         for path in Path('.').rglob(f'{self.temp_folder}/packages_*.dot'):
             with open(path, 'r') as f:
                 # The file name is the package name
                 package_name = path.name.split('_')[1].split('.dot')[0]
                 packages.append((package_name, f.read()))
-        return structures, packages, call_graph_str, graph_transformer.G
+        return structures, packages, call_graph_str, cfg
