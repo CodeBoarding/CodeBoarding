@@ -10,8 +10,15 @@ from .utils import read_dot_file
 
 
 class CodeStructureTool(BaseTool):
-    name: str = "read_class_structure"
-    description: str = "Tool which gives class structure relationships."
+    name: str = "getClassHierarchy"
+    description: str = (
+        "Retrieves the internal class structure and hierarchy for a given root package within a project. "
+        "This tool is useful for understanding how classes are organized, inherit from each other, "
+        "and relate within a specific software package or module. "
+        "The output is a detailed representation (e.g., a DOT graph format string) illustrating "
+        "these class relationships and their hierarchy. "
+        "It helps to visualize the internal architecture of a package."
+    )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False
     cached_files: Optional[List[str]] = None
@@ -39,7 +46,7 @@ class CodeStructureTool(BaseTool):
         try:
             return self.read_file(root_package)
         except NoRootPackageFoundError as e:
-            return f"Could not find  Package not found: {e.message}"
+            return f"Error: {e.message}"
 
     def read_file(self, root_package: str) -> str:
         """
@@ -55,4 +62,5 @@ class CodeStructureTool(BaseTool):
                 return f"Package relations for: {root_package}:\n{content}"
 
         package_names = [path.name.split("_structure.dot")[-1] for path in self.cached_files]
-        raise NoRootPackageFoundError(f"Could not find package {root_package}, available packages are: {package_names}")
+        raise NoRootPackageFoundError(
+            f"Class structure for package '{root_package}' not found. Available packages with structure information: {package_names}")

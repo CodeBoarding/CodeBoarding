@@ -1,0 +1,35 @@
+from pathlib import Path
+from typing import Optional, Any
+
+from langchain_core.tools import BaseTool
+
+from agents.tools.utils import read_dot_file
+
+
+class GetCFGTool(BaseTool):
+    name: str = "getControlFlowGraph"
+    description: str = (
+        "Retrieves the **complete control flow graph (CFG)** for the entire project. "
+        "This tool provides a graphical representation (in DOT format) of "
+        "all function and method calls across the codebase, illustrating "
+        "the execution flow and inter-function relationships. "
+        "It's useful for understanding the overall architecture and call sequences "
+        "within the project. This tool requires no input arguments."
+    )
+    cfg: dict[Any, list[Any]] = None
+
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+
+    def _run(self) -> str:
+        """
+        Executes the tool to read and return the project's control flow graph.
+        """
+        # No input needed for this tool, as it always reads a predefined file.
+
+        # Now let's format the output as a incident response
+        graph_str = ""
+        for k, v in self.cfg.items():
+            graph_str += f"Method {k} is calling the following methods: {', '.join(v)}.\n"
+        return f"Control Flow Graph:\n{graph_str.strip()}"

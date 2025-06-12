@@ -62,4 +62,7 @@ class DotGraphTransformer:
                 result[src] = [dst]
             else:
                 result[src].append(dst)
-        return json.dumps(result)
+
+        final_msg = "The control flow graph looks like:\n"
+        for k, v in result.items():
+            final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"

@@ -11,7 +11,11 @@ from agents.tools.utils import read_dot_file
 
 class PackageInput(BaseModel):
     root_package: str = Field(
-        description="Root level package name. Example: langchain or langchain_core")
+        description="The top-level package name for which to retrieve dependencies. "
+                    "This should be the primary name of the package, without file extensions or full paths. "
+                    "For example, use 'langchain' for the `langchain` package, or 'langchain_core' "
+                    "for the `langchain_core` package. Do not include 'repos.' prefix if it's present in agent's context."
+    )
 
 
 class NoRootPackageFoundError(Exception):
@@ -23,10 +27,15 @@ class NoRootPackageFoundError(Exception):
 
 
 class PackageRelationsTool(BaseTool):
-    name: str = "package_relations"
-    description: str = ("Tool which can give package relationships for a  package. "
-                        "The tool gives the relationships and hierarchy of packages of the requested package in the following format:\n"
-                        "{<source_package>: [<destination_package1>, <destination_package2>, ...]}\n")
+    name: str = "getPackageDependencies"
+    description: str = (
+        "Retrieves the internal package dependencies for a given root package within a project. "
+        "This tool is useful for understanding the hierarchical relationships and dependencies "
+        "between different modules or sub-packages of a larger software component. "
+        "The output is a dictionary where each key is a source package and its value is a list "
+        "of destination packages it depends on, formatted as: "
+        "`{<source_package>: [<destination_package1>, <destination_package2>, ...]}`."
+    )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False
     cached_files: Optional[List[str]] = None
@@ -55,20 +64,23 @@ class PackageRelationsTool(BaseTool):
             return self.read_file(root_package)
         except NoRootPackageFoundError as e:
             logging.error(f"[Package Tool] Error: {e.message}")
-            return f"Could not find  Package not found: {e.message}"
+            return f"Error: {e.message}"
 
     def read_file(self, root_package: str) -> str:
         """
         Read the file from the given path.
         """
-
         root_package = root_package.split(".")[0]
 
         for path in self.cached_files:
             if root_package in path.name:
                 logging.info(f"[Package Tool] Found file {path}")
                 content = read_dot_file(path)
-                return f"Package relations for: {root_package}:\n{content}"
+                final_result = f"Package relations for {root_package}:\n"
+                for k, v in content.items():
+                    final_result += f"package {k} uses {', '.join(v)}\n"
+                return final_result
 
         package_names = [path.name.split("packages_")[-1].split(".dot")[0] for path in self.cached_files]
-        raise NoRootPackageFoundError(f"Could not find package {root_package}, available packages are: {package_names}")
+        raise NoRootPackageFoundError(
+            f"Failed to retrieve dependencies for package '{root_package}'. It was not found. Please choose from the available packages: {package_names}")

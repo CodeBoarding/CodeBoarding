@@ -131,7 +131,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
             if fname.endswith("analysis"):
                 fname = "on_boarding"
                 faq_header = "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)"
-                markdown_response =  markdown_response + faq_header
+                markdown_response = markdown_response + faq_header
             with open(f"{temp_repo_folder}/{fname}.md", "w") as f:
                 f.write(markdown_response.strip())
 
@@ -181,17 +181,17 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:
-    import csv
-
-    with open("/outreach_utils/unified_repos.csv", "r") as f:
-        csv_reader = csv.reader(f)
-        rows = list(csv_reader)  # Read all rows into a list
-
-        # Skip the header
-    data_rows = rows[1:]
+    # import csv
+    #
+    # with open("/outreach_utils/unified_repos.csv", "r") as f:
+    #     csv_reader = csv.reader(f)
+    #     rows = list(csv_reader)  # Read all rows into a list
+    #
+    #     # Skip the header
+    # data_rows = rows[1:]
 
     # Extract the second column (repo URLs)
-    repos = [row[1] for row in data_rows if len(row) > 1]
+    repos = ["https://github.com/django/django", ]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:

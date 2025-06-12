@@ -9,8 +9,8 @@ from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSI
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, project_name):
-        super().__init__(repo_dir, output_dir, SYSTEM_MESSAGE)
+    def __init__(self, repo_dir, output_dir, cfg, project_name):
+        super().__init__(repo_dir, output_dir, cfg, SYSTEM_MESSAGE)
 
         self.project_name = project_name
 

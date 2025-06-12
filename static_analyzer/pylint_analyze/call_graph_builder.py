@@ -168,7 +168,7 @@ class CallGraphBuilder:
                         self._visit_function(sub, f"{module_qname}.{node.name}")
 
     def _qual_name(self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str) -> str:
-        return f"{owner}:{func.name}"
+        return f"{owner}.{func.name}"
         # return f"{owner}:{func.name}@{func.lineno}"
 
     def _visit_function(
@@ -237,7 +237,7 @@ class CallGraphBuilder:
         if "repos" in qualified_name:
             qualified_name = qualified_name.split("repos")[1]
             if qualified_name.startswith(".") or qualified_name.startswith("/"):
-                qualified_name = qualified_name[1:]            
+                qualified_name = qualified_name[1:]
         if "/" in qualified_name:
             # Check if there is .py
             qualified_name = "".join(qualified_name.split(".py"))

@@ -10,14 +10,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
 from agents.agent_responses import AnalysisInsights
-from agents.tools import CodeExplorerTool
-from agents.tools.read_packages import PackageRelationsTool
-from agents.tools.read_structure import CodeStructureTool
+from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
+    MethodInvocationsTool
 from static_analyzer.reference_lines import find_fqn_location
 
 
 class CodeBoardingAgent:
-    def __init__(self, repo_dir, output_dir, system_message):
+    def __init__(self, repo_dir, output_dir, cfg, system_message):
         self._setup_env_vars()
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash-preview-05-20",
@@ -25,10 +24,14 @@ class CodeBoardingAgent:
             max_retries=0,
             google_api_key=self.api_key
         )
-        self.read_source_code = CodeExplorerTool(repo_dir=repo_dir)
+        self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
         self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
         self.read_structure_tool = CodeStructureTool(analysis_dir=output_dir)
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_code, self.read_packages_tool,
+        self.read_file_structure = FileStructureTool(analysis_dir=output_dir)
+        self.read_cfg_tool = GetCFGTool(cfg=cfg)
+        self.read_method_invocations_tool = MethodInvocationsTool(cfg=cfg)
+
+        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
                                                                self.read_structure_tool])
         self.system_message = SystemMessage(content=system_message)
 
@@ -68,7 +71,7 @@ class CodeBoardingAgent:
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         for component in analysis.components:
             for reference in component.referenced_source_code:
-                file_ref, file_string = self.read_source_code.read_file(reference.qualified_name)
+                file_ref, file_string = self.read_source_reference.read_file(reference.qualified_name)
                 if file_ref is None:
                     continue
                 reference.reference_file = str(file_ref)

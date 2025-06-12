@@ -6,22 +6,29 @@ from pathlib import Path
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
+from static_analyzer.reference_lines import find_fqn_location
+
 
 class ModuleInput(BaseModel):
     python_code_reference: str = Field(
-        description="Python code reference which to be loaded as source code. Example langchain.tools.tool")
-    read_part: int = Field(
-        description="Read part of the file. If the file is too large, you can specify which part to read.",
-        default=0
+        description=("The fully qualified Python reference (import path) to the module, class, function, or method "
+                     "whose source code is to be retrieved. "
+                     "Examples: `langchain.tools.tool`, `langchain_core.output_parsers.JsonOutputParser`, "
+                     "`langchain.agents.create_react_agent`. "
+                     "Do not include file extensions (e.g., `.py`) or relative paths. "
+                     "If a 'repos.' prefix is present in the agent's context, it should be omitted."))
+
+
+class CodeReferenceReader(BaseTool):
+    name: str = "getPythonSourceCode"
+    description: str = (
+        "Retrieves the source code for a specified Python module, class, function, or method. "
+        "Provide the complete Python import path (fully qualified name) to the target. "
+        "For example, to get the source code for a module, use `langchain.tools.tool`. "
+        "To get the source code for a specific class or function, use `langchain_core.output_parsers.JsonOutputParser` "
+        "or `langchain.agents.create_react_agent`. "
+        "The tool will return the relevant block of source code, including line numbers for context."
     )
-
-
-class CodeExplorerTool(BaseTool):
-    name: str = "read_source_code"
-    description: str = ("Tool which can read the source code of a python code reference. "
-                        "You have to provide the complete path to the module."
-                        "Like langchain.tools.tool or langchain_core.output_parsers.JsonOutputParser"
-                        " and the return result will be the source code.")
     args_schema: Optional[ArgsSchema] = ModuleInput
     return_direct: bool = False
     cached_files: Optional[List[str]] = None
@@ -38,13 +45,47 @@ class CodeExplorerTool(BaseTool):
         for path in root_project_dir.rglob('*.py'):
             self.cached_files.append(path)
 
-    def _run(self, python_code_reference: str, read_part: int) -> str:
+    def _run(self, python_code_reference: str) -> str:
         """
         Run the tool with the given input.
         """
         logging.info(f"[Source Tool] Reading source code for {python_code_reference}")
-        _, file_contents = self.read_file(python_code_reference=python_code_reference, read_part=read_part)
-        return file_contents
+        file_path, file_contents = self.read_file(python_code_reference=python_code_reference)
+
+        if file_path is None:
+            return (
+                f"Error: The specified python element '{python_code_reference}' "
+                f"was not found in the indexed source files. {', '.join([str(f) for f in self.cached_files])}. "
+                f"Please ensure the full qualified name is correct and points to an existing module, class, function, or method."
+            )
+
+        qname = python_code_reference.replace(":", ".")
+        parts = qname.split(".")
+        start_line, end_line = -1, -1
+        for i in range(len(parts)):
+            sub_fqn = ".".join(parts[i:])
+            result = find_fqn_location(file_contents, sub_fqn)
+            if result:
+                start_line, end_line = result[0], result[1]
+                break
+
+        if start_line == -1 or end_line == -1:
+            logging.error(f"[Source Tool] Qualified name {python_code_reference} not found in file contents.")
+            return (
+                f"The specified Python element '{python_code_reference}' (qualified name '{qname}') "
+                f"was not found in its corresponding source file '{file_path}'. "
+                f"Please ensure the full qualified name is correct and points to an existing module, class, function, or method."
+            )
+
+        relevant_lines = file_contents.split("\n")[start_line - 1:end_line]
+        final_content = ""
+        i = 0
+
+        for line in relevant_lines:
+            final_content += f"{start_line + i}:{line}\n"
+            i += 1
+        logging.info(f"[Source Tool] Found code reference for {sub_fqn} in {file_path}")
+        return f"Found code reference for {sub_fqn} in {file_path}:\n{final_content}"
 
     def read_file(self, python_code_reference: str, read_part: int = 0):
         """
@@ -61,7 +102,7 @@ class CodeExplorerTool(BaseTool):
             if self.is_subsequence(sub_path, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
-                    return path, f"Source code for {python_code_reference}:\n{self.read_content(f, read_part)}"
+                    return path, f.read()
 
         # maybe the path is to function so we have to check if the path is in the file
         for path in self.cached_files:
@@ -74,14 +115,14 @@ class CodeExplorerTool(BaseTool):
             if self.is_subsequence(sub_path, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
-                    return path, f"Source code for {python_code_reference}:\n{self.read_content(f, read_part)}"
+                    return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
-                    return path, f"Source code for {python_code_reference}:\n{self.read_content(f, read_part)}"
+                    return path, f.read()
 
         # Last resolution the packages is file.Class.method:
         for path in self.cached_files:
@@ -94,14 +135,14 @@ class CodeExplorerTool(BaseTool):
             if self.is_subsequence(sub_path, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
-                    return path, f"Source code for {python_code_reference}:\n{self.read_content(f, read_part)}"
+                    return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
                 logging.info(f"[Source Tool] Found file {path}")
                 with open(path, 'r') as f:
-                    return path, f"Source code for {python_code_reference}:\n{self.read_content(f, read_part)}"
+                    return path, f.read()
 
         # Last chance: retry with class name being transformed to file name:
         transformed_path = transform_path(python_code_reference)
@@ -110,23 +151,8 @@ class CodeExplorerTool(BaseTool):
             return self.read_file(transformed_path)
 
         logging.error(
-            f"[Source Tool] File for {python_code_reference} not found. Available files are: {self.cached_files}")
-        return None, f"[Source Tool -  Error] File for {python_code_reference} not found. Available files are: {', '.join([str(p) for p in self.cached_files])}"
-
-    @staticmethod
-    def read_content(file, part):
-        contents = file.read()
-        lines = contents.splitlines()
-        content_lines = []
-        if len(lines) > 1000:
-            # The file is too long!
-            # Now get the parts in 1000s of lines:
-            for i in range(0, len(lines), 1000):
-                content_lines.append("\n".join(lines[i:i + 1000]))
-            logging.warning(
-                f"[Source Tool] File is too long, splitting into parts of 1000 lines")
-            return content_lines[part]
-        return contents
+            f"[Source Tool] File for {python_code_reference} not found. # of available files is {len(self.cached_files)}")
+        return None, None
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
         sub = sub.parts
@@ -145,3 +171,8 @@ def transform_path(path):
     parts = path.split('.')
     parts[-1] = pascal_to_snake_segment(parts[-1])  # only transform the last segment
     return '.'.join(parts)
+
+
+if __name__ == '__main__':
+    CodeReferenceReader(repo_dir=Path("/home/ivan/StartUp/CodeBoarding/repos/django"))._run(
+        "django.django.core.handlers.base.BaseHandler")
