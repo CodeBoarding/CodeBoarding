@@ -26,14 +26,14 @@ class FileStructureTool(BaseTool):
     args_schema: Optional[ArgsSchema] = DirInput
     return_direct: bool = False
     cached_dirs: Optional[List[Path]] = None
-    analysis_dir: Optional[Path] = None
+    repo_dir: Optional[Path] = None
 
-    def __init__(self, analysis_dir: Path):
+    def __init__(self, repo_dir: Path):
         super().__init__()
-        self.analysis_dir = analysis_dir
-        self.cached_dirs = [self.analysis_dir]
-        self.walk_dir(analysis_dir)
-        # Sort self.cached_dirst by depth:
+        self.repo_dir = repo_dir
+        self.cached_dirs = [self.repo_dir]
+        self.walk_dir(repo_dir)
+        # Sort self.cached_dirs by depth:
         self.cached_dirs.sort(key=lambda x: len(x.parts))
 
     def walk_dir(self, root_project_dir):
@@ -52,7 +52,7 @@ class FileStructureTool(BaseTool):
         Run the tool with the given input.
         """
         if dir == ".":
-            tree_structure = get_tree_string(self.analysis_dir)
+            tree_structure = get_tree_string(self.repo_dir)
             tree_structure = "\n".join(tree_structure)
             return f"The file tree for {dir} is:\n{tree_structure}"
 
@@ -78,7 +78,7 @@ class FileStructureTool(BaseTool):
         # exclude the analysis_dir from the comparison
         sub = sub.parts
         full = full.parts
-        analysis_parts = self.analysis_dir.parts
+        analysis_parts = self.repo_dir.parts
         full = full[len(analysis_parts):]
         for i in range(len(full) - len(sub) + 1):
             if full[i:i + len(sub)] == sub:

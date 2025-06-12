@@ -27,15 +27,13 @@ class CodeBoardingAgent:
         self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
         self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
         self.read_structure_tool = CodeStructureTool(analysis_dir=output_dir)
-        self.read_file_structure = FileStructureTool(analysis_dir=output_dir)
+        self.read_file_structure = FileStructureTool(repo_dir=repo_dir)
         self.read_cfg_tool = GetCFGTool(cfg=cfg)
         self.read_method_invocations_tool = MethodInvocationsTool(cfg=cfg)
         self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
 
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
-                                                               self.read_file_structure, self.read_cfg_tool,
-                                                               self.read_structure_tool, self.read_file_tool,
-                                                               self.read_method_invocations_tool])
+                                                               self.read_file_structure, self.read_structure_tool, ])
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):
