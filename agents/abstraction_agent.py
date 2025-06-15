@@ -3,8 +3,8 @@ import logging
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights
-from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights
+from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
 
 
 class AbstractionAgent(CodeBoardingAgent):
@@ -20,7 +20,8 @@ class AbstractionAgent(CodeBoardingAgent):
             "source": PromptTemplate(template=SOURCE_MESSAGE, input_variables=["insight_so_far"]),
             "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
                                              input_variables=["project_name", "cfg_insight", "structure_insight",
-                                                              "source_insight"])
+                                                              "source_insight"]),
+            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
         }
 
     def step_cfg(self, cfg_str):
@@ -56,3 +57,17 @@ class AbstractionAgent(CodeBoardingAgent):
         )
         analysis_result = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis_result)
+
+    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
+        """
+        Apply feedback to the analysis and return the updated analysis.
+        This method should modify the analysis based on the feedback provided.
+        """
+        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback)
+        analysis = self._parse_invoke(prompt, AnalysisInsights)
+        return self.fix_source_code_reference_lines(analysis)
+
+    def run(self, cfg_str):
+        self.step_cfg(cfg_str)
+        self.step_source()
+        return self.generate_analysis()

@@ -99,3 +99,23 @@ class CFGAnalysisInsights(BaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
+
+
+class ExpandComponent(BaseModel):
+    should_expand: bool = Field(description="Whether the component should be expanded in detail or not.")
+    reason: str = Field(description="Reasoning behind the decision to expand or not.")
+
+    def llm_str(self):
+        return f"- *Should Expand:* {self.should_expand}\n- *Reason:* {self.reason}"
+
+
+class ValidationInsights(BaseModel):
+    is_valid: bool = Field(
+        description="Indicates whether the validation results in valid or not."
+    )
+    additional_info: Optional[str] = Field(
+        default=None, description="Any additional information or context related to the validation."
+    )
+
+    def llm_str(self):
+        return f"**Feedback Information:**\n{self.additional_info}"

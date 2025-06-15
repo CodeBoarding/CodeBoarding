@@ -187,12 +187,12 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
 
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/SWE-agent/SWE-agent", ]
+    repos = ["https://github.com/django/django", ]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
-        try:
-            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-        except Exception as e:
-            logging.error(f"Failed to generate docs for {repo}: {e}")
-        finally:
-            remove_temp_repo_folder(temp_repo_folder)
+        # try:
+        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+        # except Exception as e:
+        #     logging.error(f"Failed to generate docs for {repo}: {e}")
+        # finally:
+        #     remove_temp_repo_folder(temp_repo_folder)

@@ -7,6 +7,8 @@ from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
+from agents.planner_agent import PlannerAgent
+from agents.validator_agent import ValidatorAgent
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
@@ -21,6 +23,8 @@ class DiagramGenerator:
 
         self.details_agent = None
         self.abstraction_agent = None
+        self.planner_agent = None
+        self.validator_agent = None
 
     def process_component(self, component):
         self.details_agent.step_subcfg(self.call_graph_str, component)
@@ -33,8 +37,6 @@ class DiagramGenerator:
             component.name = component.name.replace("/", "-")
 
         output_path = os.path.join(self.output_dir, f"{component.name}.json")
-        with open(output_path, "w") as f:
-            f.write(details_results.model_dump_json(indent=2))
 
         return output_path
 
@@ -51,26 +53,38 @@ class DiagramGenerator:
         self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
                                                   project_name=self.repo_name, cfg=cfg)
 
-        self.abstraction_agent.step_cfg(self.call_graph_str)
-        self.abstraction_agent.step_source()
+        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
+        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
 
-        analysis_response = self.abstraction_agent.generate_analysis()
+        analysis = self.abstraction_agent.run(self.call_graph_str)
+        feedback = self.validator_agent.run(analysis)
+        if not feedback.is_valid:
+            analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(self.process_component, component) for component in
-                       analysis_response.components]
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing details"):
-                try:
-                    result = future.result()
-                    if result:
-                        files.append(result)
-                except Exception as e:
-                    logging.error(f"Error processing component: {e}")
+        components_to_expand = self.planner_agent.plan_analysis(analysis)
 
-        files.append(f"{self.output_dir}/analysis.json")
-        print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         with open(f"{self.output_dir}/analysis.json", "w") as f:
-            f.write(analysis_response.model_dump_json(indent=2))
+            f.write(analysis.model_dump_json(indent=2))
+        files.append(f"{self.output_dir}/analysis.json")
+
+        while True:
+            if not components_to_expand:
+                break
+            component = components_to_expand.pop(0)
+            analysis = self.details_agent.run(self.call_graph_str, component)
+            feedback = self.validator_agent.run(analysis)
+            if not feedback.is_valid:
+                analysis = self.details_agent.apply_feedback(analysis, feedback)
+            components_to_expand.extend(self.planner_agent.plan_analysis(analysis))
+
+            if "/" in component.name:
+                component.name = component.name.replace("/", "-")
+            out_file = os.path.join(self.output_dir, f"{component.name}.json")
+            with open(out_file, "w") as f:
+                f.write(analysis.model_dump_json(indent=2))
+            files.append(out_file)
+
+        print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         return files
 
     def generate_static_analysis(self):
