@@ -71,15 +71,26 @@ def remote_repo_exists(repo_url: str) -> bool:
 
 
 def sanitize_repo_url(repo_url: str) -> str:
-    if not repo_url or not isinstance(repo_url, str):
-        raise RepoIsNone("No repo URL provided")
-    clean = repo_url.strip().strip('"').strip("'")
-    if not clean:
-        raise ValueError("Repo URL is empty after sanitization")
-    return clean
+    """
+    Converts various formats of Git URLs to SSH format (e.g., git@github.com:user/repo.git).
+    """
+    if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
+        return repo_url  # already in SSH format
+    elif repo_url.startswith("https://") or repo_url.startswith("http://"):
+        # Convert HTTPS to SSH format
+        parts = repo_url.rstrip("/").split("/")
+        if "github.com" in parts:
+            host_index = parts.index("github.com")
+            user_repo = "/".join(parts[host_index + 1:])
+            return f"git@github.com:{user_repo}.git"
+        else:
+            raise ValueError("Only GitHub SSH conversion is supported.")
+    else:
+        raise ValueError("Unsupported URL format.")
 
 
-def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="") -> str:
+def generate_markdown_content(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="",
+                              reference_link="https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/") -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
@@ -110,7 +121,7 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
             node_id = sanitize(comp.name)
             # Use the component name as the link text
             lines.append(
-                f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{comp.name}.md" "Details"')
+                f'    click {node_id} href "{reference_link}/{project}/{comp.name}.md" "Details"')
 
     lines.append("```")
 
@@ -130,6 +141,8 @@ def generate_mermaid(insights: AnalysisInsights, project: str = "", link_files=T
                 print(reference.reference_file, root_dir)
                 if reference.reference_start_line is None or reference.reference_end_line is None:
                     qn_list.append(f"{reference.llm_str()}")
+                    continue
+                if not reference.reference_file:
                     continue
                 if not reference.reference_file.startswith(root_dir):
                     qn_list.append(f"{reference.llm_str()}")
@@ -176,8 +189,9 @@ if __name__ == "__main__":
                     repo_url = input("Enter the repository URL (or leave empty for no links): ").strip()
                 if not repo_url:
                     continue
-                markdown_response = generate_mermaid(analysis, project_name,
-                                                     link_files=("analysis.json" in json_file.name), repo_url=repo_url)
+                markdown_response = generate_markdown_content(analysis, project_name,
+                                                              link_files=("analysis.json" in json_file.name),
+                                                              repo_url=repo_url)
                 fname = json_file.name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 with open(f"{subd_path}/{fname}.md", "w") as f:
