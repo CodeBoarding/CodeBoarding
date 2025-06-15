@@ -28,14 +28,8 @@ class DetailsAgent(CodeBoardingAgent):
                                   partial_variables={
                                       "format_instructions": self.parsers["cfg"].get_format_instructions()}),
             "structure": PromptTemplate(template=ENHANCE_STRUCTURE_MESSAGE,
-                                        input_variables=["insight_so_far", "component", "project_name"],
-                                        partial_variables={
-                                            "format_instructions": self.parsers[
-                                                "structure"].get_format_instructions()}),
-            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"],
-                                             partial_variables={
-                                                 "format_instructions": self.parsers[
-                                                     "final_analysis"].get_format_instructions()}),
+                                        input_variables=["insight_so_far", "component", "project_name"]),
+            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"]),
         }
         self.context = {}
 
@@ -51,7 +45,7 @@ class DetailsAgent(CodeBoardingAgent):
         prompt = self.prompts["cfg"].format(project_name=self.project_name,
                                             cfg_str=self.context['subcfg_insight'],
                                             component=component.llm_str())
-        parsed = self._parse_invoke(prompt, self.parsers["cfg"])
+        parsed = self._parse_invoke(prompt, CFGAnalysisInsights)
         self.context['cfg_insight'] = parsed  # Store for next step
         return parsed
 
@@ -62,7 +56,7 @@ class DetailsAgent(CodeBoardingAgent):
             insight_so_far=self.context.get('cfg_insight').llm_str(),
             component=component.llm_str()
         )
-        parsed = self._parse_invoke(prompt, self.parsers["structure"])
+        parsed = self._parse_invoke(prompt, AnalysisInsights)
         self.context['structure_insight'] = parsed
         return parsed
 
@@ -72,5 +66,5 @@ class DetailsAgent(CodeBoardingAgent):
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
         )
-        analysis = self._parse_invoke(prompt, self.parsers["final_analysis"])
+        analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)

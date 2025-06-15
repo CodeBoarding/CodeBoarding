@@ -4,10 +4,10 @@ import time
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
-from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
+from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights
 from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
@@ -61,14 +61,15 @@ class CodeBoardingAgent:
                 logging.error(f"Resource exhausted, retrying... in 60 seconds {e}")
                 time.sleep(60)  # Wait before retrying
 
-    def _parse_invoke(self, prompt, parser, retry=3):
-        if retry < 0:
-            raise OutputParserException(f"Max retries reached for parsing: {prompt}")
-        try:
-            response = self._invoke(prompt)
-            return parser.parse(response)
-        except OutputParserException as e:
-            return self._parse_invoke(prompt, parser, retry=retry - 1)
+    def _parse_invoke(self, prompt, type):
+        response = self._invoke(prompt)
+        return self._parse_response(response, type)
+
+    def _parse_response(self, response, return_type):
+        extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
+
+        result = extractor.invoke(response)["responses"][0]
+        return return_type.model_validate(result)
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         for component in analysis.components:

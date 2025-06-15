@@ -24,8 +24,8 @@ Tasks:
 4. Identify top components (max 20) with names, descriptions, and source files
 5. Define component relationships and interactions. There should not be more thane 2 relationships between any two components.
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""
 
 SOURCE_MESSAGE = """Validate and enhance component analysis using source code.
 
@@ -37,8 +37,8 @@ Tasks:
 2. Refine components to maximum 10 based on source code insights
 3. Define each component: name, documents, relationships, roles, and neighbor interactions
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}`.
 
@@ -53,8 +53,8 @@ Tasks:
 2. Confirm component responsibilities and communication patterns from source analysis
 3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships (No more than 2 relationships between any two components)
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
 
@@ -90,8 +90,8 @@ Tasks:
 3. Define components with names, descriptions, and source files
 4. Map component relationships and interactions (max 10 components and 2 relationships between any two components)
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""
 
 ENHANCE_STRUCTURE_MESSAGE = """Validate and refine component analysis for {component} in `{project_name}`.
 
@@ -103,8 +103,8 @@ Tasks:
 2. Refine components based on structure information
 3. Collect components with names, descriptions, source files, and relationships
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""
 
 DETAILS_MESSAGE = """Final component overview for {component}.
 
@@ -117,5 +117,5 @@ Tasks:
 3. Provide component names, descriptions, and source files
 4. Map component interactions (max 2 relationships between any two components)
 
-Output: Valid JSON only, no explanations.
-{format_instructions}"""
+Please explain why you chose these components and why they are fundamental.
+"""

@@ -187,7 +187,7 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
 
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/django/django", ]
+    repos = ["https://github.com/SWE-agent/SWE-agent", ]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:
