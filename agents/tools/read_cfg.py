@@ -3,6 +3,8 @@ import logging
 
 from langchain_core.tools import BaseTool
 
+from agents.agent_responses import Component
+
 
 class GetCFGTool(BaseTool):
     name: str = "getControlFlowGraph"
@@ -30,5 +32,19 @@ class GetCFGTool(BaseTool):
         graph_str = ""
         logging.info("[CFG Tool] Reading control flow graph")
         for k, v in self.cfg.items():
+            graph_str += f"Method {k} is calling the following methods: {', '.join(v)}.\n"
+        return f"Control Flow Graph:\n{graph_str.strip()}"
+
+    def component_cfg(self, component: Component):
+        component_cfg = {}
+        for k, v in self.cfg.items():
+            for ref in component.referenced_source_code:
+                if ref.qualified_name == k or ref.qualified_name in k or k in ref.qualified_name:
+                    component_cfg[k] = v
+                    break
+
+        logging.info(f"[CFG Tool] Filtering CFG for component {component.name}")
+        graph_str = ""
+        for k, v in component_cfg.items():
             graph_str += f"Method {k} is calling the following methods: {', '.join(v)}.\n"
         return f"Control Flow Graph:\n{graph_str.strip()}"
