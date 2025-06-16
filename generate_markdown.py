@@ -123,8 +123,10 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
         with open(file, 'r') as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
             logging.info(f"Generated analysis file: {file}")
-            markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
-                                                          repo_url=repo_url)
+            markdown_response = generate_markdown_content(analysis, repo_name,
+                                                          link_files=True,
+                                                          repo_url=repo_url,
+                                                          linked_files=analysis_files)
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
@@ -187,7 +189,7 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
 
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/django/django", ]
+    repos = ["https://github.com/iossifovlab/gpf"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         # try:

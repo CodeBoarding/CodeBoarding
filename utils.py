@@ -90,14 +90,11 @@ def sanitize_repo_url(repo_url: str) -> str:
 
 
 def generate_markdown_content(insights: AnalysisInsights, project: str = "", link_files=True, repo_url="",
-                              reference_link="https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/") -> str:
+                              reference_link="https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/",
+                              linked_files=None) -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
-
-    def sanitize(name: str) -> str:
-        # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
-        return re.sub(r'\W+', '_', name)
 
     lines = ["```mermaid", "graph LR"]
 
@@ -119,9 +116,9 @@ def generate_markdown_content(insights: AnalysisInsights, project: str = "", lin
     if link_files:
         for comp in insights.components:
             node_id = sanitize(comp.name)
-            # Use the component name as the link text
-            lines.append(
-                f'    click {node_id} href "{reference_link}/{project}/{comp.name}.md" "Details"')
+            if contains(node_id, linked_files):
+                lines.append(
+                    f'    click {node_id} href "{reference_link}/{project}/{node_id}.md" "Details"')
 
     lines.append("```")
 
@@ -164,6 +161,18 @@ def generate_markdown_content(insights: AnalysisInsights, project: str = "", lin
     detail_lines.append(
         "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)")
     return "\n".join(lines + detail_lines)
+
+
+def contains(node_id, files):
+    for file in files:
+        if node_id in str(file):
+            return True
+    return False
+
+
+def sanitize(name: str) -> str:
+    # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
+    return re.sub(r'\W+', '_', name)
 
 
 if __name__ == "__main__":
