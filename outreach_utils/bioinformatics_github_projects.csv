@@ -43,7 +43,6 @@ DeepChem,deepchem,https://github.com/deepchem/deepchem,5220,Python,"Democratizin
 DeepGraphLearning,ConfGF,https://github.com/DeepGraphLearning/ConfGF,153,Python,Implementation of Learning Gradient Fields for Molecular Conformation Generation
 DeepGraphLearning,GearNet,https://github.com/DeepGraphLearning/GearNet,249,Python,GearNet and Geometric Pretraining Methods for Protein Structure Representation Learning
 DeepGraphLearning,torchdrug,https://github.com/DeepGraphLearning/torchdrug,1407,Python,A powerful and flexible machine learning platform for drug discovery
-Facebook Research,esm,https://github.com/facebookresearch/esm,2917,Python,Evolutionary Scale Modeling (esm): Pretrained language models for proteins
 Facebook Research,fastMRI,https://github.com/facebookresearch/fastMRI,1259,Python,A large-scale dataset of both raw MRI measurements and clinical MRI images
 Galaxy Project,galaxy,https://github.com/galaxyproject/galaxy,1329,Python,Data intensive science for everyone
 Ginkgo Bioworks,ginkgo-ai-client,https://github.com/ginkgobioworks/ginkgo-ai-client,Unknown,Python,Python SDK for accessing Ginkgo AI model API
@@ -118,7 +117,7 @@ Samtools,hts-specs,https://github.com/samtools/hts-specs,627,TeX,Specifications 
 Samtools,htsjdk,https://github.com/samtools/htsjdk,274,Java,A Java API for high-throughput sequencing data (HTS) formats
 Samtools,htslib,https://github.com/samtools/htslib,779,C,C library for high-throughput sequencing data formats
 Samtools,samtools,https://github.com/samtools/samtools,1572,C,Tools for manipulating next-generation sequencing data
-Sanofi,Alien,https://github.com/Sanofi-Public/Alien,Unknown,Python,ALIEN is a library for active learning
+Sanofi,Alien,https://github.com/Sanofi-Public/enact-pipeline,Unknown,Python,ALIEN is a library for active learning
 Schrodinger,fixed-data-table-2,https://github.com/schrodinger/fixed-data-table-2,1290,JavaScript,A React table component designed to allow presenting millions of rows of data
 Schrodinger,pymol-open-source,https://github.com/schrodinger/pymol-open-source,1071,C,Open-source foundation of the user-sponsored PyMOL molecular visualization system
 Scverse,anndata,https://github.com/scverse/anndata,511,Python,Annotated data structures for single-cell analysis

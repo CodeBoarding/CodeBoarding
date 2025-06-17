@@ -1,0 +1,501 @@
+organisation,repo_name,repository_link,programming_languages,description
+huggingface,transformers,https://github.com/huggingface/transformers,"Python, CUDA","🤗 Transformers: State-of-the-art Machine Learning for Pytorch, TensorFlow, and JAX"
+openai,openai-python,https://github.com/openai/openai-python,Python,The official Python library for the OpenAI API
+openai,openai-agents-python,https://github.com/openai/openai-agents-python,Python,"A lightweight, powerful framework for multi-agent workflows"
+microsoft,markitdown,https://github.com/microsoft/markitdown,Python,Python tool for converting files and office documents to Markdown
+microsoft,qlib,https://github.com/microsoft/qlib,Python,AI-oriented Quant investment platform using AI tech to empower Quant Research
+microsoft,nni,https://github.com/microsoft/nni,"Python, TypeScript",An open source AutoML toolkit for automate machine learning lifecycle
+microsoft,playwright-python,https://github.com/microsoft/playwright-python,Python,Python version of the Playwright testing and automation library
+microsoft,pyright,https://github.com/microsoft/pyright,"Python, TypeScript",Static Type Checker for Python
+google,python-fire,https://github.com/google/python-fire,Python,Python Fire is a library for automatically generating command line interfaces
+google,yapf,https://github.com/google/yapf,Python,A formatter for Python files
+ray-project,ray,https://github.com/ray-project/ray,"Python, C++",Ray is an AI compute engine. Ray consists of a core distributed runtime and AI Libraries
+netflix,conductor,https://github.com/Netflix/conductor,"Java, Python",Conductor is a microservices orchestration engine
+spotify,luigi,https://github.com/spotify/luigi,Python,Luigi is a Python module that helps you build complex pipelines of batch jobs
+deezer,spleeter,https://github.com/deezer/spleeter,Python,Deezer source separation library including pretrained models
+quantopian,zipline,https://github.com/quantopian/zipline,Python,"Zipline, a Pythonic Algorithmic Trading Library"
+freqtrade,freqtrade,https://github.com/freqtrade/freqtrade,Python,"Free, open source crypto trading bot"
+hummingbot,hummingbot,https://github.com/hummingbot/hummingbot,Python,Open source software that helps you create and deploy high-frequency crypto trading bots
+ccxt,ccxt,https://github.com/ccxt/ccxt,"JavaScript, TypeScript, Python, C#, PHP",A cryptocurrency trading API with support for more than 100 bitcoin/altcoin exchanges
+vnpy,vnpy,https://github.com/vnpy/vnpy,Python,基于Python的开源量化交易平台开发框架
+bbfamily,abu,https://github.com/bbfamily/abu,Python,阿布量化交易系统(股票，期权，期货，比特币，机器学习) 基于python的开源量化交易
+akfamily,akshare,https://github.com/akfamily/akshare,Python,AKShare is an elegant and simple financial data interface library for Python
+waditu,tushare,https://github.com/waditu/tushare,Python,TuShare is a utility for crawling historical data of China stocks
+ranaroussi,yfinance,https://github.com/ranaroussi/yfinance,Python,Download market data from Yahoo! Finance's API
+mementum,backtrader,https://github.com/mementum/backtrader,Python,Python Backtesting library for trading strategies
+OpenBB-finance,OpenBB,https://github.com/OpenBB-finance/OpenBB,Python,"Investment Research for Everyone, Everywhere"
+odoo,odoo,https://github.com/odoo/odoo,"Python, JavaScript",Odoo. Open Source Apps To Grow Your Business
+saleor,saleor,https://github.com/saleor/saleor,"Python, TypeScript","Saleor Core: the high performance, composable, headless commerce API"
+frappe,erpnext,https://github.com/frappe/erpnext,"Python, JavaScript",Free and Open Source Enterprise Resource Planning (ERP)
+getsentry,sentry,https://github.com/getsentry/sentry,"Python, TypeScript",Developer-first error tracking and performance monitoring
+ansible,ansible,https://github.com/ansible/ansible,Python,Ansible is a radically simple IT automation platform
+ansible,awx,https://github.com/ansible/awx,"Python, JavaScript","AWX provides a web-based user interface, REST API, and task engine built on top of Ansible"
+saltstack,salt,https://github.com/saltstack/salt,Python,Software to automate the management and configuration of infrastructure and applications at scale
+fail2ban,fail2ban,https://github.com/fail2ban/fail2ban,Python,Daemon to ban hosts that cause multiple authentication errors
+jumpserver,jumpserver,https://github.com/jumpserver/jumpserver,"Python, JavaScript",JumpServer is an open-source Privileged Access Management (PAM) tool
+prowler-cloud,prowler,https://github.com/prowler-cloud/prowler,Python,"Prowler is the Open Cloud Security platform for AWS, Azure, GCP, Kubernetes, M365"
+localstack,localstack,https://github.com/localstack/localstack,Python,💻 A fully functional local AWS cloud stack. Develop and test your cloud & Serverless apps offline
+apache,airflow,https://github.com/apache/airflow,Python,"Apache Airflow - A platform to programmatically author, schedule, and monitor workflows"
+apache,superset,https://github.com/apache/superset,"TypeScript, Python",Apache Superset is a Data Visualization and Data Exploration Platform
+dagster-io,dagster,https://github.com/dagster-io/dagster,Python,"An orchestration platform for the development, production, and observation of data assets"
+prefecthq,prefect,https://github.com/PrefectHQ/prefect,Python,Prefect is a workflow orchestration framework for building resilient data pipelines in Python
+airbytehq,airbyte,https://github.com/airbytehq/airbyte,"Java, Python",The leading data integration platform for ETL / ELT data pipelines
+streamlit,streamlit,https://github.com/streamlit/streamlit,Python,Streamlit — A faster way to build and share data apps
+plotly,dash,https://github.com/plotly/dash,Python,Data Apps & Dashboards for Python. No JavaScript Required
+plotly,plotly.py,https://github.com/plotly/plotly.py,Python,The interactive graphing library for Python
+pandas-dev,pandas,https://github.com/pandas-dev/pandas,"Python, C",Flexible and powerful data analysis / manipulation library for Python
+numpy,numpy,https://github.com/numpy/numpy,"Python, C",The fundamental package for scientific computing with Python
+scipy,scipy,https://github.com/scipy/scipy,"Python, C",SciPy library main repository
+scikit-learn,scikit-learn,https://github.com/scikit-learn/scikit-learn,"Python, C++",scikit-learn: machine learning in Python
+uber,h3-py,https://github.com/uber/h3-py,"Python, C","Python bindings for H3, a hierarchical hexagonal geospatial indexing system"
+uber,ludwig,https://github.com/uber/ludwig,Python,Ludwig is a declarative machine learning framework
+pyhealth,PyHealth,https://github.com/sunlabuiuc/PyHealth,Python,A Deep Learning Python Toolkit for supporting clinical predictive modeling
+scikit-bio,scikit-bio,https://github.com/scikit-bio/scikit-bio,Python,A community-driven Python library for bioinformatics
+python-telegram-bot,python-telegram-bot,https://github.com/python-telegram-bot/python-telegram-bot,Python,We have made you a wrapper you can't refuse
+matrix-org,synapse,https://github.com/matrix-org/synapse,Python,Synapse: Matrix homeserver written in Python/Twisted
+zulip,zulip,https://github.com/zulip/zulip,"Python, TypeScript",Zulip server and web application. Open-source team chat
+fastapi,fastapi,https://github.com/fastapi/fastapi,Python,"FastAPI framework, high performance, easy to learn, fast to code, ready for production"
+fastapi,typer,https://github.com/fastapi/typer,Python,"Typer, build great CLIs. Easy to code. Based on Python type hints"
+fastapi,sqlmodel,https://github.com/fastapi/sqlmodel,Python,"SQL databases in Python, designed for simplicity, compatibility, and robustness"
+django,django,https://github.com/django/django,Python,The Web framework for perfectionists with deadlines
+pallets,flask,https://github.com/pallets/flask,Python,The Python micro framework for building web applications
+pallets,click,https://github.com/pallets/click,Python,Python composable command line interface toolkit
+pallets,jinja,https://github.com/pallets/jinja,Python,A very fast and expressive template engine
+encode,django-rest-framework,https://github.com/encode/django-rest-framework,Python,Web APIs for Django. 🎸
+encode,httpx,https://github.com/encode/httpx,Python,A next generation HTTP client for Python
+encode,starlette,https://github.com/encode/starlette,Python,The little ASGI framework that shines
+sanic-org,sanic,https://github.com/sanic-org/sanic,Python,Accelerate your web app development | Build fast. Run fast
+tornadoweb,tornado,https://github.com/tornadoweb/tornado,Python,Tornado is a Python web framework and asynchronous networking library
+reflex-dev,reflex,https://github.com/reflex-dev/reflex,Python,🕸️ Web apps in pure Python 🐍
+ethereum,web3.py,https://github.com/ethereum/web3.py,Python,A python interface for interacting with the Ethereum blockchain and ecosystem
+Chia-Network,chia-blockchain,https://github.com/Chia-Network/chia-blockchain,Python,"Chia blockchain python implementation (full node, farmer, harvester, timelord, and wallet)"
+os-climate,python-template-repository,https://github.com/os-climate/python-template-repository,Python,Python Template Repository for OS-Climate projects
+climatiq,python-oem-data-sdk,https://github.com/climatiq/python-oem-data-sdk,Python,Python SDK for accessing Climatiq OEM Data
+home-assistant,core,https://github.com/home-assistant/core,Python,🏡 Open source home automation that puts local control and privacy first
+d2l-ai,d2l-zh,https://github.com/d2l-ai/d2l-zh,Python,《动手学深度学习》：面向中文读者、能运行、可讨论
+d2l-ai,d2l-en,https://github.com/d2l-ai/d2l-en,Python,"Interactive deep learning book with multi-framework code, math, and discussions"
+donnemartin,system-design-primer,https://github.com/donnemartin/system-design-primer,Python,Learn how to design large-scale systems. Prep for the system design interview
+donnemartin,interactive-coding-challenges,https://github.com/donnemartin/interactive-coding-challenges,Python,120+ interactive Python coding interview challenges (algorithms and data structures)
+donnemartin,data-science-ipython-notebooks,https://github.com/donnemartin/data-science-ipython-notebooks,Python,"Data science Python notebooks: Deep learning, scikit-learn, Kaggle, big data"
+3b1b,manim,https://github.com/3b1b/manim,Python,Animation engine for explanatory math videos
+ManimCommunity,manim,https://github.com/ManimCommunity/manim,Python,A community-maintained Python framework for creating mathematical animations
+TheAlgorithms,Python,https://github.com/TheAlgorithms/Python,Python,All Algorithms implemented in Python
+Asabeneh,30-Days-Of-Python,https://github.com/Asabeneh/30-Days-Of-Python,Python,30 days of Python programming challenge is a step-by-step guide to learn Python
+geekcomputers,Python,https://github.com/geekcomputers/Python,Python,My Python Examples
+trekhleb,learn-python,https://github.com/trekhleb/learn-python,Python,📚 Playground and cheatsheet for learning Python
+mouredev,Hello-Python,https://github.com/mouredev/Hello-Python,Python,Curso para aprender el lenguaje de programación Python desde cero
+dabeaz-course,python-mastery,https://github.com/dabeaz-course/python-mastery,Python,Advanced Python Mastery (course by @dabeaz)
+dabeaz-course,practical-python,https://github.com/dabeaz-course/practical-python,Python,Practical Python Programming (course by @dabeaz)
+chiphuyen,stanford-tensorflow-tutorials,https://github.com/chiphuyen/stanford-tensorflow-tutorials,Python,This repository contains code examples for the Stanford's course: TensorFlow for Deep Learning Research
+Yorko,mlcourse.ai,https://github.com/Yorko/mlcourse.ai,Python,Open Machine Learning Course
+psf,requests,https://github.com/psf/requests,Python,"A simple, yet elegant, HTTP library"
+psf,black,https://github.com/psf/black,Python,The uncompromising Python code formatter
+python-poetry,poetry,https://github.com/python-poetry/poetry,Python,Python packaging and dependency management made easy
+pypa,pipenv,https://github.com/pypa/pipenv,Python,Python Development Workflow for Humans
+pypa,pip,https://github.com/pypa/pip,Python,The Python package installer
+pypa,pipx,https://github.com/pypa/pipx,Python,Install and Run Python Applications in Isolated Environments
+pre-commit,pre-commit,https://github.com/pre-commit/pre-commit,Python,A framework for managing and maintaining multi-language pre-commit hooks
+Textualize,rich,https://github.com/Textualize/rich,Python,Rich is a Python library for rich text and beautiful formatting in the terminal
+Textualize,textual,https://github.com/Textualize/textual,Python,The lean application framework for Python. Build sophisticated user interfaces
+tqdm,tqdm,https://github.com/tqdm/tqdm,Python,"⚡ A Fast, Extensible Progress Bar for Python and CLI"
+Delgan,loguru,https://github.com/Delgan/loguru,Python,Python logging made (stupidly) simple
+ultralytics,ultralytics,https://github.com/ultralytics/ultralytics,Python,Ultralytics YOLO11 🚀
+roboflow,supervision,https://github.com/roboflow/supervision,Python,We write your reusable computer vision tools. 💜
+ageitgey,face_recognition,https://github.com/ageitgey/face_recognition,Python,The world's simplest facial recognition api for Python and the command line
+JaidedAI,EasyOCR,https://github.com/JaidedAI/EasyOCR,Python,Ready-to-use OCR with 80+ supported languages and all popular writing scripts
+ocrmypdf,OCRmyPDF,https://github.com/ocrmypdf/OCRmyPDF,Python,"OCRmyPDF adds an OCR text layer to scanned PDF files, allowing them to be searched"
+python-pillow,Pillow,https://github.com/python-pillow/Pillow,Python,Python Imaging Library (Fork)
+serengil,deepface,https://github.com/serengil/deepface,Python,A Lightweight Face Recognition and Facial Attribute Analysis Library for Python
+danielgatis,rembg,https://github.com/danielgatis/rembg,Python,Rembg is a tool to remove images background
+kornia,kornia,https://github.com/kornia/kornia,Python,🐍 Geometric Computer Vision Library for Spatial AI
+albumentations-team,albumentations,https://github.com/albumentations-team/albumentations,Python,Fast and flexible image augmentation library
+wkentaro,labelme,https://github.com/wkentaro/labelme,Python,"Image Polygonal Annotation with Python (polygon, rectangle, circle, line, point)"
+lukas-blecher,LaTeX-OCR,https://github.com/lukas-blecher/LaTeX-OCR,Python,pix2tex: Using a ViT to convert images of equations into LaTeX code
+opendatalab,MinerU,https://github.com/opendatalab/MinerU,Python,A high-quality tool for convert PDF to Markdown and JSON
+Zulko,moviepy,https://github.com/Zulko/moviepy,Python,Video editing with Python
+x-hw,amazing-qr,https://github.com/x-hw/amazing-qr,Python,💮 amazing QRCode generator in Python (supporting animated gif)
+amueller,word_cloud,https://github.com/amueller/word_cloud,Python,A little word cloud generator in Python
+coqui-ai,TTS,https://github.com/coqui-ai/TTS,Python,"🐸💬 - a deep learning toolkit for Text-to-Speech, battle-tested in research and production"
+CorentinJ,Real-Time-Voice-Cloning,https://github.com/CorentinJ/Real-Time-Voice-Cloning,Python,Clone a voice in 5 seconds to generate arbitrary speech in real-time
+2noise,ChatTTS,https://github.com/2noise/ChatTTS,Python,A generative speech model for daily dialogue
+FunAudioLLM,CosyVoice,https://github.com/FunAudioLLM/CosyVoice,Python,"Multi-lingual large voice generation model, providing inference, training and deployment"
+kivy,kivy,https://github.com/kivy/kivy,"Python, C","Open source UI framework written in Python, running on Windows, Linux, macOS, Android and iOS"
+pygame,pygame,https://github.com/pygame/pygame,"Python, C",pygame (the library) is a Free and Open Source python programming language library
+panda3d,panda3d,https://github.com/panda3d/panda3d,"Python, C++","Powerful, mature open-source cross-platform game engine for Python and C++"
+SFTtech,openage,https://github.com/SFTtech/openage,"Python, C++",Clone of the Age of Empires II engine 🚀
+AtsushiSakai,PythonRobotics,https://github.com/AtsushiSakai/PythonRobotics,Python,Python sample codes and textbook for robotics algorithms
+robotframework,robotframework,https://github.com/robotframework/robotframework,Python,Generic automation framework for acceptance testing and RPA
+asweigart,pyautogui,https://github.com/asweigart/pyautogui,Python,A cross-platform GUI automation Python module for human beings
+chriskiehl,Gooey,https://github.com/chriskiehl/Gooey,Python,Turn (almost) any Python command line program into a full GUI application with one line
+TomSchimansky,CustomTkinter,https://github.com/TomSchimansky/CustomTkinter,Python,A modern and customizable python UI-library based on Tkinter
+PySimpleGUI,PySimpleGUI,https://github.com/PySimpleGUI/PySimpleGUI,Python,Python GUIs for Humans! PySimpleGUI is the top-rated Python application development environment
+ParthJadhav,Tkinter-Designer,https://github.com/ParthJadhav/Tkinter-Designer,Python,An easy and fast way to create a Python GUI 🐍
+zauberzeug,nicegui,https://github.com/zauberzeug/nicegui,Python,Create web-based user interfaces with Python. The nice way
+explosion,spaCy,https://github.com/explosion/spaCy,"Python, Cython",💫 Industrial-strength Natural Language Processing (NLP) in Python
+nltk,nltk,https://github.com/nltk/nltk,Python,NLTK Source
+piskvorky,gensim,https://github.com/piskvorky/gensim,Python,Topic Modelling for Humans
+flairNLP,flair,https://github.com/flairNLP/flair,Python,A very simple framework for state-of-the-art Natural Language Processing (NLP)
+fighting41love,funNLP,https://github.com/fighting41love/funNLP,Python,中英文敏感词、语言检测、中外手机/电话归属地/运营商查询、名字推断性别等工具
+gunthercox,ChatterBot,https://github.com/gunthercox/ChatterBot,Python,"ChatterBot is a machine learning, conversational dialog engine for creating chat bots"
+neuml,txtai,https://github.com/neuml/txtai,Python,"💡 All-in-one open-source AI framework for semantic search, LLM orchestration"
+567-labs,instructor,https://github.com/567-labs/instructor,Python,structured outputs for llms
+langchain-ai,langchain,https://github.com/langchain-ai/langchain,Python,Build context-aware reasoning applications
+BerriAI,litellm,https://github.com/BerriAI/litellm,Python,"Python SDK, Proxy Server (LLM Gateway) to call 100+ LLM APIs in OpenAI format"
+mem0ai,mem0,https://github.com/mem0ai/mem0,Python,Memory for AI Agents; SOTA in AI Agent Memory
+Shubhamsaboo,awesome-llm-apps,https://github.com/Shubhamsaboo/awesome-llm-apps,Python,"Collection of awesome LLM apps with AI Agents and RAG using OpenAI, Anthropic, Gemini"
+ollama,ollama-python,https://github.com/ollama/ollama-python,Python,Ollama Python library
+gradio-app,gradio,https://github.com/gradio-app/gradio,Python,"Build and share delightful machine learning apps, all in Python"
+ComposioHQ,composio,https://github.com/ComposioHQ/composio,Python,Composio equip's your AI agents & LLMs with 100+ high-quality integrations
+assafelovic,gpt-researcher,https://github.com/assafelovic/gpt-researcher,Python,LLM based autonomous agent that conducts deep local and web research
+AntonOsika,gpt-engineer,https://github.com/AntonOsika/gpt-engineer,Python,CLI platform to experiment with codegen
+TransformerOptimus,SuperAGI,https://github.com/TransformerOptimus/SuperAGI,Python,<⚡️> SuperAGI - A dev-first open source autonomous AI agent framework
+agno-agi,agno,https://github.com/agno-agi/agno,Python,"Full-stack framework for building Multi-Agent Systems with memory, knowledge and reasoning"
+raga-ai-hub,RagaAI-Catalyst,https://github.com/raga-ai-hub/RagaAI-Catalyst,Python,"Python SDK for Agent AI Observability, Monitoring and Evaluation Framework"
+Significant-Gravitas,AutoGPT,https://github.com/Significant-Gravitas/AutoGPT,Python,"AutoGPT is the vision of accessible AI for everyone, to use and to build on"
+LAION-AI,Open-Assistant,https://github.com/LAION-AI/Open-Assistant,Python,OpenAssistant is a chat-based assistant that understands tasks
+browser-use,browser-use,https://github.com/browser-use/browser-use,Python,🌐 Make websites accessible for AI agents. Automate tasks online with ease
+OpenInterpreter,open-interpreter,https://github.com/OpenInterpreter/open-interpreter,Python,A natural language interface for computers
+marimo-team,marimo,https://github.com/marimo-team/marimo,Python,A reactive notebook for Python — run reproducible experiments
+deepset-ai,haystack,https://github.com/deepset-ai/haystack,Python,"AI orchestration framework to build customizable, production-ready LLM applications"
+langflow-ai,langflow,https://github.com/langflow-ai/langflow,Python,Langflow is a low-code app builder for RAG and multi-agent AI applications
+sympy,sympy,https://github.com/sympy/sympy,Python,A computer algebra system written in pure Python
+Lightning-AI,pytorch-lightning,https://github.com/Lightning-AI/pytorch-lightning,Python,"Pretrain, finetune ANY AI model of ANY size on multiple GPUs, TPUs with zero code changes"
+pytorch,pytorch,https://github.com/pytorch/pytorch,"Python, C++",Tensors and Dynamic neural networks in Python with strong GPU acceleration
+keras-team,keras,https://github.com/keras-team/keras,Python,Deep Learning for humans
+tensorflow,tensorflow,https://github.com/tensorflow/tensorflow,"C++, Python",An Open Source Machine Learning Framework for Everyone
+jax-ml,jax,https://github.com/jax-ml/jax,Python,"Composable transformations of Python+NumPy programs: differentiate, vectorize, JIT to GPU/TPU"
+dmlc,dgl,https://github.com/dmlc/dgl,Python,"Python package built to ease deep learning on graph, on top of existing DL frameworks"
+cupy,cupy,https://github.com/cupy/cupy,"Python, C++",NumPy & SciPy for GPU
+dask,dask,https://github.com/dask/dask,Python,Parallel computing with task scheduling
+modin-project,modin,https://github.com/modin-project/modin,Python,Modin: Scale your Pandas workflows by changing a single line of code
+networkx,networkx,https://github.com/networkx/networkx,Python,Network Analysis in Python
+numba,numba,https://github.com/numba/numba,Python,NumPy aware dynamic Python compiler using LLVM
+Theano,Theano,https://github.com/Theano/Theano,Python,"Theano was a Python library that allows you to define, optimize, and evaluate mathematical expressions"
+optuna,optuna,https://github.com/optuna/optuna,Python,A hyperparameter optimization framework
+facebook,prophet,https://github.com/facebook/prophet,"Python, R",Tool for producing high quality forecasts for time series data
+facebookresearch,fairseq,https://github.com/facebookresearch/fairseq,Python,Facebook AI Research Sequence-to-Sequence Toolkit written in Python
+mwaskom,seaborn,https://github.com/mwaskom/seaborn,Python,Statistical data visualization in Python
+matplotlib,matplotlib,https://github.com/matplotlib/matplotlib,Python,matplotlib: plotting with Python
+vega,altair,https://github.com/vega/altair,Python,Declarative visualization library for Python
+pyecharts,pyecharts,https://github.com/pyecharts/pyecharts,Python,🎨 Python Echarts Plotting Library
+statsmodels,statsmodels,https://github.com/statsmodels/statsmodels,Python,Statsmodels: statistical modeling and econometrics in Python
+rougier,numpy-100,https://github.com/rougier/numpy-100,Python,100 numpy exercises (with solutions)
+rougier,scientific-visualization-book,https://github.com/rougier/scientific-visualization-book,Python,An open access book on scientific visualization using python and matplotlib
+MorvanZhou,tutorials,https://github.com/MorvanZhou/tutorials,Python,机器学习相关教程
+DLR-RM,stable-baselines3,https://github.com/DLR-RM/stable-baselines3,Python,"PyTorch version of Stable Baselines, reliable implementations of reinforcement learning algorithms"
+ShangtongZhang,reinforcement-learning-an-introduction,https://github.com/ShangtongZhang/reinforcement-learning-an-introduction,Python,Python Implementation of Reinforcement Learning: An Introduction
+rushter,MLAlgorithms,https://github.com/rushter/MLAlgorithms,Python,Minimal and clean examples of machine learning algorithms implementations
+allenai,allennlp,https://github.com/allenai/allennlp,Python,"An open-source NLP research library, built on PyTorch"
+keon,algorithms,https://github.com/keon/algorithms,Python,Minimal examples of data structures and algorithms in Python
+scrapy,scrapy,https://github.com/scrapy/scrapy,Python,"Scrapy, a fast high-level web crawling & scraping framework for Python"
+binux,pyspider,https://github.com/binux/pyspider,Python,A Powerful Spider(Web Crawler) System in Python
+seleniumbase,SeleniumBase,https://github.com/seleniumbase/SeleniumBase,Python,"Python APIs for web automation, testing, and bypassing bot-detection"
+postmanlabs,httpbin,https://github.com/postmanlabs/httpbin,Python,"HTTP Request & Response Service, written in Python + Flask"
+psf,requests-html,https://github.com/psf/requests-html,Python,Pythonic HTML Parsing for Humans™
+wistbean,learn_python3_spider,https://github.com/wistbean/learn_python3_spider,Python,python爬虫教程系列、从0到1学习python爬虫
+Jack-Cherish,python-spider,https://github.com/Jack-Cherish/python-spider,Python,🌈Python3网络爬虫实战：淘宝、京东、网易云、B站、12306、抖音等
+shengqiangzhang,examples-of-web-crawlers,https://github.com/shengqiangzhang/examples-of-web-crawlers,Python,"一些非常有趣的python爬虫例子,对新手比较友好"
+Kr1s77,awesome-python-login-model,https://github.com/Kr1s77/awesome-python-login-model,Python,😮python模拟登陆一些大型网站，还有一些简单的爬虫
+twintproject,twint,https://github.com/twintproject/twint,Python,An advanced Twitter scraping & OSINT tool written in Python
+injetlee,Python,https://github.com/injetlee/Python,Python,Python脚本。模拟登录知乎， 爬虫，操作excel，微信公众号，远程开机
+Evil0ctal,Douyin_TikTok_Download_API,https://github.com/Evil0ctal/Douyin_TikTok_Download_API,Python,🚀「Douyin_TikTok_Download_API」是一个开箱即用的高性能异步抖音、快手、TikTok、Bilibili数据爬取工具
+JoeanAmier,TikTokDownloader,https://github.com/JoeanAmier/TikTokDownloader,Python,TikTok 发布/喜欢/合辑/直播/视频/图集/音乐；抖音发布/喜欢/收藏/收藏夹/视频/图集/实况/直播/音乐/合集/评论/账号/搜索/热榜数据采集工具
+ScrapeGraphAI,Scrapegraph-ai,https://github.com/ScrapeGraphAI/Scrapegraph-ai,Python,Python scraper based on AI
+jhao104,proxy_pool,https://github.com/jhao104/proxy_pool,Python,Python ProxyPool for web spider
+maurosoria,dirsearch,https://github.com/maurosoria/dirsearch,Python,Web path scanner
+sqlmapproject,sqlmap,https://github.com/sqlmapproject/sqlmap,Python,Automatic SQL injection and database takeover tool
+fortra,impacket,https://github.com/fortra/impacket,Python,Impacket is a collection of Python classes for working with network protocols
+wifiphisher,wifiphisher,https://github.com/wifiphisher/wifiphisher,Python,The Rogue Access Point Framework
+smicallef,spiderfoot,https://github.com/smicallef/spiderfoot,Python,SpiderFoot automates OSINT for threat intelligence and mapping your attack surface
+laramies,theHarvester,https://github.com/laramies/theHarvester,Python,"E-mails, subdomains and names Harvester - OSINT"
+sherlock-project,sherlock,https://github.com/sherlock-project/sherlock,Python,Hunt down social media accounts by username across social networks
+soxoj,maigret,https://github.com/soxoj/maigret,Python,🕵️‍♂️ Collect a dossier on a person by username from thousands of sites
+s0md3v,Photon,https://github.com/s0md3v/Photon,Python,Incredibly fast crawler designed for OSINT
+Datalux,Osintgram,https://github.com/Datalux/Osintgram,Python,Osintgram is a OSINT tool on Instagram
+mitmproxy,mitmproxy,https://github.com/mitmproxy/mitmproxy,Python,An interactive TLS-capable intercepting HTTP proxy for penetration testers
+Gallopsled,pwntools,https://github.com/Gallopsled/pwntools,Python,CTF framework and exploit development library
+threat9,routersploit,https://github.com/threat9/routersploit,Python,Exploitation Framework for Embedded Devices
+secdev,scapy,https://github.com/secdev/scapy,Python,Scapy: the Python-based interactive packet manipulation program & library
+Manisso,fsociety,https://github.com/Manisso/fsociety,Python,fsociety Hacking Tools Pack – A Penetration Testing Framework
+bee-san,Ciphey,https://github.com/bee-san/Ciphey,Python,⚡ Automatically decrypt encryptions without knowing the key or cipher
+alievk,avatarify-python,https://github.com/alievk/avatarify-python,Python,"Avatars for Zoom, Skype and other video-conferencing apps"
+getpelican,pelican,https://github.com/getpelican/pelican,Python,Static site generator that supports Markdown and reST syntax. Powered by Python
+mkdocs,mkdocs,https://github.com/mkdocs/mkdocs,Python,Project documentation with Markdown
+wagtail,wagtail,https://github.com/wagtail/wagtail,Python,A Django content management system focused on flexibility and user experience
+django-cms,django-cms,https://github.com/django-cms/django-cms,Python,The easy-to-use and developer-friendly enterprise CMS powered by Django
+kovidgoyal,calibre,https://github.com/kovidgoyal/calibre,Python,The official source code repository for the calibre ebook manager
+beetbox,beets,https://github.com/beetbox/beets,Python,music library manager and MusicBrainz tagger
+celery,celery,https://github.com/celery/celery,Python,Distributed Task Queue (development branch)
+locustio,locust,https://github.com/locustio/locust,Python,Write scalable load tests in plain Python 🚗💨
+fabric,fabric,https://github.com/fabric/fabric,Python,"Simple, Pythonic remote execution and deployment"
+borgbackup,borg,https://github.com/borgbackup/borg,Python,Deduplicating archiver with compression and authenticated encryption
+simonw,datasette,https://github.com/simonw/datasette,Python,An open source multi-tool for exploring and publishing data
+getredash,redash,https://github.com/getredash/redash,Python,"Make Your Company Data Driven. Connect to any data source, easily visualize"
+netbox-community,netbox,https://github.com/netbox-community/netbox,Python,The premier source of truth powering network automation
+meolu,walle-web,https://github.com/meolu/walle-web,Python,walle - 瓦力 Devops开源项目代码部署平台
+dbcli,pgcli,https://github.com/dbcli/pgcli,Python,Postgres CLI with autocompletion and syntax highlighting
+dbcli,mycli,https://github.com/dbcli/mycli,Python,A Terminal Client for MySQL with AutoCompletion and Syntax Highlighting
+redis,redis-py,https://github.com/redis/redis-py,Python,Redis Python client
+sqlalchemy,sqlalchemy,https://github.com/sqlalchemy/sqlalchemy,Python,The Database Toolkit for Python
+coleifer,peewee,https://github.com/coleifer/peewee,Python,"a small, expressive orm -- supports postgresql, mysql, sqlite and cockroachdb"
+harelba,q,https://github.com/harelba/q,Python,q - Run SQL directly on delimited files and multi-file sqlite databases
+nicolargo,glances,https://github.com/nicolargo/glances,Python,"Glances an Eye on your system. A top/htop alternative for GNU/Linux, BSD, Mac OS and Windows"
+giampaolo,psutil,https://github.com/giampaolo/psutil,Python,Cross-platform lib for process and system monitoring in Python
+bloomberg,memray,https://github.com/bloomberg/memray,Python,Memray is a memory profiler for Python
+plasma-umass,scalene,https://github.com/plasma-umass/scalene,Python,"Scalene: a high-performance, high-precision CPU, GPU, and memory profiler for Python"
+ydataai,ydata-profiling,https://github.com/ydataai/ydata-profiling,Python,1 Line of code data quality profiling & exploratory data analysis for Pandas and Spark DataFrames
+PostHog,posthog,https://github.com/PostHog/posthog,Python,"🦔 PostHog provides open-source web & product analytics, session recording, feature flagging"
+powerline,powerline,https://github.com/powerline/powerline,Python,"Powerline is a statusline plugin for vim, and provides statuslines and prompts"
+cyrus-and,gdb-dashboard,https://github.com/cyrus-and/gdb-dashboard,Python,Modular visual interface for GDB in Python
+python,mypy,https://github.com/python/mypy,Python,Optional static typing for Python
+pydantic,pydantic,https://github.com/pydantic/pydantic,Python,Data validation using Python type hints
+pydantic,pydantic-ai,https://github.com/pydantic/pydantic-ai,Python,Agent Framework / shim to use Pydantic with LLMs
+joke2k,faker,https://github.com/joke2k/faker,Python,Faker is a Python package that generates fake data for you
+cookiecutter,cookiecutter,https://github.com/cookiecutter/cookiecutter,Python,A cross-platform command-line utility that creates projects from cookiecutters
+cookiecutter,cookiecutter-django,https://github.com/cookiecutter/cookiecutter-django,Python,Cookiecutter Django is a framework for jumpstarting production-ready Django projects
+StevenBlack,hosts,https://github.com/StevenBlack/hosts,Python,🔒 Consolidating and extending hosts files from several well-curated sources
+ArchiveBox,ArchiveBox,https://github.com/ArchiveBox/ArchiveBox,Python,🗃 Open source self-hosted web archiving
+Nuitka,Nuitka,https://github.com/Nuitka/Nuitka,Python,Nuitka is a Python compiler written in Python
+pyinstaller,pyinstaller,https://github.com/pyinstaller/pyinstaller,Python,Freeze (package) Python programs into stand-alone executables
+exaloop,codon,https://github.com/exaloop/codon,Python,"A high-performance, zero-overhead, extensible Python compiler with built-in NumPy support"
+pyodide,pyodide,https://github.com/pyodide/pyodide,Python,Pyodide is a Python distribution for the browser and Node.js based on WebAssembly
+cython,cython,https://github.com/cython/cython,Python,The most widely used Python to C compiler
+pytube,pytube,https://github.com/pytube/pytube,Python,"A lightweight, dependency-free Python library for downloading YouTube Videos"
+yt-dlp,yt-dlp,https://github.com/yt-dlp/yt-dlp,Python,A feature-rich command-line audio/video downloader
+spotDL,spotify-downloader,https://github.com/spotDL/spotify-downloader,Python,Download your Spotify playlists and songs along with album art and metadata
+streamlink,streamlink,https://github.com/streamlink/streamlink,Python,Streamlink is a CLI utility which pipes video streams from various services
+kkroening,ffmpeg-python,https://github.com/kkroening/ffmpeg-python,Python,Python bindings for FFmpeg - with complex filtering support
+FujiwaraChoki,MoneyPrinter,https://github.com/FujiwaraChoki/MoneyPrinter,Python,Automate Creation of YouTube Shorts using MoviePy
+FujiwaraChoki,MoneyPrinterV2,https://github.com/FujiwaraChoki/MoneyPrinterV2,Python,Automate the process of making money online
+harry0703,MoneyPrinterTurbo,https://github.com/harry0703/MoneyPrinterTurbo,Python,利用AI大模型，一键生成高清短视频 Generate short videos with one click using AI LLM
+httpie,cli,https://github.com/httpie/cli,Python,"🥧 HTTPie CLI — modern, user-friendly command-line HTTP client for the API era"
+aio-libs,aiohttp,https://github.com/aio-libs/aiohttp,Python,Asynchronous HTTP client/server framework for asyncio and Python
+Rapptz,discord.py,https://github.com/Rapptz/discord.py,Python,An API wrapper for Discord written in Python
+tweepy,tweepy,https://github.com/tweepy/tweepy,Python,Twitter for Python!
+LonamiWebs,Telethon,https://github.com/LonamiWebs/Telethon,Python,"Pure Python 3 MTProto API Telegram client library, for bots too!"
+python-telegram-bot,python-telegram-bot,https://github.com/python-telegram-bot/python-telegram-bot,Python,We have made you a wrapper you can't refuse
+pytest-dev,pytest,https://github.com/pytest-dev/pytest,Python,The pytest framework makes it easy to write small tests
+locustio,locust,https://github.com/locustio/locust,Python,Write scalable load tests in plain Python 🚗💨
+doccano,doccano,https://github.com/doccano/doccano,Python,Open source annotation tool for machine learning practitioners
+feder-cr,Jobs_Applier_AI_Agent_AIHawk,https://github.com/feder-cr/Jobs_Applier_AI_Agent_AIHawk,Python,AIHawk aims to easy job hunt process by automating the job application process
+InstaPy,InstaPy,https://github.com/InstaPy/InstaPy,Python,📷 Instagram Bot - Tool for automated Instagram interactions
+wangshub,wechat_jump_game,https://github.com/wangshub/wechat_jump_game,Python,微信《跳一跳》Python 辅助
+sfyc23,EverydayWechat,https://github.com/sfyc23/EverydayWechat,Python,微信助手：1.每日定时给好友（女友）发送定制消息。2.机器人自动回复好友。3.群助手功能
+darknessomi,musicbox,https://github.com/darknessomi/musicbox,Python,网易云音乐命令行版本
+aws,chalice,https://github.com/aws/chalice,Python,Python Serverless Microframework for AWS
+aws,aws-cli,https://github.com/aws/aws-cli,Python,Universal Command Line Interface for Amazon Web Services
+boto,boto3,https://github.com/boto/boto3,Python,AWS SDK for Python
+Miserlou,Zappa,https://github.com/Miserlou/Zappa,Python,Serverless Python
+searxng,searxng,https://github.com/searxng/searxng,Python,SearXNG is a free internet metasearch engine which aggregates results
+searx,searx,https://github.com/searx/searx,Python,Privacy-respecting metasearch engine
+benbusby,whoogle-search,https://github.com/benbusby/whoogle-search,Python,"A self-hosted, ad-free, privacy-respecting metasearch engine"
+rq,rq,https://github.com/rq/rq,Python,Simple job queues for Python
+dbader,schedule,https://github.com/dbader/schedule,Python,Python job scheduling for humans
+wting,autojump,https://github.com/wting/autojump,Python,A cd command that learns - easily navigate directories from the command line
+Jack-Cherish,PythonPark,https://github.com/Jack-Cherish/PythonPark,Python,Python 开源项目之「自学编程之路」，保姆级教程
+qutebrowser,qutebrowser,https://github.com/qutebrowser/qutebrowser,Python,"A keyboard-driven, vim-like browser based on Python and Qt"
+kovidgoyal,kitty,https://github.com/kovidgoyal/kitty,"Python, C","Cross-platform, fast, feature-rich, GPU based terminal"
+nvbn,thefuck,https://github.com/nvbn/thefuck,Python,Magnificent app which corrects your previous console command
+gruns,icecream,https://github.com/gruns/icecream,Python,🍦 Never use print() to debug again
+cool-RR,PySnooper,https://github.com/cool-RR/PySnooper,Python,Never use print for debugging again
+prompt-toolkit,python-prompt-toolkit,https://github.com/prompt-toolkit/python-prompt-toolkit,Python,Library for building powerful interactive command line applications in Python
+ipython,ipython,https://github.com/ipython/ipython,Python,Official repository for IPython itself
+sivel,speedtest-cli,https://github.com/sivel/speedtest-cli,Python,Command line interface for testing internet bandwidth using speedtest.net
+gto76,python-cheatsheet,https://github.com/gto76/python-cheatsheet,Python,Comprehensive Python Cheatsheet
+satwikkansal,wtfpython,https://github.com/satwikkansal/wtfpython,Python,What the f*ck Python? 😱
+faif,python-patterns,https://github.com/faif/python-patterns,Python,A collection of design patterns/idioms in Python
+TheR1D,shell_gpt,https://github.com/TheR1D/shell_gpt,Python,A command-line productivity tool powered by AI large language models
+freqtrade,freqtrade,https://github.com/freqtrade/freqtrade,Python,"Free, open source crypto trading bot"
+hummingbot,hummingbot,https://github.com/hummingbot/hummingbot,Python,Open source software that helps you create and deploy high-frequency crypto trading bots
+ccxt,ccxt,https://github.com/ccxt/ccxt,"JavaScript, TypeScript, Python, C#, PHP",A cryptocurrency trading API with support for more than 100 bitcoin/altcoin exchanges
+openmrs,openmrs-core,https://github.com/openmrs/openmrs-core,"Java, Python",OpenMRS API and web application code
+ClinicalML,structuredinference,https://github.com/clinicalml/structuredinference,Python,Code for structured inference networks
+EpistasisLab,tpot,https://github.com/EpistasisLab/tpot,Python,A Python Automated Machine Learning tool that optimizes machine learning pipelines
+hail-is,hail,https://github.com/hail-is/hail,"Python, Scala",Cloud-native genomic dataframes and batch computing
+openvax,mhctools,https://github.com/openvax/mhctools,Python,Python interface to running command-line and web-based MHC binding predictors
+hammerlab,cohorts,https://github.com/hammerlab/cohorts,Python,Survival analysis for patient cohorts
+robinhoodapp,fast-money,https://github.com/robinhoodapp/fast-money,Python,Fast Money API for Python
+stripe,stripe-python,https://github.com/stripe/stripe-python,Python,Python library for the Stripe API
+plaid,plaid-python,https://github.com/plaid/plaid-python,Python,Python bindings for Plaid
+square,squareup,https://github.com/squareup/squareup,Python,Python SDK for Square APIs
+paypal,PayPal-Python-SDK,https://github.com/paypal/PayPal-Python-SDK,Python,Python SDK for PayPal RESTful APIs
+coinbase,coinbase-python,https://github.com/coinbase/coinbase-python,Python,Coinbase Python API
+alpacahq,alpaca-trade-api-python,https://github.com/alpacahq/alpaca-trade-api-python,Python,Python client for Alpaca's trade API
+robin-stocks,robin_stocks,https://github.com/jmfernandes/robin_stocks,Python,Simple library to make trades with Robinhood Private API
+goldmansachs,gs-quant,https://github.com/goldmansachs/gs-quant,Python,Python toolkit for quantitative finance
+lyft,cartography,https://github.com/lyft/cartography,Python,Cartography is a Python tool that consolidates infrastructure assets and the relationships between them
+airbnb,superset,https://github.com/apache/superset,"TypeScript, Python",Apache Superset is a Data Visualization and Data Exploration Platform
+airbnb,knowledge-repo,https://github.com/airbnb/knowledge-repo,Python,A next-generation curated knowledge sharing platform for data scientists
+apache,airflow,https://github.com/apache/airflow,Python,"Apache Airflow - A platform to programmatically author, schedule, and monitor workflows"
+zomato,zomato-python,https://github.com/zomato/zomato-python,Python,Zomato API Python SDK
+deliveroo,determining-lunch,https://github.com/deliveroo/determining-lunch,Python,A Python app for determining where to order lunch
+edx,edx-platform,https://github.com/edx/edx-platform,Python,"The Open edX platform, the software that powers edX!"
+coursera,datawig,https://github.com/awslabs/datawig,Python,Learning to impute missing values in tables
+Khan,khan-exercises,https://github.com/Khan/khan-exercises,"Python, JavaScript","Our exercise framework, which powers the exercises on Khan Academy"
+mitodl,mitx-grading-library,https://github.com/mitodl/mitx-grading-library,Python,MITx Grading Library for the edX platform
+GSA,data.gov,https://github.com/GSA/data.gov,Python,data.gov CKAN app and extensions
+18F,analytics-reporter,https://github.com/18F/analytics-reporter,Python,A lightweight system for publishing analytics data from Google Analytics profiles
+sunlightlabs,python-sunlight,https://github.com/sunlightlabs/python-sunlight,Python,Python library for Sunlight APIs
+datamade,dedupe,https://github.com/dedupeio/dedupe,Python,A python library for accurate and automatic fuzzy matching
+zillow,luminaire,https://github.com/zillow/luminaire,Python,A python package for time series forecasting
+redfin,redfin-python,https://github.com/reteps/redfin,Python,Python API for Redfin real estate data
+reddit-archive,reddit,https://github.com/reddit-archive/reddit,Python,historical code from reddit.com
+tweepy,tweepy,https://github.com/tweepy/tweepy,Python,Twitter for Python!
+instaloader,instaloader,https://github.com/instaloader/instaloader,Python,Download pictures (or videos) along with their captions and other metadata from Instagram
+harismuneer,Ultimate-Facebook-Scraper,https://github.com/harismuneer/Ultimate-Facebook-Scraper,Python,A bot which scrapes almost everything about a Facebook user's profile
+panda3d,panda3d,https://github.com/panda3d/panda3d,"Python, C++","Powerful, mature open-source cross-platform game engine for Python and C++"
+pygame,pygame,https://github.com/pygame/pygame,"Python, C",pygame (the library) is a Free and Open Source python programming language library
+pyglet,pyglet,https://github.com/pyglet/pyglet,Python,pyglet is a cross-platform windowing and multimedia library for Python
+pokepetter,ursina,https://github.com/pokepetter/ursina,Python,A game engine powered by python and panda3d
+RPA-Tools,UiPath.Python,https://github.com/UiPath/UiPath.Python.Activities,Python,UiPath Python Activities
+autohotkey,ahk,https://github.com/spyoungtech/ahk,Python,Python wrapper for AutoHotkey with full type support
+pyautogui,pyautogui,https://github.com/asweigart/pyautogui,Python,A cross-platform GUI automation Python module for human beings
+microsoft,playwright-python,https://github.com/microsoft/playwright-python,Python,Python version of the Playwright testing and automation library
+buffer,buffer-python,https://github.com/bufferapp/buffer-python,Python,A Python library for Buffer API
+hootsuite,hootsuite-python,https://github.com/hootsuite/python-hootsuite,Python,Hootsuite API Python SDK
+mailchimp,mailchimp-marketing-python,https://github.com/mailchimp/mailchimp-marketing-python,Python,The official Python client for the Mailchimp Marketing API
+sendgrid,sendgrid-python,https://github.com/sendgrid/sendgrid-python,Python,"The Official Twilio SendGrid Led, Community Driven Python API Library"
+twilio,twilio-python,https://github.com/twilio/twilio-python,Python,A Python module for communicating with the Twilio API and generating TwiML
+raspberrypi,rpi.gpio,https://github.com/raspberrypi/rpi.gpio,Python,Python GPIO library for Raspberry Pi
+adafruit,circuitpython,https://github.com/adafruit/circuitpython,"Python, C",CircuitPython - a Python implementation for teaching coding with microcontrollers
+micropython,micropython,https://github.com/micropython/micropython,"Python, C",MicroPython - a lean and efficient Python implementation for microcontrollers
+espressif,esptool,https://github.com/espressif/esptool,Python,Espressif SoC serial bootloader utility
+arduino,arduino-cli,https://github.com/arduino/arduino-cli,"Go, Python",Arduino command line tool
+climatiq,climatiq-python,https://github.com/climatiq/climatiq-python,Python,Python client for the Climatiq API
+nrel,pysam,https://github.com/NREL/pysam,Python,Wrapper for the National Renewable Energy Laboratory's System Advisor Model (SAM)
+pvlib,pvlib-python,https://github.com/pvlib/pvlib-python,Python,A set of documented functions for simulating the performance of photovoltaic energy systems
+renewables-ninja,gsee,https://github.com/renewables-ninja/gsee,Python,Global Solar Energy Estimator
+CrowdStrike,falconpy,https://github.com/CrowdStrike/falconpy,Python,The CrowdStrike Falcon SDK for Python
+okta,okta-sdk-python,https://github.com/okta/okta-sdk-python,Python,Python SDK for the Okta Management API
+duo-labs,py_webauthn,https://github.com/duo-labs/py_webauthn,Python,Pythonic WebAuthn
+sentinelone,s1-python,https://github.com/Sentinel-One/sentinelone-python,Python,Python SDK for SentinelOne APIs
+farmwise,titan,https://github.com/farmwise/titan,Python,A Python library for agriculture data processing
+iofarm,iofarm-python,https://github.com/iofarm/iofarm-python,Python,IoFarm Python SDK
+fedex,fedex-python,https://github.com/python-fedex-devs/python-fedex,Python,Python FedEx Web Services API wrapper
+ups,ups-python,https://github.com/classicspecs/ClassicUPS,Python,A Python library for UPS APIs
+dhl,dhl-python,https://github.com/radzhome/python-dhl,Python,Python library for DHL API
+shippo,shippo-python-client,https://github.com/goshippo/shippo-python-client,Python,Shippo API library for Python
+easypost,easypost-python,https://github.com/EasyPost/easypost-python,Python,EasyPost Shipping API Client Library for Python
+veracyte,variantgrid,https://github.com/SACGF/variantgrid,Python,Variant calling and annotation web application
+broad-institute,gatk,https://github.com/broadinstitute/gatk,"Java, Python",Official code repository for GATK versions 4 and up
+10xgenomics,cellranger,https://github.com/10XGenomics/cellranger,Python,Cell Ranger DNA + VDJ pipeline
+chanzuckerberg,cellxgene,https://github.com/chanzuckerberg/cellxgene,Python,An interactive explorer for single-cell transcriptomics data
+deepchem,deepchem,https://github.com/deepchem/deepchem,Python,"Democratizing Deep-Learning for Drug Discovery, Quantum Chemistry, Materials Science"
+atomwise,atom2vec,https://github.com/atomwise/atom2vec,Python,Atom2Vec: Learning Atoms for Materials Discovery
+lexpredict,lexpredict-lexnlp,https://github.com/LexPredict/lexpredict-lexnlp,Python,LexNLP by LexPredict
+blackstone,blackstone,https://github.com/ICLRandD/Blackstone,Python,A spaCy pipeline and model for NLP on unstructured legal text
+casetext,compose,https://github.com/casetext/compose,Python,Compose is a machine learning framework for contract analysis
+metromile,pyinsurance,https://github.com/actuarialopensource/pyliferisk,Python,Python library for life actuarial calculations
+lemonade,forecasting,https://github.com/lemonade-insurance/forecasting,Python,Forecasting models for insurance
+root-insurance,root-python,https://github.com/RootInc/root-python,Python,Root Insurance Python SDK
+compass,compass-python,https://github.com/compass/compass-python,Python,Compass Python SDK
+opendoor,pyopendoor,https://github.com/opendoor-labs/pyopendoor,Python,Opendoor Python utilities
+rentspree,python-sdk,https://github.com/rentspree/python-sdk,Python,Rentspree Python SDK
+siemens,mindsphere-python-sdk,https://github.com/mindsphere/mindconnect-python,Python,MindConnect Python SDK
+ge-digital,predix-python,https://github.com/PredixDev/predix-python-sdk,Python,Python SDK for Predix platform
+honeywell,hcp-python,https://github.com/honeywell/hcp-python,Python,Honeywell Connected Plant Python SDK
+bosch,bosch-iot-python,https://github.com/boschrexroth/ctrlx-automation-python,Python,ctrlX AUTOMATION Python SDK
+tesla,fleet-telemetry,https://github.com/teslamotors/fleet-telemetry,"Go, Python",Tesla Fleet Telemetry
+waymo,waymo-open-dataset,https://github.com/waymo-research/waymo-open-dataset,Python,Waymo Open Dataset
+uber,causalml,https://github.com/uber/causalml,Python,Uplift modeling and causal inference with machine learning algorithms
+lyft,flyte,https://github.com/flyteorg/flyte,Python,Scalable and flexible workflow orchestration platform
+cruise,cruise-python,https://github.com/cruise-automation/webviz,Python,Web-based visualization libraries
+spacex,dragon,https://github.com/spacex/dragon,Python,SpaceX Dragon spacecraft software
+planetlabs,planet-client-python,https://github.com/planetlabs/planet-client-python,Python,Python client for Planet APIs
+satellitevu,satellitevu-python,https://github.com/SatelliteVu/satellitevu-python-sdk,Python,SatelliteVu Python SDK
+maxar,maxar-geospatial-platform,https://github.com/Maxar-Corp/maxar-geospatial-platform,Python,Maxar Geospatial Platform Python SDK
+codeforamerica,michigan-benefits,https://github.com/codeforamerica/michigan-benefits,Python,Michigan Benefits application
+dssg,triage,https://github.com/dssg/triage,Python,Risk modeling and prediction
+datakind,datakind-python,https://github.com/datakind/project-templates,Python,DataKind project templates
+kiva,kiva-python,https://github.com/kivastaging/kiva-api-sdk-python,Python,Kiva API Python SDK
+espn,espn-api-python,https://github.com/cwendt94/espn-api,Python,ESPN API Python wrapper
+draftkings,dkpy,https://github.com/jaebradley/draftkings_client,Python,DraftKings Python client
+fanduel,fanduel-python,https://github.com/changhc/pyfanduel,Python,FanDuel Python API
+nba,nba-api,https://github.com/swar/nba_api,Python,An API Client package to access the APIs for NBA.com
+shopify,shopify-python-api,https://github.com/Shopify/shopify_python_api,Python,ShopifyAPI library allows Python developers to programmatically access the admin section
+bigcommerce,bigcommerce-api-python,https://github.com/bigcommerce/bigcommerce-api-python,Python,BigCommerce API client for Python
+woocommerce,wc-api-python,https://github.com/woocommerce/wc-api-python,Python,Python wrapper for the WooCommerce REST API
+magento,magento-python,https://github.com/magento/magento2-python,Python,Magento 2 Python integration
+square,connect-python-sdk,https://github.com/square/connect-python-sdk,Python,Python client library for the Square Connect APIs
+coursera,coursera-dl,https://github.com/coursera-dl/coursera-dl,Python,Script for downloading Coursera.org videos and naming them
+udacity,udacity-python,https://github.com/udacity/deep-learning-v2-pytorch,Python,Projects and exercises for the Deep Learning Nanodegree programs
+edx,configuration,https://github.com/edx/configuration,Python,A collection of edx configuration scripts and utilities
+khanacademy,khan-api,https://github.com/Khan/khan-api,Python,Khan Academy API Python wrapper
+facebook,facebook-python-business-sdk,https://github.com/facebook/facebook-python-business-sdk,Python,Python SDK for Facebook Business APIs
+google-ads,google-ads-python,https://github.com/googleads/google-ads-python,Python,Google Ads API Client Library for Python
+twitter,twitter-api-python-sdk,https://github.com/twitterdev/twitter-api-python-sdk,Python,A Python SDK for the Twitter API
+linkedin,python-linkedin-v2,https://github.com/ozgur/python-linkedin,Python,Python interface to the LinkedIn API
+pinterest,pinterest-python-sdk,https://github.com/pinterest/api-quickstart,Python,Pinterest API quickstart
+netflix,flamescope,https://github.com/Netflix/flamescope,Python,FlameScope is a visualization tool for exploring different time ranges
+spotify,chartify,https://github.com/spotify/chartify,Python,Python library that makes it easy for data scientists to create charts
+twitch,twitch-python,https://github.com/PythonTwitchBotFramework/PythonTwitchBotFramework,Python,Python Twitch Bot Framework
+youtube,youtube-data-api,https://github.com/mabrownnyu/youtube-data-api,Python,YouTube Data API Python wrapper
+soundcloud,soundcloud-python,https://github.com/soundcloud/soundcloud-python,Python,A Python wrapper around the SoundCloud API
+consensys,py-evm,https://github.com/ethereum/py-evm,Python,A Python implementation of the Ethereum Virtual Machine
+chainhq,web3.py,https://github.com/ethereum/web3.py,Python,A python interface for interacting with the Ethereum blockchain
+binance,python-binance,https://github.com/sammchardy/python-binance,Python,Binance Exchange API python implementation
+coinbase,coinbase-pro-python,https://github.com/danpaquin/coinbasepro-python,Python,The unofficial Python client for the Coinbase Pro API
+kraken,krakenex,https://github.com/veox/python3-krakenex,Python,Python 3 package for Kraken.com cryptocurrency exchange API
+bitfinex,bitfinex-api-py,https://github.com/bitfinexcom/bitfinex-api-py,Python,Official Bitfinex Python API
+verizon,verizon-python,https://github.com/verizon/verizon-python,Python,Verizon Python SDK
+att,att-python,https://github.com/attdevsupport/python-sdk,Python,AT&T Python SDK
+vonage,vonage-python-sdk,https://github.com/Vonage/vonage-python-sdk,Python,Vonage Server SDK for Python
+bandwidth,python-bandwidth,https://github.com/Bandwidth/python-bandwidth,Python,Bandwidth Python API
+weatherapi,python-weather-api,https://github.com/chubin/wttr.in,Python,The right way to check the weather
+openweathermap,pyowm,https://github.com/csparpa/pyowm,Python,A Python wrapper around OpenWeatherMap web APIs
+climacell,climacell-python,https://github.com/climacell/climacell-python,Python,ClimaCell API Python SDK
+weatherbit,weatherbit-python,https://github.com/weatherbit/weatherbit-python,Python,Python library for the Weatherbit API
+cropio,cropio-python,https://github.com/cropio/cropio-python,Python,Crop.io Python SDK
+farmlog,farmlog-python,https://github.com/farmlogicllc/farmlog-python,Python,FarmLog Python API
+climate,climate-python,https://github.com/ClimateCorporation/climate-python,Python,Climate Corporation Python SDK
+transferwise,transferwise-python,https://github.com/transferwise/transferwise-python,Python,Wise (formerly TransferWise) Python API
+remitly,remitly-python,https://github.com/remitly/remitly-python,Python,Remitly Python SDK
+western-union,wu-python,https://github.com/westernunion/western-union-python,Python,Western Union Python SDK
+zapier,zapier-platform-python,https://github.com/zapier/zapier-platform-python,Python,Zapier Platform Python SDK
+ifttt,ifttt-python,https://github.com/ifttt/ifttt-python,Python,IFTTT Python SDK
+airtable,airtable-python-wrapper,https://github.com/gtalarico/airtable-python-wrapper,Python,Python API wrapper for the Airtable API
+notion,notion-sdk-py,https://github.com/ramnes/notion-sdk-py,Python,Python SDK for the official Notion API
+dropbox,dropbox-sdk-python,https://github.com/dropbox/dropbox-sdk-python,Python,Official Dropbox API Client
+box,box-python-sdk,https://github.com/box/box-python-sdk,Python,Box SDK for Python
+github,PyGithub,https://github.com/PyGithub/PyGithub,Python,Typed interactions with the GitHub API v3
+gitlab,python-gitlab,https://github.com/python-gitlab/python-gitlab,Python,A python wrapper for the GitLab API
+atlassian,atlassian-python-api,https://github.com/atlassian-api/atlassian-python-api,Python,Atlassian Python API wrapper
+jira,jira-python,https://github.com/pycontribs/jira,Python,Python JIRA library
+confluence,confluence-python,https://github.com/atlassian-api/atlassian-python-api,Python,Confluence Python API
+slack,python-slack-sdk,https://github.com/slackapi/python-slack-sdk,Python,Slack SDK for Python
+discord,discord.py,https://github.com/Rapptz/discord.py,Python,An API wrapper for Discord written in Python
+telegram,python-telegram-bot,https://github.com/python-telegram-bot/python-telegram-bot,Python,We have made you a wrapper you can't refuse
+whatsapp,whatsapp-python,https://github.com/tgalal/yowsup,Python,The WhatsApp lib
+signal,signal-cli-rest-api,https://github.com/bbernhard/signal-cli-rest-api,Python,Signal CLI REST API
+zoom,zoomus,https://github.com/prschmid/zoomus,Python,Python wrapper around the Zoom.us REST API
+teams,pymsteams,https://github.com/rveachkc/pymsteams,Python,Python Wrapper Library to send Microsoft Teams webhooks
+elasticsearch,elasticsearch-py,https://github.com/elastic/elasticsearch-py,Python,Official Python low-level client for Elasticsearch
+mongodb,pymongo,https://github.com/mongodb/mongo-python-driver,Python,PyMongo - the Official MongoDB Python driver
+cassandra,python-driver,https://github.com/datastax/python-driver,Python,DataStax Python Driver for Apache Cassandra
+redis,redis-py,https://github.com/redis/redis-py,Python,Redis Python client
+influxdata,influxdb-python,https://github.com/influxdata/influxdb-python,Python,Python client for InfluxDB
+prometheus,client_python,https://github.com/prometheus/client_python,Python,Prometheus instrumentation library for Python applications
+grafana,grafana-api-python-client,https://github.com/m0nhawk/grafana_api,Python,Grafana API Python client
+datadog,datadogpy,https://github.com/DataDog/datadogpy,Python,The Datadog Python library
+newrelic,newrelic-python-agent,https://github.com/newrelic/newrelic-python-agent,Python,New Relic Python agent
+honeycomb,honeycomb-python,https://github.com/honeycombio/libhoney-py,Python,Python library for sending data to Honeycomb
+bugsnag,bugsnag-python,https://github.com/bugsnag/bugsnag-python,Python,Python notifier for Bugsnag
+rollbar,pyrollbar,https://github.com/rollbar/pyrollbar,Python,Error tracking and logging from Python to Rollbar
+sentry,sentry-python,https://github.com/getsentry/sentry-python,Python,The official Python SDK for Sentry
+logentries,le_python,https://github.com/logentries/le_python,Python,Logentries Python library
+loggly,loggly-python,https://github.com/loggly/loggly-python,Python,Loggly Python library
+papertrail,papertrail-python,https://github.com/papertrail/papertrail-python,Python,Papertrail Python library
+segment,analytics-python,https://github.com/segmentio/analytics-python,Python,The hassle-free way to integrate analytics into any Python application
+mixpanel,mixpanel-python,https://github.com/mixpanel/mixpanel-python,Python,Official Mixpanel Python library
+amplitude,amplitude-python,https://github.com/amplitude/amplitude-python,Python,Official Amplitude Python SDK
+heap,heap-python,https://github.com/heap/heap-python-sdk,Python,Heap Python SDK
+fullstory,fullstory-python,https://github.com/fullstorydev/fullstory-python-sdk,Python,FullStory Python SDK
+hotjar,hotjar-python,https://github.com/hotjar/hotjar-python,Python,Hotjar Python SDK
+intercom,python-intercom,https://github.com/intercom/python-intercom,Python,Intercom Python SDK
+zendesk,zendesk_sdk_python,https://github.com/zendesk/zendesk_sdk_python,Python,Zendesk Python SDK
+freshworks,freshworks-python,https://github.com/freshworks/freshworks-python-sdk,Python,Freshworks Python SDK
+hubspot,hubspot-api-python,https://github.com/HubSpot/hubspot-api-python,Python,HubSpot API Python SDK
+salesforce,simple-salesforce,https://github.com/simple-salesforce/simple-salesforce,Python,A very simple Salesforce.com REST API client for Python
+pipedrive,pipedrive-python-lib,https://github.com/pipedrive/pipedrive-python-lib,Python,Pipedrive Python library
+close,closeio-api,https://github.com/closeio/closeio-api,Python,Python client for Close API
+calendly,calendly-python,https://github.com/calendly/calendly-python,Python,Calendly Python SDK

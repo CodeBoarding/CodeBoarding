@@ -94,7 +94,7 @@ class DiagramGenerator:
         # Process each level of components in parallel
         while current_level_components:
             level += 1
-            if level == 3:
+            if level == 2:
                 break
             logging.info(f"Processing level {level} with {len(current_level_components)} components")
             next_level_components = []

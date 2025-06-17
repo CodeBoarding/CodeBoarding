@@ -179,22 +179,28 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:
-    # import csv
-    #
-    # with open("/outreach_utils/unified_repos.csv", "r") as f:
-    #     csv_reader = csv.reader(f)
-    #     rows = list(csv_reader)  # Read all rows into a list
-    #
-    #     # Skip the header
-    # data_rows = rows[1:]
+    import csv
 
+    companies = set()
+    with open("/home/ivan/StartUp/CodeBoarding/enhanced_python_repositories_with_languages.csv", "r") as f:
+        csv_reader = csv.reader(f)
+        rows = list(csv_reader)  # Read all rows into a list
+
+        # Skip the header
+    data_rows = rows[1:]
+    repos = [(row[2], row[0], row[3]) for row in data_rows]
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/iossifovlab/gpf"]
-    for repo in tqdm(repos, desc="Generating docs for repos"):
+    # repos = ["https://github.com/lastmile-ai/mcp-agent"]
+    for repo, company, langs in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
-        # try:
-        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-        # except Exception as e:
-        #     logging.error(f"Failed to generate docs for {repo}: {e}")
-        # finally:
-        #     remove_temp_repo_folder(temp_repo_folder)
+        if company in companies:
+            continue
+        if "python" not in langs.lower():
+            continue
+        try:
+            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+            companies.add(company)
+        except Exception as e:
+            logging.error(f"Failed to generate docs for {repo}: {e}")
+        finally:
+            remove_temp_repo_folder(temp_repo_folder)
