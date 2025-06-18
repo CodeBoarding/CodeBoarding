@@ -23,8 +23,6 @@ Tasks:
 5. Define component relationships and interactions. There should not be more thane 2 relationships between any two components.
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-
-Please explain why you chose these components and why they are fundamental.
 """
 
 SOURCE_MESSAGE = """Validate and enhance component analysis using source code.
@@ -38,8 +36,6 @@ Tasks:
 3. Define each component: name, documents, relationships, roles, and neighbor interactions
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-
-Please explain why you chose these components and why they are fundamental.
 """
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}`.
@@ -56,8 +52,6 @@ Tasks:
 3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships (No more than 2 relationships between any two components)
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-
-Please explain why you chose these components and why they are fundamental.
 """
 
 FEEDBACK_MESSAGE = """You are a software architect, and the leading expert on the project has given you the following feedback:
