@@ -88,7 +88,7 @@ async def run_job(job_id: str):
                     f.write(f"Repository URL: {job['url']}\n\n")
                     f.write("Documentation content will be generated here.\n")
                 
-                job["result"] = str(result_path)
+                job["result"] = f"{repo_name}/onboarding.md"
                 job["status"] = JobStatus.SUCCESS
             except (RepoDontExistError, RepoIsNone):
                 job["error"] = f"Repository not found or failed to clone: {job['url']}"
