@@ -81,13 +81,6 @@ async def run_job(job_id: str):
                 output_dir = Path("generated_docs")
                 output_dir.mkdir(exist_ok=True)
                 
-                # Save the result locally
-                result_path = output_dir / f"{repo_name}_onboarding.md"
-                with open(result_path, 'w') as f:
-                    f.write(f"# Onboarding Documentation for {repo_name}\n\n")
-                    f.write(f"Repository URL: {job['url']}\n\n")
-                    f.write("Documentation content will be generated here.\n")
-                
                 job["result"] = f"{repo_name}/onboarding.md"
                 job["status"] = JobStatus.SUCCESS
             except (RepoDontExistError, RepoIsNone):
