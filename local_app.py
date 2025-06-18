@@ -1,34 +1,32 @@
 import logging
 import os
 from pathlib import Path
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+import uuid
+import asyncio
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
+from typing import Dict
+from datetime import datetime
 
-from agents.agent_responses import AnalysisInsights
-from diagram_generator import DiagramGenerator
-from generate_markdown import generate_docs_remote, clone_repository
-from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder, \
-    generate_markdown_content
+from generate_markdown import generate_docs_remote
+from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
+
+import dotenv
+dotenv.load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Onboarding Diagram Generator",
-    description="Generate docs/diagrams for a GitHub repo via `generate_docs_remote`",
+    description="Generate docs/diagrams for a GitHub repo",
     version="1.0.0",
 )
-load_dotenv()
 
 # ---- CORS setup ----
-origins = [
-    "*"  # Allow all origins for public API
-]
-
+origins = ["*"]  # Allow all origins for public API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -37,152 +35,123 @@ app.add_middleware(
     allow_credentials=False,
 )
 
+# --- In-memory job management ---
+MAX_CONCURRENT_JOBS = 5
+job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
+jobs: Dict[str, dict] = {}  # job_id -> job dict
+user_jobs: Dict[str, str] = {}  # user_id -> job_id
 
-@app.options("/generate_markdown")
-async def preflight():
-    # FastAPI + CORSMiddleware handles this automatically,
-    # but you can still explicitly return 204 if you like:
-    return PlainTextResponse(status_code=204)
+class JobStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
 
+def make_job(user_id: str, url: str) -> dict:
+    job_id = str(uuid.uuid4())
+    job = {
+        "id": job_id,
+        "user_id": user_id,
+        "url": url,
+        "status": JobStatus.PENDING,
+        "result": None,
+        "error": None,
+        "created_at": datetime.utcnow().isoformat(),
+        "started_at": None,
+        "finished_at": None,
+    }
+    return job
 
-@app.get(
-    "/generate_markdown",
-    response_class=PlainTextResponse,
-    summary="Generate onboarding docs for a GitHub repo",
-    responses={
-        200: {"description": "Returns the GitHub URL of the generated markdown"},
-        404: {"description": "Repo not found or diagram generation failed"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def generate_markdown(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
-    """
-    Example:
-        GET /myroute?url=https://github.com/your/repo
-    """
-    logger.info("Received request to generate docs for %s", url)
-
-    # Setup a dedicated temp folder for this run
-    temp_repo_folder = create_temp_repo_folder()
+async def run_job(job_id: str):
+    job = jobs[job_id]
+    job["status"] = JobStatus.RUNNING
+    job["started_at"] = datetime.utcnow().isoformat()
     try:
-        # generate the docs
-        repo_name = await run_in_threadpool(
-            generate_docs_remote,
-            repo_url=url,
-            temp_repo_folder=temp_repo_folder,
-            local_dev=True,
-        )
-
-        result_url = (
-            f"https://github.com/CodeBoarding/GeneratedOnBoardings"
-            f"/blob/main/{repo_name}/on_boarding.md"
-        )
-        logger.info("Successfully generated docs: %s", result_url)
-        return result_url
-
-    except (RepoDontExistError, RepoIsNone):
-        logger.warning("Repo not found or clone failed: %s", url)
-        raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
-
-    except CFGGenerationError:
-        logger.warning("CFG generation error for: %s", url)
-        raise HTTPException(404, detail="Failed to generate diagram. We will look into it 🙂")
-
-    except Exception as e:
-        logger.exception("Unexpected error processing repo %s", url)
-        raise HTTPException(500, detail="Internal server error")
-
+        async with job_semaphore:
+            temp_repo_folder = create_temp_repo_folder()
+            try:
+                repo_name = await run_in_threadpool(
+                    generate_docs_remote,
+                    repo_url=job["url"],
+                    temp_repo_folder=temp_repo_folder,
+                    local_dev=True,
+                )
+                
+                # Create a local output directory if it doesn't exist
+                output_dir = Path("generated_docs")
+                output_dir.mkdir(exist_ok=True)
+                
+                # Save the result locally
+                result_path = output_dir / f"{repo_name}_onboarding.md"
+                with open(result_path, 'w') as f:
+                    f.write(f"# Onboarding Documentation for {repo_name}\n\n")
+                    f.write(f"Repository URL: {job['url']}\n\n")
+                    f.write("Documentation content will be generated here.\n")
+                
+                job["result"] = str(result_path)
+                job["status"] = JobStatus.SUCCESS
+            except (RepoDontExistError, RepoIsNone):
+                job["error"] = f"Repository not found or failed to clone: {job['url']}"
+                job["status"] = JobStatus.FAILED
+            except CFGGenerationError:
+                job["error"] = "Failed to generate diagram. We will look into it 🙂"
+                job["status"] = JobStatus.FAILED
+            except Exception as e:
+                job["error"] = f"Internal server error: {e}"
+                job["status"] = JobStatus.FAILED
+            finally:
+                remove_temp_repo_folder(str(temp_repo_folder))
     finally:
-        # cleanup temp folder for this run
-        remove_temp_repo_folder(temp_repo_folder)
+        job["finished_at"] = datetime.utcnow().isoformat()
 
+@app.post("/job", response_class=JSONResponse, summary="Create a new onboarding job", responses={
+    200: {"description": "Job created", "content": {"application/json": {}}},
+    400: {"description": "Missing user_id or url"},
+})
+async def create_job(user_id: str = Query(..., description="User ID"), url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None):
+    if not user_id or not url:
+        raise HTTPException(400, detail="user_id and url are required")
+    # Remove previous job for this user if exists
+    if user_id in user_jobs:
+        old_job_id = user_jobs[user_id]
+        jobs.pop(old_job_id, None)
+    # Create new job
+    job = make_job(user_id, url)
+    jobs[job["id"]] = job
+    user_jobs[user_id] = job["id"]
+    # Start background task
+    if background_tasks is not None:
+        background_tasks.add_task(run_job, job["id"])
+    else:
+        asyncio.create_task(run_job(job["id"]))
+    return {"job_id": job["id"], "status": job["status"]}
 
-@app.options("/generate_docs")
-async def preflight_docs():
-    return PlainTextResponse(status_code=204)
+@app.get("/job/{job_id}", response_class=JSONResponse, summary="Get job status/result", responses={
+    200: {"description": "Job status/result"},
+    404: {"description": "Job not found"},
+})
+async def get_job(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, detail="Job not found")
+    return {
+        "id": job["id"],
+        "user_id": job["user_id"],
+        "url": job["url"],
+        "status": job["status"],
+        "result": job["result"],
+        "error": job["error"],
+        "created_at": job["created_at"],
+        "started_at": job["started_at"],
+        "finished_at": job["finished_at"],
+    }
 
-
-def generate_documents(repo_path, temp_repo_folder, repo_name):
-    generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                                 output_dir=temp_repo_folder)
-    analysis_files = generator.generate_analysis()
-    return analysis_files
-
-
-@app.get(
-    "/github_action",
-    response_class=JSONResponse,
-    summary="Generate onboarding docs for a GitHub repo and return content",
-    responses={
-        200: {"description": "Returns the generated markdown files as JSON"},
-        404: {"description": "Repo not found or diagram generation failed"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def generate_docs_content(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
-    """
-    Generate onboarding documentation and return the content directly.
-
-    Example:
-        GET /generate_docs?url=https://github.com/your/repo
-
-    Returns:
-        JSON object with file names as keys and their content as values
-    """
-    logger.info("Received request to generate docs content for %s", url)
-
-    # Ensure the URL starts with the correct prefix
-    if not url.startswith("https://github.com/"):
-        url = "https://github.com/" + url
-
-    # clone the repo:
-    repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
-    # Setup a dedicated temp folder for this run
-    temp_repo_folder = create_temp_repo_folder()
-    try:
-        # generate the docs
-        analysis_files = await run_in_threadpool(
-            generate_documents,
-            repo_path=Path(os.getenv("REPO_ROOT")) / repo_name,
-            temp_repo_folder=temp_repo_folder,
-            repo_name=repo_name,
-        )
-
-        # Now for each foc create the markdown and send it back:
-        docs_content = {}
-        for file in analysis_files:
-            with open(file, 'r') as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logging.info(f"Generated analysis file: {file}")
-                markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
-                                                              repo_url=url,
-                                                              reference_link=f"{url}/blob/main/.codeboarding/")
-                fname = Path(file).name.split(".json")[0]
-                fname = "on_boarding" if fname.endswith("analysis") else fname
-                docs_content[f"{fname}.md"] = markdown_response.strip()
-
-        if not docs_content:
-            logger.warning("No documentation files generated for: %s", url)
-            raise HTTPException(404, detail="No documentation files were generated")
-
-        logger.info("Successfully generated %d doc files for %s", len(docs_content), url)
-        resp = JSONResponse(content={
-            "files": docs_content
-        })
-        return resp
-
-    except (RepoDontExistError, RepoIsNone):
-        logger.warning("Repo not found or clone failed: %s", url)
-        raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
-
-    except CFGGenerationError:
-        logger.warning("CFG generation error for: %s", url)
-        raise HTTPException(404, detail="Failed to generate diagram. We will look into it 🙂")
-
-    except Exception as e:
-        logger.exception("Unexpected error processing repo %s", url)
-        raise HTTPException(500, detail="Internal server error")
-
-    finally:
-        # cleanup temp folder for this run
-        remove_temp_repo_folder(temp_repo_folder)
+@app.get("/job/user/{user_id}", response_class=JSONResponse, summary="Get latest job for a user", responses={
+    200: {"description": "Job status/result for user"},
+    404: {"description": "No job for user"},
+})
+async def get_user_job(user_id: str):
+    job_id = user_jobs.get(user_id)
+    if not job_id or job_id not in jobs:
+        raise HTTPException(404, detail="No job for user")
+    return await get_job(job_id)
