@@ -39,7 +39,6 @@ app.add_middleware(
 MAX_CONCURRENT_JOBS = 5
 job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
 jobs: Dict[str, dict] = {}  # job_id -> job dict
-user_jobs: Dict[str, str] = {}  # user_id -> job_id
 
 class JobStatus:
     PENDING = "pending"
@@ -47,12 +46,11 @@ class JobStatus:
     SUCCESS = "success"
     FAILED = "failed"
 
-def make_job(user_id: str, url: str) -> dict:
+def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
     job = {
         "id": job_id,
-        "user_id": user_id,
-        "url": url,
+        "repo_url": repo_url,
         "status": JobStatus.PENDING,
         "result": None,
         "error": None,
@@ -62,7 +60,7 @@ def make_job(user_id: str, url: str) -> dict:
     }
     return job
 
-async def run_job(job_id: str):
+async def generate_onboarding(job_id: str):
     job = jobs[job_id]
     job["status"] = JobStatus.RUNNING
     job["started_at"] = datetime.utcnow().isoformat()
@@ -72,7 +70,7 @@ async def run_job(job_id: str):
             try:
                 repo_name = await run_in_threadpool(
                     generate_docs_remote,
-                    repo_url=job["url"],
+                    repo_url=job["repo_url"],
                     temp_repo_folder=temp_repo_folder,
                     local_dev=True,
                 )
@@ -84,7 +82,7 @@ async def run_job(job_id: str):
                 job["result"] = f"{repo_name}/onboarding.md"
                 job["status"] = JobStatus.SUCCESS
             except (RepoDontExistError, RepoIsNone):
-                job["error"] = f"Repository not found or failed to clone: {job['url']}"
+                job["error"] = f"Repository not found or failed to clone: {job['repo_url']}"
                 job["status"] = JobStatus.FAILED
             except CFGGenerationError:
                 job["error"] = "Failed to generate diagram. We will look into it 🙂"
@@ -97,29 +95,24 @@ async def run_job(job_id: str):
     finally:
         job["finished_at"] = datetime.utcnow().isoformat()
 
-@app.post("/job", response_class=JSONResponse, summary="Create a new onboarding job", responses={
+@app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job", responses={
     200: {"description": "Job created", "content": {"application/json": {}}},
-    400: {"description": "Missing user_id or url"},
+    400: {"description": "Missing repo_url"},
 })
-async def create_job(user_id: str = Query(..., description="User ID"), url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None):
-    if not user_id or not url:
-        raise HTTPException(400, detail="user_id and url are required")
-    # Remove previous job for this user if exists
-    if user_id in user_jobs:
-        old_job_id = user_jobs[user_id]
-        jobs.pop(old_job_id, None)
+async def start_generation_job(repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None):
+    if not repo_url:
+        raise HTTPException(400, detail="repo_url is required")
     # Create new job
-    job = make_job(user_id, url)
+    job = make_job(repo_url)
     jobs[job["id"]] = job
-    user_jobs[user_id] = job["id"]
     # Start background task
     if background_tasks is not None:
-        background_tasks.add_task(run_job, job["id"])
+        background_tasks.add_task(generate_onboarding, job["id"])
     else:
-        asyncio.create_task(run_job(job["id"]))
+        asyncio.create_task(generate_onboarding(job["id"]))
     return {"job_id": job["id"], "status": job["status"]}
 
-@app.get("/job/{job_id}", response_class=JSONResponse, summary="Get job status/result", responses={
+@app.get("/generation/{job_id}", response_class=JSONResponse, summary="Get job status/result", responses={
     200: {"description": "Job status/result"},
     404: {"description": "Job not found"},
 })
@@ -129,8 +122,7 @@ async def get_job(job_id: str):
         raise HTTPException(404, detail="Job not found")
     return {
         "id": job["id"],
-        "user_id": job["user_id"],
-        "url": job["url"],
+        "repo_url": job["repo_url"],
         "status": job["status"],
         "result": job["result"],
         "error": job["error"],
@@ -138,13 +130,3 @@ async def get_job(job_id: str):
         "started_at": job["started_at"],
         "finished_at": job["finished_at"],
     }
-
-@app.get("/job/user/{user_id}", response_class=JSONResponse, summary="Get latest job for a user", responses={
-    200: {"description": "Job status/result for user"},
-    404: {"description": "No job for user"},
-})
-async def get_user_job(user_id: str):
-    job_id = user_jobs.get(user_id)
-    if not job_id or job_id not in jobs:
-        raise HTTPException(404, detail="No job for user")
-    return await get_job(job_id)
