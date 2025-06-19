@@ -60,6 +60,17 @@ def make_job(repo_url: str) -> dict:
     }
     return job
 
+@app.get(
+    "/github_action", 
+    response_class=JSONResponse, 
+    summary="Generate onboarding docs for a GitHub repo and return content",
+    responses={
+        200: {"description": "Returns the generated markdown files as JSON"},
+        404: {"description": "Repo not found or diagram generation failed"},
+        500: {"description": "Internal server error"},
+    },
+)
+
 async def generate_onboarding(job_id: str):
     job = jobs[job_id]
     job["status"] = JobStatus.RUNNING
