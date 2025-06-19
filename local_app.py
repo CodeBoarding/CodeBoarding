@@ -1,20 +1,27 @@
+import asyncio
 import logging
 import os
-from pathlib import Path
 import uuid
-import asyncio
+from datetime import datetime
+from pathlib import Path
+from typing import Dict
+from urllib.parse import urlparse
+
+import dotenv
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
-from typing import Dict
-from datetime import datetime
+
 from diagram_generator import DiagramGenerator
-from urllib.parse import urlparse
+from utils import (
+    CFGGenerationError,
+    RepoDontExistError,
+    RepoIsNone,
+    create_temp_repo_folder,
+    remove_temp_repo_folder,
+)
 
-from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
-
-import dotenv
 dotenv.load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -26,8 +33,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ---- CORS setup ----
-origins = ["*"]  # Allow all origins for public API
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -36,10 +42,9 @@ app.add_middleware(
     allow_credentials=False,
 )
 
-# --- In-memory job management ---
 MAX_CONCURRENT_JOBS = 5
 job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
-jobs: Dict[str, dict] = {}  # job_id -> job dict
+jobs: Dict[str, dict] = {}
 
 class JobStatus:
     PENDING = "pending"
@@ -52,16 +57,15 @@ def extract_repo_name(repo_url: str) -> str:
     parsed = urlparse(repo_url)
     path_parts = parsed.path.strip('/').split('/')
     if len(path_parts) >= 2:
-        # Remove .git extension if present
         repo_name = path_parts[-1]
         if repo_name.endswith('.git'):
             repo_name = repo_name[:-4]
-        return Path(repo_name)
+        return repo_name
     raise ValueError(f"Invalid GitHub URL format: {repo_url}")
 
 def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
-    job = {
+    return {
         "id": job_id,
         "repo_url": repo_url,
         "status": JobStatus.PENDING,
@@ -71,38 +75,34 @@ def make_job(repo_url: str) -> dict:
         "started_at": None,
         "finished_at": None,
     }
-    return job
-
-@app.get(
-    "/github_action", 
-    response_class=JSONResponse, 
-    summary="Generate onboarding docs for a GitHub repo and return content",
-    responses={
-        200: {"description": "Returns the generated markdown files as JSON"},
-        404: {"description": "Repo not found or diagram generation failed"},
-        500: {"description": "Internal server error"},
-    },
-)
 
 async def generate_onboarding(job_id: str):
     job = jobs[job_id]
     job["status"] = JobStatus.RUNNING
     job["started_at"] = datetime.utcnow().isoformat()
+    
     try:
         async with job_semaphore:
             temp_repo_folder = create_temp_repo_folder()
             try:
-                repo_name = await run_in_threadpool(
+                repo_root = os.getenv("REPO_ROOT")
+                if not repo_root:
+                    raise ValueError("REPO_ROOT environment variable not set")
+                
+                repo_name = extract_repo_name(job["repo_url"])
+                repo_path = Path(repo_root) / repo_name
+                
+                result = await run_in_threadpool(
                     generate_documents,
-                    repo_path=Path(os.getenv("REPO_ROOT") / extract_repo_name(job["repo_url"])),
+                    repo_path=repo_path,
                     temp_repo_folder=temp_repo_folder,
-                    repo_name=extract_repo_name(job["repo_url"]),
+                    repo_name=repo_name,
                 )
-                # Create a local output directory if it doesn't exist
+                
                 output_dir = Path("generated_docs")
                 output_dir.mkdir(exist_ok=True)
                 
-                job["result"] = f"{repo_name}/onboarding.md"
+                job["result"] = f"{result}/onboarding.md"
                 job["status"] = JobStatus.SUCCESS
             except (RepoDontExistError, RepoIsNone):
                 job["error"] = f"Repository not found or failed to clone: {job['repo_url']}"
@@ -118,31 +118,59 @@ async def generate_onboarding(job_id: str):
     finally:
         job["finished_at"] = datetime.utcnow().isoformat()
 
-@app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job", responses={
-    200: {"description": "Job created", "content": {"application/json": {}}},
-    400: {"description": "Missing repo_url"},
-})
-async def start_generation_job(repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None):
+@app.get(
+    "/github_action", 
+    response_class=JSONResponse, 
+    summary="Generate onboarding docs for a GitHub repo and return content",
+    responses={
+        200: {"description": "Returns the generated markdown files as JSON"},
+        404: {"description": "Repo not found or diagram generation failed"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def github_action(job_id: str):
+    return await generate_onboarding(job_id)
+
+@app.post(
+    "/generation", 
+    response_class=JSONResponse, 
+    summary="Create a new onboarding job", 
+    responses={
+        200: {"description": "Job created", "content": {"application/json": {}}},
+        400: {"description": "Missing repo_url"},
+    }
+)
+async def start_generation_job(
+    repo_url: str = Query(..., description="GitHub repo URL"), 
+    background_tasks: BackgroundTasks = None
+):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
-    # Create new job
+    
     job = make_job(repo_url)
     jobs[job["id"]] = job
-    # Start background task
+    
     if background_tasks is not None:
         background_tasks.add_task(generate_onboarding, job["id"])
     else:
         asyncio.create_task(generate_onboarding(job["id"]))
+    
     return {"job_id": job["id"], "status": job["status"]}
 
-@app.get("/generation/{job_id}", response_class=JSONResponse, summary="Get job status/result", responses={
-    200: {"description": "Job status/result"},
-    404: {"description": "Job not found"},
-})
+@app.get(
+    "/generation/{job_id}", 
+    response_class=JSONResponse, 
+    summary="Get job status/result", 
+    responses={
+        200: {"description": "Job status/result"},
+        404: {"description": "Job not found"},
+    }
+)
 async def get_job(job_id: str):
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(404, detail="Job not found")
+    
     return {
         "id": job["id"],
         "repo_url": job["repo_url"],
@@ -154,11 +182,11 @@ async def get_job(job_id: str):
         "finished_at": job["finished_at"],
     }
 
-
 def generate_documents(repo_path, temp_repo_folder, repo_name):
-    generator = DiagramGenerator(repo_location=repo_path, 
-                                 temp_folder=temp_repo_folder, 
-                                 repo_name=repo_name,
-                                 output_dir=temp_repo_folder)
-    analysis_files = generator.generate_analysis()
-    return analysis_files
+    generator = DiagramGenerator(
+        repo_location=repo_path, 
+        temp_folder=temp_repo_folder, 
+        repo_name=repo_name,
+        output_dir=temp_repo_folder
+    )
+    return generator.generate_analysis()
