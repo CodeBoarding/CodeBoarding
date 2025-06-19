@@ -9,8 +9,9 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from typing import Dict
 from datetime import datetime
+from diagram_generator import DiagramGenerator
+from urllib.parse import urlparse
 
-from generate_markdown import generate_docs_remote
 from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 
 import dotenv
@@ -46,6 +47,18 @@ class JobStatus:
     SUCCESS = "success"
     FAILED = "failed"
 
+def extract_repo_name(repo_url: str) -> str:
+    """Extract repository name from GitHub URL."""
+    parsed = urlparse(repo_url)
+    path_parts = parsed.path.strip('/').split('/')
+    if len(path_parts) >= 2:
+        # Remove .git extension if present
+        repo_name = path_parts[-1]
+        if repo_name.endswith('.git'):
+            repo_name = repo_name[:-4]
+        return Path(repo_name)
+    raise ValueError(f"Invalid GitHub URL format: {repo_url}")
+
 def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
     job = {
@@ -80,12 +93,11 @@ async def generate_onboarding(job_id: str):
             temp_repo_folder = create_temp_repo_folder()
             try:
                 repo_name = await run_in_threadpool(
-                    generate_docs_remote,
-                    repo_url=job["repo_url"],
+                    generate_documents,
+                    repo_path=Path(os.getenv("REPO_ROOT") / extract_repo_name(job["repo_url"])),
                     temp_repo_folder=temp_repo_folder,
-                    local_dev=True,
+                    repo_name=extract_repo_name(job["repo_url"]),
                 )
-                
                 # Create a local output directory if it doesn't exist
                 output_dir = Path("generated_docs")
                 output_dir.mkdir(exist_ok=True)
@@ -141,3 +153,12 @@ async def get_job(job_id: str):
         "started_at": job["started_at"],
         "finished_at": job["finished_at"],
     }
+
+
+def generate_documents(repo_path, temp_repo_folder, repo_name):
+    generator = DiagramGenerator(repo_location=repo_path, 
+                                 temp_folder=temp_repo_folder, 
+                                 repo_name=repo_name,
+                                 output_dir=temp_repo_folder)
+    analysis_files = generator.generate_analysis()
+    return analysis_files
