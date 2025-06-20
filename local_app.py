@@ -9,10 +9,10 @@ from fastapi.responses import PlainTextResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from agents.agent_responses import AnalysisInsights
+from demo import generate_docs_remote
 from diagram_generator import DiagramGenerator
-from generate_markdown import generate_docs_remote, clone_repository
-from utils import RepoDontExistError, RepoIsNone, CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder, \
-    generate_markdown_content
+from repo_utils import RepoDontExistError, clone_repository
+from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ async def generate_markdown(url: str = Query(..., description="The HTTPS URL of 
         logger.info("Successfully generated docs: %s", result_url)
         return result_url
 
-    except (RepoDontExistError, RepoIsNone):
+    except RepoDontExistError:
         logger.warning("Repo not found or clone failed: %s", url)
         raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
 
@@ -120,6 +120,7 @@ def generate_documents(repo_path, temp_repo_folder, repo_name):
     },
 )
 async def generate_docs_content(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
+    # TODO: i need to fix this
     """
     Generate onboarding documentation and return the content directly.
 
@@ -154,9 +155,8 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())
                 logging.info(f"Generated analysis file: {file}")
-                markdown_response = generate_markdown_content(analysis, repo_name, link_files=("analysis.json" in file),
-                                                              repo_url=url,
-                                                              reference_link=f"{url}/blob/main/.codeboarding/")
+                markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
+                                                      repo_url=url)
                 fname = Path(file).name.split(".json")[0]
                 fname = "on_boarding" if fname.endswith("analysis") else fname
                 docs_content[f"{fname}.md"] = markdown_response.strip()
@@ -171,7 +171,7 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
         })
         return resp
 
-    except (RepoDontExistError, RepoIsNone):
+    except RepoDontExistError:
         logger.warning("Repo not found or clone failed: %s", url)
         raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
 

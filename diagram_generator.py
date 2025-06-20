@@ -9,14 +9,14 @@ from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
+from markdown_generation import sanitize
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
-from utils import sanitize
 
 
 class DiagramGenerator:
-    def __init__(self, repo_location, temp_folder, repo_name, output_dir):
+    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
         self.repo_name = repo_name
@@ -26,6 +26,7 @@ class DiagramGenerator:
         self.abstraction_agent = None
         self.planner_agent = None
         self.validator_agent = None
+        self.depth_level = depth_level
 
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
@@ -94,7 +95,7 @@ class DiagramGenerator:
         # Process each level of components in parallel
         while current_level_components:
             level += 1
-            if level == 2:
+            if level == self.depth_level:
                 break
             logging.info(f"Processing level {level} with {len(current_level_components)} components")
             next_level_components = []

@@ -1,10 +1,9 @@
+import logging
 import os
 from pathlib import Path
 from typing import Set
 
 from astroid import InferenceError, nodes, Uninferable, MANAGER
-
-from static_analyzer.pylint_analyze import _banner
 
 
 class DiGraph:
@@ -105,7 +104,7 @@ class CallGraphBuilder:
         self.verbose = verbose
 
     def build(self) -> DiGraph:
-        _banner("Building ASTs…", self.verbose)
+        logging.info(f"[CallGraphBuilder] Building ASTs")
         exclude_dirs = {"test", "tests", "testing", "examples", "__pycache__", ".venv", ".git", ".tox"}
         for pyfile in self._iter_py_files():
             skip = False
@@ -117,11 +116,9 @@ class CallGraphBuilder:
                 continue
             self._process_file(pyfile)
 
-        _banner(
-            f"Call‑graph built: {self.graph.number_of_nodes()} nodes,"
-            f" {self.graph.number_of_edges()} edges.",
-            self.verbose,
-        )
+        logging.info(f"[CallGraphBuilder] " +
+                     f"Call‑graph built: {self.graph.number_of_nodes()} nodes," +
+                     f" {self.graph.number_of_edges()} edges.")
         return self.graph
 
     def _iter_py_files(self):

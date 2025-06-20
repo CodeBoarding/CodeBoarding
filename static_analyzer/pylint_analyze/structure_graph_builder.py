@@ -1,10 +1,8 @@
-import os
+import logging
 from pathlib import Path
-from tqdm import tqdm
 
 from pylint.pyreverse.main import Run as _PyreverseRun
-
-from static_analyzer.pylint_analyze import _banner
+from tqdm import tqdm
 
 
 class StructureGraphBuilder:
@@ -23,7 +21,7 @@ class StructureGraphBuilder:
             2. packages_<root>.dot   (package dependencies)
         The function then just copies/renames the interesting one to *dot_file*.
         """
-        _banner("Running pyreverse…", self.verbose)
+        logging.info("[StructureGraphBuilder] Running pyreverse…", )
         try:
             # Equivalent to: pyreverse -o dot   <package>
             _PyreverseRun([str(package), "-o", "dot", "-p", package.name, "-d", str(self.output_dir.resolve())])
@@ -43,7 +41,7 @@ class StructureGraphBuilder:
             raise RuntimeError("pyreverse did not produce a classes_*.dot file!")
 
         picked.replace(f"{self.output_dir}/{package.name}_{self.dot_file}")
-        _banner(f"Saved structure graph to {self.dot_file}", self.verbose)
+        logging.info(f"[StructureGraphBuilder] Saved structure graph to {self.dot_file}")
 
     def build(self):
         paths = collect_paths(self.root_package)
