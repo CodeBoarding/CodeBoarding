@@ -7,7 +7,7 @@ from utils import create_temp_repo_folder
 
 
 def generate_full_analysis(diagram_generator: DiagramGenerator):
-    analysis_files = generator.generate_analysis()
+    analysis_files = diagram_generator.generate_analysis()
 
     return analysis_files
 

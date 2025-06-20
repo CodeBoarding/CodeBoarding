@@ -17,6 +17,12 @@ class FileChange:
     added_lines: List[str] = field(default_factory=list)
     removed_lines: List[str] = field(default_factory=list)
 
+    def llm_str(self):
+        """
+        Returns a string representation of the file change suitable for LLM processing.
+        """
+        return f"File: {self.filename}, Added lines: +{self.additions}, Removed lines: -{self.deletions}"
+
 
 def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
     """
@@ -37,7 +43,6 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
         # Group diff by file using parsing logic
         current_file = None
         added, removed = [], []
-        ""
         for line in diff_index.splitlines():
             if line.startswith("diff --git"):
                 # Save previous file change, if any
@@ -72,7 +77,7 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
 
 
 if __name__ == '__main__':
-    print(get_git_diff(
-        repo_dir="/home/ivan/StartUp/CodeBoarding/",
-        version="c7e1c51f3ed2889f07db943124e6f9fcc3f41a9a",
-    ))
+    res = get_git_diff(
+        repo_dir="/home/imilev/Workspace/CodeBoarding/",
+        version="c7e1c51f3ed2889f07db943124e6f9fcc3f41a9a")
+    print([f.llm_str() for f in res])

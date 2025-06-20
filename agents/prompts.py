@@ -166,3 +166,32 @@ You are an expert in software architecture and design. You are seeing the follow
 Your task is to validate the relationships between components. Each component should have a clear set of relationships with other components, and there should not be more than 2 relationships between any two components.
 Please explain your reasoning for bad relationships.
 """
+
+SYSTEM_DIFF_ANALYSIS_MESSAGE = """
+You are a software architecture expert analyzing code differences in a software project.
+
+You will receive a diff of the code changes.
+Use the tools available to you to analyze the code differences and decide if the changes are significant enough to warrant an update to the architecture analysis.
+1. Use the diff to identify significant changes in the codebase.
+2. Use the file structure, cfg, package structure and source code to validate if the changes are significant.
+3. Compare with the existing architecture analysis to determine if the changes affect the overall architecture.
+"""
+
+DIFF_ANLAYSIS_MESSAGE = """
+You are the software architect who made the following analysis:
+{analysis}
+
+There are incoming changes to the codebase:
+{diff_data}
+
+Your task is to analyze the changes and decide if they are significant enough to warrant an update to the architecture analysis.
+
+Please give a full feedback on the analysis and the changes which were made. Then reason on your decision, and give a score between 0 and 10,
+where 0 means no update is needed, and 10 means a complete update is needed.
+
+1 and 2 are minor changes, meaning just renames of variables, classes, methods, etc.
+3 and 4 are small changes i.e. adding a new method, or changing the logic of an existing method.
+5 and 6 are medium changes, meaning adding a new class, or changing the logic of an existing class.
+7 and 8 are large changes, meaning adding a new module, or changing the logic of an existing module, changing the flow logic of the application.
+9 and 10 are very large changes, meaning changing the overall architecture of the application, or removing a significant part of the application.
+"""

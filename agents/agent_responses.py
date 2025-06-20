@@ -119,3 +119,13 @@ class ValidationInsights(BaseModel):
 
     def llm_str(self):
         return f"**Feedback Information:**\n{self.additional_info}"
+
+
+class UpdateAnalysis(BaseModel):
+    update_degree: int = Field(
+        description="Degree to which the diagram needs update. 0 means no update, 10 means complete update."
+    )
+    feedback: str = Field(description="Feedback provided on the analysis.")
+
+    def llm_str(self):
+        return f"**Updated Analysis:**\n{self.analysis.llm_str()}\n\n**Feedback:**\n{self.feedback}"

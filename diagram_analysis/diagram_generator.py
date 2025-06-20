@@ -55,6 +55,16 @@ class DiagramGenerator:
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, []
+        
+    def pre_analysis(self):
+        self.call_graph_str, cfg = self.generate_static_analysis()
+
+        self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
+                                          project_name=self.repo_name, cfg=cfg)
+        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
+                                                  project_name=self.repo_name, cfg=cfg)
+        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
+        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
 
     def generate_analysis(self):
         """
@@ -63,14 +73,9 @@ class DiagramGenerator:
         Components are analyzed in parallel by level.
         """
         files = []
-        structures, packages, self.call_graph_str, cfg = self.generate_static_analysis()
 
-        self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                          project_name=self.repo_name, cfg=cfg)
-        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                                  project_name=self.repo_name, cfg=cfg)
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
+        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None or self.validator_agent is None:
+            self.pre_analysis()
 
         # Generate the initial analysis
         logging.info("Generating initial analysis")
@@ -153,4 +158,4 @@ class DiagramGenerator:
                 # The file name is the package name
                 package_name = path.name.split('_')[1].split('.dot')[0]
                 packages.append((package_name, f.read()))
-        return structures, packages, call_graph_str, cfg
+        return call_graph_str, cfg
