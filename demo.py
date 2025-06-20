@@ -7,7 +7,7 @@ from git import Repo
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
-from diagram_generator import DiagramGenerator
+from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from markdown_generation import generate_markdown_file
 from repo_utils import store_token, clone_repository, upload_onboarding_materials

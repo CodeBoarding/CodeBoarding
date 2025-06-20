@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from agents.agent_responses import AnalysisInsights
 from demo import generate_docs_remote
-from diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator
 from repo_utils import RepoDontExistError, clone_repository
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 

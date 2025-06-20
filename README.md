@@ -9,8 +9,6 @@ Setup the environment:
 ```bash
 uv venv
 uv pip sync
-
-npm install @mermaid-js/mermaid-cli
 ```
 
 List of env variables you need:

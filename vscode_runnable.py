@@ -2,8 +2,9 @@ import argparse
 import logging
 from pathlib import Path
 
-from diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator
 from logging_config import setup_logging
+
 
 def args_parser():
     parser = argparse.ArgumentParser(description="Generate high-level diagrams for a local project.")
@@ -12,14 +13,15 @@ def args_parser():
     parser.add_argument("--output_dir", type=str, default="./analysis", help="Output directory for the analysis files.")
     return parser
 
+
 parser = args_parser()
 args = parser.parse_args()
 
 setup_logging(log_dir=args.output_dir)
 logger = logging.getLogger(__name__)
 
-def main():
 
+def main():
     repo_location = Path(args.repo)
 
     temp_folder = Path(f"{args.output_dir}/{args.project_name}")

@@ -5,7 +5,8 @@ import subprocess
 from pathlib import Path
 
 from git import Git, GitCommandError, Repo
-from .errors import RepoDontExistError, NoGithubTokenFoundError
+
+from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 
 
 def sanitize_repo_url(repo_url: str) -> str:

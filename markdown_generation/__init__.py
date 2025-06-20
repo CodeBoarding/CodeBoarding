@@ -4,14 +4,14 @@ import subprocess
 from pathlib import Path
 from typing import List
 
+from dotenv import load_dotenv
+
 from agents.agent_responses import AnalysisInsights
 from utils import contains_json
 
 
-def generated_mermaid_str(analysis: AnalysisInsights, link_files: bool = True, linked_files: List[Path] = None):
-    if link_files and not linked_files:
-        raise ValueError("linked_files must be provided if link_files is True")
-    lines = ["graph LR"]
+def generated_mermaid_str(analysis: AnalysisInsights):
+    lines = ["```mermaid", "graph LR"]
 
     # 1. Define each component as a node, including its description
     for comp in analysis.components:
@@ -26,15 +26,7 @@ def generated_mermaid_str(analysis: AnalysisInsights, link_files: bool = True, l
         dst_id = sanitize(rel.dst_name)
         # Use the relation phrase as the edge label
         lines.append(f'    {src_id} -- "{rel.relation}" --> {dst_id}')
-
-    # 3. Add clickable links to the components
-    if link_files:
-        for comp in analysis.components:
-            node_id = sanitize(comp.name)
-            # So this has to be complete:
-            if contains_json(node_id, linked_files):
-                lines.append(
-                    f'    click {node_id} href "./{node_id}.md" "Details"')
+    lines.append("```")
     return '\n'.join(lines)
 
 
@@ -108,8 +100,8 @@ def generate_markdown(file_name: str, insights: AnalysisInsights, project: str =
     return "\n".join(lines + detail_lines)
 
 
-def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str = "", link_files=True, repo_url="",
-                           linked_files=None, temp_dir: Path = None) -> Path:
+def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str, link_files: bool, repo_url: str,
+                           linked_files, temp_dir: Path) -> Path:
     content = generate_markdown(file_name, insights, project=project, link_files=link_files, repo_url=repo_url,
                                 linked_files=linked_files, temp_dir=temp_dir)
     markdown_file = temp_dir / f"{file_name}.md"
@@ -124,7 +116,7 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
     """
     sanitized_name = sanitize(component_name)
     if contains_json(sanitized_name, link_files):
-        return f"### {component_name} [Expand](./{sanitized_name}.md)"
+        return f"### {component_name} [[]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"
 
@@ -132,3 +124,16 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
 def sanitize(name: str) -> str:
     # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
     return re.sub(r'\W+', '_', name)
+
+
+if __name__ == '__main__':
+    dir = Path("/home/ivan/StartUp/CodeBoarding/temp/69c12ffbcedf42c8af6b366c1e29c996/")
+    # Get all the json files in the directory
+    load_dotenv()
+    json_files = list(dir.glob("*.json"))
+    temp_dir = Path("./")
+    for file in json_files:
+        with open(file, 'r') as f:
+            insights = AnalysisInsights.model_validate_json(f.read())
+        generate_markdown_file(file.stem, insights, project="test_project", link_files=True, repo_url="repo_URl",
+                               linked_files=json_files, temp_dir=temp_dir)
