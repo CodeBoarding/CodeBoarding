@@ -6,7 +6,9 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
+from agents.agent_responses import ValidationInsights
 from agents.details_agent import DetailsAgent
+from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
 from markdown_generation import sanitize
@@ -31,16 +33,27 @@ class DiagramGenerator:
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
         try:
-            logging.info(f"Processing component: {component.name}")
-            self.details_agent.step_subcfg(self.call_graph_str, component)
-            self.details_agent.step_cfg(component)
-            self.details_agent.step_enhance_structure(component)
+            # Now before we try doing anything, we need to check if the component already exists:
+            update_analysis = self.diff_analyzer_agent.check_for_component_updates()
+            if update_analysis.update_degree < 5: # No need to update
+                logging.info(f"Component {component.name} does not require update, skipping analysis.")
+                analysis = self.diff_analyzer_agent.get_component_analysis(component)
+                return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
+            elif update_analysis.update_degree >= 5 and update_analysis.update_degree < 8:
+                logging.info(f"Component {component.name} requires partial update, applying feedback.")
+                analysis = self.diff_analyzer_agent.get_component_analysis(component)
+                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
+                analysis = self.details_agent.apply_feedback(analysis, update_insight)
+            else:
+                logging.info(f"Processing component: {component.name}")
+                self.details_agent.step_subcfg(self.call_graph_str, component)
+                self.details_agent.step_cfg(component)
+                self.details_agent.step_enhance_structure(component)
 
-            analysis = self.details_agent.step_analysis(component)
-            feedback = self.validator_agent.run(analysis)
-            if not feedback.is_valid:
-                analysis = self.details_agent.apply_feedback(analysis, feedback)
-
+                analysis = self.details_agent.step_analysis(component)
+                feedback = self.validator_agent.run(analysis)
+                if not feedback.is_valid:
+                    analysis = self.details_agent.apply_feedback(analysis, feedback)
             # Get new components to analyze
             new_components = self.planner_agent.plan_analysis(analysis)
 
@@ -65,6 +78,12 @@ class DiagramGenerator:
                                                   project_name=self.repo_name, cfg=cfg)
         self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
         self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
+        self.diff_analyzer_agent = DiffAnalyzingAgent(
+            repo_dir=self.repo_dir,
+            output_dir=self.temp_folder,
+            cfg=None,  # Assuming cfg is not needed for this context
+            project_name=self.repo_dir.name
+        )
 
     def generate_analysis(self):
         """
@@ -79,10 +98,23 @@ class DiagramGenerator:
 
         # Generate the initial analysis
         logging.info("Generating initial analysis")
-        analysis = self.abstraction_agent.run(self.call_graph_str)
-        feedback = self.validator_agent.run(analysis)
-        if not feedback.is_valid:
-            analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
+
+        update_analysis = self.diff_analyzer_agent.check_for_updates()
+        
+        analysis = None
+        if update_analysis.update_degree >= 4 and update_analysis.update_degree < 8:
+            # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
+            update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
+            analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_anlaysis(), update_insight)
+        elif update_analysis.update_degree >= 8:
+            analysis = self.abstraction_agent.run(self.call_graph_str)
+            feedback = self.validator_agent.run(analysis)
+            if not feedback.is_valid:
+                analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
+        else:
+            analysis = self.diff_analyzer_agent.get_anlaysis()
+
+        assert analysis is not None, "Analysis should not be None at this point"
 
         # Save the root analysis
         analysis_path = os.path.join(self.output_dir, "analysis.json")
