@@ -24,7 +24,7 @@ class ReadDiffTool(BaseTool):
     )
     args_schema: Optional[ArgsSchema] = ReadDiffInput
     return_direct: bool = False
-    diffs: List[FileChange] = []
+    diffs: List[FileChange] = None
 
     def __init__(self, diffs: List[FileChange]):
         super().__init__()
