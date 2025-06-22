@@ -10,7 +10,7 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.tools.read_git_diff import ReadDiffTool
 from diagram_analysis.version import Version
-from markdown_generation import sanitize
+from output_generators.markdown import sanitize
 from repo_utils.git_diff import FileChange, get_git_diff
 
 
@@ -126,5 +126,5 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         prompt = self.prompt.format(analysis=analysis.llm_str(),
                                     diff_data="\n".join([df.llm_str() for df in diff_data]))
         update = self._parse_invoke(prompt, UpdateAnalysis)
-        logging.info(f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}")
+        logging.info(f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}, Feedback: {update.feedback}")
         return update

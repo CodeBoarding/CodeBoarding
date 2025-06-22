@@ -12,7 +12,7 @@ from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
 from diagram_analysis.version import Version
-from markdown_generation import sanitize
+from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
@@ -180,7 +180,7 @@ class DiagramGenerator:
         # Now I have to find and collect the _structure.dot files
         # Scan the current directory for files which end on dot_suffix
         structures = []
-        for path in Path('..').rglob(f'*{dot_suffix}'):
+        for path in Path('.').rglob(f'*{dot_suffix}'):
             with open(path, 'r') as f:
                 structures.append((path.name.split(dot_suffix)[0], f.read()))
 

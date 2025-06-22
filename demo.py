@@ -9,7 +9,7 @@ from tqdm import tqdm
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
-from markdown_generation import generate_markdown_file
+from output_generators.markdown import generate_markdown_file
 from repo_utils import store_token, clone_repository, upload_onboarding_materials
 from utils import create_temp_repo_folder, remove_temp_repo_folder, caching_enabled
 

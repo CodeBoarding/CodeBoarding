@@ -55,7 +55,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     if dest.exists():
         logging.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
-        # repo.remotes.origin.pull()
+        repo.remotes.origin.pull()
     else:
         logging.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
