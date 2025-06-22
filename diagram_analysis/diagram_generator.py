@@ -11,7 +11,9 @@ from agents.details_agent import DetailsAgent
 from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
+from diagram_analysis.version import Version
 from markdown_generation import sanitize
+from repo_utils import get_git_commit_hash
 from static_analyzer.pylint_analyze.call_graph_builder import CallGraphBuilder
 from static_analyzer.pylint_analyze.structure_graph_builder import StructureGraphBuilder
 from static_analyzer.pylint_graph_transform import DotGraphTransformer
@@ -28,18 +30,19 @@ class DiagramGenerator:
         self.abstraction_agent = None
         self.planner_agent = None
         self.validator_agent = None
+        self.diff_analyzer_agent = None
         self.depth_level = depth_level
 
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
         try:
             # Now before we try doing anything, we need to check if the component already exists:
-            update_analysis = self.diff_analyzer_agent.check_for_component_updates()
-            if update_analysis.update_degree < 5: # No need to update
+            update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
+            if update_analysis.update_degree < 4:  # No need to update
                 logging.info(f"Component {component.name} does not require update, skipping analysis.")
                 analysis = self.diff_analyzer_agent.get_component_analysis(component)
                 return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
-            elif update_analysis.update_degree >= 5 and update_analysis.update_degree < 8:
+            elif 4 < update_analysis.update_degree < 8:
                 logging.info(f"Component {component.name} requires partial update, applying feedback.")
                 analysis = self.diff_analyzer_agent.get_component_analysis(component)
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
@@ -68,7 +71,7 @@ class DiagramGenerator:
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, []
-        
+
     def pre_analysis(self):
         self.call_graph_str, cfg = self.generate_static_analysis()
 
@@ -79,11 +82,16 @@ class DiagramGenerator:
         self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
         self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
         self.diff_analyzer_agent = DiffAnalyzingAgent(
-            repo_dir=self.repo_dir,
+            repo_dir=self.repo_location,
             output_dir=self.temp_folder,
             cfg=None,  # Assuming cfg is not needed for this context
-            project_name=self.repo_dir.name
+            project_name=self.repo_name
         )
+
+        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
+        with open(version_file, "w") as f:
+            f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
+                            code_boarding_version="0.1.0").model_dump_json(indent=2))
 
     def generate_analysis(self):
         """
@@ -100,9 +108,8 @@ class DiagramGenerator:
         logging.info("Generating initial analysis")
 
         update_analysis = self.diff_analyzer_agent.check_for_updates()
-        
-        analysis = None
-        if update_analysis.update_degree >= 4 and update_analysis.update_degree < 8:
+
+        if 4 < update_analysis.update_degree < 8:
             # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
             update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
             analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_anlaysis(), update_insight)

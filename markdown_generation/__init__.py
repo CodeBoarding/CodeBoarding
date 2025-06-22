@@ -30,37 +30,16 @@ def generated_mermaid_str(analysis: AnalysisInsights):
     return '\n'.join(lines)
 
 
-def generate_mermaid_svg(file_name: str, mermaid_str: str, temp_dir: Path):
-    mmdc = Path(os.getenv('PROJECT_ROOT') + "/node_modules/.bin/mmdc")
-    output_file = temp_dir / f"{file_name}.svg"
-    input_file = temp_dir / f"{file_name}.mmd"
-    with open(input_file, 'w') as f:
-        f.write(mermaid_str)
-    try:
-        if not mmdc.exists():
-            raise FileNotFoundError(f"Mermaid CLI not found at {mmdc}")
-        subprocess.run(
-            [mmdc, "-i", input_file, "-o", output_file],
-            check=True
-        )
-        return f"./{file_name}.svg"
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to generate Mermaid SVG: {e}")
-
-
-def generate_markdown(file_name: str, insights: AnalysisInsights, project: str = "", link_files=True,
-                      repo_url="",
+def generate_markdown(file_name: str, insights: AnalysisInsights, project: str = "", repo_url="",
                       linked_files=None, temp_dir: Path = None) -> str:
     """
     Generate a Mermaid 'graph TD' diagram from an AnalysisInsights object.
     """
 
-    mermaid_str = generated_mermaid_str(insights, link_files=link_files, linked_files=linked_files)
+    mermaid_str = generated_mermaid_str(insights)
 
-    relative_ref = generate_mermaid_svg(file_name, mermaid_str, temp_dir)
-
-    lines = [f"![Diagram representation]({relative_ref})",
-             "[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)"]
+    lines = [mermaid_str,
+             "\n[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)"]
 
     detail_lines = ["\n## Details\n", f"{insights.description}\n"]
 
@@ -100,9 +79,9 @@ def generate_markdown(file_name: str, insights: AnalysisInsights, project: str =
     return "\n".join(lines + detail_lines)
 
 
-def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str, link_files: bool, repo_url: str,
+def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str, repo_url: str,
                            linked_files, temp_dir: Path) -> Path:
-    content = generate_markdown(file_name, insights, project=project, link_files=link_files, repo_url=repo_url,
+    content = generate_markdown(file_name, insights, project=project, repo_url=repo_url,
                                 linked_files=linked_files, temp_dir=temp_dir)
     markdown_file = temp_dir / f"{file_name}.md"
     with open(markdown_file, "w") as f:
@@ -135,5 +114,5 @@ if __name__ == '__main__':
     for file in json_files:
         with open(file, 'r') as f:
             insights = AnalysisInsights.model_validate_json(f.read())
-        generate_markdown_file(file.stem, insights, project="test_project", link_files=True, repo_url="repo_URl",
+        generate_markdown_file(file.stem, insights, project="test_project", repo_url="repo_URl",
                                linked_files=json_files, temp_dir=temp_dir)

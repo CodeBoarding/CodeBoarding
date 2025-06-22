@@ -48,7 +48,6 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
             if fname.endswith("analysis"):
                 fname = "on_boarding"
             generate_markdown_file(fname, analysis, repo_name,
-                                   link_files=True,
                                    repo_url=repo_url,
                                    linked_files=analysis_files,
                                    temp_dir=temp_repo_folder)

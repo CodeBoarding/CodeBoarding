@@ -55,7 +55,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     if dest.exists():
         logging.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
-        repo.remotes.origin.pull()
+        # repo.remotes.origin.pull()
     else:
         logging.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
@@ -94,3 +94,11 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
     repo.git.add(A=True)  # Equivalent to `git add .`
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
+
+
+def get_git_commit_hash(repo_dir: str) -> str:
+    """
+    Get the latest commit hash of the repository.
+    """
+    repo = Repo(repo_dir)
+    return repo.head.commit.hexsha
