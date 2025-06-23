@@ -8,9 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from agents.agent_responses import AnalysisInsights
 from demo import generate_docs_remote
-from diagram_analysis.diagram_generator import DiagramGenerator
 from github_action import generate_analysis
 from repo_utils import RepoDontExistError, clone_repository
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
