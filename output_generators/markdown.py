@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List
 
 from agents.agent_responses import AnalysisInsights
+from output_generators import sanitize
 from utils import contains_json
 
 
@@ -108,8 +109,3 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"
-
-
-def sanitize(name: str) -> str:
-    # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
-    return re.sub(r'\W+', '_', name)
