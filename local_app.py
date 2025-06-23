@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from agents.agent_responses import AnalysisInsights
 from demo import generate_docs_remote
 from diagram_analysis.diagram_generator import DiagramGenerator
+from github_action import generate_analysis
 from repo_utils import RepoDontExistError, clone_repository
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 
@@ -102,13 +103,6 @@ async def preflight_docs():
     return PlainTextResponse(status_code=204)
 
 
-def generate_documents(repo_path, temp_repo_folder, repo_name):
-    generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                                 output_dir=temp_repo_folder)
-    analysis_files = generator.generate_analysis()
-    return analysis_files
-
-
 @app.get(
     "/github_action",
     response_class=JSONResponse,
@@ -148,24 +142,27 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
     temp_repo_folder = create_temp_repo_folder()
     try:
         # generate the docs
-        analysis_files = await run_in_threadpool(
-            generate_documents,
-            repo_path=Path(os.getenv("REPO_ROOT")) / repo_name,
-            temp_repo_folder=temp_repo_folder,
-            repo_name=repo_name,
+        files_dir = await run_in_threadpool(
+            generate_analysis,
+            repo_url=url,
+            source_branch=source_branch,
+            target_branch=target_branch,
+            extension=extension,
         )
 
         # Now for each foc create the markdown and send it back:
         docs_content = {}
-        for file in analysis_files:
+        analysis_files_json = list(Path(files_dir).glob("*.json"))
+        analysis_files_extension = list(Path(files_dir).glob(f"*{extension}"))
+        for file in analysis_files_json:
             with open(file, 'r') as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logging.info(f"Generated analysis file: {file}")
-                markdown_response = generate_markdown(analysis, repo_name, link_files=("analysis.json" in file),
-                                                      repo_url=url)
-                fname = Path(file).name.split(".json")[0]
-                fname = "on_boarding" if fname.endswith("analysis") else fname
-                docs_content[f"{fname}.md"] = markdown_response.strip()
+                fname = file.stem
+                docs_content[f"{fname}.json"] = f.read().strip()
+
+        for file in analysis_files_extension:
+            with open(file, 'r') as f:
+                fname = file.stem
+                docs_content[f"{fname}{extension}"] = f.read().strip()
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)

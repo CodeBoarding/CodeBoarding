@@ -54,6 +54,7 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
     # Now generated the markdowns:
     if extension == ".md":
         generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder)
+        return temp_repo_folder
     else:
         raise ValueError("Unsupported file extension. Only .md is supported for now.")
 
