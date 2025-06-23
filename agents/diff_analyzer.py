@@ -28,7 +28,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
                                                                self.read_file_structure, self.read_structure_tool,
                                                                self.read_file_tool, self.read_diff_tool])
 
-    def get_anlaysis(self) -> AnalysisInsights:
+    def get_analysis(self) -> AnalysisInsights:
         """
         Generate an initial analysis insight for the project.
         This is a placeholder method that can be overridden by subclasses.
@@ -82,7 +82,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
             logging.info("[DiffAnalyzingAgent] No existing analysis found, running full analysis")
             return UpdateAnalysis(update_degree=10, feedback="No existing analysis found, running full analysis")
 
-        analysis = self.get_anlaysis()
+        analysis = self.get_analysis()
         diff_data = self.get_diff_data()
         if not diff_data:
             logging.info("[DiffAnalyzingAgent] No relevant code differences found")
@@ -126,5 +126,6 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         prompt = self.prompt.format(analysis=analysis.llm_str(),
                                     diff_data="\n".join([df.llm_str() for df in diff_data]))
         update = self._parse_invoke(prompt, UpdateAnalysis)
-        logging.info(f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}, Feedback: {update.feedback}")
+        logging.info(
+            f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}, Feedback: {update.feedback}")
         return update

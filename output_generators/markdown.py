@@ -1,16 +1,14 @@
 import os
 import re
-import subprocess
 from pathlib import Path
 from typing import List
-
-from dotenv import load_dotenv
 
 from agents.agent_responses import AnalysisInsights
 from utils import contains_json
 
 
-def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str) -> str:
+def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str,
+                          demo=False) -> str:
     lines = ["```mermaid", "graph LR"]
 
     # 1. Define each component as a node, including its description
@@ -31,18 +29,24 @@ def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], 
         node_id = sanitize(comp.name)
         if contains_json(node_id, linked_files):
             # Create a link to the component's details file
-            lines.append(f'    click {node_id} href "{repo_ref}/{node_id}.md" "Details"')
+            if not demo:
+                lines.append(f'    click {node_id} href "{repo_ref}/{node_id}.md" "Details"')
+            else:
+                # For demo, link to a static URL
+                lines.append(
+                    f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.md" "Details"')
     lines.append("```")
     return '\n'.join(lines)
 
 
 def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref="",
-                      linked_files=None) -> str:
+                      linked_files=None, demo=False) -> str:
     """
     Generate a Mermaid 'graph LR' diagram from an AnalysisInsights object.
     """
 
-    mermaid_str = generated_mermaid_str(insights, repo_ref=repo_ref, linked_files=linked_files)
+    mermaid_str = generated_mermaid_str(insights, repo_ref=repo_ref, linked_files=linked_files, project=project,
+                                        demo=demo)
 
     lines = [mermaid_str,
              "\n[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)"]
@@ -86,9 +90,9 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
 
 
 def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str, repo_ref: str,
-                           linked_files, temp_dir: Path) -> Path:
+                           linked_files, temp_dir: Path, demo: bool = False) -> Path:
     content = generate_markdown(insights, project=project, repo_ref=repo_ref,
-                                linked_files=linked_files)
+                                linked_files=linked_files, demo=demo)
     markdown_file = temp_dir / f"{file_name}.md"
     with open(markdown_file, "w") as f:
         f.write(content)
@@ -109,16 +113,3 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
 def sanitize(name: str) -> str:
     # Replace non-alphanumerics with underscores so IDs are valid Mermaid identifiers
     return re.sub(r'\W+', '_', name)
-
-
-if __name__ == '__main__':
-    dir = Path("/home/ivan/StartUp/CodeBoarding/temp/69c12ffbcedf42c8af6b366c1e29c996/")
-    # Get all the json files in the directory
-    load_dotenv()
-    json_files = list(dir.glob("*.json"))
-    temp_dir = Path("./")
-    for file in json_files:
-        with open(file, 'r') as f:
-            insights = AnalysisInsights.model_validate_json(f.read())
-        generate_markdown_file(file.stem, insights, project="test_project", repo_url="repo_URl",
-                               linked_files=json_files, temp_dir=temp_dir)

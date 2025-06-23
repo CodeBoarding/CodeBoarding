@@ -112,14 +112,14 @@ class DiagramGenerator:
         if 4 < update_analysis.update_degree < 8:
             # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
             update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-            analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_anlaysis(), update_insight)
+            analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_analysis(), update_insight)
         elif update_analysis.update_degree >= 8:
             analysis = self.abstraction_agent.run(self.call_graph_str)
             feedback = self.validator_agent.run(analysis)
             if not feedback.is_valid:
                 analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
         else:
-            analysis = self.diff_analyzer_agent.get_anlaysis()
+            analysis = self.diff_analyzer_agent.get_analysis()
 
         assert analysis is not None, "Analysis should not be None at this point"
 
