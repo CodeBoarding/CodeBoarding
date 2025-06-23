@@ -63,6 +63,15 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     return repo_name
 
 
+def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
+    repo = Repo(repo_dir)
+    if branch not in repo.heads:
+        logging.info(f"Branch {branch} does not exist, creating it.")
+        raise ValueError(f"Branch {branch} does not exist in the repository {repo_dir}: {repo.heads}")
+    logging.info(f"Checking out branch {branch}.")
+    repo.git.checkout(branch)
+
+
 def store_token():
     if not os.environ.get('GITHUB_TOKEN'):  # Using .get() for safer access
         raise NoGithubTokenFoundError()

@@ -119,8 +119,10 @@ def generate_documents(repo_path, temp_repo_folder, repo_name):
         500: {"description": "Internal server error"},
     },
 )
-async def generate_docs_content(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
-    # TODO: i need to fix this
+async def generate_docs_content(url: str = Query(..., description="The HTTPS URL of the GitHub repository"),
+                                source_branch: str = Query("main", description="The branch to analyze"),
+                                target_branch: str = Query("main", description="The branch to generate docs for"),
+                                extension: str = Query(".md", description="The file extension for the generated docs")):
     """
     Generate onboarding documentation and return the content directly.
 
@@ -131,6 +133,10 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
         JSON object with file names as keys and their content as values
     """
     logger.info("Received request to generate docs content for %s", url)
+
+    if extension not in [".md", ".rst"]:
+        logger.warning("Unsupported extension provided: %s. Defaulting to markdown", extension)
+        extension = ".md"  # Default to markdown if unsupported extension is provided
 
     # Ensure the URL starts with the correct prefix
     if not url.startswith("https://github.com/"):
