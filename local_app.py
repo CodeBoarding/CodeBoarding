@@ -1,11 +1,17 @@
 import logging
 import os
+import uuid
+import asyncio
 from pathlib import Path
+from typing import Dict, Any, Optional
+from datetime import datetime
+from enum import Enum
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, JSONResponse
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from demo import generate_docs_remote
@@ -101,44 +107,202 @@ async def preflight_docs():
     return PlainTextResponse(status_code=204)
 
 
-@app.get(
-    "/github_action",
+class DocsGenerationRequest(BaseModel):
+    url: str
+    source_branch: str = "main"
+    target_branch: str = "main" 
+    extension: str = ".md"
+
+@app.post(
+    "/github_action/jobs",
     response_class=JSONResponse,
-    summary="Generate onboarding docs for a GitHub repo and return content",
+    summary="Start a job to generate onboarding docs for a GitHub repo",
     responses={
-        200: {"description": "Returns the generated markdown files as JSON"},
-        404: {"description": "Repo not found or diagram generation failed"},
-        500: {"description": "Internal server error"},
+        202: {"description": "Job created successfully, returns job ID"},
+        400: {"description": "Invalid request parameters"},
     },
 )
-async def generate_docs_content(url: str = Query(..., description="The HTTPS URL of the GitHub repository"),
-                                source_branch: str = Query("main", description="The branch to analyze"),
-                                target_branch: str = Query("main", description="The branch to generate docs for"),
-                                extension: str = Query(".md", description="The file extension for the generated docs")):
+async def start_docs_generation_job(
+    background_tasks: BackgroundTasks,
+    docs_request: DocsGenerationRequest
+):
     """
-    Generate onboarding documentation and return the content directly.
+    Start a background job to generate onboarding documentation.
 
     Example:
-        GET /generate_docs?url=https://github.com/your/repo
+        POST /github_action/jobs?url=https://github.com/your/repo
 
     Returns:
-        JSON object with file names as keys and their content as values
+        JSON object with job_id that can be used to check status
     """
-    logger.info("Received request to generate docs content for %s", url)
+    logger.info("Received request to start docs generation job for %s", docs_request.url)
 
-    if extension not in [".md", ".rst"]:
-        logger.warning("Unsupported extension provided: %s. Defaulting to markdown", extension)
-        extension = ".md"  # Default to markdown if unsupported extension is provided
+    if docs_request.extension not in [".md", ".rst"]:
+        logger.warning("Unsupported extension provided: %s. Defaulting to markdown", docs_request.extension)
+        docs_request.extension = ".md"  # Default to markdown if unsupported extension is provided
 
-    # Ensure the URL starts with the correct prefix
-    if not url.startswith("https://github.com/"):
-        url = "https://github.com/" + url
+    # Create job entry
+    job_data = {
+        "url": docs_request.url,
+        "source_branch": docs_request.source_branch,
+        "target_branch": docs_request.target_branch,
+        "extension": docs_request.extension
+    }
+    
+    job_id = job_store.create_job(job_data)
+    
+    # Start background task
+    background_tasks.add_task(
+        process_docs_generation_job,
+        job_id,
+        docs_request.url,
+        docs_request.source_branch,
+        docs_request.target_branch,
+        docs_request.extension
+    )
 
-    # clone the repo:
-    repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
-    # Setup a dedicated temp folder for this run
+    logger.info("Created job %s for %s", job_id, docs_request.url)
+    return JSONResponse(
+        status_code=202,
+        content={
+            "job_id": job_id,
+            "message": "Job created successfully. Use the job_id to check status."
+        }
+    )
+
+
+@app.get(
+    "/github_action/jobs/{job_id}",
+    response_class=JSONResponse,
+    summary="Check the status of a documentation generation job",
+    responses={
+        200: {"description": "Returns job status and result if completed"},
+        404: {"description": "Job not found"},
+    },
+)
+async def get_job_status(job_id: str):
+    """
+    Check the status of a documentation generation job.
+
+    Example:
+        GET /github_action/jobs/{job_id}
+
+    Returns:
+        JSON object with job status, and result if completed
+    """
+    job = job_store.get_job(job_id)
+    
+    if not job:
+        logger.warning("Job not found: %s", job_id)
+        raise HTTPException(404, detail="Job not found")
+    response_data = {
+        "job_id": job["id"],
+        "status": job["status"],
+        "created_at": job["created_at"],
+        "updated_at": job["updated_at"],
+        "url": job["url"],
+        "source_branch": job["source_branch"],
+        "target_branch": job["target_branch"],
+        "extension": job["extension"]
+    }
+    
+    if job["status"] == JobStatus.COMPLETED:
+        if job.get("result"):
+            response_data["result"] = job["result"]
+        else:
+            response_data["result"] = {"message": "Job completed but no result available"}
+    elif job["status"] == JobStatus.FAILED:
+        if job.get("error"):
+            response_data["error"] = job["error"]
+        else:
+            response_data["error"] = "Job failed with unknown error"
+    
+    return JSONResponse(content=response_data)
+
+
+@app.get(
+    "/github_action/jobs",
+    response_class=JSONResponse,
+    summary="List all jobs",
+    responses={
+        200: {"description": "Returns list of all jobs"},
+    },
+)
+async def list_jobs():
+    """
+    List all documentation generation jobs.
+
+    Returns:
+        JSON object with list of all jobs
+    """
+    jobs_list = []
+    for job in job_store.jobs.values():
+        job_summary = {
+            "job_id": job["id"],
+            "status": job["status"],
+            "created_at": job["created_at"],
+            "updated_at": job["updated_at"],
+            "url": job["url"],
+            "source_branch": job["source_branch"],
+            "target_branch": job["target_branch"],
+            "extension": job["extension"]
+        }
+        jobs_list.append(job_summary)
+    
+    return JSONResponse(content={"jobs": jobs_list})
+
+# Job Management System
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running" 
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class JobStore:
+    def __init__(self):
+        self.jobs: Dict[str, Dict[str, Any]] = {}
+    
+    def create_job(self, job_data: Dict[str, Any]) -> str:
+        job_id = str(uuid.uuid4())
+        self.jobs[job_id] = {
+            "id": job_id,
+            "status": JobStatus.PENDING,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "result": None,
+            "error": None,
+            **job_data
+        }
+        return job_id
+    
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        return self.jobs.get(job_id)
+    
+    def update_job_status(self, job_id: str, status: JobStatus, result: Any = None, error: str = None):
+        if job_id in self.jobs:
+            self.jobs[job_id]["status"] = status
+            self.jobs[job_id]["updated_at"] = datetime.now().isoformat()
+            if result is not None:
+                self.jobs[job_id]["result"] = result
+            if error is not None:
+                self.jobs[job_id]["error"] = error
+
+# Global job store instance
+job_store = JobStore()
+
+async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, extension: str):
+    """Background task to process documentation generation"""
+    job_store.update_job_status(job_id, JobStatus.RUNNING)
+    
     temp_repo_folder = create_temp_repo_folder()
     try:
+        # Ensure the URL starts with the correct prefix
+        if not url.startswith("https://github.com/"):
+            url = "https://github.com/" + url
+
+        # clone the repo:
+        repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
+        
         # generate the docs
         files_dir = await run_in_threadpool(
             generate_analysis,
@@ -148,10 +312,11 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
             extension=extension,
         )
 
-        # Now for each foc create the markdown and send it back:
+        # Process the generated files
         docs_content = {}
         analysis_files_json = list(Path(files_dir).glob("*.json"))
         analysis_files_extension = list(Path(files_dir).glob(f"*{extension}"))
+        
         for file in analysis_files_json:
             with open(file, 'r') as f:
                 fname = file.stem
@@ -164,26 +329,34 @@ async def generate_docs_content(url: str = Query(..., description="The HTTPS URL
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
-            raise HTTPException(404, detail="No documentation files were generated")
+            job_store.update_job_status(job_id, JobStatus.FAILED, error="No documentation files were generated")
+            return
 
-        logger.info("Successfully generated %d doc files for %s", len(docs_content), url)
-        resp = JSONResponse(content={
-            "files": docs_content
-        })
-        return resp
+        result = {"files": docs_content}
+        job_store.update_job_status(job_id, JobStatus.COMPLETED, result=result)
+        logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), url, job_id)
 
-    except RepoDontExistError:
-        logger.warning("Repo not found or clone failed: %s", url)
-        raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
+    except RepoDontExistError as e:
+        logger.warning("Repo not found or clone failed: %s (job: %s)", url, job_id)
+        job_store.update_job_status(job_id, JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}")
 
-    except CFGGenerationError:
-        logger.warning("CFG generation error for: %s", url)
-        raise HTTPException(404, detail="Failed to generate diagram. We will look into it 🙂")
+    except CFGGenerationError as e:
+        logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
+        job_store.update_job_status(job_id, JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂")
 
     except Exception as e:
-        logger.exception("Unexpected error processing repo %s", url)
-        raise HTTPException(500, detail="Internal server error")
+        logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)
+        job_store.update_job_status(job_id, JobStatus.FAILED, error="Internal server error")
 
     finally:
         # cleanup temp folder for this run
         remove_temp_repo_folder(temp_repo_folder)
+
+@app.options("/github_action/jobs")
+async def preflight_jobs():
+    return PlainTextResponse(status_code=204)
+
+
+@app.options("/github_action/jobs/{job_id}")
+async def preflight_job_status():
+    return PlainTextResponse(status_code=204)

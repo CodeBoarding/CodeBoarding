@@ -99,7 +99,6 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
                         reference.reference_end_line is not None and
                         reference.reference_file and
                         reference.reference_file.startswith(root_dir)):
-
                     ref_url = repo_ref + reference.reference_file.split(root_dir)[1] \
                               + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                     ref_line = f"* `{reference.llm_str()} <{ref_url}>`_"
