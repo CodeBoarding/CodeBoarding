@@ -1,21 +1,20 @@
+import dotenv
+dotenv.load_dotenv()
+
 import asyncio
 import logging
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
-
-import duckdb
-from filelock import FileLock
-import dotenv
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from diagram_generator import DiagramGenerator
+from duckdb_crud import fetch_job, init_db, insert_job, update_job
 from utils import (
     CFGGenerationError,
     RepoDontExistError,
@@ -24,14 +23,18 @@ from utils import (
     remove_temp_repo_folder,
 )
 
-dotenv.load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+class JobStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+
 # Environment variables
-DB_PATH = os.getenv("JOB_DB", "jobs.duckdb")
-LOCK_PATH = DB_PATH + ".lock"
 REPO_ROOT = os.getenv("REPO_ROOT")
 if not REPO_ROOT:
     logger.error("REPO_ROOT environment variable not set")
@@ -57,97 +60,8 @@ app.add_middleware(
 MAX_CONCURRENT_JOBS = 5
 job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
 
-class JobStatus:
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
-
-# -- DuckDB Connection Helper --
-def _connect():
-    return duckdb.connect(DB_PATH)
-
-# Initialize DB on startup
-def init_db():
-    # ensure directory exists
-    dir_path = os.path.dirname(DB_PATH)
-    if dir_path and not os.path.exists(dir_path):
-        os.makedirs(dir_path, exist_ok=True)
-    # wipe existing DB and lock files
-    if os.path.exists(DB_PATH):
-        try:
-            os.remove(DB_PATH)
-            os.remove(LOCK_PATH)
-        except OSError:
-            pass
-    # create fresh table
-    with FileLock(LOCK_PATH):
-        conn = _connect()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jobs (
-              id TEXT PRIMARY KEY,
-              repo_url TEXT,
-              status TEXT,
-              result TEXT,
-              error TEXT,
-              created_at TIMESTAMP,
-              started_at TIMESTAMP,
-              finished_at TIMESTAMP
-            )
-            """
-        )
-        conn.close()
-
 app.add_event_handler("startup", init_db)
 
-# -- CRUD operations --
-def insert_job(job: dict):
-    with FileLock(LOCK_PATH):
-        conn = _connect()
-        conn.execute(
-            "INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [
-                job["id"], job["repo_url"], job["status"], job["result"],
-                job["error"], job["created_at"], job["started_at"], job["finished_at"]
-            ],
-        )
-        conn.close()
-
-
-def update_job(job_id: str, **fields):
-    cols, vals = zip(*fields.items())
-    set_clause = ", ".join(f"{c} = ?" for c in cols)
-    with FileLock(LOCK_PATH):
-        conn = _connect()
-        conn.execute(
-            f"UPDATE jobs SET {set_clause} WHERE id = ?",
-            list(vals) + [job_id],
-        )
-        conn.close()
-
-
-def fetch_job(job_id: str) -> Optional[dict]:
-    conn = _connect()
-    res = conn.execute(
-        "SELECT id, repo_url, status, result, error, created_at, started_at, finished_at"
-        " FROM jobs WHERE id = ?",
-        [job_id]
-    ).fetchall()
-    conn.close()
-    if not res:
-        return None
-    id_, repo_url, status, result, error, created_at, started_at, finished_at = res[0]
-    return {
-        "id": id_,
-        "repo_url": repo_url,
-        "status": status,
-        "result": result,
-        "error": error,
-        "created_at": created_at.isoformat() if created_at else None,
-        "started_at": started_at.isoformat() if started_at else None,
-        "finished_at": finished_at.isoformat() if finished_at else None,
-    }
 
 # -- Utility Functions --
 def extract_repo_name(repo_url: str) -> str:
