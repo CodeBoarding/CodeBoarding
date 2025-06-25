@@ -112,6 +112,7 @@ class DocsGenerationRequest(BaseModel):
     source_branch: str = "main"
     target_branch: str = "main"
     extension: str = ".md"
+    output_directory: str = ".codeboarding"
 
 
 @app.post(
@@ -147,6 +148,7 @@ async def start_docs_generation_job(
         "url": docs_request.url,
         "source_branch": docs_request.source_branch,
         "target_branch": docs_request.target_branch,
+        "output_dir": docs_request.output_directory,
         "extension": docs_request.extension
     }
 
@@ -159,7 +161,8 @@ async def start_docs_generation_job(
         docs_request.url,
         docs_request.source_branch,
         docs_request.target_branch,
-        docs_request.extension
+        docs_request.output_directory,
+        docs_request.extension,
     )
 
     logger.info("Created job %s for %s", job_id, docs_request.url)
@@ -295,7 +298,8 @@ class JobStore:
 job_store = JobStore()
 
 
-async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, extension: str):
+async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, output_dir: str,
+                                      extension: str):
     """Background task to process documentation generation"""
     job_store.update_job_status(job_id, JobStatus.RUNNING)
 
@@ -315,6 +319,7 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
             source_branch=source_branch,
             target_branch=target_branch,
             extension=extension,
+            output_dir=output_dir,
         )
 
         # Process the generated files

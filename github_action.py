@@ -16,7 +16,7 @@ setup_logging()
 
 
 def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str,
-                      temp_repo_folder: Path):
+                      temp_repo_folder: Path, output_dir):
     for file in analysis_files:
         if file.endswith(".json") and "codeboarding_version.json" not in file:
             print(f"Processing analysis file: {file}")
@@ -27,12 +27,13 @@ def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, 
                 if fname.endswith("analysis"):
                     fname = "on_boarding"
                 generate_markdown_file(fname, analysis, repo_name,
-                                       repo_ref=f"{repo_url}/blob/{target_branch}/",
+                                       repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
                                        linked_files=analysis_files,
                                        temp_dir=temp_repo_folder)
 
 
-def generate_analysis(repo_url: str, source_branch: str, target_branch: str, extension: str):
+def generate_analysis(repo_url: str, source_branch: str, target_branch: str, extension: str,
+                      output_dir: str = ".codeboarding"):
     """
     Generate analysis for a GitHub repository URL.
     This function is intended to be used in a GitHub Action context.
@@ -53,7 +54,7 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
 
     # Now generated the markdowns:
     if extension == ".md":
-        generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder)
+        generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         return temp_repo_folder
     else:
         raise ValueError("Unsupported file extension. Only .md is supported for now.")
