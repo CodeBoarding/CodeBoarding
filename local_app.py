@@ -110,8 +110,9 @@ async def preflight_docs():
 class DocsGenerationRequest(BaseModel):
     url: str
     source_branch: str = "main"
-    target_branch: str = "main" 
+    target_branch: str = "main"
     extension: str = ".md"
+
 
 @app.post(
     "/github_action/jobs",
@@ -123,8 +124,8 @@ class DocsGenerationRequest(BaseModel):
     },
 )
 async def start_docs_generation_job(
-    background_tasks: BackgroundTasks,
-    docs_request: DocsGenerationRequest
+        background_tasks: BackgroundTasks,
+        docs_request: DocsGenerationRequest
 ):
     """
     Start a background job to generate onboarding documentation.
@@ -148,9 +149,9 @@ async def start_docs_generation_job(
         "target_branch": docs_request.target_branch,
         "extension": docs_request.extension
     }
-    
+
     job_id = job_store.create_job(job_data)
-    
+
     # Start background task
     background_tasks.add_task(
         process_docs_generation_job,
@@ -191,7 +192,7 @@ async def get_job_status(job_id: str):
         JSON object with job status, and result if completed
     """
     job = job_store.get_job(job_id)
-    
+
     if not job:
         logger.warning("Job not found: %s", job_id)
         raise HTTPException(404, detail="Job not found")
@@ -205,7 +206,7 @@ async def get_job_status(job_id: str):
         "target_branch": job["target_branch"],
         "extension": job["extension"]
     }
-    
+
     if job["status"] == JobStatus.COMPLETED:
         if job.get("result"):
             response_data["result"] = job["result"]
@@ -216,7 +217,7 @@ async def get_job_status(job_id: str):
             response_data["error"] = job["error"]
         else:
             response_data["error"] = "Job failed with unknown error"
-    
+
     return JSONResponse(content=response_data)
 
 
@@ -248,20 +249,22 @@ async def list_jobs():
             "extension": job["extension"]
         }
         jobs_list.append(job_summary)
-    
+
     return JSONResponse(content={"jobs": jobs_list})
+
 
 # Job Management System
 class JobStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running" 
-    COMPLETED = "completed"
-    FAILED = "failed"
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
 
 class JobStore:
     def __init__(self):
         self.jobs: Dict[str, Dict[str, Any]] = {}
-    
+
     def create_job(self, job_data: Dict[str, Any]) -> str:
         job_id = str(uuid.uuid4())
         self.jobs[job_id] = {
@@ -274,10 +277,10 @@ class JobStore:
             **job_data
         }
         return job_id
-    
+
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         return self.jobs.get(job_id)
-    
+
     def update_job_status(self, job_id: str, status: JobStatus, result: Any = None, error: str = None):
         if job_id in self.jobs:
             self.jobs[job_id]["status"] = status
@@ -287,13 +290,15 @@ class JobStore:
             if error is not None:
                 self.jobs[job_id]["error"] = error
 
+
 # Global job store instance
 job_store = JobStore()
+
 
 async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, extension: str):
     """Background task to process documentation generation"""
     job_store.update_job_status(job_id, JobStatus.RUNNING)
-    
+
     temp_repo_folder = create_temp_repo_folder()
     try:
         # Ensure the URL starts with the correct prefix
@@ -302,7 +307,7 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
 
         # clone the repo:
         repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
-        
+
         # generate the docs
         files_dir = await run_in_threadpool(
             generate_analysis,
@@ -316,7 +321,7 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
         docs_content = {}
         analysis_files_json = list(Path(files_dir).glob("*.json"))
         analysis_files_extension = list(Path(files_dir).glob(f"*{extension}"))
-        
+
         for file in analysis_files_json:
             with open(file, 'r') as f:
                 fname = file.stem
@@ -342,7 +347,8 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
 
     except CFGGenerationError as e:
         logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
-        job_store.update_job_status(job_id, JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂")
+        job_store.update_job_status(job_id, JobStatus.FAILED,
+                                    error="Failed to generate diagram. We will look into it 🙂")
 
     except Exception as e:
         logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)
@@ -351,6 +357,7 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
     finally:
         # cleanup temp folder for this run
         remove_temp_repo_folder(temp_repo_folder)
+
 
 @app.options("/github_action/jobs")
 async def preflight_jobs():

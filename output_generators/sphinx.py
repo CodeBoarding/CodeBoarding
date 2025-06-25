@@ -50,7 +50,7 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
     """
     linked_files = linked_files or []
 
-    title = f"{project} Architecture Overview"
+    title = f"High-level diagram representation of: {project}"
     title_underline = "=" * len(title)
 
     lines = [title, title_underline, ""]
