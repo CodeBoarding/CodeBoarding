@@ -18,7 +18,7 @@ setup_logging()
 def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str,
                       temp_repo_folder: Path, output_dir):
     for file in analysis_files:
-        if file.endswith(".json") and "codeboarding_version.json" not in file:
+        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
             print(f"Processing analysis file: {file}")
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())

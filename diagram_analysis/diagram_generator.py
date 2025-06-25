@@ -41,6 +41,11 @@ class DiagramGenerator:
             if update_analysis.update_degree < 4:  # No need to update
                 logging.info(f"Component {component.name} does not require update, skipping analysis.")
                 analysis = self.diff_analyzer_agent.get_component_analysis(component)
+                safe_name = sanitize(component.name)
+                output_path = os.path.join(self.output_dir, f"{safe_name}.json")
+
+                with open(output_path, "w") as f:
+                    f.write(analysis.model_dump_json(indent=2))
                 return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
             elif 4 < update_analysis.update_degree < 8:
                 logging.info(f"Component {component.name} requires partial update, applying feedback.")
