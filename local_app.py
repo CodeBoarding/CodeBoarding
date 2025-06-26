@@ -1,5 +1,11 @@
+import dotenv
+dotenv.load_dotenv()
+
+import asyncio
 import logging
 import os
+import uuid
+from datetime import datetime
 import uuid
 import asyncio
 from pathlib import Path
@@ -7,12 +13,22 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
-from dotenv import load_dotenv
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+
+from diagram_generator import DiagramGenerator
+from duckdb_crud import fetch_job, init_db, insert_job, update_job
+from utils import (
+    CFGGenerationError,
+    RepoDontExistError,
+    RepoIsNone,
+    create_temp_repo_folder,
+    remove_temp_repo_folder,
+)
 
 from demo import generate_docs_remote
 from github_action import generate_analysis
@@ -22,18 +38,27 @@ from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+class JobStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+# Environment variables
+REPO_ROOT = os.getenv("REPO_ROOT")
+if not REPO_ROOT:
+    logger.error("REPO_ROOT environment variable not set")
+
+# FastAPI app
 app = FastAPI(
     title="Onboarding Diagram Generator",
-    description="Generate docs/diagrams for a GitHub repo via `generate_docs_remote`",
+    description="Generate docs/diagrams for a GitHub repo",
     version="1.0.0",
 )
-load_dotenv()
 
-# ---- CORS setup ----
-origins = [
-    "*"  # Allow all origins for public API
-]
-
+# CORS setup
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -42,70 +67,118 @@ app.add_middleware(
     allow_credentials=False,
 )
 
+# Job concurrency limit
+MAX_CONCURRENT_JOBS = 5
+job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
 
-@app.options("/generate_markdown")
-async def preflight():
-    # FastAPI + CORSMiddleware handles this automatically,
-    # but you can still explicitly return 204 if you like:
-    return PlainTextResponse(status_code=204)
+app.add_event_handler("startup", init_db)
 
+
+# -- Utility Functions --
+def extract_repo_name(repo_url: str) -> str:
+    parsed = urlparse(repo_url)
+    parts = parsed.path.strip('/').split('/')
+    if len(parts) >= 2:
+        name = parts[-1]
+        return name[:-4] if name.endswith('.git') else name
+    raise ValueError(f"Invalid GitHub URL: {repo_url}")
+
+
+def generate_documents(repo_path, temp_repo_folder, repo_name):
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=temp_repo_folder,
+        repo_name=repo_name,
+        output_dir=temp_repo_folder
+    )
+    return generator.generate_analysis()
+
+# -- Job Creation & Processing --
+def make_job(repo_url: str) -> dict:
+    job_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    return {
+        "id": job_id,
+        "repo_url": repo_url,
+        "status": JobStatus.PENDING,
+        "result": None,
+        "error": None,
+        "created_at": now,
+        "started_at": None,
+        "finished_at": None,
+    }
+
+async def generate_onboarding(job_id: str):
+    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.utcnow())
+    try:
+        async with job_semaphore:
+            temp_repo_folder = create_temp_repo_folder()
+            try:
+                job = fetch_job(job_id)
+                if not job:
+                    raise ValueError(f"Job {job_id} not found")
+                if not REPO_ROOT:
+                    raise ValueError("REPO_ROOT environment variable not set")
+
+                # run generation
+                repo_name = extract_repo_name(job["repo_url"])
+                repo_path = Path(REPO_ROOT) / repo_name
+                await run_in_threadpool(
+                    generate_documents,
+                    repo_path=repo_path,
+                    temp_repo_folder=temp_repo_folder,
+                    repo_name=repo_name,
+                )
+
+                # format result URL
+                result_url = (
+                    f"https://github.com/CodeBoarding/"
+                    f"GeneratedOnBoardings/blob/main/{repo_name}/on_boarding.md"
+                )
+                update_job(job_id, result=result_url, status=JobStatus.SUCCESS)
+
+            except (RepoDontExistError, RepoIsNone):
+                url = job.get("repo_url", "unknown") if job else "unknown"
+                update_job(job_id, error=f"Repository not found: {url}", status=JobStatus.FAILED)
+            except CFGGenerationError:
+                update_job(job_id, error="Failed to generate diagram.", status=JobStatus.FAILED)
+            except Exception as e:
+                update_job(job_id, error=f"Server error: {e}", status=JobStatus.FAILED)
+            finally:
+                remove_temp_repo_folder(str(temp_repo_folder))
+    finally:
+        update_job(job_id, finished_at=datetime.utcnow())
+
+# -- API Endpoints --
+@app.post(
+    "/generation",
+    response_class=JSONResponse,
+    summary="Create a new onboarding job"
+)
+async def start_generation_job(
+    repo_url: str = Query(..., description="GitHub repo URL"),
+    background_tasks: BackgroundTasks = None
+):
+    if not repo_url:
+        raise HTTPException(400, detail="repo_url is required")
+    job = make_job(repo_url)
+    insert_job(job)
+    if background_tasks:
+        background_tasks.add_task(generate_onboarding, job["id"])
+    else:
+        asyncio.create_task(generate_onboarding(job["id"]))
+    return {"job_id": job["id"], "status": job["status"]}
 
 @app.get(
-    "/generate_markdown",
-    response_class=PlainTextResponse,
-    summary="Generate onboarding docs for a GitHub repo",
-    responses={
-        200: {"description": "Returns the GitHub URL of the generated markdown"},
-        404: {"description": "Repo not found or diagram generation failed"},
-        500: {"description": "Internal server error"},
-    },
+    "/generation/{job_id}",
+    response_class=JSONResponse,
+    summary="Get job status/result"
 )
-async def generate_markdown(url: str = Query(..., description="The HTTPS URL of the GitHub repository")):
-    """
-    Example:
-        GET /myroute?url=https://github.com/your/repo
-    """
-    logger.info("Received request to generate docs for %s", url)
-
-    # Setup a dedicated temp folder for this run
-    temp_repo_folder = create_temp_repo_folder()
-    try:
-        # generate the docs
-        repo_name = await run_in_threadpool(
-            generate_docs_remote,
-            repo_url=url,
-            temp_repo_folder=temp_repo_folder,
-            local_dev=True,
-        )
-
-        result_url = (
-            f"https://github.com/CodeBoarding/GeneratedOnBoardings"
-            f"/blob/main/{repo_name}/on_boarding.md"
-        )
-        logger.info("Successfully generated docs: %s", result_url)
-        return result_url
-
-    except RepoDontExistError:
-        logger.warning("Repo not found or clone failed: %s", url)
-        raise HTTPException(404, detail=f"Repository not found or failed to clone: {url}")
-
-    except CFGGenerationError:
-        logger.warning("CFG generation error for: %s", url)
-        raise HTTPException(404, detail="Failed to generate diagram. We will look into it 🙂")
-
-    except Exception as e:
-        logger.exception("Unexpected error processing repo %s", url)
-        raise HTTPException(500, detail="Internal server error")
-
-    finally:
-        # cleanup temp folder for this run
-        remove_temp_repo_folder(temp_repo_folder)
-
-
-@app.options("/generate_docs")
-async def preflight_docs():
-    return PlainTextResponse(status_code=204)
-
+async def get_job(job_id: str):
+    job = fetch_job(job_id)
+    if not job:
+        raise HTTPException(404, detail="Job not found")
+    return job
 
 class DocsGenerationRequest(BaseModel):
     url: str
