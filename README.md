@@ -20,6 +20,7 @@ ROOT_RESULT= # Root of the directory for our demo uploads
 GITHUB_TOKEN= # Github token for accessing private repositories
 PROJECT_ROOT= # The source project root => Has to end with /CodeBoarding
 DIAGRAM_DEPTH_LEVEL= # max leve of depth for the genrations
+JOB_DB=.duckdb/duckdb # The database for the jobs
 ````
 
 ### Compile the project for vscode extension:
