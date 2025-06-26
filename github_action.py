@@ -45,7 +45,7 @@ def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, targ
                 if fname.endswith("analysis"):
                     fname = "on_boarding"
                 generate_html_file(fname, analysis, repo_name,
-                                   repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+                                   repo_ref=f"{repo_url}/blob/{target_branch}",
                                    linked_files=analysis_files,
                                    temp_dir=temp_repo_folder)
 
@@ -77,7 +77,7 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
         generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
     else:
         raise ValueError(f"Unsupported extension: {extension}")
-    
+
     return temp_repo_folder
 
 

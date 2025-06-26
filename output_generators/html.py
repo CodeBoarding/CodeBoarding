@@ -9,7 +9,7 @@ from output_generators import sanitize
 from utils import contains_json
 
 
-def generate_cytoscape_data(analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str,
+def generate_cytoscape_data(analysis: AnalysisInsights, linked_files: List[Path], project: str,
                             demo=False) -> Dict[str, Any]:
     """Generate Cytoscape.js compatible data structure"""
     elements = []
@@ -73,7 +73,7 @@ def generate_html(insights: AnalysisInsights, project: str = "", repo_ref: str =
     Generate an HTML document with a Cytoscape.js diagram from an AnalysisInsights object.
     """
 
-    cytoscape_data = generate_cytoscape_data(insights, linked_files, repo_ref, project, demo)
+    cytoscape_data = generate_cytoscape_data(insights, linked_files, project, demo)
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
     root_dir = os.getenv('REPO_ROOT') + "/" + project
