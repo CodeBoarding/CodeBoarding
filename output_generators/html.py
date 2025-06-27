@@ -37,7 +37,7 @@ def generate_cytoscape_data(analysis: AnalysisInsights, linked_files: List[Path]
             if not demo:
                 node_data['data']['linkUrl'] = f"./{node_id}.html"
             else:
-                node_data['data']['linkUrl'] =\
+                node_data['data']['linkUrl'] = \
                     f"https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.html"
 
         elements.append(node_data)
@@ -118,7 +118,8 @@ def generate_html(insights: AnalysisInsights, project: str = "", repo_ref: str =
         </div>
         """
 
-    return populate_html_template(components_html=components_html, cytoscape_json=cytoscape_json,insights= insights,project=project)
+    return populate_html_template(components_html=components_html, cytoscape_json=cytoscape_json, insights=insights,
+                                  project=project)
 
 
 def generate_html_file(file_name: str, insights: AnalysisInsights, project: str, repo_ref: str,
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     import dotenv
 
     dotenv.load_dotenv()
-    p = Path("/home/imilev/Workspace/CodeBoarding/temp/2f3928bc428b4f68a32e3d67f28b036e")
+    p = Path("/home/ivan/StartUp/CodeBoarding/temp/483eb9f6c8fd46f1a0f9dc6d40da4bbd")
     jsons = list(p.rglob("*.json"))
     for file in jsons:
         if file.stem == "codeboarding_version":
