@@ -1,11 +1,11 @@
 import dotenv
+
+from diagram_analysis import DiagramGenerator
+
 dotenv.load_dotenv()
 
-import asyncio
 import logging
 import os
-import uuid
-from datetime import datetime
 import uuid
 import asyncio
 from pathlib import Path
@@ -20,17 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from diagram_generator import DiagramGenerator
 from duckdb_crud import fetch_job, init_db, insert_job, update_job
-from utils import (
-    CFGGenerationError,
-    RepoDontExistError,
-    RepoIsNone,
-    create_temp_repo_folder,
-    remove_temp_repo_folder,
-)
-
-from demo import generate_docs_remote
 from github_action import generate_analysis
 from repo_utils import RepoDontExistError, clone_repository
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
@@ -39,11 +29,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class JobStatus:
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
 
 # Environment variables
 REPO_ROOT = os.getenv("REPO_ROOT")
@@ -74,7 +65,6 @@ job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
 app.add_event_handler("startup", init_db)
 
 
-# -- Utility Functions --
 def extract_repo_name(repo_url: str) -> str:
     parsed = urlparse(repo_url)
     parts = parsed.path.strip('/').split('/')
@@ -93,6 +83,7 @@ def generate_documents(repo_path, temp_repo_folder, repo_name):
     )
     return generator.generate_analysis()
 
+
 # -- Job Creation & Processing --
 def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
@@ -107,6 +98,7 @@ def make_job(repo_url: str) -> dict:
         "started_at": None,
         "finished_at": None,
     }
+
 
 async def generate_onboarding(job_id: str):
     update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.utcnow())
@@ -135,9 +127,9 @@ async def generate_onboarding(job_id: str):
                     f"https://github.com/CodeBoarding/"
                     f"GeneratedOnBoardings/blob/main/{repo_name}/on_boarding.md"
                 )
-                update_job(job_id, result=result_url, status=JobStatus.SUCCESS)
+                update_job(job_id, result=result_url, status=JobStatus.COMPLETED)
 
-            except (RepoDontExistError, RepoIsNone):
+            except RepoDontExistError:
                 url = job.get("repo_url", "unknown") if job else "unknown"
                 update_job(job_id, error=f"Repository not found: {url}", status=JobStatus.FAILED)
             except CFGGenerationError:
@@ -149,6 +141,7 @@ async def generate_onboarding(job_id: str):
     finally:
         update_job(job_id, finished_at=datetime.utcnow())
 
+
 # -- API Endpoints --
 @app.post(
     "/generation",
@@ -156,8 +149,8 @@ async def generate_onboarding(job_id: str):
     summary="Create a new onboarding job"
 )
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"),
-    background_tasks: BackgroundTasks = None
+        repo_url: str = Query(..., description="GitHub repo URL"),
+        background_tasks: BackgroundTasks = None
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
@@ -169,6 +162,7 @@ async def start_generation_job(
         asyncio.create_task(generate_onboarding(job["id"]))
     return {"job_id": job["id"], "status": job["status"]}
 
+
 @app.get(
     "/generation/{job_id}",
     response_class=JSONResponse,
@@ -179,6 +173,7 @@ async def get_job(job_id: str):
     if not job:
         raise HTTPException(404, detail="Job not found")
     return job
+
 
 class DocsGenerationRequest(BaseModel):
     url: str
@@ -329,14 +324,6 @@ async def list_jobs():
     return JSONResponse(content={"jobs": jobs_list})
 
 
-# Job Management System
-class JobStatus(str, Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
 class JobStore:
     def __init__(self):
         self.jobs: Dict[str, Dict[str, Any]] = {}
@@ -435,13 +422,3 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
     finally:
         # cleanup temp folder for this run
         remove_temp_repo_folder(temp_repo_folder)
-
-
-@app.options("/github_action/jobs")
-async def preflight_jobs():
-    return PlainTextResponse(status_code=204)
-
-
-@app.options("/github_action/jobs/{job_id}")
-async def preflight_job_status():
-    return PlainTextResponse(status_code=204)
