@@ -19,7 +19,7 @@ REPO_ROOT= # The root directory of where repositories are downloaded
 ROOT_RESULT= # Root of the directory for our demo uploads
 GITHUB_TOKEN= # Github token for accessing private repositories
 PROJECT_ROOT= # The source project root => Has to end with /CodeBoarding
-DIAGRAM_DEPTH_LEVEL= # max leve of depth for the genrations
+DIAGRAM_DEPTH_LEVEL= # max level of depth for the generations
 JOB_DB=.duckdb/duckdb # The database for the jobs
 ````
 

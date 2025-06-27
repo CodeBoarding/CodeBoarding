@@ -66,7 +66,7 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
                                  temp_folder=temp_repo_folder,
                                  repo_name=repo_name,
                                  output_dir=temp_repo_folder,
-                                 depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "2")))
+                                 depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL")))
 
     analysis_files = generator.generate_analysis()
 

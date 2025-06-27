@@ -148,8 +148,8 @@ async def generate_onboarding(job_id: str):
     summary="Create a new onboarding job"
 )
 async def start_generation_job(
-        repo_url: str = Query(..., description="GitHub repo URL"),
-        background_tasks: BackgroundTasks = None
+    repo_url: str = Query(..., description="GitHub repo URL"),
+    background_tasks: BackgroundTasks = None
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
@@ -244,7 +244,7 @@ async def start_docs_generation_job(
         404: {"description": "Job not found"},
     },
 )
-async def get_job_status(job_id: str):
+async def get_github_action_status(job_id: str):
     """
     Check the status of a documentation generation job.
 
@@ -325,9 +325,6 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
         # Ensure the URL starts with the correct prefix
         if not url.startswith("https://github.com/"):
             url = "https://github.com/" + url
-
-        # clone the repo:
-        repo_name = clone_repository(url, Path(os.getenv("REPO_ROOT")))
 
         # generate the docs
         files_dir = await run_in_threadpool(
