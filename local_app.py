@@ -9,7 +9,6 @@ import os
 import uuid
 import asyncio
 from pathlib import Path
-from typing import Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
@@ -20,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from duckdb_crud import fetch_job, init_db, insert_job, update_job
+from duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jobs
 from github_action import generate_analysis
 from repo_utils import RepoDontExistError, clone_repository
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
@@ -211,21 +210,14 @@ async def start_docs_generation_job(
         logger.warning("Unsupported extension provided: %s. Defaulting to markdown", docs_request.extension)
         docs_request.extension = ".md"  # Default to markdown if unsupported extension is provided
 
-    # Create job entry
-    job_data = {
-        "url": docs_request.url,
-        "source_branch": docs_request.source_branch,
-        "target_branch": docs_request.target_branch,
-        "output_dir": docs_request.output_directory,
-        "extension": docs_request.extension
-    }
-
-    job_id = job_store.create_job(job_data)
+    # Create job entry using duckdb
+    job = make_job(docs_request.url)
+    insert_job(job)
 
     # Start background task
     background_tasks.add_task(
         process_docs_generation_job,
-        job_id,
+        job["id"],
         docs_request.url,
         docs_request.source_branch,
         docs_request.target_branch,
@@ -233,11 +225,11 @@ async def start_docs_generation_job(
         docs_request.extension,
     )
 
-    logger.info("Created job %s for %s", job_id, docs_request.url)
+    logger.info("Created job %s for %s", job["id"], docs_request.url)
     return JSONResponse(
         status_code=202,
         content={
-            "job_id": job_id,
+            "job_id": job["id"],
             "message": "Job created successfully. Use the job_id to check status."
         }
     )
@@ -262,20 +254,19 @@ async def get_job_status(job_id: str):
     Returns:
         JSON object with job status, and result if completed
     """
-    job = job_store.get_job(job_id)
+    job = fetch_job(job_id)
 
     if not job:
         logger.warning("Job not found: %s", job_id)
         raise HTTPException(404, detail="Job not found")
+    
     response_data = {
         "job_id": job["id"],
         "status": job["status"],
         "created_at": job["created_at"],
-        "updated_at": job["updated_at"],
-        "url": job["url"],
-        "source_branch": job["source_branch"],
-        "target_branch": job["target_branch"],
-        "extension": job["extension"]
+        "started_at": job["started_at"],
+        "finished_at": job["finished_at"],
+        "repo_url": job["repo_url"]
     }
 
     if job["status"] == JobStatus.COMPLETED:
@@ -308,60 +299,26 @@ async def list_jobs():
         JSON object with list of all jobs
     """
     jobs_list = []
-    for job in job_store.jobs.values():
+    all_jobs = fetch_all_jobs()
+    
+    for job in all_jobs:
         job_summary = {
             "job_id": job["id"],
             "status": job["status"],
             "created_at": job["created_at"],
-            "updated_at": job["updated_at"],
-            "url": job["url"],
-            "source_branch": job["source_branch"],
-            "target_branch": job["target_branch"],
-            "extension": job["extension"]
+            "started_at": job["started_at"],
+            "finished_at": job["finished_at"],
+            "repo_url": job["repo_url"]
         }
         jobs_list.append(job_summary)
 
     return JSONResponse(content={"jobs": jobs_list})
 
 
-class JobStore:
-    def __init__(self):
-        self.jobs: Dict[str, Dict[str, Any]] = {}
-
-    def create_job(self, job_data: Dict[str, Any]) -> str:
-        job_id = str(uuid.uuid4())
-        self.jobs[job_id] = {
-            "id": job_id,
-            "status": JobStatus.PENDING,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "result": None,
-            "error": None,
-            **job_data
-        }
-        return job_id
-
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        return self.jobs.get(job_id)
-
-    def update_job_status(self, job_id: str, status: JobStatus, result: Any = None, error: str = None):
-        if job_id in self.jobs:
-            self.jobs[job_id]["status"] = status
-            self.jobs[job_id]["updated_at"] = datetime.now().isoformat()
-            if result is not None:
-                self.jobs[job_id]["result"] = result
-            if error is not None:
-                self.jobs[job_id]["error"] = error
-
-
-# Global job store instance
-job_store = JobStore()
-
-
 async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, output_dir: str,
                                       extension: str):
     """Background task to process documentation generation"""
-    job_store.update_job_status(job_id, JobStatus.RUNNING)
+    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.utcnow())
 
     temp_repo_folder = create_temp_repo_folder()
     try:
@@ -399,25 +356,26 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
-            job_store.update_job_status(job_id, JobStatus.FAILED, error="No documentation files were generated")
+            update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated", finished_at=datetime.utcnow())
             return
 
-        result = {"files": docs_content}
-        job_store.update_job_status(job_id, JobStatus.COMPLETED, result=result)
+        # Store result as JSON string in the result field
+        import json
+        result = json.dumps({"files": docs_content})
+        update_job(job_id, status=JobStatus.COMPLETED, result=result, finished_at=datetime.utcnow())
         logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), url, job_id)
 
     except RepoDontExistError as e:
         logger.warning("Repo not found or clone failed: %s (job: %s)", url, job_id)
-        job_store.update_job_status(job_id, JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}")
+        update_job(job_id, status=JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}", finished_at=datetime.utcnow())
 
     except CFGGenerationError as e:
         logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
-        job_store.update_job_status(job_id, JobStatus.FAILED,
-                                    error="Failed to generate diagram. We will look into it 🙂")
+        update_job(job_id, status=JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂", finished_at=datetime.utcnow())
 
     except Exception as e:
         logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)
-        job_store.update_job_status(job_id, JobStatus.FAILED, error="Internal server error")
+        update_job(job_id, status=JobStatus.FAILED, error="Internal server error", finished_at=datetime.utcnow())
 
     finally:
         # cleanup temp folder for this run

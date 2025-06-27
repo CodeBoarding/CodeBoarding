@@ -91,3 +91,27 @@ def fetch_job(job_id: str) -> Optional[dict]:
         "started_at": started_at.isoformat() if started_at else None,
         "finished_at": finished_at.isoformat() if finished_at else None,
     }
+
+
+def fetch_all_jobs() -> list[dict]:
+    conn = _connect()
+    res = conn.execute(
+        "SELECT id, repo_url, status, result, error, created_at, started_at, finished_at"
+        " FROM jobs ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    
+    jobs = []
+    for row in res:
+        id_, repo_url, status, result, error, created_at, started_at, finished_at = row
+        jobs.append({
+            "id": id_,
+            "repo_url": repo_url,
+            "status": status,
+            "result": result,
+            "error": error,
+            "created_at": created_at.isoformat() if created_at else None,
+            "started_at": started_at.isoformat() if started_at else None,
+            "finished_at": finished_at.isoformat() if finished_at else None,
+        })
+    return jobs
