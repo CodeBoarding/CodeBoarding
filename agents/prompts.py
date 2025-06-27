@@ -2,43 +2,55 @@ SYSTEM_MESSAGE = """You are a software architecture expert analyzing Control Flo
 
 Analyze the CFG for `{project_name}` and generate a high-level data flow overview.
 
+Project Context:
+{meta_context}
+
 Tasks:
-1. Identify central modules/functions (max 20)
+1. Identify central modules/functions (max 20) considering the project type and expected patterns
 2. Examine project structure and relevant packages
 3. Investigate source code of key files
-4. Name each component and describe its main responsibility
+4. Name each component and describe its main responsibility, aligning with typical {project_type} architecture
 5. Map relationships and interactions between components
 
 Use tools when needed. Complete all tasks using available tools."""
 
 CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}`.
 
+Project Context:
+{meta_context}
+
 {cfg_str}
 
 Tasks:
-1. Identify important modules/functions from CFG
+1. Identify important modules/functions from CFG, focusing on typical {project_type} patterns
 2. Group classes/functions into high-level abstractions using **getClassHierarchy**
 3. Use **getPackageDependencies** to understand package relationships for meaningful grouping
-4. Identify abstract components (max 20) with names, descriptions, and relevant source files
-5. Define component relationships and interactions. There should not be more thane 2 relationships between any two components.
+4. Identify abstract components (max 20) with names, descriptions, and relevant source files, organized according to {project_type} best practices
+5. Define component relationships and interactions. There should not be more than 2 relationships between any two components.
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
 """
 
 SOURCE_MESSAGE = """Validate and enhance component analysis using source code.
 
+Project Context:
+{meta_context}
+
 Current analysis:
 {insight_so_far}
 
 Tasks:
 1. Use **getClassHierarchy** to examine component details
-2. Refine components to maximum 10 based on source code insights
+2. Refine components to maximum 10 based on source code insights and {project_type} patterns
 3. Define each component: name, documents, relationships, roles, and neighbor interactions
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
 """
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}`.
+
+Project Context:
+{meta_context}
 
 CFG Analysis:
 {cfg_insight}
@@ -49,7 +61,8 @@ Source Analysis:
 Tasks:
 1. Identify critical interaction pathways and central modules from CFG
 2. Confirm component responsibilities and communication patterns from source analysis
-3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships (No more than 2 relationships between any two components)
+3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships, following {project_type} architectural patterns
+4. Ensure no more than 2 relationships between any two components
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
 """
@@ -69,11 +82,14 @@ Please give back the updated analysis.
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
 
+Project Context:
+{meta_context}
+
 Generate an overview of the component's structure, flow, and purpose.
 
 Tasks:
 1. Identify relevant CFG parts for the subsystem
-2. Find central components (max 20 optimally 10)
+2. Find central components (max 20 optimally 10) following {project_type} patterns
 3. Investigate module structure
 4. Examine source code for functionality
 5. Define component responsibilities and interactions
@@ -89,12 +105,15 @@ Return only the subgraph, no explanations."""
 
 CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
 
+Project Context:
+{meta_context}
+
 {cfg_str}
 
 Tasks:
 1. Identify important modules/functions
 2. Use **getClassHierarchy** for interaction details
-3. Define components with names, descriptions, and source files
+3. Define components with names, descriptions, and source files, following {project_type} architectural patterns
 4. Map component relationships and interactions (max 10 components and 2 relationships between any two components)
 
 Please explain why you chose these components and why they are fundamental.
@@ -102,12 +121,15 @@ Please explain why you chose these components and why they are fundamental.
 
 ENHANCE_STRUCTURE_MESSAGE = """Validate and refine component analysis for {component} in `{project_name}`.
 
+Project Context:
+{meta_context}
+
 Current insights:
 {insight_so_far}
 
 Tasks:
 1. Validate abstractions using **getClassHierarchy** and **getPackageDependencies**
-2. Refine components based on structure information
+2. Refine components based on structure information and {project_type} patterns
 3. Collect components with names, descriptions, source files, and relationships
 
 Please explain why you chose these components and why they are fundamental.
@@ -115,12 +137,15 @@ Please explain why you chose these components and why they are fundamental.
 
 DETAILS_MESSAGE = """Final component overview for {component}.
 
+Project Context:
+{meta_context}
+
 Analysis summary:
 {insight_so_far}
 
 Tasks:
 1. Use **getClassHierarchy** for detailed component analysis
-2. Define components and relationships (max 10)
+2. Define components and relationships (max 10) following {project_type} patterns
 3. Provide component names, descriptions, and source files
 4. Map component interactions (max 2 relationships between any two components)
 
@@ -177,7 +202,7 @@ Use the tools available to you to analyze the code differences and decide if the
 3. Compare with the existing architecture analysis to determine if the changes affect the overall architecture.
 """
 
-DIFF_ANLAYSIS_MESSAGE = """
+DIFF_ANALYSIS_MESSAGE = """
 You are the software architect who made the following analysis:
 {analysis}
 
@@ -194,4 +219,12 @@ where 0 means no update is needed, and 10 means a complete update is needed.
 5 and 6 are medium changes, meaning adding a new class, or changing the logic of an existing class.
 7 and 8 are large changes, meaning adding a new module, or changing the logic of an existing module, changing the flow logic of the application.
 9 and 10 are very large changes, meaning changing the overall architecture of the application, or removing a significant part of the application.
+"""
+
+SYSTEM_META_ANALYSIS_MESSAGE = """You are a software architecture expert analyzing the architecture of a software project.
+Your task is to grasp the idea of what kind of project this is by reading relevant documentation, look at the source code structure and use your background expertise to understand the project.
+1. Read the project documentation and README files.
+2. Analyze the source code file structure and requirements.
+3. Use background knowledge to classify the project into a specific domain or category.
+4. Note what are the main architectural patterns used in such projects
 """

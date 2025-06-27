@@ -3,30 +3,41 @@ import logging
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name):
+    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
         super().__init__(repo_dir, output_dir, cfg, SYSTEM_MESSAGE)
 
         self.project_name = project_name
+        self.meta_context = meta_context
 
         self.context = {"structure_insight": []}  # Store evolving insights here
 
         self.prompts = {
-            "cfg": PromptTemplate(template=CFG_MESSAGE, input_variables=["project_name", "cfg_str"]),
-            "source": PromptTemplate(template=SOURCE_MESSAGE, input_variables=["insight_so_far"]),
+            "cfg": PromptTemplate(template=CFG_MESSAGE,
+                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
+            "source": PromptTemplate(template=SOURCE_MESSAGE,
+                                     input_variables=["insight_so_far", "meta_context", "project_type"]),
             "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
-                                             input_variables=["project_name", "cfg_insight", "structure_insight",
-                                                              "source_insight"]),
+                                             input_variables=["project_name", "cfg_insight", "source_insight",
+                                                              "meta_context", "project_type"]),
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
         }
 
     def step_cfg(self, cfg_str):
         logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
-        prompt = self.prompts["cfg"].format(project_name=self.project_name, cfg_str=cfg_str)
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
+        prompt = self.prompts["cfg"].format(
+            project_name=self.project_name,
+            cfg_str=cfg_str,
+            meta_context=meta_context_str,
+            project_type=project_type
+        )
         parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
         self.context['cfg_insight'] = parsed_response
         return parsed_response
@@ -41,8 +52,13 @@ class AbstractionAgent(CodeBoardingAgent):
             else:
                 insight_str += analysis_insight.llm_str() + "\n\n"
 
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
         prompt = self.prompts["source"].format(
             insight_so_far=insight_str,
+            meta_context=meta_context_str,
+            project_type=project_type
         )
         parsed_response = self._parse_invoke(prompt, AnalysisInsights)
         self.context["source"] = parsed_response
@@ -50,10 +66,15 @@ class AbstractionAgent(CodeBoardingAgent):
 
     def generate_analysis(self):
         logging.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
             cfg_insight=self.context.get('cfg_insight').llm_str(),
-            source_insight=self.context.get('source').llm_str()
+            source_insight=self.context.get('source').llm_str(),
+            meta_context=meta_context_str,
+            project_type=project_type
         )
         analysis_result = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis_result)

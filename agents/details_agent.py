@@ -3,23 +3,29 @@ import logging
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component, \
+    MetaAnalysisInsights
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
     DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE
 
 
 class DetailsAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name):
+    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
         super().__init__(repo_dir, output_dir, cfg, SYSTEM_DETAILS_MESSAGE)
         self.project_name = project_name
+        self.meta_context = meta_context
 
         self.prompts = {
             "subcfg": PromptTemplate(template=SUBCFG_DETAILS_MESSAGE,
                                      input_variables=["project_name", "cfg_str", "component"]),
-            "cfg": PromptTemplate(template=CFG_DETAILS_MESSAGE, input_variables=["cfg_str", "project_name"]),
+            "cfg": PromptTemplate(template=CFG_DETAILS_MESSAGE,
+                                  input_variables=["cfg_str", "project_name", "meta_context", "project_type"]),
             "structure": PromptTemplate(template=ENHANCE_STRUCTURE_MESSAGE,
-                                        input_variables=["insight_so_far", "component", "project_name"]),
-            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE, input_variables=["insight_so_far", "component"]),
+                                        input_variables=["insight_so_far", "component", "project_name", "meta_context",
+                                                         "project_type"]),
+            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE,
+                                             input_variables=["insight_so_far", "component", "meta_context",
+                                                              "project_type"]),
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"]),
         }
 
@@ -31,19 +37,31 @@ class DetailsAgent(CodeBoardingAgent):
 
     def step_cfg(self, component: Component):
         logging.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
-        prompt = self.prompts["cfg"].format(project_name=self.project_name,
-                                            cfg_str=self.context['subcfg_insight'],
-                                            component=component.llm_str())
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
+        prompt = self.prompts["cfg"].format(
+            project_name=self.project_name,
+            cfg_str=self.context['subcfg_insight'],
+            component=component.llm_str(),
+            meta_context=meta_context_str,
+            project_type=project_type
+        )
         parsed = self._parse_invoke(prompt, CFGAnalysisInsights)
         self.context['cfg_insight'] = parsed  # Store for next step
         return parsed
 
     def step_enhance_structure(self, component: Component):
         logging.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
             insight_so_far=self.context.get('cfg_insight').llm_str(),
-            component=component.llm_str()
+            component=component.llm_str(),
+            meta_context=meta_context_str,
+            project_type=project_type
         )
         parsed = self._parse_invoke(prompt, AnalysisInsights)
         self.context['structure_insight'] = parsed
@@ -51,9 +69,14 @@ class DetailsAgent(CodeBoardingAgent):
 
     def step_analysis(self, component: Component):
         logging.info(f"[DetailsAgent] Generating details documentation")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
         prompt = self.prompts["final_analysis"].format(
             insight_so_far=self.context['structure_insight'].llm_str(),
             component=component.llm_str(),
+            meta_context=meta_context_str,
+            project_type=project_type
         )
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)

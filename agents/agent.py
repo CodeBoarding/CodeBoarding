@@ -12,6 +12,8 @@ from trustcall import create_extractor
 from agents.agent_responses import AnalysisInsights
 from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
     MethodInvocationsTool, ReadFileTool
+from agents.tools.external_deps import ExternalDepsTool
+from agents.tools.read_docs import ReadDocsTool
 from static_analyzer.reference_lines import find_fqn_location
 
 
@@ -31,6 +33,8 @@ class CodeBoardingAgent:
         self.read_cfg_tool = GetCFGTool(cfg=cfg)
         self.read_method_invocations_tool = MethodInvocationsTool(cfg=cfg)
         self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
+        self.read_docs = ReadDocsTool(repo_dir=repo_dir)
+        self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
 
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
                                                                self.read_file_structure, self.read_structure_tool,

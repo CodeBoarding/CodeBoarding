@@ -66,6 +66,16 @@ class FileStructureTool(BaseTool):
                 break
 
         if searching_dir is None:
+            dir = Path(*dir.parts[1:])
+        for d in self.cached_dirs:
+            # check if dir is a subdirectory of the cached directory
+            if self.is_subsequence(dir, d):
+                logging.info(f"[File Structure Tool] Found directory {d}")
+                searching_dir = d
+                break
+
+        if searching_dir is None:
+            # Try finding the dir with repo_dir without its first part
             logging.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
             return f"Error: The specified directory does not exist or is empty. Available directories are: {', '.join([str(d) for d in self.cached_dirs])}"
         # now use the tree command to get the file structure

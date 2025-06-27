@@ -4,7 +4,7 @@ from typing import List
 from langgraph.prebuilt import create_react_agent
 
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
-from agents.prompts import SYSTEM_DIFF_ANALYSIS_MESSAGE, DIFF_ANLAYSIS_MESSAGE
+from agents.prompts import SYSTEM_DIFF_ANALYSIS_MESSAGE, DIFF_ANALYSIS_MESSAGE
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
@@ -20,7 +20,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.repo_dir = repo_dir
         self.prompt = PromptTemplate(
-            template=DIFF_ANLAYSIS_MESSAGE,
+            template=DIFF_ANALYSIS_MESSAGE,
             input_variables=["analysis", "diff_data"]
         )
         self.read_diff_tool = ReadDiffTool(diffs=self.get_diff_data())

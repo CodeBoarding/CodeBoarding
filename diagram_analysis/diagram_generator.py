@@ -9,6 +9,7 @@ from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import ValidationInsights
 from agents.details_agent import DetailsAgent
 from agents.diff_analyzer import DiffAnalyzingAgent
+from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
 from diagram_analysis.version import Version
@@ -31,6 +32,8 @@ class DiagramGenerator:
         self.planner_agent = None
         self.validator_agent = None
         self.diff_analyzer_agent = None
+        self.meta_agent = None
+        self.meta_context = None
         self.depth_level = depth_level
 
     def process_component(self, component):
@@ -80,10 +83,13 @@ class DiagramGenerator:
     def pre_analysis(self):
         self.call_graph_str, cfg = self.generate_static_analysis()
 
+        self.meta_agent = MetaAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
+                                    project_name=self.repo_name, cfg=cfg)
+        meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                          project_name=self.repo_name, cfg=cfg)
+                                          project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
         self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                                  project_name=self.repo_name, cfg=cfg)
+                                                  project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
         self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
         self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
         self.diff_analyzer_agent = DiffAnalyzingAgent(
