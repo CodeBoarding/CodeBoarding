@@ -3,12 +3,36 @@ name: Update Documentation
 on:
   workflow_dispatch:
     inputs:
-      test_repo:
-        description: 'Repository URL to test with'
+      repository_url:
+        description: 'Repository URL to analyze'
         required: false
-        default: 'https://github.com/CodeBoarding/CodeBoarding'
+        default: ''
+        type: string
+      source_branch:
+        description: 'Source branch to analyze'
+        required: false
+        default: ''
+        type: string
+      target_branch:
+        description: 'Target branch for documentation'
+        required: false
+        default: ''
+        type: string
+      output_directory:
+        description: 'Output directory for documentation'
+        required: false
+        default: '.codeboarding'
+        type: string
+      output_format:
+        description: 'Output format for documentation'
+        required: false
+        default: '.md'
         type: string
   push:
+    branches:
+      - master
+      - main
+  pull_request:
     branches:
       - master
       - main
@@ -25,20 +49,46 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Required to access branch history
+
+      # Determine branches based on context
+      - name: Set branch variables
+        id: set-branches
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "source_branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+            echo "target_branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+            echo "repository_url=${{ github.repository }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.source_branch }}" != "" ] && [ "${{ github.event.inputs.target_branch }}" != "" ]; then
+            echo "source_branch=${{ github.event.inputs.source_branch }}" >> $GITHUB_OUTPUT
+            echo "target_branch=${{ github.event.inputs.target_branch }}" >> $GITHUB_OUTPUT
+            echo "repository_url=${{ github.event.inputs.repository_url || github.repository }}" >> $GITHUB_OUTPUT
+          else
+            echo "source_branch=master" >> $GITHUB_OUTPUT
+            echo "target_branch=master" >> $GITHUB_OUTPUT
+            echo "repository_url=${{ github.repository }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Fetch CodeBoarding Documentation
+        timeout-minutes: 30
         id: codeboarding
         uses: CodeBoarding/CodeBoarding-GHAction@main
         with:
-          repository_url: ${{ github.event.inputs.test_repo || github.repository }}
-          output_directory: '.codeboarding'
+          repository_url: ${{ steps.set-branches.outputs.repository_url }}
+          source_branch: ${{ steps.set-branches.outputs.source_branch }}
+          target_branch: ${{ steps.set-branches.outputs.target_branch }}
+          output_directory: ${{ github.event.inputs.output_directory || '.codeboarding' }}
+          output_format: ${{ github.event.inputs.output_format || '.md' }}
 
       - name: Display Action Results
         run: |
-          echo "Files created: ${{ steps.codeboarding.outputs.files_created }}"
-          echo "Output directory: ${{ steps.codeboarding.outputs.output_directory }}"
+          echo "Documentation files created: ${{ steps.codeboarding.outputs.markdown_files_created }}"
+          echo "JSON files created: ${{ steps.codeboarding.outputs.json_files_created }}"
+          echo "Documentation directory: ${{ steps.codeboarding.outputs.output_directory }}"
+          echo "JSON directory: ${{ steps.codeboarding.outputs.json_directory }}"
           echo "Has changes: ${{ steps.codeboarding.outputs.has_changes }}"
 
+      # Check if we have any changes to commit
       - name: Check for git changes
         id: git-changes
         run: |
@@ -52,7 +102,7 @@ jobs:
           fi
 
       - name: Commit and push changes
-        if: steps.git-changes.outputs.has_git_changes == 'true'
+        if: steps.git-changes.outputs.has_git_changes == 'true' && steps.codeboarding.outputs.has_changes == 'true'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -60,9 +110,14 @@ jobs:
           git commit -m "docs: update codeboarding documentation
 
           📚 Documentation Update
-          - Files created/updated: ${{ steps.codeboarding.outputs.files_created }}
-          - Output directory: ${{ steps.codeboarding.outputs.output_directory }}/
-          - Repository analyzed: ${{ github.event.inputs.test_repo || github.repository }}
+          - Documentation files created/updated: ${{ steps.codeboarding.outputs.markdown_files_created }}
+          - JSON files created/updated: ${{ steps.codeboarding.outputs.json_files_created }}
+          - Documentation directory: ${{ steps.codeboarding.outputs.output_directory }}/
+          - JSON directory: ${{ steps.codeboarding.outputs.json_directory }}/
+          - Output format: ${{ github.event.inputs.output_format || '.md' }}
+          - Repository analyzed: ${{ steps.set-branches.outputs.repository_url }}
+          - Source branch: ${{ steps.set-branches.outputs.source_branch }}
+          - Target branch: ${{ steps.set-branches.outputs.target_branch }}
           
           🤖 Automatically generated by CodeBoarding documentation workflow"
           git push
