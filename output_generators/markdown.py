@@ -71,8 +71,11 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                 if not reference.reference_file.startswith(root_dir):
                     qn_list.append(f"{reference.llm_str()}")
                     continue
-                ref_url = repo_ref + reference.reference_file.split(root_dir)[1] \
-                          + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
+                url = repo_ref if not repo_ref.endswith("/") else repo_ref[:-1]
+                url = "/".join(url.split("/")[:-1])  # Remove the last part which is the file name
+                ref_url = url + reference.reference_file.split(root_dir)[1]
+                if not (reference.reference_start_line == 0 and reference.reference_end_line == 0):
+                    ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(
                     f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference.llm_str()}</a>')
             # Join the list into an unordered markdown list, without the leading dash

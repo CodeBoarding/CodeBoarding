@@ -21,7 +21,9 @@ class SourceCodeReference(BaseModel):
 
     def llm_str(self):
         if self.reference_start_line is None or self.reference_end_line is None:
-            return f"`{self.qualified_name}` (full file reference)"
+            return f"`{self.qualified_name}`"
+        if self.reference_start_line == 0 and self.reference_end_line == 0:
+            return f"`{self.qualified_name}`"
         return f"`{self.qualified_name}` ({self.reference_start_line}:{self.reference_end_line})"
 
 
@@ -132,13 +134,16 @@ class UpdateAnalysis(BaseModel):
 
 
 class MetaAnalysisInsights(BaseModel):
-    project_type: str = Field(description="Type/category of the project (e.g., web framework, data processing, ML library, etc.)")
-    domain: str = Field(description="Domain or field the project belongs to (e.g., web development, data science, DevOps, etc.)")
+    project_type: str = Field(
+        description="Type/category of the project (e.g., web framework, data processing, ML library, etc.)")
+    domain: str = Field(
+        description="Domain or field the project belongs to (e.g., web development, data science, DevOps, etc.)")
     architectural_patterns: List[str] = Field(description="Main architectural patterns typically used in such projects")
     expected_components: List[str] = Field(description="Expected high-level components/modules based on project type")
     technology_stack: List[str] = Field(description="Main technologies, frameworks, and libraries used")
-    architectural_bias: str = Field(description="Guidance on how to interpret and organize components for this project type")
-    
+    architectural_bias: str = Field(
+        description="Guidance on how to interpret and organize components for this project type")
+
     def llm_str(self):
         title = "# 🎯 Project Metadata Analysis\n"
         content = f"""

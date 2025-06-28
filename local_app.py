@@ -78,7 +78,8 @@ def generate_documents(repo_path, temp_repo_folder, repo_name):
         repo_location=repo_path,
         temp_folder=temp_repo_folder,
         repo_name=repo_name,
-        output_dir=temp_repo_folder
+        output_dir=temp_repo_folder,
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL"))
     )
     return generator.generate_analysis()
 
@@ -148,8 +149,8 @@ async def generate_onboarding(job_id: str):
     summary="Create a new onboarding job"
 )
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"),
-    background_tasks: BackgroundTasks = None
+        repo_url: str = Query(..., description="GitHub repo URL"),
+        background_tasks: BackgroundTasks = None
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
@@ -259,7 +260,7 @@ async def get_github_action_status(job_id: str):
     if not job:
         logger.warning("Job not found: %s", job_id)
         raise HTTPException(404, detail="Job not found")
-    
+
     response_data = {
         "job_id": job["id"],
         "status": job["status"],
@@ -300,7 +301,7 @@ async def list_jobs():
     """
     jobs_list = []
     all_jobs = fetch_all_jobs()
-    
+
     for job in all_jobs:
         job_summary = {
             "job_id": job["id"],
@@ -353,7 +354,8 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
-            update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated", finished_at=datetime.utcnow())
+            update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated",
+                       finished_at=datetime.utcnow())
             return
 
         # Store result as JSON string in the result field
@@ -364,11 +366,13 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
 
     except RepoDontExistError as e:
         logger.warning("Repo not found or clone failed: %s (job: %s)", url, job_id)
-        update_job(job_id, status=JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}", finished_at=datetime.utcnow())
+        update_job(job_id, status=JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}",
+                   finished_at=datetime.utcnow())
 
     except CFGGenerationError as e:
         logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
-        update_job(job_id, status=JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂", finished_at=datetime.utcnow())
+        update_job(job_id, status=JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂",
+                   finished_at=datetime.utcnow())
 
     except Exception as e:
         logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)

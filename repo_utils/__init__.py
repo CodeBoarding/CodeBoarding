@@ -111,3 +111,11 @@ def get_git_commit_hash(repo_dir: str) -> str:
     """
     repo = Repo(repo_dir)
     return repo.head.commit.hexsha
+
+
+def get_branch(repo_dir: Path) -> str:
+    """
+    Get the current branch name of the repository.
+    """
+    repo = Repo(repo_dir)
+    return repo.active_branch.name if repo.active_branch else "main"
