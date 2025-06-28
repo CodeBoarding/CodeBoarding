@@ -1,5 +1,6 @@
 import dotenv
 
+from demo import generate_docs_remote
 from diagram_analysis import DiagramGenerator
 
 dotenv.load_dotenv()
@@ -73,17 +74,6 @@ def extract_repo_name(repo_url: str) -> str:
     raise ValueError(f"Invalid GitHub URL: {repo_url}")
 
 
-def generate_documents(repo_path, temp_repo_folder, repo_name):
-    generator = DiagramGenerator(
-        repo_location=repo_path,
-        temp_folder=temp_repo_folder,
-        repo_name=repo_name,
-        output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL"))
-    )
-    return generator.generate_analysis()
-
-
 # -- Job Creation & Processing --
 def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
@@ -114,12 +104,10 @@ async def generate_onboarding(job_id: str):
 
                 # run generation
                 repo_name = extract_repo_name(job["repo_url"])
-                repo_path = Path(REPO_ROOT) / repo_name
                 await run_in_threadpool(
-                    generate_documents,
-                    repo_path=repo_path,
+                    generate_docs_remote,
+                    repo_url=job["repo_url"],
                     temp_repo_folder=temp_repo_folder,
-                    repo_name=repo_name,
                 )
 
                 # format result URL

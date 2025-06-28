@@ -99,35 +99,3 @@ class ReadDocsTool(BaseTool):
             if full[i:i + len(sub)] == sub:
                 return True
         return False
-        # Calculate start and end line numbers for 200 lines centered around line_number
-        if line_number < 100:
-            start_line = 0
-            end_line = min(total_lines, 200)
-        else:
-            start_line = max(0, line_number - 100)
-            end_line = min(total_lines, start_line + 200)
-
-            if end_line - start_line < 200 and start_line > 0:
-                potential_start = max(0, total_lines - 200)
-                if potential_start < start_line:
-                    start_line = potential_start
-
-        # Extract and number the lines
-        selected_lines = lines[start_line:end_line]
-        numbered_lines = [
-            f"{i + 1 + start_line:4}:{line}" for i, line in enumerate(selected_lines)
-        ]
-        content = ''.join(numbered_lines)
-
-        return f"File: {file_path}\nLines {start_line}-{end_line - 1} (centered around line {line_number}):\n\n{content}"
-
-    def is_subsequence(self, sub: Path, full: Path) -> bool:
-        # exclude the analysis_dir from the comparison
-        sub = sub.parts
-        full = full.parts
-        repo_dir = self.repo_dir.parts
-        full = full[len(repo_dir):]
-        for i in range(len(full) - len(sub) + 1):
-            if full[i:i + len(sub)] == sub:
-                return True
-        return False

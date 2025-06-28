@@ -23,6 +23,7 @@ def remove_temp_repo_folder(temp_path: str):
 
 
 def caching_enabled():
+    print("Caching enabled:", os.getenv('CACHING_DOCUMENTATION', 'false'))
     return os.getenv('CACHING_DOCUMENTATION', 'false').lower() in ('1', 'true', 'yes')
 
 

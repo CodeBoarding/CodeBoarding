@@ -31,7 +31,6 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     repos_dir.mkdir(parents=True, exist_ok=True)
 
     repo_path = repos_dir / repo_name
-
     if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
         logging.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return

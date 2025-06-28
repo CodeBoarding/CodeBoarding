@@ -71,9 +71,9 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                 if not reference.reference_file.startswith(root_dir):
                     qn_list.append(f"{reference.llm_str()}")
                     continue
-                url = repo_ref if not repo_ref.endswith("/") else repo_ref[:-1]
-                url = "/".join(url.split("/")[:-1])  # Remove the last part which is the file name
+                url = "/".join(repo_ref.split("/")[:7])
                 ref_url = url + reference.reference_file.split(root_dir)[1]
+                import pdb; pdb.set_trace()
                 if not (reference.reference_start_line == 0 and reference.reference_end_line == 0):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(

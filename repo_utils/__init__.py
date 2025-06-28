@@ -91,13 +91,22 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
     origin = repo.remote(name='origin')
     origin.pull()
 
+    no_new_files = True
+    for filename in os.listdir(output_dir):
+        if filename.endswith('.md'):
+            no_new_files = False
+            break
+    if no_new_files:
+        logging.info(f"No new onboarding files to upload for {project_name}.")
+        return
+
     onboarding_repo_location = os.path.join(repo_dir, project_name)
     if os.path.exists(onboarding_repo_location):
         shutil.rmtree(onboarding_repo_location)
     os.makedirs(onboarding_repo_location)
 
     for filename in os.listdir(output_dir):
-        if filename.endswith('.md') or filename.endswith('.svg'):
+        if filename.endswith('.md'):
             shutil.copy(os.path.join(output_dir, filename), os.path.join(onboarding_repo_location, filename))
     # Now commit the changes
     repo.git.add(A=True)  # Equivalent to `git add .`
