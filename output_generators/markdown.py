@@ -73,7 +73,6 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                     continue
                 url = "/".join(repo_ref.split("/")[:7])
                 ref_url = url + reference.reference_file.split(root_dir)[1]
-                import pdb; pdb.set_trace()
                 if not (reference.reference_start_line == 0 and reference.reference_end_line == 0):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(
