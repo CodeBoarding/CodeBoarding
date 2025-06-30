@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 def load_github_token():
     """Load GitHub token from .env file"""
-    env_path = Path("/home/imilev/CodeBoarding/.env")
+    env_path = Path("/home/ivan/StartUp/CodeBoarding/.env")
     if not env_path.exists():
         print(f"Error: .env file not found at {env_path}")
         sys.exit(1)
@@ -140,7 +140,6 @@ def update_markdown_links(file_path, original_owner, repo_path, repo_name):
         f.write(content)
 
 
-
 def get_branch(repo_dir: Path) -> str:
     """
     Get the current branch name of the repository.
@@ -170,9 +169,9 @@ def main():
     forked_ssh_url = fork_repository(original_owner, repo_name, github_token, organization)
 
     # # Define paths
-    forks_dir = Path("/mnt/e/StartUp/forks")
+    forks_dir = Path("/home/ivan/StartUp/forks")
     repo_path = forks_dir / repo_name
-    source_dir = Path(f"/home/imilev/GeneratedOnBoardings/{repo_name}")
+    source_dir = Path(f"/home/ivan/StartUp/GeneratedOnBoardings/{repo_name}")
     target_dir = repo_path / ".codeboarding"
 
     # Create forks directory if it doesn't exist

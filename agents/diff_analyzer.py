@@ -71,7 +71,9 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         """
         codeboarding_dir = self.repo_dir / ".codeboarding"
         version_file = codeboarding_dir / "codeboarding_version.json"
-        return codeboarding_dir.exists() and version_file.exists()
+        analysis_file = codeboarding_dir / "analysis.json"
+
+        return codeboarding_dir.exists() and version_file.exists() and analysis_file.exists()
 
     def component_exists(self, component_name: str) -> bool:
         component_file = self.repo_dir / ".codeboarding" / f"{sanitize(component_name)}.json"

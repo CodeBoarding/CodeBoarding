@@ -24,14 +24,15 @@ logger = logging.getLogger(__name__)
 def main():
     repo_location = Path(args.repo)
 
-    temp_folder = Path(f"{args.output_dir}/{args.project_name}")
+    temp_folder = Path(f"{args.output_dir}")
     if not temp_folder.exists():
         temp_folder.mkdir(parents=True, exist_ok=True)
 
     generator = DiagramGenerator(repo_location=repo_location,
                                  temp_folder=temp_folder,
                                  repo_name=args.project_name,
-                                 output_dir=temp_folder)
+                                 output_dir=temp_folder,
+                                 depth_level=2)
     generator.generate_analysis()  # This will generate the analysis files in the specified output directory
 
 
