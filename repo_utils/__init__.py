@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -109,7 +109,8 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/S
         if filename.endswith('.md'):
             shutil.copy(os.path.join(output_dir, filename), os.path.join(onboarding_repo_location, filename))
     # Now commit the changes
-    repo.git.add(A=True)  # Equivalent to `git add .`
+    # Equivalent to `git add onboarding_repo_location .`.git.add(A=True)  # Equivalent to `git add .`
+    repo.git.add(onboarding_repo_location, A=True)
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
 

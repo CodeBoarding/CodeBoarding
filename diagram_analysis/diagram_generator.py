@@ -195,7 +195,7 @@ class DiagramGenerator:
             with open(path, 'r') as f:
                 structures.append((path.name.split(dot_suffix)[0], f.read()))
 
-        builder = CallGraphBuilder(self.repo_location, max_depth=15, verbose=True)
+        builder = CallGraphBuilder(self.repo_location, max_depth=15)
         builder.build()
         dot_file = f'{self.temp_folder}/call_graph.dot'
         builder.write_dot(Path(dot_file))

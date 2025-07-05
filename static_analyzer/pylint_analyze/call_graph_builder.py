@@ -96,12 +96,11 @@ class CallGraphBuilder:
     Still good enough to grasp the overall call flow.
     """
 
-    def __init__(self, root: Path, max_depth: int | None = None, verbose: bool = False):
+    def __init__(self, root: Path, max_depth: int | None = None):
         self.root = root
         self.graph: DiGraph = DiGraph()
         self._visited_files: Set[Path] = set()
         self.max_depth = max_depth
-        self.verbose = verbose
 
     def build(self) -> DiGraph:
         logging.info(f"[CallGraphBuilder] Building ASTs")
@@ -137,7 +136,7 @@ class CallGraphBuilder:
         try:
             module = MANAGER.ast_from_file(str(file_path))
         except Exception as e:  # pylint: disable=broad-except
-            _banner(f"!! Failed to parse {file_path}", self.verbose)
+            logging.warning(f"!! Failed to parse {file_path}")
             return
 
         self._visited_files.add(file_path)
