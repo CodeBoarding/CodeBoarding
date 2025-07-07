@@ -86,7 +86,7 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
     # repos = [(row[2], row[0], row[3]) for row in data_rows]
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/MolecularAI/aizynthfinder"]
+    repos = ["https://github.com/lastmile-ai/mcp-agent"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         # if company in companies:

@@ -39,11 +39,16 @@ class GetCFGTool(BaseTool):
         component_cfg = {}
         for k, v in self.cfg.items():
             for ref in component.referenced_source_code:
-                if ref.qualified_name == k or ref.qualified_name in k or k in ref.qualified_name:
+                qual_name = ref.qualified_name
+                if "/" in qual_name:
+                    qual_name = qual_name.replace("/", ".")
+                if qual_name.endswith(".py"):
+                    qual_name = qual_name[:-3]
+                if qual_name == k or qual_name in k or k in qual_name:
                     component_cfg[k] = v
                     break
 
-        logging.info(f"[CFG Tool] Filtering CFG for component {component.name}")
+        logging.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {len(component_cfg)}")
         graph_str = ""
         for k, v in component_cfg.items():
             graph_str += f"Method {k} is calling the following methods: {', '.join(v)}.\n"

@@ -34,8 +34,6 @@ class ExternalDepsTool(BaseTool):
         "setup.py",
         "setup.cfg",
         "Pipfile",
-        "Pipfile.lock",
-        "poetry.lock",
         "environment.yml",
         "environment.yaml",
         "conda.yml",
@@ -73,6 +71,7 @@ class ExternalDepsTool(BaseTool):
                             found_files.append(file_path)
 
         if not found_files:
+            logging.warning("[ExternalDeps Tool] No dependency files found in the repository.")
             return "No dependency files found in this repository. Searched for common files like requirements.txt, pyproject.toml, setup.py, environment.yml, Pipfile, etc."
 
         # Read and format the contents of found files
@@ -91,11 +90,13 @@ class ExternalDepsTool(BaseTool):
                 results.append(f"File: {relative_path}\n{'=' * 50}\nError reading file: {str(e)}\n")
 
         if not results:
+            logging.warning("[ExternalDeps Tool] Found dependency files but they are all empty or unreadable.")
             return "Found dependency files but they are all empty or unreadable."
 
         # Add summary at the beginning
         summary = f"Found {len(found_files)} dependency file(s):\n"
         summary += "\n".join(f"- {f.relative_to(self.repo_dir)}" for f in found_files)
         summary += "\n\n" + "=" * 60 + "\n\n"
-
+        logging.info(
+            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f) for f in found_files)}")
         return summary + "\n".join(results)

@@ -85,7 +85,7 @@ class AbstractionAgent(CodeBoardingAgent):
         This method should modify the analysis based on the feedback provided.
         """
         logging.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback)
+        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 

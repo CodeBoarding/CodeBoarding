@@ -63,6 +63,7 @@ Tasks:
 2. Confirm component responsibilities and communication patterns from source analysis
 3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships, following {project_type} architectural patterns
 4. Ensure no more than 2 relationships between any two components
+5. Give a short explanation of the full project in a single paragraph, explaining the main flow of the project.
 
 Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
 """

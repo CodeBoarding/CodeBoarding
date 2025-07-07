@@ -70,7 +70,8 @@ class CodeReferenceReader(BaseTool):
                 break
 
         if start_line == -1 or end_line == -1:
-            logging.error(f"[Source Reference Tool] Qualified name {python_code_reference} not found in file contents.")
+            logging.warning(
+                f"[Source Reference Tool] Qualified name {python_code_reference} not found in file contents.")
             return (
                 f"The specified Python element '{python_code_reference}' (qualified name '{qname}') "
                 f"was not found in its corresponding source file '{file_path}'. "
@@ -88,7 +89,7 @@ class CodeReferenceReader(BaseTool):
         logging.info(f"[Source Reference Tool] Found code reference for {sub_fqn} in {file_path}")
         return f"Found code reference for {sub_fqn} in {file_path}:\n{final_content}"
 
-    def read_file(self, python_code_reference: str, read_part: int = 0):
+    def read_file(self, python_code_reference: str):
         """
         Read the file from the given path.
         """
@@ -97,31 +98,35 @@ class CodeReferenceReader(BaseTool):
 
         for path in self.cached_files:
             sub_path = python_code_reference.replace('.', '/')
-            if not sub_path.endswith(".py"):
+            if sub_path.endswith("/py"):
+                sub_path = sub_path[:-3] + ".py"
+            elif not sub_path.endswith(".py"):
                 sub_path += ".py"
             sub_path = Path(sub_path)
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Reference Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path} for {python_code_reference}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
         # maybe the path is to function so we have to check if the path is in the file
         for path in self.cached_files:
             sub_path = "/".join(python_code_reference.split('.')[:-1])
-            if not sub_path.endswith(".py"):
+            if sub_path.endswith("/py"):  # In the case that it is normal path like /path/to/it.py
+                sub_path = sub_path[:-3] + ".py"
+            elif not sub_path.endswith(".py"):
                 sub_path += ".py"
             sub_path = Path(sub_path)
 
             # Check if the path leads to a file and not a directory
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Reference Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path} for {python_code_reference}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
-                logging.info(f"[Source Reference Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path} for {python_code_reference}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
@@ -134,21 +139,21 @@ class CodeReferenceReader(BaseTool):
             sub_path = Path(sub_path)
 
             if self.is_subsequence(sub_path, path):
-                logging.info(f"[Source Reference Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path} for {python_code_reference}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
             # Check for a file with __init__.py
             sub_path_init = Path(sub_path) / '__init__.py'
             if self.is_subsequence(sub_path_init, path):
-                logging.info(f"[Source Reference Tool] Found file {path}")
+                logging.info(f"[Source Reference Tool] Found file {path} for {python_code_reference}")
                 with open(path, 'r') as f:
                     return path, f.read()
 
         # Last chance: retry with class name being transformed to file name:
         transformed_path = transform_path(python_code_reference)
         if transformed_path != python_code_reference:
-            logging.info(f"[Source Reference Tool] Found file {transformed_path}")
+            logging.info(f"[Source Reference Tool] Found file {transformed_path} for {python_code_reference}")
             return self.read_file(transformed_path)
 
         logging.error(

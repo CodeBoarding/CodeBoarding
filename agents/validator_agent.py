@@ -1,3 +1,5 @@
+import logging
+
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
@@ -27,17 +29,37 @@ class ValidatorAgent(CodeBoardingAgent):
         return self._parse_invoke(self.valid_relations_prompt.format(analysis=analysis.llm_str()),
                                   ValidationInsights)
 
+    def validate_references(self, analysis: AnalysisInsights):
+        info = []
+        for component in analysis.components:
+            for ref in component.referenced_source_code:
+                if not ref.reference_file:
+                    info.append(f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "
+                                f"Retry finding the proper source code reference via `getPythonSourceCode` tool. Or at least the correct file path with the `readFile` path.")
+        if info:
+            return ValidationInsights(is_valid=False,
+                                      additional_info="\n".join(info))
+        return ValidationInsights(is_valid=True, additional_info="All references are valid.")
+
     def run(self, analysis: AnalysisInsights):
         """
         Run the validation process on the provided analysis.
         This method should return a tuple containing invalid components and invalid relations.
         """
         insights = ""
+        valid = True
         invalid_components = self.validate_components(analysis)
         if not invalid_components.is_valid:
             insights += f"{invalid_components.llm_str()}\n\n"
+            valid = False
         invalid_relations = self.validate_relations(analysis)
         if not invalid_relations.is_valid:
             insights += f"{invalid_relations.llm_str()}\n\n"
-        return ValidationInsights(is_valid=invalid_components.is_valid or invalid_relations.is_valid,
+            valid = False
+        reference_validation = self.validate_references(analysis)
+        if not reference_validation.is_valid:
+            insights += f"{reference_validation.llm_str()}\n\n"
+            valid = False
+        logging.info(f"[ValidatorAgent] Validation result is {valid} with insights: {insights}")
+        return ValidationInsights(is_valid=valid,
                                   additional_info=insights)

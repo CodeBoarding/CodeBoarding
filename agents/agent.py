@@ -21,7 +21,7 @@ class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, cfg, system_message):
         self._setup_env_vars()
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-preview-05-20",
+            model="gemini-2.5-flash",
             temperature=0,
             max_retries=0,
             google_api_key=self.api_key
@@ -67,11 +67,12 @@ class CodeBoardingAgent:
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
-        return self._parse_response(response, type)
+        return self._parse_response(prompt, response, type)
 
-    def _parse_response(self, response, return_type):
+    def _parse_response(self, prompt, response, return_type):
         extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
-
+        if response.strip() == "":
+            logging.error(f"Empty response for prompt: {prompt}")
         result = extractor.invoke(response)["responses"][0]
         return return_type.model_validate(result)
 
@@ -94,6 +95,6 @@ class CodeBoardingAgent:
                             reference.reference_end_line = result[1]
                             break
                 except Exception as e:
-                    logging.error(f"Error finding reference lines for {reference.qualified_name}: {e}")
+                    logging.warning(f"Error finding reference lines for {reference.qualified_name}: {e}")
 
         return analysis
