@@ -10,6 +10,7 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from output_generators.html import generate_html_file
+from output_generators.mdx import generate_mdx_file
 from repo_utils import clone_repository, checkout_repo
 from utils import create_temp_repo_folder
 
@@ -50,6 +51,23 @@ def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, targ
                                    temp_dir=temp_repo_folder)
 
 
+def generate_mdx(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path,
+                 output_dir):
+    for file in analysis_files:
+        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
+            print(f"Processing analysis file: {file}")
+            with open(file, 'r') as f:
+                analysis = AnalysisInsights.model_validate_json(f.read())
+                logging.info(f"Generated analysis file: {file}")
+                fname = Path(file).stem
+                if fname.endswith("analysis"):
+                    fname = "on_boarding"
+                generate_mdx_file(fname, analysis, repo_name,
+                                  repo_ref=f"{repo_url}/blob/{target_branch}",
+                                  linked_files=analysis_files,
+                                  temp_dir=temp_repo_folder)
+
+
 def generate_analysis(repo_url: str, source_branch: str, target_branch: str, extension: str,
                       output_dir: str = ".codeboarding"):
     """
@@ -75,6 +93,8 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
         generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
     elif extension == ".html":
         generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+    elif extension == ".mdx":
+        generate_mdx(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
     else:
         raise ValueError(f"Unsupported extension: {extension}")
 

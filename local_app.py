@@ -1,7 +1,6 @@
 import dotenv
 
 from demo import generate_docs_remote
-from diagram_analysis import DiagramGenerator
 
 dotenv.load_dotenv()
 
@@ -22,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jobs
 from github_action import generate_analysis
-from repo_utils import RepoDontExistError, clone_repository
+from repo_utils import RepoDontExistError
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 
 logging.basicConfig(level=logging.INFO)
@@ -195,7 +194,7 @@ async def start_docs_generation_job(
     """
     logger.info("Received request to start docs generation job for %s", docs_request.url)
 
-    if docs_request.extension not in [".md", ".rst"]:
+    if docs_request.extension not in [".md", ".rst", ".html", ".mdx"]:
         logger.warning("Unsupported extension provided: %s. Defaulting to markdown", docs_request.extension)
         docs_request.extension = ".md"  # Default to markdown if unsupported extension is provided
 

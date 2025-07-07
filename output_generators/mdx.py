@@ -141,8 +141,7 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
     """
     sanitized_name = sanitize(component_name)
     if contains_json(sanitized_name, link_files):
-        kebab_case_name = sanitized_name.lower().replace('_', '-')
-        return f"### {component_name} [[Expand]](./{kebab_case_name})"
+        return f"### {component_name} [[Expand]](./{sanitized_name})"
     else:
         return f"### {component_name}"
 
