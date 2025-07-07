@@ -11,7 +11,7 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import store_token, clone_repository, upload_onboarding_materials, get_branch
-from utils import create_temp_repo_folder, remove_temp_repo_folder, caching_enabled
+from utils import create_temp_repo_folder, caching_enabled
 
 
 def onboarding_materials_exist(project_name: str, source_dir: str):
@@ -86,7 +86,8 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
     # repos = [(row[2], row[0], row[3]) for row in data_rows]
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/lastmile-ai/mcp-agent"]
+    repos = ["https://github.com/pinterest/pinterest-python-sdk",
+             "https://github.com/lastmile-ai/mcp-agent"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         # if company in companies:

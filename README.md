@@ -7,7 +7,7 @@ In order to setup and run the project you need the following environment variabl
 Setup the environment:
 
 ```bash
-uv venv
+uv venv --python 3.11
 uv pip sync
 ```
 
@@ -21,6 +21,7 @@ GITHUB_TOKEN= # Github token for accessing private repositories
 PROJECT_ROOT= # The source project root => Has to end with /CodeBoarding
 DIAGRAM_DEPTH_LEVEL= # max level of depth for the generations
 JOB_DB=.duckdb/duckdb # The database for the jobs
+GOOGLE_API_KEY=# # Google API key for the Google Cloud Platform
 ````
 
 ### Compile the project for vscode extension:
