@@ -1,8 +1,9 @@
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
+from typing import List
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, ExpandComponent
+from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
 from agents.prompts import EXPANSION_PROMPT, PLANNER_SYSTEM_MESSAGE
 
 
@@ -14,7 +15,7 @@ class PlannerAgent(CodeBoardingAgent):
                                                                self.read_packages_tool, self.read_file_structure,
                                                                self.read_structure_tool, self.read_file_tool])
 
-    def plan_analysis(self, analysis: AnalysisInsights):
+    def plan_analysis(self, analysis: AnalysisInsights) -> List[Component]:
         """
         Generate a plan for analyzing the provided components.
         This method should return a structured plan detailing how to analyze each component.

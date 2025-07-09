@@ -192,7 +192,8 @@ You are an expert in software architecture and design. You are seeing the follow
 {analysis}
 
 Your task is to validate the relationships between components. Each component should have a clear set of relationships with other components, and there should not be more than 2 relationships between any two components.
-Please explain your reasoning for bad relationships.
+
+In the end say if the analysis is valid or not. Give information on why you think it is valid or not, and what are the issues with the analysis are if any.
 """
 
 SYSTEM_DIFF_ANALYSIS_MESSAGE = """
