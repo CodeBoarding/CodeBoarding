@@ -45,10 +45,8 @@ def partial_updates(component_to_update_name: str, analysis_to_update_name: str)
     with open(analysis, 'r') as file:
         analysis = AnalysisInsights.model_validate_json(file.read())
 
-    components = generator.planner_agent.plan_analysis(analysis)
-
     component_to_update = None
-    for component in components:
+    for component in analysis.components:
         if component.name == component_to_update_name:
             logger.info(f"Updating analysis for component: {component.name}")
             component_to_update = component

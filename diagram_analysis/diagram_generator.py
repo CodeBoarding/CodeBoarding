@@ -12,6 +12,7 @@ from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
+from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
@@ -73,7 +74,7 @@ class DiagramGenerator:
 
             # Save the analysis result
             with open(output_path, "w") as f:
-                f.write(analysis.model_dump_json(indent=2))
+                f.write(from_analysis_to_json(analysis, new_components))
 
             return output_path, new_components
         except Exception as e:
@@ -134,15 +135,15 @@ class DiagramGenerator:
 
         assert analysis is not None, "Analysis should not be None at this point"
 
-        # Save the root analysis
-        analysis_path = os.path.join(self.output_dir, "analysis.json")
-        with open(analysis_path, "w") as f:
-            f.write(analysis.model_dump_json(indent=2))
-        files.append(analysis_path)
-
         # Get the initial components to analyze (level 0)
         current_level_components = self.planner_agent.plan_analysis(analysis)
         logging.info(f"Found {len(current_level_components)} components to analyze at level 0")
+
+        # Save the root analysis
+        analysis_path = os.path.join(self.output_dir, "analysis.json")
+        with open(analysis_path, "w") as f:
+            f.write(from_analysis_to_json(analysis, current_level_components))
+        files.append(analysis_path)
 
         level = 0
         max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
