@@ -1,9 +1,10 @@
 import os
-import json
 from collections import deque
 from pathlib import Path
 import logging
 import pydot
+from collections import defaultdict
+import re
 
 
 class DotGraphTransformer:
@@ -64,6 +65,59 @@ class DotGraphTransformer:
                 result[src].append(dst)
 
         final_msg = "The control flow graph looks like:\n"
-        for k, v in result.items():
-            final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
+        # for k, v in filtered_call_map.items():
+        #     final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
+        class2class = build_class_to_class_map(result)
+        final_msg = format_class_call_map(class2class)
+
         return result, final_msg
+
+
+def is_class_method(qualified_name):
+    parts = qualified_name.strip('"').split('.')
+    if len(parts) < 3:
+        return False  # not enough depth: module.class.method
+    class_candidate = parts[-2]
+    return re.match(r'^[A-Z]', class_candidate) is not None
+
+
+def extract_class_path(qualified_name):
+    parts = qualified_name.strip('"').split('.')
+    if len(parts) < 3:
+        return None  # not a class method
+    class_name = parts[-2]
+    if not re.match(r'^[A-Z]', class_name):
+        return None
+    return '.'.join(parts[:-1])  # module.Class
+
+
+def build_class_to_class_map(call_map):
+    class_calls = defaultdict(set)
+
+    for caller, callees in call_map.items():
+        caller_cls = extract_class_path(caller)
+        if not caller_cls:
+            continue  # skip non-class callers
+
+        for callee in callees:
+            callee_cls = extract_class_path(callee)
+            if callee_cls:
+                class_calls[caller_cls].add(callee_cls)
+
+    return class_calls
+
+
+def format_class_call_map(class_calls):
+    msg = ""
+    for caller_cls, callee_classes in class_calls.items():
+        msg += f"Class: {caller_cls} calls:\n"
+        for callee_cls in sorted(callee_classes):
+            msg += f"  - {callee_cls}\n"
+    return msg
+
+
+if __name__ == '__main__':
+    a, b = DotGraphTransformer(
+        dot_file="/home/ivan/StartUp/CodeBoarding/temp/2a05acf3d46e4cb88289e5c644ca925f/call_graph.dot",
+        repo_location="/home/ivan/StartUp/CodeBoarding/repos/django").transform()
+    print(len(b))

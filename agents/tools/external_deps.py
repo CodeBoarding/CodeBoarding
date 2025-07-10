@@ -14,10 +14,10 @@ class ExternalDepsInput(BaseModel):
 class ExternalDepsTool(BaseTool):
     name: str = "readExternalDeps"
     description: str = (
-        "Reads Python project dependencies from common dependency files. "
-        "Automatically detects and reads from requirements.txt, pyproject.toml, setup.py, "
-        "environment.yml (conda), Pipfile, poetry.lock, and other common dependency files. "
-        "Returns the contents of all found dependency files."
+        "Identifies Python project dependency files in the repository. "
+        "Automatically detects common dependency files like requirements.txt, pyproject.toml, setup.py, "
+        "environment.yml (conda), Pipfile, poetry.lock, and others. "
+        "Returns a list of found dependency files that can be examined with the readFile tool."
     )
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
@@ -30,7 +30,7 @@ class ExternalDepsTool(BaseTool):
         "requirements-test.txt",
         "dev-requirements.txt",
         "test-requirements.txt",
-        "pyproject.toml",
+        # "pyproject.toml",
         "setup.py",
         "setup.cfg",
         "Pipfile",
@@ -48,12 +48,11 @@ class ExternalDepsTool(BaseTool):
 
     def _run(self) -> str:
         """
-        Run the tool to find and read dependency files.
+        Run the tool to find dependency files.
         """
         logging.info("[ExternalDeps Tool] Searching for dependency files")
 
         found_files = []
-        results = []
 
         # Search for dependency files in the repository
         for dep_file in self.DEPENDENCY_FILES:
@@ -74,29 +73,15 @@ class ExternalDepsTool(BaseTool):
             logging.warning("[ExternalDeps Tool] No dependency files found in the repository.")
             return "No dependency files found in this repository. Searched for common files like requirements.txt, pyproject.toml, setup.py, environment.yml, Pipfile, etc."
 
-        # Read and format the contents of found files
-        for file_path in found_files:
+        # Format the output to make it easy to use with readFile tool
+        summary = f"Found {len(found_files)} dependency file(s):\n\n"
+
+        # List files with suggestions for using readFile
+        for i, file_path in enumerate(found_files, 1):
             relative_path = file_path.relative_to(self.repo_dir)
-            try:
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    content = file.read().strip()
+            summary += f"{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path=\"{relative_path}\" and line_number=0\n\n"
 
-                if content:
-                    results.append(f"File: {relative_path}\n{'=' * 50}\n{content}\n")
-                else:
-                    results.append(f"File: {relative_path}\n{'=' * 50}\n(Empty file)\n")
-
-            except Exception as e:
-                results.append(f"File: {relative_path}\n{'=' * 50}\nError reading file: {str(e)}\n")
-
-        if not results:
-            logging.warning("[ExternalDeps Tool] Found dependency files but they are all empty or unreadable.")
-            return "Found dependency files but they are all empty or unreadable."
-
-        # Add summary at the beginning
-        summary = f"Found {len(found_files)} dependency file(s):\n"
-        summary += "\n".join(f"- {f.relative_to(self.repo_dir)}" for f in found_files)
-        summary += "\n\n" + "=" * 60 + "\n\n"
         logging.info(
-            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f) for f in found_files)}")
-        return summary + "\n".join(results)
+            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f.relative_to(self.repo_dir)) for f in found_files)}")
+
+        return summary

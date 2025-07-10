@@ -5,7 +5,7 @@ import time
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_aws import ChatBedrockConverse
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 
@@ -20,11 +20,10 @@ from static_analyzer.reference_lines import find_fqn_location
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, cfg, system_message):
         self._setup_env_vars()
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0,
-            max_retries=0,
-            google_api_key=self.api_key
+        self.llm = ChatBedrockConverse(
+            model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # Cross-region inference profile format
+            region_name="us-east-1",
+            temperature=0
         )
         self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
         self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
@@ -52,6 +51,7 @@ class CodeBoardingAgent:
         max_retries = 3
         for attempt in range(max_retries):
             try:
+                print(prompt)
                 response = self.agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]}
                 )
@@ -61,8 +61,8 @@ class CodeBoardingAgent:
                     return agent_response.content
                 if type(agent_response.content) == list:
                     return "".join([message for message in agent_response.content])
-            except ResourceExhausted as e:
-                logging.error(f"Resource exhausted, retrying... in 60 seconds {e}")
+            except (ResourceExhausted, Exception) as e:
+                logging.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
                 time.sleep(60)  # Wait before retrying
 
     def _parse_invoke(self, prompt, type):

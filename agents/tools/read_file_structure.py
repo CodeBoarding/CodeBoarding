@@ -23,6 +23,7 @@ class FileStructureTool(BaseTool):
         "Returns the directory structure (as a tree) for a given subfolder or the root of the project. "
         "Useful for understanding project layout, file organization, or analyzing specific modules."
     )
+    MAX_LINES: int = 500
     args_schema: Optional[ArgsSchema] = DirInput
     return_direct: bool = False
     cached_dirs: Optional[List[Path]] = None
@@ -47,14 +48,22 @@ class FileStructureTool(BaseTool):
                 self.walk_dir(path)
 
     def _run(self, dir: Optional[str] = None) -> str:
-
         """
         Run the tool with the given input.
         """
         if dir == ".":
-            tree_structure = get_tree_string(self.repo_dir)
-            tree_structure = "\n".join(tree_structure)
-            return f"The file tree for {dir} is:\n{tree_structure}"
+            # Start with a reasonable depth limit
+            max_depth = 10
+            tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth)
+
+            # If we hit the line limit, try again with progressively lower depths
+            while len(tree_lines) >= self.MAX_LINES and max_depth > 1:
+                max_depth -= 1
+                tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth)
+
+            tree_structure = "\n".join(tree_lines)
+            depth_info = f" (limited to depth {max_depth})" if max_depth < 10 else ""
+            return f"The file tree for {dir}{depth_info} is:\n{tree_structure}"
 
         dir = Path(dir)
         searching_dir = None
@@ -80,9 +89,19 @@ class FileStructureTool(BaseTool):
             return f"Error: The specified directory does not exist or is empty. Available directories are: {', '.join([str(d) for d in self.cached_dirs])}"
         # now use the tree command to get the file structure
         logging.info(f"[File Structure Tool] Reading file structure for {searching_dir}")
-        tree_structure = get_tree_string(searching_dir)
-        tree_structure = "\n".join(tree_structure)
-        return f"The file tree for {dir} is:\n{tree_structure}"
+
+        # Start with a reasonable depth limit
+        max_depth = 10
+        tree_lines = get_tree_string(searching_dir, max_depth=max_depth)
+
+        # If we hit the line limit, try again with progressively lower depths
+        while len(tree_lines) >= 50000 and max_depth > 1:
+            max_depth -= 1
+            tree_lines = get_tree_string(searching_dir, max_depth=max_depth, max_lines=self.MAX_LINES)
+
+        tree_structure = "\n".join(tree_lines)
+        depth_info = f" (limited to depth {max_depth})" if max_depth < 10 else ""
+        return f"The file tree for {dir}{depth_info} is:\n{tree_structure}"
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
         # exclude the analysis_dir from the comparison
@@ -96,18 +115,57 @@ class FileStructureTool(BaseTool):
         return False
 
 
-def get_tree_string(startpath, indent=''):
+def get_tree_string(startpath, indent='', max_depth=float('inf'), current_depth=0, max_lines=100):
+    """
+    Generate a tree-like string representation of the directory structure.
+    
+    Args:
+        startpath: Path to start generating the tree from
+        indent: Current indentation string
+        max_depth: Maximum depth to traverse (default: unlimited)
+        current_depth: Current depth in the traversal (used internally)
+        max_lines: Maximum number of lines to generate
+        
+    Returns:
+        List of strings representing the tree structure
+    """
     tree_lines = []
 
-    entries = sorted(os.listdir(startpath))
+    # Stop if we've exceeded max depth
+    if current_depth > max_depth:
+        return tree_lines
+
+    try:
+        entries = sorted(os.listdir(startpath))
+    except (PermissionError, FileNotFoundError):
+        # Handle permission errors or non-existent directories
+        return [indent + "└── [Error reading directory]"]
+
     for i, entry in enumerate(entries):
+        # Check if we've exceeded the maximum number of lines
+        if len(tree_lines) >= max_lines:
+            tree_lines.append(indent + "└── [Output truncated due to size limits]")
+            return tree_lines
+
         path = os.path.join(startpath, entry)
         connector = '└── ' if i == len(entries) - 1 else '├── '
         tree_lines.append(indent + connector + entry)
 
         if os.path.isdir(path):
             extension = '    ' if i == len(entries) - 1 else '│   '
-            subtree = get_tree_string(path, indent + extension)
+            subtree = get_tree_string(
+                path,
+                indent + extension,
+                max_depth,
+                current_depth + 1,
+                max_lines - len(tree_lines)
+            )
             tree_lines.extend(subtree)
+
+            # Check again after adding subtree
+            if len(tree_lines) >= max_lines:
+                if tree_lines[-1] != indent + "└── [Output truncated due to size limits]":
+                    tree_lines.append(indent + "└── [Output truncated due to size limits]")
+                return tree_lines
 
     return tree_lines

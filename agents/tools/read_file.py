@@ -54,10 +54,15 @@ class ReadFileTool(BaseTool):
                 read_file = cached_file
                 break
 
-        files_str = '\n'.join([str(f) for f in self.cached_files])
+        common_prefix = str(self.repo_dir)
+        if len(file_path.suffixes) != 1 or file_path.suffix not in ['.py', '.md', '.txt', '.rst', '.yml']:
+            return f"Error: The specified file '{file_path}' is not a supported file type. " \
+                   f"Supported types are: .py, .md, .txt, .rst, .yml.\n"
         if read_file is None:
+            files_str = '\n'.join(
+                [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path.suffix])
             return f"Error: The specified file '{file_path}' was not found in the indexed source files. " \
-                   f"Please ensure the path is correct and points to an existing Python file: {files_str}."
+                   f"Please ensure the path is correct and points to an existing Python file: {common_prefix}/\n{files_str}."
 
         # Read the file content
         with open(read_file, 'r', encoding='utf-8') as file:
