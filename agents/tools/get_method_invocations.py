@@ -12,12 +12,11 @@ class MethodInvocationsInput(BaseModel):
 class MethodInvocationsTool(BaseTool):
     name: str = "getMethodInvocationsTool"
     description: str = (
-        "Retrieves the **complete control flow graph (CFG)** for the entire project. "
-        "This tool provides a graphical representation (in DOT format) of "
-        "all function and method calls across the codebase, illustrating "
-        "the execution flow and inter-function relationships. "
-        "It's useful for understanding the overall architecture and call sequences "
-        "within the project. This tool requires no input arguments."
+        "Retrieves complete project control flow graph (CFG) in DOT format. "
+        "**FOUNDATIONAL TOOL** - Use once at the start of analysis to understand overall architecture. "
+        "Shows all function/method calls and execution flow across the codebase. "
+        "**PRIMARY DATA SOURCE** - Analyze this output before using other tools. "
+        "No input arguments required."
     )
     cfg: dict[Any, list[Any]] = None
 

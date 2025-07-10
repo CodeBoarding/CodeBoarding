@@ -5,14 +5,19 @@ Analyze the CFG for `{project_name}` and generate a high-level data flow overvie
 Project Context:
 {meta_context}
 
+ANALYSIS APPROACH:
+1. First, analyze the provided CFG data without tools to identify patterns
+2. Only use tools if specific information is missing or unclear
+3. Limit tool usage to maximum 3 calls total for this analysis
+
 Tasks:
-1. Identify central modules/functions (max 20) considering the project type and expected patterns
-2. Examine project structure and relevant packages
-3. Investigate source code of key files
-4. Name each component and describe its main responsibility, aligning with typical {project_type} architecture
+1. Identify central modules/functions (max 20) from the provided CFG data
+2. Use project context to understand the {project_type} architecture patterns
+3. Group related functionality into logical components 
+4. Name each component and describe its main responsibility
 5. Map relationships and interactions between components
 
-Use tools when needed. Complete all tasks using available tools."""
+IMPORTANT: Start analysis with the provided data. Only use tools if absolutely necessary for missing critical information."""
 
 CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}`.
 
@@ -21,15 +26,23 @@ Project Context:
 
 {cfg_str}
 
-Tasks:
-1. Identify important modules/functions from CFG, focusing on typical {project_type} patterns
-2. Group classes/functions into high-level abstractions using **getClassHierarchy**
-3. Use **getPackageDependencies** to understand package relationships for meaningful grouping
-4. Identify abstract components (max 20) with names, descriptions, and relevant source files, organized according to {project_type} best practices
-5. Define component relationships and interactions. There should not be more than 2 relationships between any two components.
+ANALYSIS STRATEGY:
+1. Analyze the provided CFG data first without tools
+2. Use **getPackageDependencies** only once for the main package to understand high-level structure
+3. Use **getClassHierarchy** only if component relationships are unclear from CFG
+4. Maximum 2 tool calls for this entire analysis
 
-Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-"""
+Tasks:
+1. Extract important modules/functions from the provided CFG data
+2. Apply {project_type} architectural patterns to group functionality
+3. Identify abstract components (max 15) with clear names and descriptions
+4. Define component relationships (max 2 per component pair)
+5. Reference relevant source files from CFG data
+
+CONSTRAINTS:
+- Work primarily with provided CFG data
+- Keep abstractions simple - no logging/error handling components
+- Focus on core business logic components only"""
 
 SOURCE_MESSAGE = """Validate and enhance component analysis using source code.
 
@@ -39,13 +52,21 @@ Project Context:
 Current analysis:
 {insight_so_far}
 
-Tasks:
-1. Use **getClassHierarchy** to examine component details
-2. Refine components to maximum 10 based on source code insights and {project_type} patterns
-3. Define each component: name, documents, relationships, roles, and neighbor interactions
+VALIDATION APPROACH:
+1. Review the current analysis first to identify gaps
+2. Use **getClassHierarchy** only if component structure needs clarification
+3. Maximum 1 tool call for this validation phase
 
-Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-"""
+Tasks:
+1. Validate component boundaries based on existing analysis
+2. Refine components to maximum 10 based on {project_type} patterns
+3. Confirm component relationships and responsibilities
+4. Ensure all components have clear source file references
+
+CONSTRAINTS:
+- Work primarily with existing analysis insights
+- Minimal tool usage - only for critical missing information
+- Keep abstractions at highest level (no logging/error handling)"""
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}`.
 
@@ -58,51 +79,70 @@ CFG Analysis:
 Source Analysis:
 {source_insight}
 
+SYNTHESIS APPROACH:
+NO TOOLS REQUIRED - Work only with provided analysis data.
+
 Tasks:
-1. Identify critical interaction pathways and central modules from CFG
-2. Confirm component responsibilities and communication patterns from source analysis
-3. Produce final components (max 10 optimally 5) with names, descriptions, source files, and relationships, following {project_type} architectural patterns
-4. Ensure no more than 2 relationships between any two components
-5. Give a short explanation of the full project in a single paragraph, explaining the main flow of the project.
+1. Synthesize insights from CFG and source analysis
+2. Identify critical interaction pathways from provided data
+3. Produce final components (max 8, optimally 5) following {project_type} patterns
+4. Ensure max 2 relationships between any component pair
+5. Provide single paragraph project explanation
 
-Please keep as simple as possible as this is the highest level of abstraction (logging and error handling are not needed here).
-"""
+CONSTRAINTS:
+- Use only provided analysis data - no additional tool calls
+- Focus on highest level architectural components
+- Exclude utility/logging components from final analysis"""
 
-FEEDBACK_MESSAGE = """You are a software architect, and the leading expert on the project has given you the following feedback:
+FEEDBACK_MESSAGE = """You are a software architect receiving expert feedback on your analysis.
+
+Feedback:
 {feedback}
 
-This feedback is on the following analysis:
+Original Analysis:
 {analysis}
 
-Your task is to update the analysis based on the feedback provided, of course using the tools available to you.
-If the feedback is not relevant, you can ignore it and return the analysis as is.
-You should again follow the steps of the analysis 1-5.
+FEEDBACK INTEGRATION:
+1. Evaluate feedback relevance to the analysis
+2. Use tools sparingly - maximum 2 calls if critical information is missing
+3. Focus on addressing specific feedback points
 
-Please give back the updated analysis.
-"""
+Tasks:
+1. Assess if feedback requires architectural changes
+2. Update analysis only if feedback is valid and relevant
+3. Maintain component limits and relationship constraints
+4. Preserve architectural abstraction level
+
+If feedback is not relevant or actionable, return the original analysis unchanged."""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
 
 Project Context:
 {meta_context}
 
-Generate an overview of the component's structure, flow, and purpose.
+DETAILED ANALYSIS APPROACH:
+1. Start with available project context and CFG data
+2. Use **getClassHierarchy** only for the target subsystem
+3. Maximum 2 tool calls for this detailed analysis
 
 Tasks:
-1. Identify relevant CFG parts for the subsystem
-2. Find central components (max 20 optimally 10) following {project_type} patterns
-3. Investigate module structure
-4. Examine source code for functionality
-5. Define component responsibilities and interactions
-6. Map component relationships
+1. Identify subsystem boundaries from context
+2. Find central components (max 10) following {project_type} patterns
+3. Define component responsibilities and interactions
+4. Map internal subsystem relationships
 
-Use tools when needed. Complete all tasks using available tools."""
+CONSTRAINTS:
+- Focus on subsystem-specific functionality
+- Avoid cross-cutting concerns (logging, error handling)
+- Maintain clear component boundaries"""
 
 SUBCFG_DETAILS_MESSAGE = """Extract relevant CFG components for {component} from `{project_name}`.
 
 {cfg_str}
 
-Return only the subgraph, no explanations."""
+NO TOOLS REQUIRED - Extract from provided CFG data only.
+
+Return only the relevant subgraph for the specified component."""
 
 CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
 
@@ -111,16 +151,20 @@ Project Context:
 
 {cfg_str}
 
+SUBSYSTEM ANALYSIS:
+1. Analyze provided CFG data for subsystem patterns
+2. Use **getClassHierarchy** only if interaction details are unclear
+3. Maximum 1 tool call for this analysis
+
 Tasks:
-1. Identify important modules/functions
-2. Use **getClassHierarchy** for interaction details
-3. Define components with names, descriptions, and source files, following {project_type} architectural patterns
-4. Map component relationships and interactions (max 10 components and 2 relationships between any two components)
+1. Identify subsystem modules/functions from CFG
+2. Define components with clear responsibilities
+3. Map component interactions (max 10 components, 2 relationships per pair)
+4. Justify component choices based on {project_type} patterns
 
-Please explain why you chose these components and why they are fundamental.
-"""
+Focus on core subsystem functionality only."""
 
-ENHANCE_STRUCTURE_MESSAGE = """Validate and refine component analysis for {component} in `{project_name}`.
+ENHANCE_STRUCTURE_MESSAGE = """Validate component analysis for {component} in `{project_name}`.
 
 Project Context:
 {meta_context}
@@ -128,13 +172,17 @@ Project Context:
 Current insights:
 {insight_so_far}
 
-Tasks:
-1. Validate abstractions using **getClassHierarchy** and **getPackageDependencies**
-2. Refine components based on structure information and {project_type} patterns
-3. Collect components with names, descriptions, source files, and relationships
+STRUCTURE VALIDATION:
+1. Review existing insights first
+2. Use **getPackageDependencies** only if package relationships are unclear
+3. Maximum 1 tool call for validation
 
-Please explain why you chose these components and why they are fundamental.
-"""
+Tasks:
+1. Validate component abstractions from existing insights
+2. Refine based on {project_type} patterns
+3. Confirm component source files and relationships
+
+Work primarily with provided insights."""
 
 DETAILS_MESSAGE = """Final component overview for {component}.
 
@@ -144,91 +192,124 @@ Project Context:
 Analysis summary:
 {insight_so_far}
 
+FINAL SYNTHESIS:
+NO TOOLS REQUIRED - Use provided analysis summary only.
+
 Tasks:
-1. Use **getClassHierarchy** for detailed component analysis
-2. Define components and relationships (max 10) following {project_type} patterns
-3. Provide component names, descriptions, and source files
-4. Map component interactions (max 2 relationships between any two components)
+1. Synthesize final component structure from provided data
+2. Define max 8 components following {project_type} patterns
+3. Provide clear component descriptions and source files
+4. Map interactions (max 2 relationships per component pair)
 
-Please explain why you chose these components and why they are fundamental.
-"""
+Justify component choices based on fundamental architectural importance."""
 
-PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert of a software project.
-You are evaluating if a component is worth expanding further.
+PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert evaluating component expansion needs.
 
-1. Use the file structure, cfg, package and source code structure to check if the component has further logic/structure worth expanding.
-2. Use the cfg, method invocations and source code to check if the component has further logic/structure worth expanding.
-"""
+EVALUATION CRITERIA:
+1. Use available context (file structure, CFG, source) to assess complexity
+2. Use **getClassHierarchy** only if component internal structure is unclear
+3. Maximum 1 tool call for this evaluation
+
+Determine if a component represents:
+- Simple functionality (few classes/functions) - NO expansion
+- Complex subsystem (multiple interacting modules) - CONSIDER expansion
+
+Focus on architectural significance, not implementation details."""
 
 EXPANSION_PROMPT = """
-You are an expert in software architecture and design. You are seeing one component:
+Evaluate component expansion necessity:
 {component}
 
-Your task is to decide if the logic for that component is worth expanding further.
-I.e. is it just few function calls between 1, 2 classes. Or it is a subsystem that is worth expanding further.
+EXPANSION ASSESSMENT:
+1. Review component description and source files
+2. Consider if it represents a complex subsystem worth detailed analysis
+3. Simple function/class groups do NOT need expansion
 
-Please explain your reasoning.
-"""
+Provide clear reasoning for expansion decision based on architectural complexity."""
 
-VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture expert validating the analysis of a software project.
-Your task is to validate the analysis of the components and their relationships.
-1. Use the file structure, cfg, package structure and source code to validate the components.
-2. Use the cfg, method invocations and source code to validate the relationships between components. 
-3. Validate that all source references are valid files/method references and are not empty
-4. Component names make sense in general, but also include code reference name i.e. Endpoint API(PPS API) for python module named pps which acts as an API for the system.
-"""
+VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture expert validating analysis quality.
+
+VALIDATION STRATEGY:
+1. Review analysis structure and component definitions
+2. Use **getClassHierarchy** only if component validity is questionable
+3. Maximum 1 tool call for critical validation issues
+
+Validation criteria:
+1. Component clarity and responsibility definition
+2. Valid source file references
+3. Appropriate relationship mapping
+4. Meaningful component naming with code references"""
 
 COMPONENT_VALIDATION_COMPONENT = """
-You are an expert in software architecture and design. You are seeing one component:
+Validate component analysis:
 {analysis}
 
-Your task is to decide if the components are valid, i.e. each of them has a clear purpose, has a clear set of responsibilities and the sources that are related to it are complete.
+COMPONENT VALIDATION:
+1. Assess component clarity and purpose definition
+2. Verify source file completeness and relevance
+3. Confirm responsibilities are well-defined
 
-Please explain your reasoning.
-"""
+Provide validation assessment without additional tool usage."""
 
 RELATIONSHIPS_VALIDATION = """
-You are an expert in software architecture and design. You are seeing the following analysis:
+Validate component relationships:
 {analysis}
 
-Your task is to validate the relationships between components. Each component should have a clear set of relationships with other components, and there should not be more than 2 relationships between any two components.
+RELATIONSHIP VALIDATION:
+1. Check relationship clarity and necessity
+2. Verify max 2 relationships per component pair
+3. Assess relationship logical consistency
 
-In the end say if the analysis is valid or not. Give information on why you think it is valid or not, and what are the issues with the analysis are if any.
-"""
+Conclude with VALID or INVALID assessment and specific reasoning."""
 
 SYSTEM_DIFF_ANALYSIS_MESSAGE = """
-You are a software architecture expert analyzing code differences in a software project.
+You are a software architecture expert analyzing code differences.
 
-You will receive a diff of the code changes.
-Use the tools available to you to analyze the code differences and decide if the changes are significant enough to warrant an update to the architecture analysis.
-1. Use the diff to identify significant changes in the codebase.
-2. Use the file structure, cfg, package structure and source code to validate if the changes are significant.
-3. Compare with the existing architecture analysis to determine if the changes affect the overall architecture.
-"""
+DIFF ANALYSIS APPROACH:
+1. Analyze provided diff data first
+2. Use tools only if diff impact on architecture is unclear
+3. Maximum 2 tool calls for significant changes only
+
+Tasks:
+1. Identify significant architectural changes from diff
+2. Assess impact on existing architecture analysis
+3. Determine if architecture update is warranted"""
 
 DIFF_ANALYSIS_MESSAGE = """
-You are the software architect who made the following analysis:
+Analyze architectural impact of code changes.
+
+Original Analysis:
 {analysis}
 
-There are incoming changes to the codebase:
+Code Changes:
 {diff_data}
 
-Your task is to analyze the changes and decide if they are significant enough to warrant an update to the architecture analysis.
+IMPACT ASSESSMENT:
+1. Review changes against existing architecture
+2. Assess architectural significance
+3. Provide impact score (0-10) with reasoning
 
-Please give a full feedback on the analysis and the changes which were made. Then reason on your decision, and give a score between 0 and 10,
-where 0 means no update is needed, and 10 means a complete update is needed.
+Scoring:
+0-2: Minor changes (variable/method renames)
+3-4: Small changes (new methods, logic updates)
+5-6: Medium changes (new classes, class logic changes)
+7-8: Large changes (new modules, flow changes)
+9-10: Major changes (architecture changes, major removals)
 
-1 and 2 are minor changes, meaning just renames of variables, classes, methods, etc.
-3 and 4 are small changes i.e. adding a new method, or changing the logic of an existing method.
-5 and 6 are medium changes, meaning adding a new class, or changing the logic of an existing class.
-7 and 8 are large changes, meaning adding a new module, or changing the logic of an existing module, changing the flow logic of the application.
-9 and 10 are very large changes, meaning changing the overall architecture of the application, or removing a significant part of the application.
-"""
+NO TOOLS REQUIRED - Use provided diff and analysis data only."""
 
-SYSTEM_META_ANALYSIS_MESSAGE = """You are a software architecture expert analyzing the architecture of a software project.
-Your task is to grasp the idea of what kind of project this is by reading relevant documentation, look at the source code structure and use your background expertise to understand the project.
-1. Read the project documentation and README files.
-2. Analyze the source code file structure and requirements.
-3. Use background knowledge to classify the project into a specific domain or category.
-4. Note what are the main architectural patterns used in such projects
-"""
+SYSTEM_META_ANALYSIS_MESSAGE = """You are a software architecture expert analyzing project characteristics.
+
+META ANALYSIS APPROACH:
+1. Read project documentation first (README, docs)
+2. Analyze source structure and requirements
+3. Use background knowledge for project classification
+4. Maximum 2 tool calls for missing critical information
+
+Tasks:
+1. Understand project domain and purpose
+2. Identify architectural patterns for this project type
+3. Classify project category and typical structures
+4. Note relevant architectural patterns
+
+Focus on project understanding, not detailed implementation analysis."""

@@ -33,10 +33,11 @@ class NoRootPackageFoundError(Exception):
 class PackageRelationsTool(BaseTool):
     name: str = "getPackageDependencies"
     description: str = (
-        "Retrieves the internal package dependencies for a given root package within a project. "
-        "This tool is useful for understanding the hierarchical relationships and dependencies "
-        "between different modules or sub-packages of a larger software component. "
-        "If the output is too long, it will be paginated. Use the 'line' parameter to retrieve subsequent chunks."
+        "Retrieves package dependencies for a root package. "
+        "**HIGH-LEVEL USE ONLY** - Use once per analysis to understand main package structure. "
+        "Shows hierarchical relationships between modules and sub-packages. "
+        "**CONSTRAINT**: Use only for primary project packages, not for detailed exploration. "
+        "Prefer analyzing CFG data before using this tool."
     )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False

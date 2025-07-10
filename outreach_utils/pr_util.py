@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 
+import os
 import re
 import shutil
 import subprocess
 import sys
-import os
 import time
-from git import Repo
-import requests
 from pathlib import Path
+
+import requests
 from dotenv import load_dotenv
+from git import Repo
 
 
 def load_github_token():
     """Load GitHub token from .env file"""
-    env_path = Path("/home/ivan/StartUp/CodeBoarding/.env")
+    env_path = Path("/Users/imilev/StartUp/CodeBoarding/.env")
     if not env_path.exists():
         print(f"Error: .env file not found at {env_path}")
         sys.exit(1)
@@ -169,9 +170,9 @@ def main():
     forked_ssh_url = fork_repository(original_owner, repo_name, github_token, organization)
 
     # # Define paths
-    forks_dir = Path("/home/ivan/StartUp/forks")
+    forks_dir = Path("/Users/imilev/StartUp/forks")
     repo_path = forks_dir / repo_name
-    source_dir = Path(f"/home/ivan/StartUp/GeneratedOnBoardings/{repo_name}")
+    source_dir = Path(f"/Users/imilev/StartUp/GeneratedOnBoardings/{repo_name}")
     target_dir = repo_path / ".codeboarding"
 
     # Create forks directory if it doesn't exist

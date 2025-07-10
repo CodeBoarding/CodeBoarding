@@ -16,9 +16,10 @@ class ReadFileInput(BaseModel):
 class ReadFileTool(BaseTool):
     name: str = "readFile"
     description: str = (
-        "Reads a specified Python file, returning 200 lines of content centered around the requested line number. "
-        "This tool is useful for examining source code in detail, by focusing on a specific section of a file. "
-        "It only works with Python (.py) files."
+        "Reads specific Python file content around a target line number. "
+        "**PRECISION USE** - Only when specific implementation details are needed that CFG cannot provide. "
+        "Returns 200 lines centered on the requested line. "
+        "**AVOID** exploratory reading - use only when you know exactly what to examine."
     )
     args_schema: Optional[ArgsSchema] = ReadFileInput
     return_direct: bool = False

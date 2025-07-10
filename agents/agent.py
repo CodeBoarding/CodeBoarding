@@ -4,8 +4,8 @@ import time
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_aws import ChatBedrockConverse
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 

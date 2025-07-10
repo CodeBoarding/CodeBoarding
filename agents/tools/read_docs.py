@@ -17,11 +17,11 @@ class ReadDocsFile(BaseModel):
 class ReadDocsTool(BaseTool):
     name: str = "readDocs"
     description: str = (
-        "Reads documentation files from the repository. "
-        "If no file_path is provided, reads the README.md. "
-        "Returns content centered around the specified line number (300 lines of content). "
-        "Always includes a list of all other available documentation files. "
-        "Works with .md, .rst, .txt and .html files. DON'T USE THIS TO READ SOURCE CODE FILES!"
+        "Reads project documentation files (README, .md, .rst, .txt). "
+        "**PROJECT CONTEXT TOOL** - Use early in analysis to understand project purpose and architecture. "
+        "Defaults to README.md if no path specified. "
+        "**EFFICIENT CONTEXT** - Provides project understanding without code analysis. "
+        "Focus on architecture sections, not detailed API documentation."
     )
     args_schema: Optional[ArgsSchema] = ReadDocsFile
     return_direct: bool = False

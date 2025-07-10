@@ -3,7 +3,7 @@ import logging
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
 
 
@@ -38,6 +38,7 @@ class AbstractionAgent(CodeBoardingAgent):
             meta_context=meta_context_str,
             project_type=project_type
         )
+        print(prompt)
         parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
         self.context['cfg_insight'] = parsed_response
         return parsed_response

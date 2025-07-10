@@ -9,12 +9,11 @@ from agents.agent_responses import Component
 class GetCFGTool(BaseTool):
     name: str = "getControlFlowGraph"
     description: str = (
-        "Retrieves the **complete control flow graph (CFG)** for the entire project. "
-        "This tool provides a graphical representation (in DOT format) of "
-        "all function and method calls across the codebase, illustrating "
-        "the execution flow and inter-function relationships. "
-        "It's useful for understanding the overall architecture and call sequences "
-        "within the project. This tool requires no input arguments."
+        "Retrieves complete project control flow graph (CFG) showing all method calls. "
+        "**PRIMARY ANALYSIS TOOL** - Use this first to understand project execution flow. "
+        "Provides graphical representation of function/method relationships. "
+        "**ESSENTIAL DATA** - Analyze this output thoroughly before using other tools. "
+        "No input arguments required."
     )
     cfg: dict[Any, list[Any]] = None
 

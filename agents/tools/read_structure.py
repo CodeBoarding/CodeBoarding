@@ -12,13 +12,11 @@ from .utils import read_dot_file
 class CodeStructureTool(BaseTool):
     name: str = "getClassHierarchy"
     description: str = (
-        "Retrieves the internal class structure and hierarchy for a given root package within a project. "
-        "This tool is useful for understanding how classes are organized, inherit from each other, "
-        "and relate within a specific software package or module. "
-        "The output is a detailed representation (e.g., a DOT graph format string) illustrating "
-        "these class relationships and their hierarchy. "
-        "It helps to visualize the internal architecture of a package. "
-        "If the output is too long, it will be paginated. Use the 'line' parameter to retrieve subsequent chunks."
+        "Retrieves class hierarchy and structure for a specific root package. "
+        "**STRATEGIC USE ONLY** - Use once per analysis phase when component relationships are unclear from CFG. "
+        "Provides internal class organization and inheritance patterns. "
+        "**LIMIT**: Use only when CFG data is insufficient for understanding component boundaries. "
+        "Focus on main packages only - avoid utility/helper package analysis."
     )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False

@@ -22,12 +22,11 @@ class ModuleInput(BaseModel):
 class CodeReferenceReader(BaseTool):
     name: str = "getPythonSourceCode"
     description: str = (
-        "Retrieves the source code for a specified Python module, class, function, or method. "
-        "Provide the complete Python import path (fully qualified name) to the target. "
-        "For example, to get the source code for a module, use `langchain.tools.tool`. "
-        "To get the source code for a specific class or function, use `langchain_core.output_parsers.JsonOutputParser` "
-        "or `langchain.agents.create_react_agent`. "
-        "The tool will return the relevant block of source code, including line numbers for context."
+        "Retrieves source code for specific Python modules, classes, or functions. "
+        "**USE SPARINGLY** - Only when CFG analysis lacks critical implementation details. "
+        "Provide complete import path (e.g., 'django.core.management.base.BaseCommand'). "
+        "**WARNING**: Each call is expensive. Prefer analyzing CFG data first. "
+        "Only use when component responsibilities cannot be determined from CFG or package dependencies."
     )
     args_schema: Optional[ArgsSchema] = ModuleInput
     return_direct: bool = False
