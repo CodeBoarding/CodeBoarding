@@ -49,6 +49,8 @@ class CodeBoardingAgent:
     def _invoke(self, prompt):
         """Unified agent invocation method."""
         max_retries = 3
+        base_wait_time = 20  # Starting with shorter initial wait time
+
         for attempt in range(max_retries):
             try:
                 print(prompt)
@@ -61,9 +63,32 @@ class CodeBoardingAgent:
                     return agent_response.content
                 if type(agent_response.content) == list:
                     return "".join([message for message in agent_response.content])
-            except (ResourceExhausted, Exception) as e:
-                logging.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
-                time.sleep(60)  # Wait before retrying
+            except Exception as e:
+                # Identify AWS throttling exceptions
+                if "ThrottlingException" in str(type(e)) or "Too many tokens per day" in str(e):
+                    # Exponential backoff
+                    wait_time = base_wait_time * (2 ** attempt)
+                    logging.warning(f"AWS Bedrock throttling (attempt {attempt + 1}/{max_retries}). "
+                                    f"Waiting {wait_time} seconds before retry. Error: {e}")
+                    time.sleep(wait_time)
+                elif isinstance(e, ResourceExhausted):
+                    wait_time = base_wait_time * (2 ** attempt)
+                    logging.warning(f"Resource exhausted (attempt {attempt + 1}/{max_retries}). "
+                                    f"Waiting {wait_time} seconds before retry. Error: {e}")
+                    time.sleep(wait_time)
+                else:
+                    logging.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
+                    time.sleep(base_wait_time)
+
+                # If this was our last retry attempt
+                if attempt == max_retries - 1:
+                    logging.error(f"Failed after {max_retries} attempts. Last error: {e}")
+                    return f"I encountered a service limitation while processing your request. " \
+                           f"The system is currently experiencing high demand (Error: {type(e).__name__}). " \
+                           f"Please try again in a few minutes with a shorter or reformulated question."
+
+        # This should never be reached due to the return in the last retry attempt
+        return "Error: Maximum retries exceeded. Please try again later."
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
@@ -71,10 +96,16 @@ class CodeBoardingAgent:
 
     def _parse_response(self, prompt, response, return_type):
         extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
-        if response.strip() == "":
+        if response is None or response.strip() == "":
             logging.error(f"Empty response for prompt: {prompt}")
-        result = extractor.invoke(response)["responses"][0]
-        return return_type.model_validate(result)
+        for _ in range(3):
+            try:
+                result = extractor.invoke(response)["responses"][0]
+                return return_type.model_validate(result)
+            except Exception as e:
+                logging.error(f"Error parsing response: {e}. Retrying...")
+                time.sleep(60)
+        raise ValueError(f"Failed to parse response after multiple attempts: {response}")
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         for component in analysis.components:
