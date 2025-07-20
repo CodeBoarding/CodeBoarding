@@ -95,10 +95,8 @@ if __name__ == "__main__":
         #     continue
         # if "python" not in langs.lower():
         #     continue
-        try:
-            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-            # companies.add(company)
-        except Exception as e:
-            logging.error(f"Failed to generate docs for {repo}: {e}")
-        finally:
-            remove_temp_repo_folder(temp_repo_folder)
+        # try:
+        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+        # companies.add(company)
+        # except Exception as e:
+        #     logging.error(f"Failed to generate docs for {repo}: {e}")
