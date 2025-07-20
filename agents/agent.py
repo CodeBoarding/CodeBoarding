@@ -46,9 +46,9 @@ class CodeBoardingAgent:
         # As we cannot pass env files to someone's system
         self.api_key = os.getenv("GOOGLE_API_KEY")
 
-    def _invoke(self, prompt):
+    def _invoke(self, prompt) -> str:
         """Unified agent invocation method."""
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
                 print(prompt)
@@ -64,17 +64,28 @@ class CodeBoardingAgent:
             except (ResourceExhausted, Exception) as e:
                 logging.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
                 time.sleep(60)  # Wait before retrying
+        logging.error("Max retries reached. Failed to get response from the agent.")
+        return "Could not get response from the agent."
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
         return self._parse_response(prompt, response, type)
 
-    def _parse_response(self, prompt, response, return_type):
+    def _parse_response(self, prompt, response, return_type, max_retries=5):
+        if max_retries == 0:
+            logging.error(f"Max retries reached for parsing response: {response}")
+            raise Exception(f"Max retries reached for parsing response: {response}")
+
         extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
-        if response.strip() == "":
+        if response is None or response.strip() == "":
             logging.error(f"Empty response for prompt: {prompt}")
-        result = extractor.invoke(response)["responses"][0]
-        return return_type.model_validate(result)
+        try:
+            result = extractor.invoke(response)["responses"][0]
+            return return_type.model_validate(result)
+        except (ResourceExhausted, Exception) as e:
+            logging.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
+            time.sleep(60)
+            return self._parse_response(prompt, response, return_type, max_retries - 1)
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         for component in analysis.components:
