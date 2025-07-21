@@ -18,7 +18,7 @@ class ReadFileTool(BaseTool):
     description: str = (
         "Reads specific Python file content around a target line number. "
         "**PRECISION USE** - Only when specific implementation details are needed that CFG cannot provide. "
-        "Returns 200 lines centered on the requested line. "
+        "Returns 300 lines centered on the requested line. "
         "**AVOID** exploratory reading - use only when you know exactly what to examine."
     )
     args_schema: Optional[ArgsSchema] = ReadFileInput
@@ -75,18 +75,18 @@ class ReadFileTool(BaseTool):
             return f"Error: Line number {line_number} is out of range (0-{total_lines - 1})"
 
         # Calculate start and end line numbers based on the specified requirements
-        if line_number < 100:
+        if line_number < 150:
             start_line = 0
-            end_line = min(total_lines, 200)
+            end_line = min(total_lines, 300)
         else:
-            # Center 200 lines around the specified line number
-            start_line = max(0, line_number - 100)
-            end_line = min(total_lines, start_line + 200)
+            # Center 300 lines around the specified line number
+            start_line = max(0, line_number - 150)
+            end_line = min(total_lines, start_line + 300)
 
-            # If we're close to the end of the file and can't get 200 lines,
-            # adjust the start line to get as many lines as possible (up to 200)
-            if end_line - start_line < 200 and start_line > 0:
-                potential_start = max(0, total_lines - 200)
+            # If we're close to the end of the file and can't get 300 lines,
+            # adjust the start line to get as many lines as possible (up to 300)
+            if end_line - start_line < 300 and start_line > 0:
+                potential_start = max(0, total_lines - 300)
                 if potential_start < start_line:
                     start_line = potential_start
 
