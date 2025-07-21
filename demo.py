@@ -36,7 +36,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
         return
 
     generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                                 output_dir=temp_repo_folder, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "2")))
+                                 output_dir=temp_repo_folder, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")))
     analysis_files = generator.generate_analysis()
 
     for file in analysis_files:
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # data_rows = rows[1:]
     # repos = [(row[2], row[0], row[3]) for row in data_rows]
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/django/django", ]
+    repos = ["https://github.com/iossifovlab/gpf", ]
     #          "https://github.com/lastmile-ai/mcp-agent"]
     for repo in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
@@ -95,8 +95,9 @@ if __name__ == "__main__":
         #     continue
         # if "python" not in langs.lower():
         #     continue
-        # try:
-        generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+        try:
+            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
         # companies.add(company)
-        # except Exception as e:
-        #     logging.error(f"Failed to generate docs for {repo}: {e}")
+        except Exception as e:
+            logging.error(f"Failed to generate docs for {repo}: {e}")
+        remove_temp_repo_folder(temp_repo_folder)

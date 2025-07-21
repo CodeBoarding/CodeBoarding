@@ -55,7 +55,9 @@ Current analysis:
 VALIDATION APPROACH:
 1. Review the current analysis first to identify gaps
 2. Use **getClassHierarchy** only if component structure needs clarification
-3. Maximum 1 tool call for this validation phase
+3. Use **getSourceReference** to ensure all components have source file references
+4. Use **readFile** if the source reference is to a full file
+5. Use **getFileStructure** if the source reference is to a directory/package
 
 Tasks:
 1. Validate component boundaries based on existing analysis
@@ -104,7 +106,7 @@ Original Analysis:
 
 FEEDBACK INTEGRATION:
 1. Evaluate feedback relevance to the analysis
-2. Use tools sparingly - maximum 2 calls if critical information is missing
+2. Use tools sparingly - only if critical information is missing
 3. Focus on addressing specific feedback points
 
 Tasks:

@@ -32,6 +32,9 @@ class ValidatorAgent(CodeBoardingAgent):
     def validate_references(self, analysis: AnalysisInsights):
         info = []
         for component in analysis.components:
+            if not component.referenced_source_code:
+                info.append(f"Component {component.name} has no source code references. "
+                            f"Retry finding the proper source code reference via `getPythonSourceCode` tool. Or at least the correct file path with the `readFile` path.")
             for ref in component.referenced_source_code:
                 if not ref.reference_file:
                     info.append(f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "

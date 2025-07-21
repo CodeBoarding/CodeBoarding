@@ -4,8 +4,8 @@ import time
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
-from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 
@@ -20,10 +20,13 @@ from static_analyzer.reference_lines import find_fqn_location
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, cfg, system_message):
         self._setup_env_vars()
-        self.llm = ChatBedrockConverse(
-            model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # Cross-region inference profile format
-            region_name="us-east-1",
-            temperature=0
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+            api_key=self.api_key,
         )
         self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
         self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
@@ -98,14 +101,54 @@ class CodeBoardingAgent:
                 try:
                     qname = reference.qualified_name.replace(":", ".")
                     parts = qname.split(".")
+                    found = False
+
+                    # Try to find as a specific qualified name first
                     for i in range(len(parts)):
                         sub_fqn = ".".join(parts[i:])
                         result = find_fqn_location(file_string, sub_fqn)
                         if result:
                             reference.reference_start_line = result[0]
                             reference.reference_end_line = result[1]
+                            found = True
                             break
+
+                    # If not found as qualified name, try to find as directory/package
+                    if not found:
+                        # Try different combinations as potential directory paths
+                        for i in range(len(parts)):
+                            potential_dir = "/".join(parts[i:])
+                            # Check if this could be a directory reference in imports or path strings
+                            if self._find_directory_reference(file_string, potential_dir, parts[i:]):
+                                # For directory/package references, leave line numbers as None
+                                # since they refer to entire files or directories
+                                reference.reference_start_line = None
+                                reference.reference_end_line = None
+                                break
                 except Exception as e:
                     logging.warning(f"Error finding reference lines for {reference.qualified_name}: {e}")
-
         return analysis
+
+    def _find_directory_reference(self, file_content: str, dir_path: str, parts: list) -> bool:
+        """
+        Check if the directory path or its parts are referenced in the file content.
+        This handles cases where qualified_name refers to a package/directory.
+        """
+        lines = file_content.lower()
+        dir_path_lower = dir_path.lower()
+
+        # Check for direct directory path references
+        if dir_path_lower in lines:
+            return True
+
+        # Check for import statements that might reference the package
+        for part in parts:
+            part_lower = part.lower()
+            # Look for import patterns
+            if f"import {part_lower}" in lines or f"from {part_lower}" in lines:
+                return True
+            # Look for path-like references
+            if f"/{part_lower}/" in lines or f".{part_lower}." in lines:
+                return True
+
+        return False
