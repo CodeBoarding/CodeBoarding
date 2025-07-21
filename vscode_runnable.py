@@ -37,7 +37,7 @@ def partial_updates(component_to_update_name: str, analysis_to_update_name: str)
                                  temp_folder=analysis_folder,
                                  repo_name=args.project_name,
                                  output_dir=analysis_folder,
-                                 depth_level=2)
+                                 depth_level=1)
     generator.pre_analysis()
 
     # Load the analysis for which we want to extend the component
