@@ -1,10 +1,11 @@
+import logging
 import os
+import re
+from collections import defaultdict
 from collections import deque
 from pathlib import Path
-import logging
+
 import pydot
-from collections import defaultdict
-import re
 
 
 class DotGraphTransformer:
@@ -64,9 +65,6 @@ class DotGraphTransformer:
             else:
                 result[src].append(dst)
 
-        final_msg = "The control flow graph looks like:\n"
-        # for k, v in filtered_call_map.items():
-        #     final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
         class2class = build_class_to_class_map(result)
         final_msg = format_class_call_map(class2class)
 

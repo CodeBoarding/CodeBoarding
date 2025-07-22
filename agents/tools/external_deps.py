@@ -30,7 +30,6 @@ class ExternalDepsTool(BaseTool):
         "requirements-test.txt",
         "dev-requirements.txt",
         "test-requirements.txt",
-        # "pyproject.toml",
         "setup.py",
         "setup.cfg",
         "Pipfile",

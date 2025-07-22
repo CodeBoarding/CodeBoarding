@@ -54,7 +54,6 @@ class CodeBoardingAgent:
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                print(prompt)
                 response = self.agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]}
                 )

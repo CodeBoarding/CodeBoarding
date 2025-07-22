@@ -76,28 +76,30 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting up…")
     # Load the repos.csv:
+    import csv
 
     companies = set()
     langs = "python"
-    # with open("/home/ivan/StartUp/CodeBoarding/enhanced_python_repositories_with_languages.csv", "r") as f:
-    #     csv_reader = csv.reader(f)
-    #     rows = list(csv_reader)  # Read all rows into a list
-    #
-    #     # Skip the header
-    # data_rows = rows[1:]
-    # repos = [(row[2], row[0], row[3]) for row in data_rows]
+    with open("/home/ivan/StartUp/CodeBoarding/enhanced_python_repositories_with_languages.csv", "r") as f:
+        csv_reader = csv.reader(f)
+        rows = list(csv_reader)  # Read all rows into a list
+
+        # Skip the header
+    data_rows = rows[1:]
+    repos = [(row[2], row[0], row[3]) for row in data_rows]
     # Extract the second column (repo URLs)
-    repos = ["https://github.com/iossifovlab/gpf", ]
+    # repos = ["https://github.com/pinterest/pinterest-python-sdk",
     #          "https://github.com/lastmile-ai/mcp-agent"]
-    for repo in tqdm(repos, desc="Generating docs for repos"):
+    for repo, company, lang in tqdm(repos, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
-        # if company in companies:
-        #     continue
-        # if "python" not in langs.lower():
-        #     continue
+        if company in companies:
+            continue
+        if "python" not in langs.lower():
+            continue
         try:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-        # companies.add(company)
+            companies.add(company)
         except Exception as e:
             logging.error(f"Failed to generate docs for {repo}: {e}")
-        remove_temp_repo_folder(temp_repo_folder)
+        finally:
+            remove_temp_repo_folder(temp_repo_folder)
