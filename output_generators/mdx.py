@@ -133,10 +133,8 @@ def component_header(component_name: str, link_files: List[Path], demo: bool = F
     """
     Generate a header for a component with its name and a link to its details.
     """
-    if not demo:
-        return ""
     sanitized_name = sanitize(component_name)
-    if contains_json(sanitized_name, link_files):
+    if contains_json(sanitized_name, link_files) and demo:
         return f"### {component_name} [[Expand]](./{sanitized_name})"
     else:
         return f"### {component_name}"
