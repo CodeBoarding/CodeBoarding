@@ -70,6 +70,7 @@ def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
         raise ValueError(f"Branch {branch} does not exist in the repository {repo_dir}: {repo.heads}")
     logging.info(f"Checking out branch {branch}.")
     repo.git.checkout(branch)
+    repo.git.pull()  # Ensure we have the latest changes
 
 
 def store_token():
