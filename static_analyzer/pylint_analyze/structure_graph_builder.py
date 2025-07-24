@@ -61,6 +61,10 @@ def collect_paths(root: Path) -> list[Path]:
         if (dir_ / "__init__.py").is_file():
             collected.append(dir_)
             return
+        # Check if the directory has any Python files
+        if any(child.suffix == ".py" for child in dir_.iterdir()):
+            collected.append(dir_)
+            return
         for child in dir_.iterdir():
             if child.is_dir():
                 _walk(child)
