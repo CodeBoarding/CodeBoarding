@@ -39,19 +39,11 @@ class ReadDocsTool(BaseTool):
         """
         Walk the directory and collect all markdown files.
         """
-        for path in root_project_dir.rglob('*.md'):
-            if "tests" not in path.parts and "test" not in path.name.lower():
-                self.cached_files.append(path)
-            self.cached_files.append(path)
-        for path in root_project_dir.rglob('*.rst'):
-            if "tests" not in path.parts and "test" not in path.name.lower():
-                self.cached_files.append(path)
-        for path in root_project_dir.rglob('*.txt'):
-            if "tests" not in path.parts and "test" not in path.name.lower():
-                self.cached_files.append(path)
-        for path in root_project_dir.rglob('*.html'):
-            if "tests" not in path.parts and "test" not in path.name.lower():
-                self.cached_files.append(path)
+        for pattern in ['*.md', '*.rst', '*.txt', '*.html']:
+            for path in root_project_dir.rglob(pattern):
+                # Exclude test files and directories
+                if "tests" not in path.parts and "test" not in path.name.lower():
+                    self.cached_files.append(path)
         self.cached_files.sort(key=lambda x: len(x.parts))
 
     def _run(self, file_path: Optional[str] = None, line_number: Optional[int] = 0) -> str:

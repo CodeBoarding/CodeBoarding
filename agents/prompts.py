@@ -89,12 +89,14 @@ Tasks:
 2. Identify critical interaction pathways from provided data
 3. Produce final components (max 8, optimally 5) following {project_type} patterns
 4. Ensure max 2 relationships between any component pair
-5. Provide single paragraph project explanation
+5. Provide single paragraph which explains the architecture and main flow
 
 CONSTRAINTS:
 - Use only provided analysis data - no additional tool calls
 - Focus on highest level architectural components
-- Exclude utility/logging components from final analysis"""
+- Exclude utility/logging components from final analysis
+- Give a brief overview of the architecture and main flow in a single paragraph called description
+- Describe the overview of the architecture and the main flow in a single paragraph, to be used as intro description to the project"""
 
 FEEDBACK_MESSAGE = """You are a software architect receiving expert feedback on your analysis.
 

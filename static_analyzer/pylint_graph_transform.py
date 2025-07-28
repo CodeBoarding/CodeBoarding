@@ -38,7 +38,7 @@ class DotGraphTransformer:
                 if entry.endswith('.py'):
                     has_python = True
                     break
-            if has_python and "test" not in current_dir and "example" not in current_dir:
+            if has_python and "test" not in str(current_dir) and "example" not in str(current_dir):
                 package_name = Path(current_dir).name
                 self.packages.append(package_name)
                 continue
