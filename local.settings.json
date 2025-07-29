@@ -1,8 +1,0 @@
-{
-  "IsEncrypted": false,
-  "Values": {
-      "AzureWebJobsStorage": "UseDevelopmentStorage=true",// or add same storage connection string which has been added in the Azure function app in portal.
-      "FUNCTIONS_WORKER_RUNTIME": "python",
-      "AzureWebJobsFeatureFlags":"EnableWorkerIndexing"
-  }
-}
