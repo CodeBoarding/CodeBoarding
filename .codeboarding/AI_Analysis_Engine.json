@@ -1,0 +1,84 @@
+{
+  "description": "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent",
+      "description": "Acts as the abstract base class for all specialized agents. It implements the Template Method pattern by providing a standardized framework that encapsulates common concerns like AI model interaction, environment variable setup, and access to shared tools. This ensures consistency and reusability across the agent system.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents/agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "PlannerAgent",
+      "description": "Serves as the primary entry point and controller for an analysis task. It receives a high-level goal, breaks it down into a concrete, multi-step execution plan, and orchestrates the workflow by delegating specific tasks to the appropriate worker agents (like the AbstractionAgent).",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents/planner_agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent",
+      "description": "The main worker agent responsible for executing the core architectural analysis. Following the plan from the PlannerAgent, it interacts directly with source code and Control Flow Graph (CFG) data to identify patterns, define component responsibilities, and generate the raw insights for the codebase model.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents/abstraction_agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAnalyzingAgent",
+      "description": "A specialized agent that enables efficient incremental updates. It analyzes Git diffs to identify the precise scope of code changes, allowing the system to perform targeted re-analysis instead of processing the entire codebase again. This implements a form of Change Data Capture (CDC).",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents/diff_analyzer.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "inherits from",
+      "src_name": "PlannerAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "inherits from",
+      "src_name": "AbstractionAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "inherits from",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "PlannerAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "uses",
+      "src_name": "PlannerAgent",
+      "dst_name": "DiffAnalyzingAgent"
+    }
+  ]
+}

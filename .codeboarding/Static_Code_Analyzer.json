@@ -1,0 +1,148 @@
+{
+  "description": "An analysis of the CodeBoarding subsystem reveals a sophisticated architecture orchestrated by a central controller that leverages static analysis tools to feed a suite of AI-driven agents.",
+  "components": [
+    {
+      "name": "DiagramGenerator",
+      "description": "Acts as the central orchestrator for the entire analysis process. It initiates static analysis, transforms the resulting data, and manages a pool of AI agents to produce a hierarchical, component-based model of the software architecture.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/diagram_analysis/diagram_generator.py",
+          "reference_start_line": 23,
+          "reference_end_line": 211
+        },
+        {
+          "qualified_name": "generate_static_analysis",
+          "reference_file": null,
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "generate_analysis",
+          "reference_file": null,
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "process_component",
+          "reference_file": null,
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "CallGraphBuilder",
+      "description": "Parses the source code using AST techniques to construct a directed graph representing the relationships and call sequences between functions and methods.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.pylint_analyze.call_graph_builder.CallGraphBuilder",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_analyze/call_graph_builder.py",
+          "reference_start_line": 88,
+          "reference_end_line": 240
+        }
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "StructureGraphBuilder",
+      "description": "Uses `pyreverse` (from the Pylint suite) to analyze the source code and build a high-level graph outlining the code's architectural structure, including class definitions, inheritance, and module relationships.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.pylint_analyze.structure_graph_builder.StructureGraphBuilder",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_analyze/structure_graph_builder.py",
+          "reference_start_line": 7,
+          "reference_end_line": 48
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "DotGraphTransformer",
+      "description": "Ingests `.dot` file outputs from both the `CallGraphBuilder` and `StructureGraphBuilder`. It transforms these raw graphs into a standardized format suitable for consumption by the AI agents.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.pylint_graph_transform.DotGraphTransformer",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_graph_transform.py",
+          "reference_start_line": 10,
+          "reference_end_line": 75
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "AI Agents",
+      "description": "A collection of specialized agents (e.g., `DetailsAgent`, `AbstractionAgent`, `PlannerAgent`) that consume the prepared graph data. Each agent performs a specific task, such as abstracting high-level components, analyzing component details, or planning the next steps of the analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.Agent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/details_agent.py",
+          "reference_start_line": 11,
+          "reference_end_line": 103
+        },
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/abstraction_agent.py",
+          "reference_start_line": 9,
+          "reference_end_line": 95
+        },
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/planner_agent.py",
+          "reference_start_line": 9,
+          "reference_end_line": 27
+        }
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Invokes and controls",
+      "src_name": "DiagramGenerator",
+      "dst_name": "CallGraphBuilder"
+    },
+    {
+      "relation": "Invokes and controls",
+      "src_name": "DiagramGenerator",
+      "dst_name": "StructureGraphBuilder"
+    },
+    {
+      "relation": "Invokes and controls",
+      "src_name": "DiagramGenerator",
+      "dst_name": "DotGraphTransformer"
+    },
+    {
+      "relation": "Provides analysis data to",
+      "src_name": "DiagramGenerator",
+      "dst_name": "AI Agents"
+    },
+    {
+      "relation": "Produces .dot graph for",
+      "src_name": "CallGraphBuilder",
+      "dst_name": "DotGraphTransformer"
+    },
+    {
+      "relation": "Produces .dot graph for",
+      "src_name": "StructureGraphBuilder",
+      "dst_name": "DotGraphTransformer"
+    },
+    {
+      "relation": "Provides standardized graph to",
+      "src_name": "DotGraphTransformer",
+      "dst_name": "DiagramGenerator"
+    },
+    {
+      "relation": "Consumes analysis data from",
+      "src_name": "AI Agents",
+      "dst_name": "DiagramGenerator"
+    }
+  ]
+}

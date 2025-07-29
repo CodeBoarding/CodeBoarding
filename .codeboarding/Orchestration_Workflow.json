@@ -1,0 +1,92 @@
+{
+  "description": "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.",
+  "components": [
+    {
+      "name": "Local App Entrypoint",
+      "description": "Serves as the command-line interface for the application. It parses user arguments, prepares the local environment, and initiates the analysis process.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "local_app.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "GitHub Action Entrypoint",
+      "description": "Acts as the entry point when the system is run within a GitHub Actions CI/CD pipeline. It interprets GitHub event data and triggers the analysis, often for pull request checks.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "github_action.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Analysis Orchestrator",
+      "description": "The central coordinator that defines and executes the analysis workflow. It invokes the `Planner Agent` to create an analysis plan, then passes this plan to the `Abstraction Agent` to perform the detailed analysis, managing the state between steps.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CodeBoarding.diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/diagram_analysis/diagram_generator.py",
+          "reference_start_line": 23,
+          "reference_end_line": 211
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Planner Agent",
+      "description": "A specialized AI agent responsible for creating a high-level analysis plan. It determines the steps required to analyze the target codebase based on the initial request from the orchestrator.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/planner_agent.py",
+          "reference_start_line": 9,
+          "reference_end_line": 27
+        }
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Abstraction Agent",
+      "description": "A specialized AI agent that performs the main code analysis. It executes the step-by-step plan provided to it by the `Analysis Orchestrator` to generate architectural abstractions.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/abstraction_agent.py",
+          "reference_start_line": 9,
+          "reference_end_line": 95
+        }
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "invokes",
+      "src_name": "Local App Entrypoint",
+      "dst_name": "Analysis Orchestrator"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "GitHub Action Entrypoint",
+      "dst_name": "Analysis Orchestrator"
+    },
+    {
+      "relation": "Invokes to generate analysis plan",
+      "src_name": "Analysis Orchestrator",
+      "dst_name": "Planner Agent"
+    },
+    {
+      "relation": "Invokes with plan to generate abstractions",
+      "src_name": "Analysis Orchestrator",
+      "dst_name": "Abstraction Agent"
+    }
+  ]
+}

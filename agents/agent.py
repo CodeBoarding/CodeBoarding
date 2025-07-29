@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_aws import ChatBedrockConverse
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 
@@ -20,14 +23,7 @@ from static_analyzer.reference_lines import find_fqn_location
 class CodeBoardingAgent:
     def __init__(self, repo_dir, output_dir, cfg, system_message):
         self._setup_env_vars()
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0,
-            max_tokens=None,
-            timeout=None,
-            max_retries=2,
-            api_key=self.api_key,
-        )
+        self.llm = self._initialize_llm()
         self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
         self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
         self.read_structure_tool = CodeStructureTool(analysis_dir=output_dir)
@@ -45,9 +41,59 @@ class CodeBoardingAgent:
 
     def _setup_env_vars(self):
         load_dotenv()
-        # When compiling for VSCode paste the key here directly!
-        # As we cannot pass env files to someone's system
-        self.api_key = os.getenv("GOOGLE_API_KEY")
+        # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.google_api_key = os.getenv("GOOGLE_API_KEY")
+        self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
+        self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    def _initialize_llm(self):
+        """Initialize LLM based on available API keys with priority order."""
+        if self.openai_api_key:
+            logging.info("Using OpenAI LLM")
+            return ChatOpenAI(
+                model="gpt-4o",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=self.openai_api_key,
+            )
+        elif self.anthropic_api_key:
+            logging.info("Using Anthropic LLM")
+            return ChatAnthropic(
+                model="claude-3-5-sonnet-20241022",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=self.anthropic_api_key,
+            )
+        elif self.google_api_key:
+            logging.info("Using Google Gemini LLM")
+            return ChatGoogleGenerativeAI(
+                model="gemini-2.5-pro",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
+                api_key=self.google_api_key,
+            )
+        elif self.aws_bearer_token:
+            logging.info("Using AWS Bedrock Converse LLM")
+            return ChatBedrockConverse(
+                model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                temperature=0,
+                max_tokens=4096,
+                region_name=self.aws_region,
+                credentials_profile_name=None,
+            )
+        else:
+            raise ValueError(
+                "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
+                "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
+            )
 
     def _invoke(self, prompt) -> str:
         """Unified agent invocation method."""
@@ -100,54 +146,14 @@ class CodeBoardingAgent:
                 try:
                     qname = reference.qualified_name.replace(":", ".")
                     parts = qname.split(".")
-                    found = False
-
-                    # Try to find as a specific qualified name first
                     for i in range(len(parts)):
                         sub_fqn = ".".join(parts[i:])
                         result = find_fqn_location(file_string, sub_fqn)
                         if result:
                             reference.reference_start_line = result[0]
                             reference.reference_end_line = result[1]
-                            found = True
                             break
-
-                    # If not found as qualified name, try to find as directory/package
-                    if not found:
-                        # Try different combinations as potential directory paths
-                        for i in range(len(parts)):
-                            potential_dir = "/".join(parts[i:])
-                            # Check if this could be a directory reference in imports or path strings
-                            if self._find_directory_reference(file_string, potential_dir, parts[i:]):
-                                # For directory/package references, leave line numbers as None
-                                # since they refer to entire files or directories
-                                reference.reference_start_line = None
-                                reference.reference_end_line = None
-                                break
                 except Exception as e:
                     logging.warning(f"Error finding reference lines for {reference.qualified_name}: {e}")
+
         return analysis
-
-    def _find_directory_reference(self, file_content: str, dir_path: str, parts: list) -> bool:
-        """
-        Check if the directory path or its parts are referenced in the file content.
-        This handles cases where qualified_name refers to a package/directory.
-        """
-        lines = file_content.lower()
-        dir_path_lower = dir_path.lower()
-
-        # Check for direct directory path references
-        if dir_path_lower in lines:
-            return True
-
-        # Check for import statements that might reference the package
-        for part in parts:
-            part_lower = part.lower()
-            # Look for import patterns
-            if f"import {part_lower}" in lines or f"from {part_lower}" in lines:
-                return True
-            # Look for path-like references
-            if f"/{part_lower}/" in lines or f".{part_lower}." in lines:
-                return True
-
-        return False

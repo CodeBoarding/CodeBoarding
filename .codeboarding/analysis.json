@@ -1,279 +1,155 @@
 {
-  "description": "This project outlines a comprehensive system for automated code analysis and documentation generation, leveraging a modular architecture with specialized AI agents and a robust codebase interaction layer. It focuses on orchestrating analysis workflows, interacting with codebases, and generating various output formats, including new MDX support and enhanced external integrations.",
+  "description": "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.",
   "components": [
     {
-      "name": "Agent Orchestration & Workflow",
-      "description": "This is the central control unit responsible for initiating, managing, and coordinating the entire analysis workflow. It orchestrates the execution of various AI agents, processes their outputs, and directs the generation of final documentation. It defines the overall pipeline for code analysis and documentation.",
+      "name": "Orchestration & Workflow",
+      "description": "The central coordinator that manages the end-to-end analysis pipeline. It initiates static analysis, triggers the AI engine, coordinates with the persistence layer for caching and differential checks, and sends the final, validated results to the output generator.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/diagram_analysis/diagram_generator.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "local_app.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "can_expand": true
     },
     {
-      "name": "AI Agent Core",
-      "description": "Provides the foundational structure and common functionalities for all AI agents and many tools within the system. It defines the base class (`CodeBoardingAgent`) and mechanisms for parsing agent invocations, handling responses, and fixing source code references, ensuring consistency and reusability across agents. The recent changes indicate a refinement of core agent behaviors, including how responses are structured and prompts are managed.",
+      "name": "Static Code Analyzer",
+      "description": "Responsible for the initial, non-AI parsing of the source code. It uses AST-based techniques to build foundational data structures like call graphs and structure graphs, transforming raw code into a structured format that the AI engine can interpret.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "static_analyzer/pylint_analyze/call_graph_builder.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_analyze/call_graph_builder.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "agents.agent_responses",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/agent_responses.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "static_analyzer/pylint_analyze/structure_graph_builder.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_analyze/structure_graph_builder.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "agents.prompts",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/prompts.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "static_analyzer/pylint_graph_transform.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/static_analyzer/pylint_graph_transform.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "can_expand": true
     },
     {
-      "name": "Specialized AI Agents",
-      "description": "A collection of AI agents, each designed for a specific analysis task within the software engineering workflow. These agents inherit from the AI Agent Core and leverage the Codebase Interaction & Analysis Layer to perform their specialized functions, such as generating abstractions, extracting details, analyzing diffs, or validating code. Recent updates suggest ongoing refinements and an expansion of validation logic within these specialized agents.",
+      "name": "AI Analysis Engine",
+      "description": "The cognitive core of the system. It is a multi-agent framework that interprets the data from the static analyzer. It uses a collection of specialized agents (e.g., Planner, Abstraction, Diff Analyzer) to collaboratively identify architectural patterns, understand component roles, and build a comprehensive model of the codebase.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.abstraction_agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/abstraction_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "agents/agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "agents.details_agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/details_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "agents/planner_agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "agents.diff_analyzer",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/diff_analyzer.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "agents/abstraction_agent.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "agents.meta_agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/meta_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.planner_agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/planner_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.validator_agent",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/validator_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "agents/diff_analyzer.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "can_expand": true
     },
     {
-      "name": "Codebase Interaction & Analysis Layer",
-      "description": "This comprehensive layer provides tools for AI agents to interact with the codebase, file system, and repository. It also encompasses the static code analysis engine, performing tasks like building call graphs and structure graphs. This component abstracts away the complexities of data retrieval and static analysis, serving as the primary data source for the AI agents. Recent changes indicate enhancements in methods for reading source code, configuration, and external dependencies, alongside a refactoring or simplification of documentation reading functionalities. New repository utilities also bolster this layer's capabilities.",
+      "name": "Analysis Persistence",
+      "description": "Handles the serialization and deserialization of the analysis model to a storable format (JSON). This enables the caching of results, which is critical for performance and for supporting efficient incremental analysis by providing a baseline for comparison.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.tools.read_source",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_source.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_packages",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_packages.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_file_structure",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_file_structure.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_cfg",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_cfg.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.get_method_invocations",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/get_method_invocations.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_file",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_file.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_docs",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_docs.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.external_deps",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/external_deps.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_git_diff",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_git_diff.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "agents.tools.read_structure",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/agents/tools/read_structure.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "static_analyzer.pylint_analyze.call_graph_builder",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/static_analyzer/pylint_analyze/call_graph_builder.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "static_analyzer.pylint_analyze.structure_graph_builder",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/static_analyzer/pylint_analyze/structure_graph_builder.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "static_analyzer.pylint_graph_transform",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/static_analyzer/pylint_graph_transform.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "static_analyzer.reference_lines",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/static_analyzer/reference_lines.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "repo_utils.git_diff",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/repo_utils/git_diff.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "repo_utils",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "diagram_analysis/analysis_json.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "can_expand": false
     },
     {
-      "name": "Output & External Services",
-      "description": "This component is responsible for transforming the analysis results into various human-readable output formats (e.g., HTML, Markdown, Sphinx RST, and now MDX) and handling external communications. It ensures that the generated documentation is well-formatted and facilitates integration with external systems, such as updating pull request links and new GitHub Actions integration for automated processes. This component has seen significant expansion with the introduction of MDX output generation and enhanced external integration capabilities.",
+      "name": "Output Generator",
+      "description": "The final stage in the pipeline. It consumes the rich, structured analysis model produced by the AI Engine and renders it into various human-readable formats, such as Markdown, HTML, and Sphinx documentation. This decouples the core analysis logic from its presentation.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/output_generators/html.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "output_generators/markdown.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "output_generators.markdown",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/output_generators/markdown.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "output_generators/html.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "output_generators.sphinx",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/output_generators/sphinx.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "output_generators.mdx",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/output_generators/mdx.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "outreach_utils.pr_util",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/outreach_utils/pr_util.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
-        },
-        {
-          "qualified_name": "github_action",
-          "reference_file": "/mnt/e/StartUp/CodeBoarding/github_action.py",
-          "reference_start_line": 1,
-          "reference_end_line": 1
+          "qualified_name": "output_generators/sphinx.py",
+          "reference_file": "/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding/output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "Interacts with",
-      "src_name": "Agent Orchestration & Workflow",
-      "dst_name": "Specialized AI Agents"
+      "relation": "invokes analysis on",
+      "src_name": "Orchestration & Workflow",
+      "dst_name": "Static Code Analyzer"
     },
     {
-      "relation": "Uses",
-      "src_name": "Agent Orchestration & Workflow",
-      "dst_name": "Output & External Services"
+      "relation": "returns raw graph data to",
+      "src_name": "Static Code Analyzer",
+      "dst_name": "Orchestration & Workflow"
     },
     {
-      "relation": "Provides foundation for",
-      "src_name": "AI Agent Core",
-      "dst_name": "Specialized AI Agents"
+      "relation": "consults and saves analysis to",
+      "src_name": "Orchestration & Workflow",
+      "dst_name": "Analysis Persistence"
     },
     {
-      "relation": "Interacts with",
-      "src_name": "AI Agent Core",
-      "dst_name": "Codebase Interaction & Analysis Layer"
+      "relation": "provides cached analysis to",
+      "src_name": "Analysis Persistence",
+      "dst_name": "Orchestration & Workflow"
     },
     {
-      "relation": "Extends",
-      "src_name": "Specialized AI Agents",
-      "dst_name": "AI Agent Core"
+      "relation": "invokes with graph data",
+      "src_name": "Orchestration & Workflow",
+      "dst_name": "AI Analysis Engine"
     },
     {
-      "relation": "Uses",
-      "src_name": "Specialized AI Agents",
-      "dst_name": "Codebase Interaction & Analysis Layer"
+      "relation": "returns high-level model to",
+      "src_name": "AI Analysis Engine",
+      "dst_name": "Orchestration & Workflow"
     },
     {
-      "relation": "Provides services to",
-      "src_name": "Codebase Interaction & Analysis Layer",
-      "dst_name": "AI Agent Core"
-    },
-    {
-      "relation": "Provides services to",
-      "src_name": "Codebase Interaction & Analysis Layer",
-      "dst_name": "Specialized AI Agents"
-    },
-    {
-      "relation": "Receives data from",
-      "src_name": "Output & External Services",
-      "dst_name": "Agent Orchestration & Workflow"
-    },
-    {
-      "relation": "Receives data from",
-      "src_name": "Output & External Services",
-      "dst_name": "Specialized AI Agents"
+      "relation": "sends model for rendering to",
+      "src_name": "Orchestration & Workflow",
+      "dst_name": "Output Generator"
     }
   ]
 }

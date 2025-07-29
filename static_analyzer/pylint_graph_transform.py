@@ -1,10 +1,8 @@
-import logging
 import os
-import re
-from collections import defaultdict
+import json
 from collections import deque
 from pathlib import Path
-
+import logging
 import pydot
 
 
@@ -33,12 +31,7 @@ class DotGraphTransformer:
                 continue
 
             # Check if this directory has an __init__.py file
-            has_python = False
-            for entry in entries:
-                if entry.endswith('.py'):
-                    has_python = True
-                    break
-            if has_python and "test" not in str(current_dir) and "example" not in str(current_dir):
+            if '__init__.py' in entries and "test" not in current_dir and "example" not in current_dir:
                 package_name = Path(current_dir).name
                 self.packages.append(package_name)
                 continue
@@ -70,57 +63,7 @@ class DotGraphTransformer:
             else:
                 result[src].append(dst)
 
-        class2class = build_class_to_class_map(result)
-        final_msg = format_class_call_map(class2class)
-
+        final_msg = "The control flow graph looks like:\n"
+        for k, v in result.items():
+            final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
         return result, final_msg
-
-
-def is_class_method(qualified_name):
-    parts = qualified_name.strip('"').split('.')
-    if len(parts) < 3:
-        return False  # not enough depth: module.class.method
-    class_candidate = parts[-2]
-    return re.match(r'^[A-Z]', class_candidate) is not None
-
-
-def extract_class_path(qualified_name):
-    parts = qualified_name.strip('"').split('.')
-    if len(parts) < 3:
-        return None  # not a class method
-    class_name = parts[-2]
-    if not re.match(r'^[A-Z]', class_name):
-        return None
-    return '.'.join(parts[:-1])  # module.Class
-
-
-def build_class_to_class_map(call_map):
-    class_calls = defaultdict(set)
-
-    for caller, callees in call_map.items():
-        caller_cls = extract_class_path(caller)
-        if not caller_cls:
-            continue  # skip non-class callers
-
-        for callee in callees:
-            callee_cls = extract_class_path(callee)
-            if callee_cls:
-                class_calls[caller_cls].add(callee_cls)
-
-    return class_calls
-
-
-def format_class_call_map(class_calls):
-    msg = ""
-    for caller_cls, callee_classes in class_calls.items():
-        msg += f"Class: {caller_cls} calls:\n"
-        for callee_cls in sorted(callee_classes):
-            msg += f"  - {callee_cls}\n"
-    return msg
-
-
-if __name__ == '__main__':
-    a, b = DotGraphTransformer(
-        dot_file="/home/ivan/StartUp/CodeBoarding/temp/2a05acf3d46e4cb88289e5c644ca925f/call_graph.dot",
-        repo_location="/home/ivan/StartUp/CodeBoarding/repos/django").transform()
-    print(len(b))

@@ -1,5 +1,7 @@
+import argparse
 import logging
 import os
+import shutil
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -71,35 +73,68 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
     return repo_name
 
 
+def copy_files(temp_folder: Path, output_dir: Path):
+    """Copy all markdown and JSON files from temp folder to output directory."""
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Created output directory: {output_dir}")
+    
+    # Copy markdown files
+    markdown_files = list(temp_folder.glob("*.md"))
+    # Copy JSON files
+    json_files = list(temp_folder.glob("*.json"))
+    
+    all_files = markdown_files + json_files
+    
+    if not all_files:
+        logging.warning(f"No markdown or JSON files found in {temp_folder}")
+        return
+    
+    for file in all_files:
+        dest_file = output_dir / file.name
+        shutil.copy2(file, dest_file)
+        logging.info(f"Copied {file.name} to {dest_file}")
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate onboarding documentation for Git repositories",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python demo.py https://github.com/user/repo1
+  python demo.py https://github.com/user/repo1 --output-dir ./docs
+  python demo.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
+  python demo.py --help
+        """
+    )
+    parser.add_argument(
+        'repositories',
+        nargs='+',
+        help='One or more Git repository URLs to generate documentation for'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=Path,
+        help='Directory to copy generated markdown files to'
+    )
+
+    args = parser.parse_args()
+
     load_dotenv()
     setup_logging()
     logging.info("Starting up…")
-    # Load the repos.csv:
-    import csv
 
-    companies = set()
-    langs = "python"
-    with open("/home/ivan/StartUp/CodeBoarding/enhanced_python_repositories_with_languages.csv", "r") as f:
-        csv_reader = csv.reader(f)
-        rows = list(csv_reader)  # Read all rows into a list
-
-        # Skip the header
-    data_rows = rows[1:]
-    repos = [(row[2], row[0], row[3]) for row in data_rows]
-    # Extract the second column (repo URLs)
-    # repos = ["https://github.com/pinterest/pinterest-python-sdk",
-    #          "https://github.com/lastmile-ai/mcp-agent"]
-    for repo, company, lang in tqdm(repos, desc="Generating docs for repos"):
+    for repo in tqdm(args.repositories, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
-        if company in companies:
-            continue
-        if "python" not in langs.lower():
-            continue
         try:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-            companies.add(company)
+            
+            # Copy markdown files to output directory if specified
+            if args.output_dir:
+                copy_files(temp_repo_folder, args.output_dir)
+                
         except Exception as e:
             logging.error(f"Failed to generate docs for {repo}: {e}")
-        finally:
-            remove_temp_repo_folder(temp_repo_folder)
+        # finally:
+        #     remove_temp_repo_folder(temp_repo_folder)
