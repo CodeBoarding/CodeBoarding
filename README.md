@@ -1,15 +1,16 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
-CodeBoarding - Automated diagram code visualzation.
-Generate accurate diagram representations of your project. To ensure accuracy and scalability we use both static analysis and LLM Agents.
+**CodeBoarding** is a open-source codebase analysis tool that generates high-level system diagrams using static analysis and LLM agents, that humans and agents can interact with.  
+It’s designed to support onboarding, documentation, and system comprehension at scale.
 
-🌐 **Website**: [www.codeboarding.org](https://www.codeboarding.org)
+- Extracts module relationships from source code using static analysis
+- Refines structure and labels with an LLM agent (multi-provider support)
+- Outputs interactive diagrams (Mermaid.js) for integration into docs, IDEs, CI/CD.
 
-## 🚀 Try It Now
+📄 Interactive Demo: [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings)  
+🌐 Official Website: [www.codeboarding.org](https://www.codeboarding.org)
 
-The **fastest and easiest** way to try CodeBoarding is through our online demo: [codeboarding.org/demo](https://www.codeboarding.org/demo)
-
-## 🧱 Architecture
+## 🧩 How it works
 
 For detailed architecture information, see our [diagram documentation](.codeboarding/on_boarding).
 ```mermaid
@@ -31,7 +32,7 @@ graph LR
     click AI_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/tree/main/.codeboarding/AI_Analysis_Engine.md" "Details"
 ```
 
-## Setup
+## 📌 Setup
 
 Setup the environment:
 
@@ -42,20 +43,12 @@ uv pip sync
 
 ### Environment Variables
 
-You need **only one** API key from the supported LLM providers. We support:
-- **OpenAI** (GPT-4o)
-- **Anthropic** (Claude-3.5-Sonnet)
-- **Google** (Gemini-2.5-Flash)
-- **AWS Bedrock** (Claude-3.7-Sonnet)
-
-Required environment variables:
-
 ```bash
 # LLM Provider (choose one)
-OPENAI_API_KEY=                    # OpenAI API key
-ANTHROPIC_API_KEY=                 # Anthropic API key  
-GOOGLE_API_KEY=                    # Google API key
-AWS_BEARER_TOKEN_BEDROCK=          # AWS Bedrock token
+OPENAI_API_KEY=                 
+ANTHROPIC_API_KEY=                 
+GOOGLE_API_KEY=                  
+AWS_BEARER_TOKEN_BEDROCK=         
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
@@ -72,14 +65,14 @@ LANGSMITH_PROJECT=                # Optional: LangSmith project name
 LANGCHAIN_API_KEY=                # Optional: LangChain API key
 ```
 
-
-## Demos:
-Check out our generated diagram examples: [GeneratedOnBoardings Repository](https://github.com/CodeBoarding/GeneratedOnBoardings)
-
-We've visualized for **300+ projects** already - check if your favorite project is there!
+> 💡 **Tip:** Our experience has shown that using **Google Gemini‑2.5‑Pro** yields the best results for complex diagram generation tasks.
 
 
-Here are few examples 
+## 🖥️  Examples:
+
+
+We have visualized **over 300+ popular open-source projects**. See examples:
+
 
 ### ChatTTS:
 ```mermaid
@@ -115,6 +108,7 @@ graph LR
     click Velocity_Inference_Engine href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Velocity_Inference_Engine.md" "Details"
     click System_Utilities_Configuration href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/System_Utilities_Configuration.md" "Details"
 ```
+
 
 ## PyTorch:
 ```mermaid
@@ -185,12 +179,16 @@ graph LR
 ```
 
 
+Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeBoarding/GeneratedOnBoardings)
+
+## 🚀 Integrations
+
+CodeBoarding integrates effortlessly into your existing development workflows:
+
+- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Visualize directly from your IDE.
+- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate diagram generation in CI/CD.
+- 🔗 [**MCP Server**](https://github.com/CodeBoarding/mcp-server): Lightweight, internal documentation server powered by LLMs.
 
 ## 🔮 Vision
 
 **Unified high-level representation for codebases that is accurate** (hence static analysis). This representation is used by both people and agents → fully integrated in IDEs, MCP servers, and development workflows.
-
-🔌 **Integrations**:
-- [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) - Generate onboarding docs directly in your IDE
-- [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) - Automate documentation generation in CI/CD
-- [MCP Server](https://github.com/CodeBoarding/mcp-server) - Your vibe code assistant get latest docs for your dependencies in a concise matter which won't blow the context window
