@@ -9,13 +9,6 @@ Generate accurate diagram representations of your project. To ensure accuracy an
 
 The **fastest and easiest** way to try CodeBoarding is through our online demo: [codeboarding.org/demo](https://www.codeboarding.org/demo)
 
-### 🎯 Generations
-
-Check out our generated onboarding documentation examples: [GeneratedOnBoardings Repository](https://github.com/CodeBoarding/GeneratedOnBoardings)
-
-We've generated onboarding documentation for **300+ projects** - check if your favorite project is there!
-
-
 ## 🧱 Architecture
 
 For detailed architecture information, see our [diagram documentation](.codeboarding/on_boarding).
@@ -79,13 +72,119 @@ LANGSMITH_PROJECT=                # Optional: LangSmith project name
 LANGCHAIN_API_KEY=                # Optional: LangChain API key
 ```
 
-### Compile the project for vscode extension:
 
-```bash
-pyinstaller --onefile vscode_runnable.py
+## Demos:
+Check out our generated diagram examples: [GeneratedOnBoardings Repository](https://github.com/CodeBoarding/GeneratedOnBoardings)
+
+We've visualized for **300+ projects** already - check if your favorite project is there!
+
+
+Here are few examples 
+
+### ChatTTS:
+```mermaid
+graph LR
+    ChatTTS_Core_Orchestrator["ChatTTS Core Orchestrator"]
+    Text_Processing_Module["Text Processing Module"]
+    Speech_Synthesis_Models["Speech Synthesis Models"]
+    Velocity_Inference_Engine["Velocity Inference Engine"]
+    System_Utilities_Configuration["System Utilities & Configuration"]
+    ChatTTS_Core_Orchestrator -- "Orchestrates Text Flow" --> Text_Processing_Module
+    ChatTTS_Core_Orchestrator -- "Receives Processed Text" --> Text_Processing_Module
+    ChatTTS_Core_Orchestrator -- "Orchestrates Synthesis Flow" --> Speech_Synthesis_Models
+    ChatTTS_Core_Orchestrator -- "Receives Audio Output" --> Speech_Synthesis_Models
+    ChatTTS_Core_Orchestrator -- "Initializes & Configures" --> System_Utilities_Configuration
+    ChatTTS_Core_Orchestrator -- "Loads Assets" --> System_Utilities_Configuration
+    Text_Processing_Module -- "Receives Raw Text" --> ChatTTS_Core_Orchestrator
+    Text_Processing_Module -- "Provides Processed Text" --> ChatTTS_Core_Orchestrator
+    Speech_Synthesis_Models -- "Receives Processed Data" --> ChatTTS_Core_Orchestrator
+    Speech_Synthesis_Models -- "Generates Audio Output" --> ChatTTS_Core_Orchestrator
+    Speech_Synthesis_Models -- "Delegates Inference To" --> Velocity_Inference_Engine
+    Speech_Synthesis_Models -- "Receives Inference Results" --> Velocity_Inference_Engine
+    Speech_Synthesis_Models -- "Utilizes GPU Resources" --> System_Utilities_Configuration
+    Speech_Synthesis_Models -- "Accesses Model Config" --> System_Utilities_Configuration
+    Velocity_Inference_Engine -- "Executes Model Inference" --> Speech_Synthesis_Models
+    Velocity_Inference_Engine -- "Returns Inference Output" --> Speech_Synthesis_Models
+    Velocity_Inference_Engine -- "Receives Engine Configuration" --> System_Utilities_Configuration
+    System_Utilities_Configuration -- "Provides Assets & Config" --> ChatTTS_Core_Orchestrator
+    System_Utilities_Configuration -- "Provides GPU & Config" --> Speech_Synthesis_Models
+    System_Utilities_Configuration -- "Provides Engine Config" --> Velocity_Inference_Engine
+    click ChatTTS_Core_Orchestrator href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/ChatTTS_Core_Orchestrator.md" "Details"
+    click Text_Processing_Module href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Text_Processing_Module.md" "Details"
+    click Speech_Synthesis_Models href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Speech_Synthesis_Models.md" "Details"
+    click Velocity_Inference_Engine href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Velocity_Inference_Engine.md" "Details"
+    click System_Utilities_Configuration href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/System_Utilities_Configuration.md" "Details"
 ```
 
-Then the executable can be found in the `dist` folder.
+## PyTorch:
+```mermaid
+graph LR
+    Core_Tensor_Operations["Core Tensor Operations"]
+    Neural_Network_Construction["Neural Network Construction"]
+    Automatic_Differentiation_Engine["Automatic Differentiation Engine"]
+    Optimization_Algorithms["Optimization Algorithms"]
+    Performance_Optimization["Performance Optimization"]
+    Distributed_Training_Infrastructure["Distributed Training Infrastructure"]
+    Model_Deployment_Optimization["Model Deployment & Optimization"]
+    Meta_Programming_Code_Generation["Meta-Programming & Code Generation"]
+    Functional_Programming_Transforms["Functional Programming Transforms"]
+    Neural_Network_Construction -- "relies on" --> Core_Tensor_Operations
+    Automatic_Differentiation_Engine -- "uses" --> Core_Tensor_Operations
+    Automatic_Differentiation_Engine -- "uses" --> Neural_Network_Construction
+    Optimization_Algorithms -- "optimizes" --> Neural_Network_Construction
+    Optimization_Algorithms -- "uses" --> Automatic_Differentiation_Engine
+    Performance_Optimization -- "optimizes" --> Core_Tensor_Operations
+    Performance_Optimization -- "optimizes" --> Neural_Network_Construction
+    Distributed_Training_Infrastructure -- "uses" --> Core_Tensor_Operations
+    Distributed_Training_Infrastructure -- "uses" --> Automatic_Differentiation_Engine
+    Distributed_Training_Infrastructure -- "uses" --> Neural_Network_Construction
+    Model_Deployment_Optimization -- "optimizes" --> Neural_Network_Construction
+    Model_Deployment_Optimization -- "optimizes" --> Core_Tensor_Operations
+    Meta_Programming_Code_Generation -- "generates code for" --> Core_Tensor_Operations
+    Meta_Programming_Code_Generation -- "generates code for" --> Neural_Network_Construction
+    Functional_Programming_Transforms -- "uses" --> Core_Tensor_Operations
+    Functional_Programming_Transforms -- "uses" --> Automatic_Differentiation_Engine
+    click Core_Tensor_Operations href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Core Tensor Operations.md" "Details"
+    click Neural_Network_Construction href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Neural Network Construction.md" "Details"
+    click Automatic_Differentiation_Engine href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Automatic Differentiation Engine.md" "Details"
+    click Optimization_Algorithms href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Optimization Algorithms.md" "Details"
+    click Performance_Optimization href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Performance Optimization.md" "Details"
+    click Distributed_Training_Infrastructure href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Distributed Training Infrastructure.md" "Details"
+    click Model_Deployment_Optimization href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Model Deployment & Optimization.md" "Details"
+    click Meta_Programming_Code_Generation href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Meta-Programming & Code Generation.md" "Details"
+    click Functional_Programming_Transforms href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Functional Programming Transforms.md" "Details"
+```
+
+### FastAPI:
+```mermaid
+graph LR
+    Application_Core["Application Core"]
+    Middleware["Middleware"]
+    Routing["Routing"]
+    Request_Handling_Validation["Request Handling & Validation"]
+    Dependency_Injection["Dependency Injection"]
+    Security["Security"]
+    Response_Handling["Response Handling"]
+    API_Documentation["API Documentation"]
+    Application_Core -- "sends request to" --> Middleware
+    Middleware -- "forwards request to" --> Routing
+    Routing -- "uses" --> Request_Handling_Validation
+    Routing -- "uses" --> Dependency_Injection
+    Routing -- "provides data for" --> Response_Handling
+    Dependency_Injection -- "enables" --> Security
+    Response_Handling -- "sends response to" --> Middleware
+    API_Documentation -- "inspects" --> Routing
+    API_Documentation -- "inspects" --> Request_Handling_Validation
+    click Application_Core href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Application_Core.md" "Details"
+    click Middleware href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Middleware.md" "Details"
+    click Routing href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Routing.md" "Details"
+    click Request_Handling_Validation href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Request_Handling_Validation.md" "Details"
+    click Dependency_Injection href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Dependency_Injection.md" "Details"
+    click Security href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Security.md" "Details"
+    click API_Documentation href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/API_Documentation.md" "Details"
+```
+
+
 
 ## 🔮 Vision
 
