@@ -8,7 +8,7 @@ class TestReadFileTool(unittest.TestCase):
 
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        self.tool = ReadFileTool(repo_dir=Path("/home/ivan/StartUp/CodeBoarding/repos/django"))
+        self.tool = ReadFileTool(repo_dir=Path("./repos/django"))
 
     def test_read_file(self):
         # Test the _run method with a valid file path

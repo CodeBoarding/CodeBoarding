@@ -38,6 +38,7 @@ class StructureGraphBuilder:
                 picked = f
                 break
         if picked is None:
+            import pdb; pdb.set_trace()
             raise RuntimeError("pyreverse did not produce a classes_*.dot file!")
 
         picked.replace(f"{self.output_dir}/{package.name}_{self.dot_file}")

@@ -87,7 +87,7 @@ def store_token():
     subprocess.run(["git", "credential", "approve"], input=cred)
 
 
-def upload_onboarding_materials(project_name, output_dir, repo_dir="/home/ivan/StartUp/GeneratedOnBoardings/"):
+def upload_onboarding_materials(project_name, output_dir, repo_dir):
     repo = Repo(repo_dir)
     origin = repo.remote(name='origin')
     origin.pull()

@@ -144,18 +144,3 @@ def component_header_html(component_name: str, link_files: List[Path]) -> str:
         return f'<h3 id="{sanitized_name}">{component_name} <a href="./{sanitized_name}.html">[Expand]</a></h3>'
     else:
         return f'<h3 id="{sanitized_name}">{component_name}</h3>'
-
-
-if __name__ == "__main__":
-    import dotenv
-
-    dotenv.load_dotenv()
-    p = Path("/home/ivan/StartUp/CodeBoarding/temp/483eb9f6c8fd46f1a0f9dc6d40da4bbd")
-    jsons = list(p.rglob("*.json"))
-    for file in jsons:
-        if file.stem == "codeboarding_version":
-            continue
-        with open(file, 'r') as f:
-            model = AnalysisInsights.model_validate_json(f.read())
-            html_content = generate_html_file(file.stem, model, "django", "./", linked_files=jsons,
-                                              temp_dir=Path("./"), demo=False)

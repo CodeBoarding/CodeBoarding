@@ -7,7 +7,7 @@ from agents.tools import CodeReferenceReader
 class TestReadSourceTool(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        self.tool = CodeReferenceReader(repo_dir=Path("/home/ivan/StartUp/CodeBoarding/repos/django"))
+        self.tool = CodeReferenceReader(repo_dir=Path("./repos/django"))
 
     def test_read_method(self):
         # Test the _run method with a valid package

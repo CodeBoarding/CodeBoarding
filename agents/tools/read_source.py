@@ -176,8 +176,3 @@ def transform_path(path):
     parts = path.split('.')
     parts[-1] = pascal_to_snake_segment(parts[-1])  # only transform the last segment
     return '.'.join(parts)
-
-
-if __name__ == '__main__':
-    CodeReferenceReader(repo_dir=Path("/home/ivan/StartUp/CodeBoarding/repos/django"))._run(
-        "django.django.core.handlers.base.BaseHandler")

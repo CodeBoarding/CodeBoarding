@@ -7,7 +7,7 @@ from agents.tools.utils import read_dot_file
 class TestCFGTools(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        cfg = read_dot_file("/home/ivan/StartUp/CodeBoarding/temp/test/call_graph.dot")
+        cfg = read_dot_file("./temp/test/call_graph.dot")
         self.read_cfg = GetCFGTool(cfg)
         self.method_tool = MethodInvocationsTool(cfg)
 

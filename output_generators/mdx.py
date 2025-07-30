@@ -138,23 +138,3 @@ def component_header(component_name: str, link_files: List[Path], demo: bool = F
         return f"### {component_name} [[Expand]](./{sanitized_name})"
     else:
         return f"### {component_name}"
-
-
-if __name__ == "__main__":
-    # I want to test the MDX generation functionality
-    # Read all the analysis files from the /test directory
-    load_dotenv()
-    test_dir = Path("/home/ivan/StartUp/CodeBoarding/temp/test")
-    insights_files = list(test_dir.glob("*.json"))
-    for insights_file in insights_files:
-        if "version" in insights_file.stem:
-            continue
-        with open(insights_file, 'r') as f:
-            insights = AnalysisInsights.model_validate_json(f.read())
-        generate_mdx_file(
-            file_name=insights_file.stem,
-            insights=insights,
-            project="mcp-agent",
-            repo_ref="https://github.com/lastmile-ai/mcp-agent/blob/main",
-            temp_dir=test_dir,
-            linked_files=insights_files)

@@ -148,18 +148,3 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
         return f"{header_text}\n{header_underline}\n\n:ref:`Expand <{sanitized_name}>`"
     else:
         return f"{header_text}\n{header_underline}"
-
-
-if __name__ == '__main__':
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    path = Path("/home/ivan/StartUp/CodeBoarding/temp/5f0881ea72904ef89ead300afa8e01f8")
-    jsons = list(path.rglob("*.json"))
-    for file in jsons:
-        if file.stem == "codeboarding_version":
-            continue
-        with open(file, 'r') as f:
-            model = AnalysisInsights.model_validate_json(f.read())
-            generate_rst_file(file.stem, model, "markitdown", "./", linked_files=jsons, temp_dir=Path("./"),
-                              demo=False)

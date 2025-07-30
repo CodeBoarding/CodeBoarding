@@ -1,5 +1,10 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
+![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Site: CodeBoarding.org](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2)](https://codeboarding.org)
+
+
 **CodeBoarding** is an open-source codebase analysis tool that generates high-level system diagrams using static analysis and LLM agents, that humans and agents can interact with.  
 It’s designed to support onboarding, documentation, and comprehension for large, complex systems.
 

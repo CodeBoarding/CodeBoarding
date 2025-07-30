@@ -8,7 +8,7 @@ class TestReadDocsTool(unittest.TestCase):
 
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        self.tool = ReadDocsTool(repo_dir=Path("/home/ivan/StartUp/CodeBoarding/repos/yfinance"))
+        self.tool = ReadDocsTool(repo_dir=Path("./repos/yfinance"))
 
     def test_read_default_readme(self):
         # Test the _run method with no parameters (should default to README.md)
