@@ -1,14 +1,14 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
-**CodeBoarding** is a open-source codebase analysis tool that generates high-level system diagrams using static analysis and LLM agents, that humans and agents can interact with.  
-It’s designed to support onboarding, documentation, and system comprehension at scale.
+**CodeBoarding** is an open-source codebase analysis tool that generates high-level system diagrams using static analysis and LLM agents, that humans and agents can interact with.  
+It’s designed to support onboarding, documentation, and comprehension for large, complex systems.
 
-- Extracts module relationships from source code using static analysis
-- Refines structure and labels with an LLM agent (multi-provider support)
+- Extract modules and their relationships based on the control flow graph of the project.
+- Builds different levels of abstraction with an LLM agent (multi-provider support)
 - Outputs interactive diagrams (Mermaid.js) for integration into docs, IDEs, CI/CD.
 
-📄 Interactive Demo: [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings)  
-🌐 Official Website: [www.codeboarding.org](https://www.codeboarding.org)
+📄 Existing visual generations: [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings)  
+🌐 Try for your open-source project: [www.codeboarding.org/demo](https://www.codeboarding.org/demo)
 
 ## 🧩 How it works
 
@@ -67,9 +67,13 @@ LANGCHAIN_API_KEY=                # Optional: LangChain API key
 
 > 💡 **Tip:** Our experience has shown that using **Google Gemini‑2.5‑Pro** yields the best results for complex diagram generation tasks.
 
+### Run it
+
+```bash
+python demo.py www.github.com/your_username/your_repository --output-dir path/to/output/directory
+```
 
 ## 🖥️  Examples:
-
 
 We have visualized **over 300+ popular open-source projects**. See examples:
 
@@ -183,11 +187,11 @@ Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeB
 
 ## 🚀 Integrations
 
-CodeBoarding integrates effortlessly into your existing development workflows:
+Codeboarding is integrated with everything we use:
 
-- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Visualize directly from your IDE.
+- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact with the diagram direclty in your IDE.
 - ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate diagram generation in CI/CD.
-- 🔗 [**MCP Server**](https://github.com/CodeBoarding/mcp-server): Lightweight, internal documentation server powered by LLMs.
+- 🔗 [**MCP Server**](https://github.com/CodeBoarding/mcp-server): Serves the consize documentation to your AI Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
 
 ## 🔮 Vision
 
