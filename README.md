@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/codeboarding-codeboarding-badge.png)](https://mseep.ai/app/codeboarding-codeboarding)
+
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
 ![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg) 
