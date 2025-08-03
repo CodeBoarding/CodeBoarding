@@ -130,3 +130,11 @@ def get_branch(repo_dir: Path) -> str:
     """
     repo = Repo(repo_dir)
     return repo.active_branch.name if repo.active_branch else "main"
+
+def get_repo_name(github_url: str):
+    url = github_url.rstrip('/') 
+    if url.lower().endswith('.git'): 
+        url = url[:-4] 
+        url = url.split(':')[-1] 
+        name = url.split('/')[-1] 
+        return Path(name)

@@ -12,7 +12,7 @@ from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
-from repo_utils import store_token, clone_repository, upload_onboarding_materials, get_branch
+from repo_utils import store_token, clone_repository, upload_onboarding_materials, get_branch, get_repo_name
 from utils import create_temp_repo_folder, caching_enabled, remove_temp_repo_folder
 
 
@@ -113,11 +113,6 @@ Examples:
         nargs='+',
         help='One or more Git repository URLs to generate documentation for'
     )
-    parser.add_argument(
-        '--output-dir',
-        type=Path,
-        help='Directory to copy generated markdown files to'
-    )
 
     args = parser.parse_args()
 
@@ -131,8 +126,9 @@ Examples:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
             
             # Copy markdown files to output directory if specified
-            if args.output_dir:
-                copy_files(temp_repo_folder, args.output_dir)
+            if os.getenv("ROOT_RESULT"):
+                output_dir = os.getenv("ROOT_RESULT") / get_repo_name(repo)
+                copy_files(temp_repo_folder, output_dir)
                 
         except Exception as e:
             logging.error(f"Failed to generate docs for {repo}: {e}")
