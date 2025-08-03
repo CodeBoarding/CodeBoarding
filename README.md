@@ -17,7 +17,7 @@ It’s designed to support onboarding, documentation, and comprehension for larg
 
 ## 🧩 How it works
 
-For detailed architecture information, see our [diagram documentation](.codeboarding/on_boarding).
+For detailed architecture information, see our [diagram documentation](.codeboarding/on_boarding.md).
 ```mermaid
 graph LR
     Orchestration_Workflow["Orchestration & Workflow"]
