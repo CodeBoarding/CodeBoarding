@@ -9,6 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
+from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 
@@ -41,12 +42,14 @@ class CodeBoardingAgent:
 
     def _setup_env_vars(self):
         load_dotenv()
-        # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock
+        # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock > Ollama
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
         self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
 
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
@@ -59,6 +62,7 @@ class CodeBoardingAgent:
                 timeout=None,
                 max_retries=2,
                 api_key=self.openai_api_key,
+                base_url=self.openai_base_url
             )
         elif self.anthropic_api_key:
             logging.info("Using Anthropic LLM")
@@ -88,6 +92,16 @@ class CodeBoardingAgent:
                 max_tokens=4096,
                 region_name=self.aws_region,
                 credentials_profile_name=None,
+            )
+        elif self.ollama_base_url:
+            logging.info("Using Ollama LLM")
+            return ChatOllama(
+                model="qwen2.5:32b-instruct",
+                base_url=self.ollama_base_url,
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2,
             )
         else:
             raise ValueError(
