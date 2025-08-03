@@ -40,6 +40,7 @@ dotenv==0.9.9
 duckdb==1.3.1
 dulwich==0.22.8
 dydantic==0.0.8
+editorconfig==0.17.1
 email-validator==2.2.0
 et-xmlfile==2.0.0
 exceptiongroup==1.2.2
@@ -51,6 +52,7 @@ findpython==0.6.3
 flatbuffers==25.2.10
 frozenlist==1.7.0
 gcloud==0.18.3
+ghp-import==2.1.0
 gitdb==4.0.12
 gitpython==3.1.44
 google-ai-generativelanguage==0.6.18
@@ -82,8 +84,10 @@ ipykernel==6.29.5
 ipython==8.35.0
 isort==6.0.1
 jedi==0.19.2
+jinja2==3.1.6
 jiter==0.10.0
 jmespath==1.0.1
+jsbeautifier==1.15.4
 jsonpatch==1.33
 jsonpointer==3.0.0
 jsonschema==4.25.0
@@ -115,6 +119,10 @@ matplotlib-inline==0.1.7
 mccabe==0.7.0
 mdurl==0.1.2
 memory-profiler==0.61.0
+mergedeep==1.3.4
+mkdocs==1.6.1
+mkdocs-get-deps==0.2.0
+mkdocs-mermaid2-plugin==1.2.1
 mpmath==1.3.0
 msal==1.32.3
 msal-extensions==1.3.1
@@ -136,6 +144,7 @@ ormsgpack==1.9.1
 packaging==25.0
 pandas==2.2.3
 parso==0.8.4
+pathspec==0.12.1
 pbs-installer==2025.4.9
 pdm==2.23.1
 pexpect==4.9.0
@@ -162,6 +171,7 @@ pyinstaller==6.13.0
 pyinstaller-hooks-contrib==2025.4
 pyjwt==2.10.1
 pylint==3.3.6
+pymdown-extensions==10.16.1
 pyparsing==3.2.3
 pyproject-hooks==1.2.0
 pytest==8.3.5
@@ -170,6 +180,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 pytz==2025.2
 pyyaml==6.0.2
+pyyaml-env-tag==1.1
 pyzmq==26.4.0
 referencing==0.36.2
 regex==2024.11.6
@@ -212,6 +223,7 @@ uuid==1.30
 uv==0.6.14
 uvicorn==0.23.2
 virtualenv==20.30.0
+watchdog==6.0.0
 wcwidth==0.2.13
 websockets==15.0.1
 werkzeug==3.1.3
