@@ -96,7 +96,7 @@ class CodeBoardingAgent:
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
             return ChatOllama(
-                model="qwen2.5:32b-instruct",
+                model="qwen3-coder:30b",
                 base_url=self.ollama_base_url,
                 temperature=0,
                 max_tokens=None,
