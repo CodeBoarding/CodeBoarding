@@ -73,8 +73,8 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=                 
 GOOGLE_API_KEY=                  
 AWS_BEARER_TOKEN_BEDROCK=
-OLLAMA_URL=
-OPENAI_BASE_URL                   # Optional - if you are running local endpoints         
+OLLAMA_BASE_URL=
+OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching

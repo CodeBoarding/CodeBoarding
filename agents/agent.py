@@ -44,12 +44,12 @@ class CodeBoardingAgent:
         load_dotenv()
         # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock > Ollama
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
         self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
 
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
