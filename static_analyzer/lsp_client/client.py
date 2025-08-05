@@ -4,13 +4,17 @@ import threading
 import time
 import os
 import sys
+import logging
+from tqdm import tqdm
 from pathlib import Path
-from collections import defaultdict
+from typing import List
 import pathspec
 import argparse
 
-# Set to True to see all JSON-RPC communication
-VERBOSE_LOGGING = False
+from static_analyzer.graph import CallGraph, Node
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class PyrightClient:
@@ -19,7 +23,7 @@ class PyrightClient:
     This client is designed to build a call graph of a Python project.
     """
 
-    def __init__(self, project_path: str):
+    def __init__(self, project_path: str, server_start_params: List[str], language_suffix: str = 'py'):
         """
         Initializes the client and starts the pyright-langserver process.
         """
@@ -27,20 +31,25 @@ class PyrightClient:
         if not self.project_path.is_dir():
             raise ValueError(f"Project path '{project_path}' does not exist or is not a directory.")
 
+        self.server_start_params = server_start_params
         self._process = None
         self._reader_thread = None
         self._shutdown_flag = threading.Event()
+        self.language_suffix = language_suffix
 
         self._message_id = 1
         self._responses = {}
         self._notifications = []
         self._lock = threading.Lock()
 
+        # Initialize CallGraph
+        self.call_graph = CallGraph()
+
     def start(self):
         """Starts the language server process and the message reader thread."""
-        print("Starting pyright-langserver...")
+        logger.info("Starting pyright-langserver...")
         self._process = subprocess.Popen(
-            ['pyright-langserver', '--stdio'],
+            self.server_start_params,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
@@ -66,9 +75,6 @@ class PyrightClient:
         body = json.dumps(request)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        if VERBOSE_LOGGING:
-            print(f"--> Sending request: {json.dumps(request, indent=2)}")
-
         self._process.stdin.write(message.encode('utf-8'))
         self._process.stdin.flush()
 
@@ -83,9 +89,6 @@ class PyrightClient:
         }
         body = json.dumps(notification)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
-
-        if VERBOSE_LOGGING:
-            print(f"--> Sending notification: {json.dumps(notification, indent=2)}")
 
         self._process.stdin.write(message.encode('utf-8'))
         self._process.stdin.flush()
@@ -106,9 +109,6 @@ class PyrightClient:
                 body = self._process.stdout.read(content_length).decode('utf-8')
                 response = json.loads(body)
 
-                if VERBOSE_LOGGING:
-                    print(f"<-- Received message: {json.dumps(response, indent=2)}")
-
                 if 'id' in response:
                     with self._lock:
                         self._responses[response['id']] = response
@@ -118,7 +118,7 @@ class PyrightClient:
 
             except (IOError, ValueError) as e:
                 if not self._shutdown_flag.is_set():
-                    print(f"Error reading from server: {e}")
+                    logger.error(f"Error reading from server: {e}")
                 break
 
     def _wait_for_response(self, message_id: int, timeout: int = 10):
@@ -133,7 +133,7 @@ class PyrightClient:
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
-        print("Initializing connection...")
+        logger.info("Initializing connection...")
         params = {
             'processId': os.getpid(),
             'rootUri': self.project_path.as_uri(),
@@ -154,7 +154,7 @@ class PyrightClient:
         if 'error' in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
 
-        print("Initialization successful.")
+        logger.info("Initialization successful.")
         self._send_notification('initialized', {})
 
     def _get_document_symbols(self, file_uri: str):
@@ -174,9 +174,9 @@ class PyrightClient:
         response = self._wait_for_response(req_id)
         return response.get('result')
 
-    def _get_outgoing_calls(self, item: dict):
-        """Gets outgoing calls for a call hierarchy item."""
-        req_id = self._send_request('callHierarchy/outgoingCalls', {'item': item})
+    def _get_incoming_calls(self, item: dict):
+        """Gets incoming calls for a call hierarchy item."""
+        req_id = self._send_request('callHierarchy/incomingCalls', {'item': item})
         response = self._wait_for_response(req_id)
         return response.get('result', [])
 
@@ -191,25 +191,34 @@ class PyrightClient:
                 flat_list.extend(self._flatten_symbols(symbol['children']))
         return flat_list
 
-    def build_call_graph(self) -> dict:
+    def _create_qualified_name(self, file_path: Path, symbol_name: str) -> str:
+        """Create a fully qualified name for a symbol."""
+        try:
+            rel_path = file_path.relative_to(self.project_path)
+            module_path = str(rel_path.with_suffix("")).replace("/", ".")
+            return f"{module_path}.{symbol_name}"
+        except ValueError:
+            # File is outside project root
+            return f"{file_path.name}.{symbol_name}"
+
+    def build_call_graph(self) -> CallGraph:
         """
         Builds the call graph for the entire project.
 
         Returns:
-            A dictionary where keys are caller functions and values are lists of
-            functions they call. Both are represented as formatted strings.
+            A CallGraph object containing all function call relationships.
         """
-        call_graph = defaultdict(set)
-        py_files = list(self.project_path.rglob('*.py'))
+        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
         spec = self.get_exclude_dirs()
         py_files = self.filter_python_files(py_files, spec)
         total_files = len(py_files)
-        print(f"Found {total_files} Python files. Analyzing...")
+        logger.info(f"Found {total_files} Python files. Analyzing...")
 
         if not py_files:
-            print("No Python files found in the project.")
-        for i, file_path in enumerate(py_files):
-            print(f"[{i + 1}/{total_files}] Processing: {file_path.relative_to(self.project_path)}")
+            logger.warning("No Python files found in the project.")
+            return self.call_graph
+
+        for i, file_path in tqdm(enumerate(py_files), desc="Processing files", total=total_files):
             file_uri = file_path.as_uri()
 
             # 1. Notify the server that the file is open
@@ -219,7 +228,7 @@ class PyrightClient:
                     'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
                 })
             except Exception as e:
-                print(f"  - Could not read file {file_path}: {e}")
+                logger.error(f"Could not read file {file_path}: {e}")
                 continue
 
             # 2. Get all functions/methods in the file
@@ -227,53 +236,94 @@ class PyrightClient:
             if not symbols:
                 continue
 
-            # 3. Iterate through symbols to find outgoing calls
+            # 3. Create nodes for all functions in this file
             function_symbols = self._flatten_symbols(symbols)
             if not function_symbols:
-                print(f"  - No functions found in {file_path}. Skipping.")
+                logger.debug(f"No functions found in {file_path}. Skipping.")
+                continue
+
+            # Create nodes for all functions in this file
+            for symbol in function_symbols:
+                qualified_name = self._create_qualified_name(file_path, symbol['name'])
+                range_info = symbol.get('range', {})
+                start_line = range_info.get('start', {}).get('line', 0)
+                end_line = range_info.get('end', {}).get('line', 0)
+
+                node = Node(
+                    fully_qualified_name=qualified_name,
+                    file_path=str(file_path),
+                    line_start=start_line,
+                    line_end=end_line
+                )
+                self.call_graph.add_node(node)
+                logger.debug(f"Added node: {qualified_name}")
+
+            # 4. Iterate through symbols to find incoming calls
             for symbol in function_symbols:
                 # Use the start of the selection range for the symbol's position
                 pos = symbol['selectionRange']['start']
-                caller_name = f"{file_path.relative_to(self.project_path)}::{symbol['name']}"
+                callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
 
                 # Prepare the call hierarchy at the function's position
                 hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
                 if not hierarchy_items:
+                    logger.warning(f"No call hierarchy items found for {callee_qualified_name}.")
                     continue
 
-                # Get outgoing calls from this function
-                if not hierarchy_items:
-                    print(f"  - No call hierarchy items found for {caller_name}. Skipping.")
+                # Get incoming calls to this function
                 for item in hierarchy_items:
-                    outgoing_calls = self._get_outgoing_calls(item)
-                    if not outgoing_calls:
-                        print(f"  - No outgoing calls found for {caller_name}.")
+                    incoming_calls = self._get_incoming_calls(item)
+                    if not incoming_calls:
+                        logger.warning(f"No incoming calls found for {callee_qualified_name}.")
                         continue
-                    for call in outgoing_calls:
-                        callee_item = call['to']
-                        callee_path = Path(callee_item['uri'].replace('file://', ''))
+                    for call in incoming_calls:
+                        caller_item = call['from']
+                        caller_path = Path(caller_item['uri'].replace('file://', ''))
+                        caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
 
-                        # Make path relative if it's within the project
+                        # Create node for caller if it doesn't exist (external function)
+                        if caller_qualified_name not in self.call_graph.nodes:
+                            caller_node = Node(
+                                fully_qualified_name=caller_qualified_name,
+                                file_path=str(caller_path),
+                                line_start=0,
+                                line_end=0
+                            )
+                            self.call_graph.add_node(caller_node)
+                            logger.debug(f"Added external node: {caller_qualified_name}")
+
+                        # Add edge from caller to callee
                         try:
-                            rel_path = callee_path.relative_to(self.project_path)
-                        except ValueError:
-                            rel_path = callee_path
+                            self.call_graph.add_edge(caller_qualified_name, callee_qualified_name)
+                            logger.info(f"Added edge: {caller_qualified_name} -> {callee_qualified_name}")
+                        except ValueError as e:
+                            logger.debug(f"Could not add edge: {e}")
 
-                        callee_name = f"{rel_path}::{callee_item['name']}"
-                        call_graph[caller_name].add(callee_name)
-                        print(f"  - {caller_name} calls {callee_name}")
-        print("Call graph construction complete.")
-        # Convert sets to lists for easier JSON serialization/printing
-        return {k: list(v) for k, v in call_graph.items()}
+            # Close the document
+            self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+        logger.info("Call graph construction complete.")
+        return self.call_graph
 
     def filter_python_files(self, python_files, spec):
-        # Return files that do NOT match any of the ignore patterns
-        return [file for file in python_files if not spec.match_file(file.relative_to(self.project_path))]
+        # Return files that do NOT match any of the ignore patterns AND do not have "test" in their path
+        filtered_files = []
+        for file in python_files:
+            rel_path = file.relative_to(self.project_path)
+            # Skip if matches gitignore patterns
+            if spec.match_file(rel_path):
+                continue
+            # Skip if "test" is in the path (case-insensitive)
+            if "test" in str(rel_path).lower():
+                logger.debug(f"Skipping test file: {rel_path}")
+                continue
+            filtered_files.append(file)
+        return filtered_files
 
     def get_exclude_dirs(self):
         gitignore_path = self.project_path / ".gitignore"
         if not gitignore_path.exists():
-            return []
+            return pathspec.PathSpec.from_lines("gitwildmatch", [])
 
         with gitignore_path.open() as f:
             lines = f.readlines()
@@ -284,14 +334,14 @@ class PyrightClient:
 
     def close(self):
         """Shuts down the language server gracefully."""
-        print("\nShutting down pyright-langserver...")
+        logger.info("Shutting down pyright-langserver...")
         if self._process:
             # LSP shutdown sequence
             shutdown_id = self._send_request('shutdown', {})
             try:
                 self._wait_for_response(shutdown_id, timeout=5)
             except TimeoutError:
-                print("Warning: Did not receive shutdown confirmation from server.")
+                logger.warning("Did not receive shutdown confirmation from server.")
 
             self._send_notification('exit', {})
 
@@ -301,10 +351,10 @@ class PyrightClient:
             try:
                 self._process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                print("Warning: Server did not terminate gracefully. Forcing kill.")
+                logger.warning("Server did not terminate gracefully. Forcing kill.")
                 self._process.kill()
             self._reader_thread.join(timeout=2)
-            print("Shutdown complete.")
+            logger.info("Shutdown complete.")
 
 
 if __name__ == '__main__':
@@ -325,8 +375,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.verbose:
-        VERBOSE_LOGGING = True
+    # Configure logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
     client = None
     try:
@@ -334,25 +388,14 @@ if __name__ == '__main__':
         project_path = Path(args.project_dir).resolve()
 
         # Instantiate and start the client
-        client = PyrightClient(str(project_path))
+        client = PyrightClient(str(project_path), ['pyright-langserver', '--stdio'])
         client.start()
 
         # Build the graph
-        graph = client.build_call_graph()
-
-        # Output the result
-        output_json = json.dumps(graph, indent=4)
-        if args.output:
-            output_file = Path(args.output)
-            output_file.write_text(output_json)
-            print(f"\nCall graph saved to {output_file}")
-        else:
-            print("\n--- Call Graph ---")
-            print(output_json)
-            print("------------------")
-
+        call_graph = client.build_call_graph()
+        print(call_graph)
     except Exception as e:
-        print(f"\nAn error occurred: {e}", file=sys.stderr)
+        logger.error(f"An error occurred: {e}", exc_info=True)
         sys.exit(1)
     finally:
         if client:
