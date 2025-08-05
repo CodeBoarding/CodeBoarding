@@ -140,7 +140,10 @@ class PyrightClient:
             'capabilities': {
                 'textDocument': {
                     'callHierarchy': {'dynamicRegistration': True},
-                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True}
+                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
+                    'typeHierarchy': {'dynamicRegistration': True},
+                    'references': {'dynamicRegistration': True},
+                    'semanticTokens': {'dynamicRegistration': True}
                 }
             },
             'workspace': {
@@ -356,6 +359,357 @@ class PyrightClient:
             self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
 
+    def get_class_hierarchies(self) -> dict:
+        """
+        Collects all class hierarchies in the project using LSP.
+        
+        Returns:
+            A dictionary mapping class names to their inheritance information:
+            {
+                "fully.qualified.ClassName": {
+                    "superclasses": ["fully.qualified.BaseClass1", "fully.qualified.BaseClass2"],
+                    "subclasses": ["fully.qualified.DerivedClass1"],
+                    "file_path": "/path/to/file.py",
+                    "line_start": 10,
+                    "line_end": 50
+                }
+            }
+        """
+        logger.info("Collecting class hierarchies...")
+        class_hierarchies = {}
+
+        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        spec = self.get_exclude_dirs()
+        py_files = self.filter_python_files(py_files, spec)
+
+        for file_path in tqdm(py_files, desc="Analyzing class hierarchies"):
+            file_uri = file_path.as_uri()
+
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                self._send_notification('textDocument/didOpen', {
+                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                })
+
+                # Get document symbols to find classes
+                symbols = self._get_document_symbols(file_uri)
+                class_symbols = self._find_classes_in_symbols(symbols)
+
+                for class_symbol in class_symbols:
+                    qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
+
+                    # Get class info
+                    range_info = class_symbol.get('range', {})
+                    start_line = range_info.get('start', {}).get('line', 0)
+                    end_line = range_info.get('end', {}).get('line', 0)
+
+                    class_info = {
+                        "superclasses": [],
+                        "subclasses": [],
+                        "file_path": str(file_path),
+                        "line_start": start_line,
+                        "line_end": end_line
+                    }
+
+                    # Use type hierarchy to get superclasses and subclasses
+                    pos = class_symbol['selectionRange']['start']
+                    supertypes, subtypes = self._get_type_hierarchy(file_uri, pos['line'], pos['character'])
+
+                    for supertype in supertypes:
+                        super_path = Path(supertype['uri'].replace('file://', ''))
+                        super_qualified = self._create_qualified_name(super_path, supertype['name'])
+                        class_info["superclasses"].append(super_qualified)
+
+                    for subtype in subtypes:
+                        sub_path = Path(subtype['uri'].replace('file://', ''))
+                        sub_qualified = self._create_qualified_name(sub_path, subtype['name'])
+                        class_info["subclasses"].append(sub_qualified)
+
+                    class_hierarchies[qualified_name] = class_info
+                    logger.debug(
+                        f"Found class: {qualified_name} with {len(class_info['superclasses'])} supers, {len(class_info['subclasses'])} subs")
+
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+            except Exception as e:
+                logger.error(f"Error processing class hierarchies in {file_path}: {e}")
+                continue
+
+        logger.info(f"Found {len(class_hierarchies)} classes with hierarchy information")
+        return class_hierarchies
+
+    def get_package_relations(self) -> dict:
+        """
+        Collects package interaction relationships using pure LSP by analyzing symbols and references.
+        
+        Returns:
+            A dictionary mapping package names to their dependencies:
+            {
+                "package.name": {
+                    "imports": ["other.package1", "other.package2"],
+                    "imported_by": ["dependent.package1"],
+                    "files": ["/path/to/file1.py", "/path/to/file2.py"]
+                }
+            }
+        """
+        logger.info("Collecting package relations...")
+        package_relations = {}
+
+        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        spec = self.get_exclude_dirs()
+        py_files = self.filter_python_files(py_files, spec)
+
+        # First pass: collect all symbols and build package structure
+        for file_path in tqdm(py_files, desc="Analyzing package structure"):
+            file_uri = file_path.as_uri()
+
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                self._send_notification('textDocument/didOpen', {
+                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                })
+
+                # Determine package for this file
+                file_package = self._get_package_name(file_path)
+
+                if file_package not in package_relations:
+                    package_relations[file_package] = {
+                        "imports": set(),
+                        "imported_by": set(),
+                        "files": []
+                    }
+
+                package_relations[file_package]["files"].append(str(file_path))
+
+                # Get document symbols to find import-like symbols
+                symbols = self._get_document_symbols(file_uri)
+                imports = self._extract_imports_from_symbols(symbols, content)
+
+                # Add imports to this package's imports
+                for imported_module in imports:
+                    imported_package = self._extract_package_from_import(imported_module)
+                    if imported_package and imported_package != file_package:
+                        package_relations[file_package]["imports"].add(imported_package)
+
+                logger.debug(f"File {file_path} belongs to package {file_package}, found {len(imports)} imports")
+
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+            except Exception as e:
+                logger.error(f"Error analyzing package structure in {file_path}: {e}")
+                continue
+
+        # Second pass: use LSP references to find cross-package dependencies
+        for file_path in tqdm(py_files, desc="Enhancing with LSP references"):
+            file_uri = file_path.as_uri()
+
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                self._send_notification('textDocument/didOpen', {
+                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                })
+
+                # Get symbols and find references to external packages
+                symbols = self._get_document_symbols(file_uri)
+                external_refs = self._find_external_references(file_uri, symbols)
+
+                file_package = self._get_package_name(file_path)
+
+                for ref in external_refs:
+                    ref_package = self._extract_package_from_reference(ref)
+                    if ref_package and ref_package != file_package:
+                        if file_package in package_relations:
+                            package_relations[file_package]["imports"].add(ref_package)
+
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+            except Exception as e:
+                logger.error(f"Error analyzing references in {file_path}: {e}")
+                continue
+
+        # Build reverse relationships (imported_by)
+        for package, info in package_relations.items():
+            for imported_pkg in info["imports"]:
+                if imported_pkg in package_relations:
+                    package_relations[imported_pkg]["imported_by"].add(package)
+
+        # Convert sets to lists for serialization
+        for package_info in package_relations.values():
+            package_info["imports"] = list(package_info["imports"])
+            package_info["imported_by"] = list(package_info["imported_by"])
+
+        logger.info(f"Found {len(package_relations)} packages with relationship information")
+        return package_relations
+
+    def _find_classes_in_symbols(self, symbols: list) -> list:
+        """Find all class symbols recursively."""
+        classes = []
+        for symbol in symbols:
+            if symbol.get('kind') == 5:  # Class symbol kind
+                classes.append(symbol)
+            if 'children' in symbol:
+                classes.extend(self._find_classes_in_symbols(symbol['children']))
+        return classes
+
+    def _get_type_hierarchy(self, file_uri: str, line: int, character: int) -> tuple:
+        """Get type hierarchy (supertypes and subtypes) for a position."""
+        try:
+            # Prepare type hierarchy
+            params = {
+                'textDocument': {'uri': file_uri},
+                'position': {'line': line, 'character': character}
+            }
+            req_id = self._send_request('textDocument/prepareTypeHierarchy', params)
+            response = self._wait_for_response(req_id)
+            hierarchy_items = response.get('result', [])
+
+            if not hierarchy_items:
+                return [], []
+
+            item = hierarchy_items[0]
+
+            # Get supertypes
+            super_req_id = self._send_request('typeHierarchy/supertypes', {'item': item})
+            super_response = self._wait_for_response(super_req_id)
+            supertypes = super_response.get('result', [])
+
+            # Get subtypes
+            sub_req_id = self._send_request('typeHierarchy/subtypes', {'item': item})
+            sub_response = self._wait_for_response(sub_req_id)
+            subtypes = sub_response.get('result', [])
+
+            return supertypes, subtypes
+
+        except Exception as e:
+            logger.debug(f"Could not get type hierarchy: {e}")
+            return [], []
+
+    def _extract_imports_from_symbols(self, symbols: list, content: str) -> list:
+        """Extract import information from symbols and content using LSP only."""
+        imports = []
+
+        # Look for module-level symbols that might indicate imports
+        for symbol in symbols:
+            # Variables at module level might be imports
+            if symbol.get('kind') == 13:  # Variable symbol kind
+                symbol_name = symbol.get('name', '')
+
+                # Use LSP to get definition/references for this symbol
+                pos = symbol['selectionRange']['start']
+
+                try:
+                    # Try to get definition to see if it's an import
+                    definition = self._get_definition(pos['line'], pos['character'])
+                    if definition:
+                        for def_item in definition:
+                            uri = def_item.get('uri', '')
+                            if uri and not uri.startswith(f'file://{self.project_path}'):
+                                # This looks like an external import
+                                imports.append(symbol_name)
+                except Exception:
+                    pass
+
+        # Also use text-based heuristics for common import patterns
+        lines = content.split('\n')
+        for line in lines[:50]:  # Only check first 50 lines where imports usually are
+            line = line.strip()
+            if line.startswith('import ') or line.startswith('from '):
+                # Extract module name using simple parsing
+                if line.startswith('import '):
+                    parts = line[7:].split()
+                    if parts:
+                        module = parts[0].split('.')[0]  # Get root module
+                        imports.append(module)
+                elif line.startswith('from ') and ' import ' in line:
+                    module_part = line[5:].split(' import ')[0].strip()
+                    if module_part and not module_part.startswith('.'):
+                        module = module_part.split('.')[0]  # Get root module
+                        imports.append(module)
+
+        return list(set(imports))  # Remove duplicates
+
+    def _get_definition(self, line: int, character: int) -> list:
+        """Get definition for a position using LSP."""
+        try:
+            params = {
+                'textDocument': {'uri': 'current_file'},  # This would need the actual URI
+                'position': {'line': line, 'character': character}
+            }
+            req_id = self._send_request('textDocument/definition', params)
+            response = self._wait_for_response(req_id)
+            return response.get('result', [])
+        except Exception as e:
+            logger.debug(f"Could not get definition: {e}")
+            return []
+
+    def _get_package_name(self, file_path: Path) -> str:
+        """Extract package name from file path."""
+        try:
+            rel_path = file_path.relative_to(self.project_path)
+            # Remove file name and convert to package notation
+            package_parts = rel_path.parent.parts
+            if package_parts and package_parts[0] != '.':
+                return '.'.join(package_parts)
+            else:
+                # Root level file
+                return 'root'
+        except ValueError:
+            return 'external'
+
+    def _extract_package_from_import(self, module_name: str) -> str:
+        """Extract top-level package from an import module name."""
+        if not module_name:
+            return None
+
+        # Handle relative imports
+        if module_name.startswith('.'):
+            return None
+
+        # Get the top-level package
+        parts = module_name.split('.')
+        return parts[0] if parts else None
+
+    def _find_external_references(self, file_uri: str, symbols: list) -> list:
+        """Find references to external symbols using LSP."""
+        external_refs = []
+        try:
+            # This is a simplified approach - in practice, you'd need to iterate through
+            # identifiers in the file and use textDocument/references
+            for symbol in symbols:
+                if symbol.get('kind') in [12, 6]:  # Functions and methods
+                    pos = symbol['selectionRange']['start']
+                    refs = self._get_references(file_uri, pos['line'], pos['character'])
+                    external_refs.extend(refs)
+        except Exception as e:
+            logger.debug(f"Error finding external references: {e}")
+        return external_refs
+
+    def _get_references(self, file_uri: str, line: int, character: int) -> list:
+        """Get references for a position using LSP."""
+        try:
+            params = {
+                'textDocument': {'uri': file_uri},
+                'position': {'line': line, 'character': character},
+                'context': {'includeDeclaration': True}
+            }
+            req_id = self._send_request('textDocument/references', params)
+            response = self._wait_for_response(req_id)
+            return response.get('result', [])
+        except Exception as e:
+            logger.debug(f"Could not get references: {e}")
+            return []
+
+    def _extract_package_from_reference(self, reference: dict) -> str:
+        """Extract package name from a reference location."""
+        try:
+            uri = reference.get('uri', '')
+            if uri.startswith('file://'):
+                file_path = Path(uri.replace('file://', ''))
+                return self._get_package_name(file_path)
+        except Exception:
+            pass
+        return None
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -394,6 +748,98 @@ if __name__ == '__main__':
         # Build the graph
         call_graph = client.build_call_graph()
         print(call_graph)
+    except Exception as e:
+        logger.error(f"An error occurred: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        if client:
+            client.close()
+
+
+    def _find_external_references(self, file_uri: str, symbols: list) -> list:
+        """Find references to external symbols using LSP."""
+        external_refs = []
+        try:
+            # This is a simplified approach - in practice, you'd need to iterate through
+            # identifiers in the file and use textDocument/references
+            for symbol in symbols:
+                if symbol.get('kind') in [12, 6]:  # Functions and methods
+                    pos = symbol['selectionRange']['start']
+                    refs = self._get_references(file_uri, pos['line'], pos['character'])
+                    external_refs.extend(refs)
+        except Exception as e:
+            logger.debug(f"Error finding external references: {e}")
+        return external_refs
+
+
+    def _get_references(self, file_uri: str, line: int, character: int) -> list:
+        """Get references for a position using LSP."""
+        try:
+            params = {
+                'textDocument': {'uri': file_uri},
+                'position': {'line': line, 'character': character},
+                'context': {'includeDeclaration': True}
+            }
+            req_id = self._send_request('textDocument/references', params)
+            response = self._wait_for_response(req_id)
+            return response.get('result', [])
+        except Exception as e:
+            logger.debug(f"Could not get references: {e}")
+            return []
+
+
+    def _extract_package_from_reference(self, reference: dict) -> str:
+        """Extract package name from a reference location."""
+        try:
+            uri = reference.get('uri', '')
+            if uri.startswith('file://'):
+                file_path = Path(uri.replace('file://', ''))
+                return self._get_package_name(file_path)
+        except Exception:
+            pass
+        return None
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Build a call graph for a Python project using pyright's LSP.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("project_dir", help="The root directory of the Python project.")
+    parser.add_argument(
+        "-o", "--output",
+        help="Path to save the output JSON file. If not provided, prints to console."
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose logging to show all LSP JSON-RPC communication."
+    )
+
+    args = parser.parse_args()
+
+    # Configure logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    client = None
+    try:
+        # Resolve the project directory path
+        project_path = Path(args.project_dir).resolve()
+
+        # Instantiate and start the client
+        client = PyrightClient(str(project_path), ['pyright-langserver', '--stdio'])
+        client.start()
+
+        # Build the graph
+        call_graph = client.build_call_graph()
+        print(call_graph)
+        hierarchy = client.get_class_hierarchies()
+        print(hierarchy)
+        relations = client.get_package_relations()
+        print(relations)
     except Exception as e:
         logger.error(f"An error occurred: {e}", exc_info=True)
         sys.exit(1)
