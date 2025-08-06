@@ -18,6 +18,8 @@ from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelation
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
 
+logger = logging.getLogger(__name__)
+
 
 class CodeBoardingAgent:
     def __init__(self, repo_dir, static_analysis, system_message):
@@ -52,7 +54,7 @@ class CodeBoardingAgent:
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
         if self.openai_api_key:
-            logging.info("Using OpenAI LLM")
+            logger.info("Using OpenAI LLM")
             return ChatOpenAI(
                 model="gpt-4o",
                 temperature=0,
@@ -62,7 +64,7 @@ class CodeBoardingAgent:
                 api_key=self.openai_api_key,
             )
         elif self.anthropic_api_key:
-            logging.info("Using Anthropic LLM")
+            logger.info("Using Anthropic LLM")
             return ChatAnthropic(
                 model="claude-3-5-sonnet-20241022",
                 temperature=0,
@@ -72,7 +74,7 @@ class CodeBoardingAgent:
                 api_key=self.anthropic_api_key,
             )
         elif self.google_api_key:
-            logging.info("Using Google Gemini LLM")
+            logger.info("Using Google Gemini LLM")
             return ChatGoogleGenerativeAI(
                 model="gemini-2.5-flash",
                 temperature=0,
@@ -82,7 +84,7 @@ class CodeBoardingAgent:
                 api_key=self.google_api_key,
             )
         elif self.aws_bearer_token:
-            logging.info("Using AWS Bedrock Converse LLM")
+            logger.info("Using AWS Bedrock Converse LLM")
             return ChatBedrockConverse(
                 model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 temperature=0,
@@ -111,9 +113,9 @@ class CodeBoardingAgent:
                 if type(agent_response.content) == list:
                     return "".join([message for message in agent_response.content])
             except (ResourceExhausted, Exception) as e:
-                logging.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
+                logger.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
                 time.sleep(60)  # Wait before retrying
-        logging.error("Max retries reached. Failed to get response from the agent.")
+        logger.error("Max retries reached. Failed to get response from the agent.")
         return "Could not get response from the agent."
 
     def _parse_invoke(self, prompt, type):
@@ -122,17 +124,17 @@ class CodeBoardingAgent:
 
     def _parse_response(self, prompt, response, return_type, max_retries=5):
         if max_retries == 0:
-            logging.error(f"Max retries reached for parsing response: {response}")
+            logger.error(f"Max retries reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
         extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
-            logging.error(f"Empty response for prompt: {prompt}")
+            logger.error(f"Empty response for prompt: {prompt}")
         try:
             result = extractor.invoke(response)["responses"][0]
             return return_type.model_validate(result)
         except (ResourceExhausted, Exception) as e:
-            logging.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
+            logger.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
             time.sleep(60)
             return self._parse_response(prompt, response, return_type, max_retries - 1)
 
@@ -147,13 +149,13 @@ class CodeBoardingAgent:
                         reference.line_end = node.line_end
                     except ValueError as e:
                         # before we give up let's retry with the file:
-                        logging.warning(
+                        logger.warning(
                             f"[Reference Resolution] Reference {reference.qualified_name} not found in {lang}: {e}")
                         if not reference.reference_file.startswith("/"):
                             joined_path = os.path.join(self.repo_dir, reference.reference_file)
                             if os.path.exists(joined_path):
                                 reference.reference_file = joined_path
                             else:
-                                logging.warning(
+                                logger.warning(
                                     f"[Reference Resolution] Reference file {reference.reference_file} does not exist for {lang}.")
         return analysis

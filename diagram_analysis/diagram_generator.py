@@ -18,6 +18,8 @@ from repo_utils import get_git_commit_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 
+logger = logging.getLogger(__name__)
+
 
 class DiagramGenerator:
     def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
@@ -50,13 +52,13 @@ class DiagramGenerator:
                     f.write(analysis.model_dump_json(indent=2))
                 return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
             elif 4 < update_analysis.update_degree < 8:
-                logging.info(f"Component {component.name} requires partial update, applying feedback.")
+                logger.info(f"Component {component.name} requires partial update, applying feedback.")
                 analysis = self.diff_analyzer_agent.get_component_analysis(component)
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
                 analysis = self.details_agent.apply_feedback(analysis, update_insight)
             else:
-                logging.info(f"Processing component: {component.name}")
-                self.details_agent.step_subcfg(self.call_graph_str, component)
+                logger.info(f"Processing component: {component.name}")
+                self.details_agent.step_subcfg(component)
                 self.details_agent.step_cfg(component)
                 self.details_agent.step_enhance_structure(component)
 
@@ -111,7 +113,7 @@ class DiagramGenerator:
             self.pre_analysis()
 
         # Generate the initial analysis
-        logging.info("Generating initial analysis")
+        logger.info("Generating initial analysis")
 
         update_analysis = self.diff_analyzer_agent.check_for_updates()
 
@@ -131,7 +133,7 @@ class DiagramGenerator:
 
         # Get the initial components to analyze (level 0)
         current_level_components = self.planner_agent.plan_analysis(analysis)
-        logging.info(f"Found {len(current_level_components)} components to analyze at level 0")
+        logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
 
         # Save the root analysis
         analysis_path = os.path.join(self.output_dir, "analysis.json")
@@ -147,7 +149,7 @@ class DiagramGenerator:
             level += 1
             if level == self.depth_level:
                 break
-            logging.info(f"Processing level {level} with {len(current_level_components)} components")
+            logger.info(f"Processing level {level} with {len(current_level_components)} components")
             next_level_components = []
 
             # Process current level components in parallel
@@ -172,10 +174,10 @@ class DiagramGenerator:
                     except Exception as exc:
                         logging.error(f"Component {component.name} generated an exception: {exc}")
 
-            logging.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
+            logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
             current_level_components = next_level_components
 
-        logging.info(f"Analysis complete. Generated {len(files)} analysis files")
+        logger.info(f"Analysis complete. Generated {len(files)} analysis files")
         print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         return files
 

@@ -6,6 +6,8 @@ from langchain_core.tools import BaseTool
 from agents.agent_responses import Component
 from static_analyzer.analysis_result import StaticAnalysisResults
 
+logger = logging.getLogger(__name__)
+
 
 class GetCFGTool(BaseTool):
     name: str = "getControlFlowGraph"
@@ -28,7 +30,7 @@ class GetCFGTool(BaseTool):
         """
         result_str = ""
         for lang in self.static_analysis.get_languages():
-            logging.info(f"[CFG Tool] Reading control flow graph for {lang}")
+            logger.info(f"[CFG Tool] Reading control flow graph for {lang}")
             cfg = self.static_analysis.get_cfg(lang)
             if cfg is None:
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
@@ -43,12 +45,12 @@ class GetCFGTool(BaseTool):
         items = 0
         result = f"Control flow graph for {component.name}:\n"
         for lang in self.static_analysis.get_languages():
-            logging.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
+            logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)
             if cfg is None:
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
-            for node in cfg.nodes:
+            for _, node in cfg.nodes.items():
                 for ref in component.referenced_source_code:
                     qual_name = ref.qualified_name
                     if "/" in qual_name:
@@ -60,5 +62,5 @@ class GetCFGTool(BaseTool):
                         items += 1
                         break
 
-        logging.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {items}")
+        logger.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {items}")
         return result

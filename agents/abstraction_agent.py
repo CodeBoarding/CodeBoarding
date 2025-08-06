@@ -6,6 +6,8 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
 
+logger = logging.getLogger(__name__)
+
 
 class AbstractionAgent(CodeBoardingAgent):
     def __init__(self, repo_dir, static_analysis, project_name, meta_context):
@@ -28,7 +30,7 @@ class AbstractionAgent(CodeBoardingAgent):
         }
 
     def step_cfg(self):
-        logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
@@ -43,7 +45,7 @@ class AbstractionAgent(CodeBoardingAgent):
         return parsed_response
 
     def step_source(self):
-        logging.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
@@ -65,7 +67,7 @@ class AbstractionAgent(CodeBoardingAgent):
         return parsed_response
 
     def generate_analysis(self):
-        logging.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
@@ -84,7 +86,7 @@ class AbstractionAgent(CodeBoardingAgent):
         Apply feedback to the analysis and return the updated analysis.
         This method should modify the analysis based on the feedback provided.
         """
-        logging.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
         prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)

@@ -5,12 +5,15 @@ from typing import Optional, List
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 
 class ExternalDepsInput(BaseModel):
     """Input for ExternalDepsTool - no arguments needed."""
     pass
 
 
+# TODO @IM: This has to be fixed!
 class ExternalDepsTool(BaseTool):
     name: str = "readExternalDeps"
     description: str = (
@@ -49,7 +52,7 @@ class ExternalDepsTool(BaseTool):
         """
         Run the tool to find dependency files.
         """
-        logging.info("[ExternalDeps Tool] Searching for dependency files")
+        logger.info("[ExternalDeps Tool] Searching for dependency files")
 
         found_files = []
 
@@ -69,7 +72,7 @@ class ExternalDepsTool(BaseTool):
                             found_files.append(file_path)
 
         if not found_files:
-            logging.warning("[ExternalDeps Tool] No dependency files found in the repository.")
+            logger.warning("[ExternalDeps Tool] No dependency files found in the repository.")
             return "No dependency files found in this repository. Searched for common files like requirements.txt, pyproject.toml, setup.py, environment.yml, Pipfile, etc."
 
         # Format the output to make it easy to use with readFile tool
@@ -80,7 +83,7 @@ class ExternalDepsTool(BaseTool):
             relative_path = file_path.relative_to(self.repo_dir)
             summary += f"{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path=\"{relative_path}\" and line_number=0\n\n"
 
-        logging.info(
+        logger.info(
             f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f.relative_to(self.repo_dir)) for f in found_files)}")
 
         return summary

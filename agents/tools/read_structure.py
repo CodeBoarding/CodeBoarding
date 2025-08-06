@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from static_analyzer.analysis_result import StaticAnalysisResults
 from .read_packages import NoRootPackageFoundError
 
+logger = logging.getLogger(__name__)
+
 
 class ClassQualifiedName(BaseModel):
     class_qualified_name: str = Field(
@@ -47,6 +49,6 @@ class CodeStructureTool(BaseTool):
                         f"{content[qualified_class_name]['superclasses']} and subclasses: "
                         f"{content[qualified_class_name]['subclasses']}\n")
             except NoRootPackageFoundError as e:
-                logging.error(f"Error retrieving class hierarchy: {e.message}")
+                logger.error(f"Error retrieving class hierarchy: {e.message}")
                 continue
         return f"No class hierarchy found for {qualified_class_name}. Double check if the qualified name is correct with the getSourceCode tool."

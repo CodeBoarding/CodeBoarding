@@ -8,6 +8,8 @@ from git import Git, GitCommandError, Repo
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 
+logger = logging.getLogger(__name__)
+
 
 def sanitize_repo_url(repo_url: str) -> str:
     """
@@ -53,22 +55,22 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
 
     dest = target_dir / repo_name
     if dest.exists():
-        logging.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+        logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
         repo.remotes.origin.pull()
     else:
-        logging.info(f"Cloning {repo_url} into {dest}")
+        logger.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
-    logging.info("Cloning finished!")
+    logger.info("Cloning finished!")
     return repo_name
 
 
 def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
     repo = Repo(repo_dir)
     if branch not in repo.heads:
-        logging.info(f"Branch {branch} does not exist, creating it.")
+        logger.info(f"Branch {branch} does not exist, creating it.")
         raise ValueError(f"Branch {branch} does not exist in the repository {repo_dir}: {repo.heads}")
-    logging.info(f"Checking out branch {branch}.")
+    logger.info(f"Checking out branch {branch}.")
     repo.git.checkout(branch)
     repo.git.pull()  # Ensure we have the latest changes
 
@@ -76,7 +78,7 @@ def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
 def store_token():
     if not os.environ.get('GITHUB_TOKEN'):  # Using .get() for safer access
         raise NoGithubTokenFoundError()
-    logging.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
+    logger.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
     cred = (
         "protocol=https\n"
         "host=github.com\n"
@@ -98,7 +100,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
             no_new_files = False
             break
     if no_new_files:
-        logging.info(f"No new onboarding files to upload for {project_name}.")
+        logger.info(f"No new onboarding files to upload for {project_name}.")
         return
 
     onboarding_repo_location = os.path.join(repo_dir, project_name)

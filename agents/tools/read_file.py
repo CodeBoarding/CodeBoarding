@@ -5,6 +5,8 @@ from typing import Optional
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
+
 
 class ReadFileInput(BaseModel):
     """Input for ReadFileTool."""
@@ -45,7 +47,7 @@ class ReadFileTool(BaseTool):
         Run the tool with the given input.
         """
 
-        logging.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
+        logger.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
 
         file_path = Path(file_path)
 

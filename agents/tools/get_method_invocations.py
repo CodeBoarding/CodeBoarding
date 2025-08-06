@@ -1,10 +1,12 @@
-from typing import Any, Optional
 import logging
+from typing import Optional
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+
+logger = logging.getLogger(__name__)
 
 
 class MethodInvocationsInput(BaseModel):
@@ -43,4 +45,5 @@ class MethodInvocationsTool(BaseTool):
         if results:
             return results.strip()
         # If no results found, return a message indicating no calls or callees
-        return "No method invocations found for the specified method. Try reading the source with the `getSourceCode` tool for full details."
+        logger.warning(f"[MethodInvocationsTool] No method invocations found for {method}.")
+        return f"No method invocations found for the {method}. Try reading the source with the `getSourceCode` tool for full details."

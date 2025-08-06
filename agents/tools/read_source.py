@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 
+logger = logging.getLogger(__name__)
+
 
 class ModuleInput(BaseModel):
     code_reference: str = Field(
@@ -41,7 +43,7 @@ class CodeReferenceReader(BaseTool):
         """
         Run the tool with the given input.
         """
-        logging.info(f"[Source Reference Tool] Reading source code for {code_reference}")
+        logger.info(f"[Source Reference Tool] Reading source code for {code_reference}")
 
         # search for the qualified name:
         code_reference = code_reference.strip()
@@ -54,7 +56,7 @@ class CodeReferenceReader(BaseTool):
                 node = self.static_analysis.get_reference(lang, code_reference)
                 return self.read_file(node.file_path, node.line_start, node.line_end)
             except ValueError:
-                logging.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
+                logger.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
                 continue
 
     @staticmethod
@@ -64,14 +66,14 @@ class CodeReferenceReader(BaseTool):
         """
         file_path = Path(file)
         if not file_path.exists():
-            logging.error(f"[Source Reference Tool] File {file_path} does not exist.")
+            logger.error(f"[Source Reference Tool] File {file_path} does not exist.")
             return f"Error: File {file_path} does not exist."
 
         with open(file_path, 'r') as f:
             lines = f.readlines()
 
         if start_line < 0 or end_line > len(lines):
-            logging.error(f"[Source Reference Tool] Invalid line range: {start_line}-{end_line} for file {file_path}.")
+            logger.error(f"[Source Reference Tool] Invalid line range: {start_line}-{end_line} for file {file_path}.")
             return f"Error: Invalid line range: {start_line}-{end_line} for file {file_path}."
 
         return ''.join(lines[start_line:end_line])

@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 from repo_utils.git_diff import FileChange
 
+logger = logging.getLogger(__name__)
+
 
 class ReadDiffInput(BaseModel):
     """Input for ReadDiffTool."""
@@ -34,7 +36,7 @@ class ReadDiffTool(BaseTool):
         """
         Run the tool with the given input.
         """
-        logging.info(f"[ReadDiff Tool] Reading diff for file {file_path} around line {line_number}")
+        logger.info(f"[ReadDiff Tool] Reading diff for file {file_path} around line {line_number}")
 
         # Find the matching file change
         matching_change = None

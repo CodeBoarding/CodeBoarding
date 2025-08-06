@@ -6,6 +6,8 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import SYSTEM_META_ANALYSIS_MESSAGE
 
+logger = logging.getLogger(__name__)
+
 
 class MetaAgent(CodeBoardingAgent):
 
@@ -32,10 +34,10 @@ Use the available tools to gather this information.""",
 
     def analyze_project_metadata(self):
         """Analyze project metadata to provide architectural context and bias."""
-        logging.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
+        logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
 
         prompt = self.meta_analysis_prompt.format(project_name=self.project_name)
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
 
-        logging.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
+        logger.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
         return analysis

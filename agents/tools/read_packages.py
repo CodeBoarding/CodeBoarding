@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 
+logger = logging.getLogger(__name__)
+
 
 class PackageInput(BaseModel):
     root_package: str = Field(
@@ -58,6 +60,6 @@ class PackageRelationsTool(BaseTool):
                 result = content[root_package]
                 return f"Package {root_package} imports {result['imports']} and is imported by {result['imported_by']}."
             except ValueError:
-                logging.warning(f"[Package Tool] No package relations found for {root_package} in {lang}.")
+                logger.warning(f"[Package Tool] No package relations found for {root_package} in {lang}.")
                 continue
         return f"No package relations found for {root_package} in {packages}."

@@ -6,6 +6,8 @@ from typing import Optional, List
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
+
 
 class DirInput(BaseModel):
     dir: Optional[str] = Field(
@@ -72,7 +74,7 @@ class FileStructureTool(BaseTool):
         for d in self.cached_dirs:
             # check if dir is a subdirectory of the cached directory
             if self.is_subsequence(dir, d):
-                logging.info(f"[File Structure Tool] Found directory {d}")
+                logger.info(f"[File Structure Tool] Found directory {d}")
                 searching_dir = d
                 break
 
@@ -81,16 +83,16 @@ class FileStructureTool(BaseTool):
         for d in self.cached_dirs:
             # check if dir is a subdirectory of the cached directory
             if self.is_subsequence(dir, d):
-                logging.info(f"[File Structure Tool] Found directory {d}")
+                logger.info(f"[File Structure Tool] Found directory {d}")
                 searching_dir = d
                 break
 
         if searching_dir is None:
             # Try finding the dir with repo_dir without its first part
-            logging.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
+            logger.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
             return f"Error: The specified directory does not exist or is empty. Available directories are: {', '.join([str(d) for d in self.cached_dirs])}"
         # now use the tree command to get the file structure
-        logging.info(f"[File Structure Tool] Reading file structure for {searching_dir}")
+        logger.info(f"[File Structure Tool] Reading file structure for {searching_dir}")
 
         # Start with a reasonable depth limit
         max_depth = 10

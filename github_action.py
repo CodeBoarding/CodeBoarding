@@ -7,14 +7,13 @@ from dotenv import load_dotenv
 
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
-from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from output_generators.html import generate_html_file
 from output_generators.mdx import generate_mdx_file
 from repo_utils import clone_repository, checkout_repo
 from utils import create_temp_repo_folder
 
-setup_logging()
+logger = logging.getLogger(__name__)
 
 
 def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str,
@@ -24,7 +23,7 @@ def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, 
             print(f"Processing analysis file: {file}")
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())
-                logging.info(f"Generated analysis file: {file}")
+                logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
                     fname = "on_boarding"
@@ -41,7 +40,7 @@ def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, targ
             print(f"Processing analysis file: {file}")
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())
-                logging.info(f"Generated analysis file: {file}")
+                logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
                     fname = "on_boarding"
@@ -58,7 +57,7 @@ def generate_mdx(analysis_files: List[str], repo_name: str, repo_url: str, targe
             print(f"Processing analysis file: {file}")
             with open(file, 'r') as f:
                 analysis = AnalysisInsights.model_validate_json(f.read())
-                logging.info(f"Generated analysis file: {file}")
+                logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
                     fname = "on_boarding"

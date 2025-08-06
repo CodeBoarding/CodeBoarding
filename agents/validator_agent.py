@@ -7,6 +7,8 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import ValidationInsights, AnalysisInsights
 from agents.prompts import COMPONENT_VALIDATION_COMPONENT, RELATIONSHIPS_VALIDATION, VALIDATOR_SYSTEM_MESSAGE
 
+logger = logging.getLogger(__name__)
+
 
 class ValidatorAgent(CodeBoardingAgent):
     def __init__(self, repo_dir, static_analysis):
@@ -84,7 +86,7 @@ class ValidatorAgent(CodeBoardingAgent):
         if not component_relations.is_valid:
             insights += f"{component_relations.llm_str()}\n\n"
             valid = False
-        logging.info(f"[ValidatorAgent] Validation result is {valid} with insights: {insights}")
+        logger.info(f"[ValidatorAgent] Validation result is {valid} with insights: {insights}")
 
         return ValidationInsights(is_valid=valid,
                                   additional_info=insights)
