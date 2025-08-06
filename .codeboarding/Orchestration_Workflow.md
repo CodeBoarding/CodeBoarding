@@ -37,8 +37,8 @@ The primary interface for external communication, responsible for receiving anal
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/local_app.py#L1-L1" target="_blank" rel="noopener noreferrer">`local_app` (1:1)</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/github_action.py#L1-L1" target="_blank" rel="noopener noreferrer">`github_action` (1:1)</a>
+- `local_app` (1:1)
+- `github_action` (1:1)
 
 
 ### orchestration_workflow
@@ -47,8 +47,8 @@ The central coordinator that manages the end-to-end analysis pipeline. It initia
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/local_app.py#L1-L1" target="_blank" rel="noopener noreferrer">`local_app` (1:1)</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/github_action.py#L1-L1" target="_blank" rel="noopener noreferrer">`github_action` (1:1)</a>
+- `local_app` (1:1)
+- `github_action` (1:1)
 
 
 ### static_analysis_module

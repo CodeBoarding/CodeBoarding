@@ -15,7 +15,6 @@ graph LR
     click Orchestration_Workflow href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Workflow.md" "Details"
     click Static_Code_Analyzer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Code_Analyzer.md" "Details"
     click AI_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Analysis_Engine.md" "Details"
-    click Output_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generator.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/GeneratedOnBoardings)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/demo)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -31,7 +30,7 @@ The central coordinator that manages the end-to-end analysis pipeline. It initia
 **Related Classes/Methods**:
 
 - `local_app.py`
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/github_action.py" target="_blank" rel="noopener noreferrer">`github_action.py`</a>
+- `github_action.py`
 
 
 ### Static Code Analyzer [[Expand]](./Static_Code_Analyzer.md)
@@ -51,9 +50,9 @@ The cognitive core of the system. It is a multi-agent framework that interprets 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/agents/agent.py" target="_blank" rel="noopener noreferrer">`agents/agent.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/agents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents/planner_agent.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/agents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents/abstraction_agent.py`</a>
+- `agents/agent.py`
+- `agents/planner_agent.py`
+- `agents/abstraction_agent.py`
 - `agents/diff_analyzer.py`
 
 
@@ -66,16 +65,16 @@ Handles the serialization and deserialization of the analysis model to a storabl
 - `diagram_analysis/analysis_json.py`
 
 
-### Output Generator [[Expand]](./Output_Generator.md)
+### Output Generator
 The final stage in the pipeline. It consumes the rich, structured analysis model produced by the AI Engine and renders it into various human-readable formats, such as Markdown, HTML, and Sphinx documentation. Recent changes indicate a streamlining or simplification of its output capabilities.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/output_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators/markdown.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/output_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators/html.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/output_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators/sphinx.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/output_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators/mdx.py`</a>
+- `output_generators/markdown.py`
+- `output_generators/html.py`
+- `output_generators/sphinx.py`
+- `output_generators/mdx.py`
 
 
 
