@@ -920,51 +920,81 @@ class LSPClient:
             pass
         return None
 
+    def build_references(self) -> list:
+        """
+        Builds a list of reference nodes for all methods/functions and classes in the project.
+        
+        Returns a list of Nodes
+        """
+        logger.info("Building references for all symbols...")
+        reference_nodes = []
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Build a call graph for a Python project using pyright's LSP.",
-        formatter_class=argparse.RawTextHelpFormatter
-    )
-    parser.add_argument("project_dir", help="The root directory of the Python project.")
-    parser.add_argument(
-        "-o", "--output",
-        help="Path to save the output JSON file. If not provided, prints to console."
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging to show all LSP JSON-RPC communication."
-    )
+        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        spec = self.get_exclude_dirs()
+        py_files = self.filter_python_files(py_files, spec)
 
-    args = parser.parse_args()
+        # Track processed symbols to avoid duplicates
+        processed_symbols = set()
 
-    # Configure logging
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+        for file_path in tqdm(py_files, desc="Collecting symbol references"):
+            file_uri = file_path.as_uri()
 
-    client = None
-    try:
-        # Resolve the project directory path
-        project_path = Path(args.project_dir).resolve()
+            try:
+                content = file_path.read_text(encoding='utf-8')
+                self._send_notification('textDocument/didOpen', {
+                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
+                })
 
-        # Instantiate and start the client
-        client = LSPClient(str(project_path), ['pyright-langserver', '--stdio'])
-        client.start()
+                # Get all symbols in this file
+                symbols = self._get_document_symbols(file_uri)
 
-        # Build the graph
-        call_graph = client.build_call_graph()
-        print(call_graph)
-        hierarchy = client.build_class_hierarchies()
-        print(hierarchy)
-        relations = client.build_package_relations()
-        print(relations)
-    except Exception as e:
-        logger.error(f"An error occurred: {e}", exc_info=True)
-        sys.exit(1)
-    finally:
-        if client:
-            client.close()
+                # Process functions, methods, and classes
+                all_symbols = self._get_all_symbols_recursive(symbols)
+
+                for symbol in all_symbols:
+                    symbol_kind = symbol.get('kind')
+                    symbol_name = symbol.get('name', '')
+
+                    # Filter for functions (12), methods (6), and classes (5)
+                    if symbol_kind not in [5, 6, 12]:
+                        continue
+
+                    # Create qualified name
+                    qualified_name = self._create_qualified_name(file_path, symbol_name)
+
+                    # Skip if already processed
+                    if qualified_name in processed_symbols:
+                        continue
+
+                    processed_symbols.add(qualified_name)
+
+                    # Get definition location
+                    range_info = symbol.get('range', {})
+                    start_line = range_info.get('start', {}).get('line', 0)
+                    end_line = range_info.get('end', {}).get('line', 0)
+
+                    node = Node(fully_qualified_name=qualified_name,
+                                file_path=str(file_path),
+                                line_start=start_line,
+                                line_end=end_line)
+
+                    reference_nodes.append(node)
+                    logger.debug(f"Added symbol {qualified_name}")
+
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+            except Exception as e:
+                logger.error(f"Error collecting references in {file_path}: {e}")
+                continue
+
+        logger.info(f"Built {len(reference_nodes)} reference nodes")
+        return reference_nodes
+
+    def _get_all_symbols_recursive(self, symbols: list) -> list:
+        """Recursively collect all symbols from a hierarchical symbol list."""
+        all_symbols = []
+        for symbol in symbols:
+            all_symbols.append(symbol)
+            if 'children' in symbol:
+                all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
+        return all_symbols
