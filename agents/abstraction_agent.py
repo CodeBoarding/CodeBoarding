@@ -8,8 +8,8 @@ from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSI
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_MESSAGE)
+    def __init__(self, repo_dir, static_analysis, project_name, meta_context):
+        super().__init__(repo_dir, static_analysis, SYSTEM_MESSAGE)
 
         self.project_name = project_name
         self.meta_context = meta_context
@@ -27,18 +27,17 @@ class AbstractionAgent(CodeBoardingAgent):
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
         }
 
-    def step_cfg(self, cfg_str):
+    def step_cfg(self):
         logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
-            cfg_str=cfg_str,
+            cfg_str=str(self.read_cfg_tool._run()),
             meta_context=meta_context_str,
             project_type=project_type
         )
-        print(prompt)
         parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
         self.context['cfg_insight'] = parsed_response
         return parsed_response
@@ -90,7 +89,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    def run(self, cfg_str):
-        self.step_cfg(cfg_str)
+    def run(self):
+        self.step_cfg()
         self.step_source()
         return self.generate_analysis()

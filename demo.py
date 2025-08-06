@@ -78,18 +78,18 @@ def copy_files(temp_folder: Path, output_dir: Path):
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logging.info(f"Created output directory: {output_dir}")
-    
+
     # Copy markdown files
     markdown_files = list(temp_folder.glob("*.md"))
     # Copy JSON files
     json_files = list(temp_folder.glob("*.json"))
-    
+
     all_files = markdown_files + json_files
-    
+
     if not all_files:
         logging.warning(f"No markdown or JSON files found in {temp_folder}")
         return
-    
+
     for file in all_files:
         dest_file = output_dir / file.name
         shutil.copy2(file, dest_file)
@@ -129,12 +129,12 @@ Examples:
         temp_repo_folder = create_temp_repo_folder()
         try:
             generate_docs_remote(repo, temp_repo_folder, local_dev=True)
-            
+
             # Copy markdown files to output directory if specified
             if args.output_dir:
                 copy_files(temp_repo_folder, args.output_dir)
-                
-        except Exception as e:
-            logging.error(f"Failed to generate docs for {repo}: {e}")
-        # finally:
-        #     remove_temp_repo_folder(temp_repo_folder)
+
+        # except Exception as e:
+        #     logging.error(f"Failed to generate docs for {repo}: {e}")
+        finally:
+            remove_temp_repo_folder(temp_repo_folder)

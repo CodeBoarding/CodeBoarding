@@ -17,19 +17,19 @@ from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelation
     MethodInvocationsTool, ReadFileTool
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
-from static_analyzer.reference_lines import find_fqn_location
 
 
 class CodeBoardingAgent:
-    def __init__(self, repo_dir, output_dir, cfg, system_message):
+    def __init__(self, repo_dir, static_analysis, system_message):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
-        self.read_source_reference = CodeReferenceReader(repo_dir=repo_dir)
-        self.read_packages_tool = PackageRelationsTool(analysis_dir=output_dir)
-        self.read_structure_tool = CodeStructureTool(analysis_dir=output_dir)
+        self.repo_dir = repo_dir
+        self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
+        self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
+        self.read_structure_tool = CodeStructureTool(static_analysis=static_analysis)
         self.read_file_structure = FileStructureTool(repo_dir=repo_dir)
-        self.read_cfg_tool = GetCFGTool(cfg=cfg)
-        self.read_method_invocations_tool = MethodInvocationsTool(cfg=cfg)
+        self.read_cfg_tool = GetCFGTool(static_analysis=static_analysis)
+        self.read_method_invocations_tool = MethodInvocationsTool(static_analysis=static_analysis)
         self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
         self.read_docs = ReadDocsTool(repo_dir=repo_dir)
         self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
@@ -37,6 +37,7 @@ class CodeBoardingAgent:
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
                                                                self.read_file_structure, self.read_structure_tool,
                                                                self.read_file_tool])
+        self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
     def _setup_env_vars(self):
@@ -73,7 +74,7 @@ class CodeBoardingAgent:
         elif self.google_api_key:
             logging.info("Using Google Gemini LLM")
             return ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro",
+                model="gemini-2.5-flash",
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -138,22 +139,21 @@ class CodeBoardingAgent:
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         for component in analysis.components:
             for reference in component.referenced_source_code:
-                file_ref, file_string = self.read_source_reference.read_file(reference.qualified_name)
-                if file_ref is None:
-                    continue
-                reference.reference_file = str(file_ref)
-                file_string = "\n".join(file_string.split("\n")[1:])
-                try:
-                    qname = reference.qualified_name.replace(":", ".")
-                    parts = qname.split(".")
-                    for i in range(len(parts)):
-                        sub_fqn = ".".join(parts[i:])
-                        result = find_fqn_location(file_string, sub_fqn)
-                        if result:
-                            reference.reference_start_line = result[0]
-                            reference.reference_end_line = result[1]
-                            break
-                except Exception as e:
-                    logging.warning(f"Error finding reference lines for {reference.qualified_name}: {e}")
-
+                for lang in self.static_analysis.get_languages():
+                    try:
+                        node = self.static_analysis.get_reference(lang, reference.qualified_name)
+                        reference.reference_file = node.file_path
+                        reference.line_start = node.line_start
+                        reference.line_end = node.line_end
+                    except ValueError as e:
+                        # before we give up let's retry with the file:
+                        logging.warning(
+                            f"[Reference Resolution] Reference {reference.qualified_name} not found in {lang}: {e}")
+                        if not reference.reference_file.startswith("/"):
+                            joined_path = os.path.join(self.repo_dir, reference.reference_file)
+                            if os.path.exists(joined_path):
+                                reference.reference_file = joined_path
+                            else:
+                                logging.warning(
+                                    f"[Reference Resolution] Reference file {reference.reference_file} does not exist for {lang}.")
         return analysis

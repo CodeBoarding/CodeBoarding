@@ -1,9 +1,7 @@
-import argparse
 import json
 import logging
 import os
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
@@ -227,7 +225,7 @@ class LSPClient:
             logger.warning("No Python files found in the project.")
             return self.call_graph
 
-        for i, file_path in tqdm(enumerate(py_files), desc="Processing files", total=total_files):
+        for i, file_path in tqdm(enumerate(py_files), desc="[CallGraph] Processing files", total=total_files):
             file_uri = file_path.as_uri()
 
             # 1. Notify the server that the file is open
@@ -383,7 +381,7 @@ class LSPClient:
         spec = self.get_exclude_dirs()
         py_files = self.filter_python_files(py_files, spec)
 
-        for file_path in tqdm(py_files, desc="Analyzing class hierarchies"):
+        for file_path in tqdm(py_files, desc="[Class Hierarchy] Analyzing class hierarchies"):
             file_uri = file_path.as_uri()
 
             try:
@@ -703,7 +701,7 @@ class LSPClient:
         py_files = self.filter_python_files(py_files, spec)
 
         # First pass: collect all symbols and build package structure
-        for file_path in tqdm(py_files, desc="Analyzing package structure"):
+        for file_path in tqdm(py_files, desc="[Package Relationships] Analyzing package structure"):
             file_uri = file_path.as_uri()
 
             try:
@@ -743,7 +741,7 @@ class LSPClient:
                 continue
 
         # Second pass: use LSP references to find cross-package dependencies
-        for file_path in tqdm(py_files, desc="Enhancing with LSP references"):
+        for file_path in tqdm(py_files, desc="[Package Relationships] Enhancing with LSP references"):
             file_uri = file_path.as_uri()
 
             try:
@@ -936,7 +934,7 @@ class LSPClient:
         # Track processed symbols to avoid duplicates
         processed_symbols = set()
 
-        for file_path in tqdm(py_files, desc="Collecting symbol references"):
+        for file_path in tqdm(py_files, desc="[References collection] Collecting symbol references"):
             file_uri = file_path.as_uri()
 
             try:

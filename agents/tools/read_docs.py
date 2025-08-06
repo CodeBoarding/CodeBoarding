@@ -18,9 +18,9 @@ class ReadDocsTool(BaseTool):
     name: str = "readDocs"
     description: str = (
         "Reads project documentation files (README, .md, .rst, .txt). "
-        "**PROJECT CONTEXT TOOL** - Use early in analysis to understand project purpose and architecture. "
+        "Use early in analysis to understand project purpose and architecture. "
         "Defaults to README.md if no path specified. "
-        "**EFFICIENT CONTEXT** - Provides project understanding without code analysis. "
+        "Provides project understanding without code analysis. "
         "Focus on architecture sections, not detailed API documentation."
     )
     args_schema: Optional[ArgsSchema] = ReadDocsFile

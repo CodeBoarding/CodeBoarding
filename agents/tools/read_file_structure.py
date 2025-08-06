@@ -21,9 +21,9 @@ class FileStructureTool(BaseTool):
     name: str = "getFileStructure"
     description: str = (
         "Returns project directory structure as a tree. "
-        "**CONTEXTUAL USE** - Use only when project layout is unclear from existing context. "
+        "Use only when project layout is unclear from existing context. "
         "Most effective for understanding overall project organization. "
-        "**AVOID** recursive calls - use once for high-level structure understanding."
+        "Avoid recursive calls - use once for high-level structure understanding."
     )
     MAX_LINES: int = 500
     args_schema: Optional[ArgsSchema] = DirInput

@@ -21,7 +21,7 @@ class Node:
 
 
 class Edge:
-    def __init__(self, src_node, dst_node):
+    def __init__(self, src_node: Node, dst_node: Node):
         self.src_node = src_node
         self.dst_node = dst_node
 

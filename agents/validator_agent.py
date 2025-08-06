@@ -9,8 +9,8 @@ from agents.prompts import COMPONENT_VALIDATION_COMPONENT, RELATIONSHIPS_VALIDAT
 
 
 class ValidatorAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg):
-        super().__init__(repo_dir, output_dir, cfg, VALIDATOR_SYSTEM_MESSAGE)
+    def __init__(self, repo_dir, static_analysis):
+        super().__init__(repo_dir, static_analysis, VALIDATOR_SYSTEM_MESSAGE)
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
                                                                self.read_file_structure, self.read_structure_tool,
                                                                self.read_file_tool, self.read_cfg_tool,
@@ -34,11 +34,11 @@ class ValidatorAgent(CodeBoardingAgent):
         for component in analysis.components:
             if not component.referenced_source_code:
                 info.append(f"Component {component.name} has no source code references. "
-                            f"Retry finding the proper source code reference via `getPythonSourceCode` tool. Or at least the correct file path with the `readFile` path.")
+                            f"Retry finding the proper source code reference via `getSourceCode` tool. Or at least the correct file path with the `readFile` path.")
             for ref in component.referenced_source_code:
                 if not ref.reference_file:
                     info.append(f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "
-                                f"Retry finding the proper source code reference via `getPythonSourceCode` tool. Or at least the correct file path with the `readFile` path.")
+                                f"Retry finding the proper source code reference via `getSourceCode` tool. Or at least the correct file path with the `readFile` path.")
         if info:
             return ValidationInsights(is_valid=False,
                                       additional_info="\n".join(info))

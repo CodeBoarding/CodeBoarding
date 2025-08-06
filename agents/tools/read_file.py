@@ -17,9 +17,9 @@ class ReadFileTool(BaseTool):
     name: str = "readFile"
     description: str = (
         "Reads specific Python file content around a target line number. "
-        "**PRECISION USE** - Only when specific implementation details are needed that CFG cannot provide. "
+        "Use only when specific implementation details are needed that CFG cannot provide. "
         "Returns 300 lines centered on the requested line. "
-        "**AVOID** exploratory reading - use only when you know exactly what to examine."
+        "Avoid exploratory reading - use only when you know exactly what to examine."
     )
     args_schema: Optional[ArgsSchema] = ReadFileInput
     return_direct: bool = False

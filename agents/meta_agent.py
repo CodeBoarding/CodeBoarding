@@ -9,8 +9,8 @@ from agents.prompts import SYSTEM_META_ANALYSIS_MESSAGE
 
 class MetaAgent(CodeBoardingAgent):
 
-    def __init__(self, repo_dir, output_dir, cfg, project_name):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_META_ANALYSIS_MESSAGE)
+    def __init__(self, repo_dir, static_analysis, project_name):
+        super().__init__(repo_dir, static_analysis, SYSTEM_META_ANALYSIS_MESSAGE)
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(

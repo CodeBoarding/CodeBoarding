@@ -1,8 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 import logging
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
+
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class MethodInvocationsInput(BaseModel):
@@ -13,42 +15,32 @@ class MethodInvocationsTool(BaseTool):
     name: str = "getMethodInvocationsTool"
     description: str = (
         "Retrieves complete project control flow graph (CFG) in DOT format. "
-        "**FOUNDATIONAL TOOL** - Use once at the start of analysis to understand overall architecture. "
+        "Use once at the start of analysis to understand overall architecture. "
         "Shows all function/method calls and execution flow across the codebase. "
-        "**PRIMARY DATA SOURCE** - Analyze this output before using other tools. "
+        "Primary data source - analyze this output before using other tools. "
         "No input arguments required."
     )
-    cfg: dict[Any, list[Any]] = None
+    static_analysis: Optional[StaticAnalysisResults] = None
 
-    def __init__(self, cfg):
+    def __init__(self, static_analysis):
         super().__init__()
-        self.cfg = cfg
+        self.static_analysis = static_analysis
 
     def _run(self, method) -> str:
         """
         Executes the tool to read and return the project's control flow graph.
         """
-        callees = []
-        calls = []
 
-        for k, v in self.cfg.items():
-            if k == method:
-                calls.extend(v)
-            if method in v:
-                callees.append(k)
-
-        logging.info(f"[Method Invocations Tool] Reading method invocations for {method}")
-
-        # Now let's format the output as a incident response
-        graph_str = ""
-        if not calls:
-            graph_str += f"Method {method} has no calls.\n"
-        else:
-            graph_str += f"Method {method} is calling the following methods {', '.join(calls)}.\n"
-        if not callees:
-            graph_str += f"Method {method} has no callees.\n"
-        else:
-            graph_str += f"Method {method} is called by {', '.join(callees)}.\n"
-        if not graph_str:
-            graph_str = f"Method {method} either has no calls or callees, or does has bad name. Available methods are: {', '.join(self.cfg.keys())}."
-        return f"Method Invocations:\n{graph_str.strip()}"
+        results = ""
+        for lang in self.static_analysis.get_languages():
+            # Attempt to retrieve the control flow graph for the specified language
+            cfg = self.static_analysis.get_cfg(lang)
+            for edge in cfg.edges:
+                if edge.src_node.fully_qualified_name == method:
+                    results += f"Method {edge.src_node.fully_qualified_name} is calling {edge.dst_node.fully_qualified_name}\n"
+                if edge.dst_node.fully_qualified_name == method:
+                    results += f"Method {edge.dst_node.fully_qualified_name} is called by {edge.src_node.fully_qualified_name}\n"
+        if results:
+            return results.strip()
+        # If no results found, return a message indicating no calls or callees
+        return "No method invocations found for the specified method. Try reading the source with the `getSourceCode` tool for full details."

@@ -3,15 +3,14 @@ import logging
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component, \
-    MetaAnalysisInsights
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
     DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE
 
 
 class DetailsAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_DETAILS_MESSAGE)
+    def __init__(self, repo_dir, static_analysis, project_name, meta_context):
+        super().__init__(repo_dir, static_analysis, SYSTEM_DETAILS_MESSAGE)
         self.project_name = project_name
         self.meta_context = meta_context
 

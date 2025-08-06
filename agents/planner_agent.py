@@ -8,8 +8,8 @@ from agents.prompts import EXPANSION_PROMPT, PLANNER_SYSTEM_MESSAGE
 
 
 class PlannerAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg):
-        super().__init__(repo_dir, output_dir, cfg, PLANNER_SYSTEM_MESSAGE)
+    def __init__(self, repo_dir, static_analysis):
+        super().__init__(repo_dir, static_analysis, PLANNER_SYSTEM_MESSAGE)
         self.expansion_prompt = PromptTemplate(template=EXPANSION_PROMPT, input_variables=["component"])
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,
                                                                self.read_packages_tool, self.read_file_structure,
