@@ -1,26 +1,30 @@
-import subprocess
+import argparse
 import json
+import logging
+import os
+import subprocess
+import sys
 import threading
 import time
-import os
-import sys
-import logging
-from tqdm import tqdm
 from pathlib import Path
 from typing import List
+
 import pathspec
-import argparse
+from tqdm import tqdm
 
 from static_analyzer.graph import CallGraph, Node
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
+LANGUAGE_IDS = {
+    'py': 'python',
+}
 
-class PyrightClient:
+
+class LSPClient:
     """
-    A Python client for the Pyright Language Server that communicates over stdio.
-    This client is designed to build a call graph of a Python project.
+    Language server protocol client for interacting with langservers
     """
 
     def __init__(self, project_path: str, server_start_params: List[str], language_suffix: str = 'py'):
@@ -36,6 +40,7 @@ class PyrightClient:
         self._reader_thread = None
         self._shutdown_flag = threading.Event()
         self.language_suffix = language_suffix
+        self.language_id = LANGUAGE_IDS[language_suffix]
 
         self._message_id = 1
         self._responses = {}
@@ -47,13 +52,14 @@ class PyrightClient:
 
     def start(self):
         """Starts the language server process and the message reader thread."""
-        logger.info("Starting pyright-langserver...")
+        logger.info(f"Starting server {' '.join(self.server_start_params)}...")
         self._process = subprocess.Popen(
             self.server_start_params,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
+
         self._reader_thread = threading.Thread(target=self._read_messages)
         self._reader_thread.daemon = True
         self._reader_thread.start()
@@ -187,7 +193,7 @@ class PyrightClient:
         """Recursively flattens a list of hierarchical symbols."""
         flat_list = []
         for symbol in symbols:
-            # SymbolKind: 6 for function, 7 for method in LSP 3.17
+            # SymbolKind: 6 for method, 7 for property in LSP 3.17
             if symbol['kind'] in [6, 7, 12]:  # 12 is Function
                 flat_list.append(symbol)
             if 'children' in symbol:
@@ -228,7 +234,7 @@ class PyrightClient:
             try:
                 content = file_path.read_text(encoding='utf-8')
                 self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
                 })
             except Exception as e:
                 logger.error(f"Could not read file {file_path}: {e}")
@@ -239,7 +245,7 @@ class PyrightClient:
             if not symbols:
                 continue
 
-            # 3. Create nodes for all functions in this file
+            # 3. Create nodes for all functions and methods in this file
             function_symbols = self._flatten_symbols(symbols)
             if not function_symbols:
                 logger.debug(f"No functions found in {file_path}. Skipping.")
@@ -359,24 +365,19 @@ class PyrightClient:
             self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
 
-    def get_class_hierarchies(self) -> dict:
+    def build_class_hierarchies(self) -> dict:
         """
-        Collects all class hierarchies in the project using LSP.
-        
+        Collects all class hierarchies in the project using core LSP methods.
+
         Returns:
-            A dictionary mapping class names to their inheritance information:
-            {
-                "fully.qualified.ClassName": {
-                    "superclasses": ["fully.qualified.BaseClass1", "fully.qualified.BaseClass2"],
-                    "subclasses": ["fully.qualified.DerivedClass1"],
-                    "file_path": "/path/to/file.py",
-                    "line_start": 10,
-                    "line_end": 50
-                }
-            }
+            A dictionary mapping class names to their inheritance information.
         """
-        logger.info("Collecting class hierarchies...")
+        logger.info("Collecting class hierarchies using core LSP methods...")
         class_hierarchies = {}
+
+        # First, get all classes in the workspace using workspace/symbol
+        all_classes = self._get_all_classes_in_workspace()
+        logger.info(f"Found {len(all_classes)} classes in workspace")
 
         py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
         spec = self.get_exclude_dirs()
@@ -388,10 +389,10 @@ class PyrightClient:
             try:
                 content = file_path.read_text(encoding='utf-8')
                 self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
                 })
 
-                # Get document symbols to find classes
+                # Get document symbols to find classes in this file
                 symbols = self._get_document_symbols(file_uri)
                 class_symbols = self._find_classes_in_symbols(symbols)
 
@@ -411,23 +412,27 @@ class PyrightClient:
                         "line_end": end_line
                     }
 
-                    # Use type hierarchy to get superclasses and subclasses
-                    pos = class_symbol['selectionRange']['start']
-                    supertypes, subtypes = self._get_type_hierarchy(file_uri, pos['line'], pos['character'])
+                    # Find inheritance relationships using multiple methods
+                    superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
+                    class_info["superclasses"] = superclasses
+                    for superclass in superclasses:
+                        if superclass not in class_hierarchies:
+                            class_hierarchies[superclass] = {"superclasses": [], "subclasses": [], "file_path": "",
+                                                             "line_start": 0, "line_end": 0}
+                        class_hierarchies[superclass]["subclasses"].append(qualified_name)
 
-                    for supertype in supertypes:
-                        super_path = Path(supertype['uri'].replace('file://', ''))
-                        super_qualified = self._create_qualified_name(super_path, supertype['name'])
-                        class_info["superclasses"].append(super_qualified)
-
-                    for subtype in subtypes:
-                        sub_path = Path(subtype['uri'].replace('file://', ''))
-                        sub_qualified = self._create_qualified_name(sub_path, subtype['name'])
-                        class_info["subclasses"].append(sub_qualified)
+                    # Find subclasses by searching references to this class
+                    subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
+                    class_info["subclasses"] = subclasses
 
                     class_hierarchies[qualified_name] = class_info
+                    for subclass in subclasses:
+                        if subclass not in class_hierarchies:
+                            class_hierarchies[subclass] = {"superclasses": [], "subclasses": [], "file_path": "",
+                                                           "line_start": 0, "line_end": 0}
+                        class_hierarchies[subclass]["superclasses"].append(qualified_name)
                     logger.debug(
-                        f"Found class: {qualified_name} with {len(class_info['superclasses'])} supers, {len(class_info['subclasses'])} subs")
+                        f"Found class: {qualified_name} with {len(superclasses)} supers, {len(subclasses)} subs")
 
                 self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
 
@@ -438,7 +443,245 @@ class PyrightClient:
         logger.info(f"Found {len(class_hierarchies)} classes with hierarchy information")
         return class_hierarchies
 
-    def get_package_relations(self) -> dict:
+    def _get_all_classes_in_workspace(self) -> list:
+        """Get all class symbols in the workspace using workspace/symbol."""
+        try:
+            params = {'query': ''}
+            req_id = self._send_request('workspace/symbol', params)
+            response = self._wait_for_response(req_id, timeout=30)
+
+            if 'error' in response:
+                logger.warning(f"workspace/symbol failed: {response['error']}")
+                return []
+
+            symbols = response.get('result', [])
+            # Filter for class symbols (kind 5)
+            classes = [s for s in symbols if s.get('kind') == 5]
+            logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
+            return classes
+        except Exception as e:
+            logger.error(f"Error getting workspace symbols: {e}")
+            return []
+
+    def _find_superclasses(self, file_uri: str, class_symbol: dict, content: str, file_path: Path) -> list:
+        """Find superclasses using textDocument/definition and text analysis."""
+        superclasses = []
+
+        # Method 1: Use textDocument/definition on class inheritance
+        lsp_superclasses = self._find_superclasses_via_definition(file_uri, class_symbol, content)
+        superclasses.extend(lsp_superclasses)
+
+        # Method 2: Fallback to text analysis
+        if not superclasses:
+            text_superclasses = self._extract_superclasses_from_text(file_path, class_symbol['name'], content)
+            superclasses.extend(text_superclasses)
+
+        return list(set(superclasses))  # Remove duplicates
+
+    def _find_superclasses_via_definition(self, file_uri: str, class_symbol: dict, content: str) -> list:
+        """Use textDocument/definition to find parent classes."""
+        superclasses = []
+
+        try:
+            # Get the class definition line from content
+            lines = content.split('\n')
+            class_name = class_symbol['name']
+            class_line_idx = None
+
+            # Find the line with class definition
+            for i, line in enumerate(lines):
+                if line.strip().startswith(f'class {class_name}(') and line.strip().endswith(':'):
+                    class_line_idx = i
+                    break
+
+            if class_line_idx is None:
+                return superclasses
+
+            class_line = lines[class_line_idx].strip()
+
+            # Extract parent class names from the line
+            start = class_line.find('(') + 1
+            end = class_line.rfind(')')
+            if start > 0 and end > start:
+                parents_str = class_line[start:end]
+                parent_names = [p.strip() for p in parents_str.split(',') if p.strip()]
+
+                # For each parent name, use LSP to get its definition
+                for parent_name in parent_names:
+                    if parent_name == 'object':
+                        continue
+
+                    # Find the position of this parent name in the class line
+                    parent_start = class_line.find(parent_name, start)
+                    if parent_start != -1:
+                        # Calculate character position
+                        char_pos = parent_start
+
+                        # Use textDocument/definition to resolve the parent class
+                        definition = self._get_definition_for_position(file_uri, class_line_idx, char_pos)
+
+                        if definition:
+                            for def_item in definition:
+                                def_uri = def_item.get('uri', '')
+                                if def_uri.startswith('file://'):
+                                    def_path = Path(def_uri.replace('file://', ''))
+                                    # Get the symbol at the definition location
+                                    def_range = def_item.get('range', {})
+                                    def_line = def_range.get('start', {}).get('line', 0)
+
+                                    # Extract class name from definition
+                                    try:
+                                        def_content = def_path.read_text(encoding='utf-8')
+                                        def_lines = def_content.split('\n')
+                                        if def_line < len(def_lines):
+                                            def_line_text = def_lines[def_line].strip()
+                                            if def_line_text.startswith('class '):
+                                                class_name_match = \
+                                                    def_line_text.split('class ')[1].split('(')[0].split(':')[0].strip()
+                                                qualified_super = self._create_qualified_name(def_path,
+                                                                                              class_name_match)
+                                                superclasses.append(qualified_super)
+                                    except Exception as e:
+                                        logger.debug(f"Could not read definition file: {e}")
+                        else:
+                            # If LSP definition failed, try to resolve manually
+                            resolved_name = self._resolve_class_name(parent_name, file_uri, content)
+                            if resolved_name:
+                                superclasses.append(resolved_name)
+
+        except Exception as e:
+            logger.debug(f"Error finding superclasses via definition: {e}")
+
+        return superclasses
+
+    def _get_definition_for_position(self, file_uri: str, line: int, character: int) -> list:
+        """Get definition for a specific position."""
+        try:
+            params = {
+                'textDocument': {'uri': file_uri},
+                'position': {'line': line, 'character': character}
+            }
+            req_id = self._send_request('textDocument/definition', params)
+            response = self._wait_for_response(req_id)
+
+            if 'error' in response:
+                logger.debug(f"Definition request failed: {response['error']}")
+                return []
+
+            return response.get('result', [])
+        except Exception as e:
+            logger.debug(f"Could not get definition: {e}")
+            return []
+
+    def _extract_superclasses_from_text(self, file_path: Path, class_name: str, content: str) -> list:
+        """Extract superclasses using text analysis as fallback."""
+        superclasses = []
+
+        try:
+            lines = content.split('\n')
+
+            # Find the class definition line
+            for line in lines:
+                line = line.strip()
+                if line.startswith(f'class {class_name}(') and line.endswith(':'):
+                    # Extract parent classes from class definition
+                    start = line.find('(') + 1
+                    end = line.rfind(')')
+                    if start > 0 and end > start:
+                        parents_str = line[start:end]
+                        parents = [p.strip() for p in parents_str.split(',') if p.strip()]
+
+                        for parent in parents:
+                            if parent != 'object':
+                                # Try to resolve to fully qualified name
+                                resolved = self._resolve_class_name(parent, file_path, content)
+                                if resolved:
+                                    superclasses.append(resolved)
+                    break
+
+        except Exception as e:
+            logger.debug(f"Could not extract inheritance from text: {e}")
+
+        return superclasses
+
+    def _find_subclasses(self, file_uri: str, class_symbol: dict, all_classes: list) -> list:
+        """Find subclasses using textDocument/references."""
+        subclasses = []
+
+        try:
+            # Get references to this class
+            pos = class_symbol['selectionRange']['start']
+            references = self._get_references(file_uri, pos['line'], pos['character'])
+
+            for ref in references:
+                ref_uri = ref.get('uri', '')
+                ref_range = ref.get('range', {})
+                ref_line = ref_range.get('start', {}).get('line', 0)
+
+                if ref_uri.startswith('file://'):
+                    ref_path = Path(ref_uri.replace('file://', ''))
+
+                    try:
+                        # Read the file and check if this reference is in a class inheritance
+                        ref_content = ref_path.read_text(encoding='utf-8')
+                        ref_lines = ref_content.split('\n')
+
+                        if ref_line < len(ref_lines):
+                            ref_line_text = ref_lines[ref_line].strip()
+
+                            # Check if this line is a class definition that inherits from our class
+                            if ref_line_text.startswith('class ') and '(' in ref_line_text and class_symbol[
+                                'name'] in ref_line_text:
+                                # Extract the subclass name
+                                subclass_name = ref_line_text.split('class ')[1].split('(')[0].strip()
+                                qualified_subclass = self._create_qualified_name(ref_path, subclass_name)
+                                subclasses.append(qualified_subclass)
+
+                    except Exception as e:
+                        logger.debug(f"Could not analyze reference file: {e}")
+
+        except Exception as e:
+            logger.debug(f"Error finding subclasses: {e}")
+
+        return subclasses
+
+    def _resolve_class_name(self, class_name: str, file_reference, content: str) -> str:
+        """Try to resolve a simple class name to a fully qualified name."""
+        # If it's already qualified, return as-is
+        if '.' in class_name:
+            return class_name
+
+        # Get file path for context
+        if isinstance(file_reference, str) and file_reference.startswith('file://'):
+            file_path = Path(file_reference.replace('file://', ''))
+        elif isinstance(file_reference, Path):
+            file_path = file_reference
+        else:
+            return class_name
+
+        # Look for imports in the file that might define this class
+        lines = content.split('\n')
+        for line in lines[:50]:  # Check imports at top of file
+            line = line.strip()
+            if f'from ' in line and f' import ' in line and class_name in line:
+                # Try to extract the module
+                if f' import {class_name}' in line or f' import {class_name},' in line:
+                    module_part = line.split(' import ')[0].replace('from ', '').strip()
+                    return f"{module_part}.{class_name}"
+            elif f'import ' in line and class_name in line:
+                # Handle direct imports
+                import_part = line.replace('import ', '').strip()
+                if '.' in import_part and import_part.endswith(class_name):
+                    return import_part
+
+        # If we can't resolve it, assume it's in the same package
+        file_package = self._get_package_name(file_path)
+        if file_package and file_package != 'root':
+            return f"{file_package}.{class_name}"
+        else:
+            return class_name
+
+    def build_package_relations(self) -> dict:
         """
         Collects package interaction relationships using pure LSP by analyzing symbols and references.
         
@@ -466,7 +709,7 @@ class PyrightClient:
             try:
                 content = file_path.read_text(encoding='utf-8')
                 self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
                 })
 
                 # Determine package for this file
@@ -506,7 +749,7 @@ class PyrightClient:
             try:
                 content = file_path.read_text(encoding='utf-8')
                 self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': 'python', 'version': 1, 'text': content}
+                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
                 })
 
                 # Get symbols and find references to external packages
@@ -550,39 +793,6 @@ class PyrightClient:
             if 'children' in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol['children']))
         return classes
-
-    def _get_type_hierarchy(self, file_uri: str, line: int, character: int) -> tuple:
-        """Get type hierarchy (supertypes and subtypes) for a position."""
-        try:
-            # Prepare type hierarchy
-            params = {
-                'textDocument': {'uri': file_uri},
-                'position': {'line': line, 'character': character}
-            }
-            req_id = self._send_request('textDocument/prepareTypeHierarchy', params)
-            response = self._wait_for_response(req_id)
-            hierarchy_items = response.get('result', [])
-
-            if not hierarchy_items:
-                return [], []
-
-            item = hierarchy_items[0]
-
-            # Get supertypes
-            super_req_id = self._send_request('typeHierarchy/supertypes', {'item': item})
-            super_response = self._wait_for_response(super_req_id)
-            supertypes = super_response.get('result', [])
-
-            # Get subtypes
-            sub_req_id = self._send_request('typeHierarchy/subtypes', {'item': item})
-            sub_response = self._wait_for_response(sub_req_id)
-            subtypes = sub_response.get('result', [])
-
-            return supertypes, subtypes
-
-        except Exception as e:
-            logger.debug(f"Could not get type hierarchy: {e}")
-            return [], []
 
     def _extract_imports_from_symbols(self, symbols: list, content: str) -> list:
         """Extract import information from symbols and content using LSP only."""
@@ -742,103 +952,15 @@ if __name__ == '__main__':
         project_path = Path(args.project_dir).resolve()
 
         # Instantiate and start the client
-        client = PyrightClient(str(project_path), ['pyright-langserver', '--stdio'])
+        client = LSPClient(str(project_path), ['pyright-langserver', '--stdio'])
         client.start()
 
         # Build the graph
         call_graph = client.build_call_graph()
         print(call_graph)
-    except Exception as e:
-        logger.error(f"An error occurred: {e}", exc_info=True)
-        sys.exit(1)
-    finally:
-        if client:
-            client.close()
-
-
-    def _find_external_references(self, file_uri: str, symbols: list) -> list:
-        """Find references to external symbols using LSP."""
-        external_refs = []
-        try:
-            # This is a simplified approach - in practice, you'd need to iterate through
-            # identifiers in the file and use textDocument/references
-            for symbol in symbols:
-                if symbol.get('kind') in [12, 6]:  # Functions and methods
-                    pos = symbol['selectionRange']['start']
-                    refs = self._get_references(file_uri, pos['line'], pos['character'])
-                    external_refs.extend(refs)
-        except Exception as e:
-            logger.debug(f"Error finding external references: {e}")
-        return external_refs
-
-
-    def _get_references(self, file_uri: str, line: int, character: int) -> list:
-        """Get references for a position using LSP."""
-        try:
-            params = {
-                'textDocument': {'uri': file_uri},
-                'position': {'line': line, 'character': character},
-                'context': {'includeDeclaration': True}
-            }
-            req_id = self._send_request('textDocument/references', params)
-            response = self._wait_for_response(req_id)
-            return response.get('result', [])
-        except Exception as e:
-            logger.debug(f"Could not get references: {e}")
-            return []
-
-
-    def _extract_package_from_reference(self, reference: dict) -> str:
-        """Extract package name from a reference location."""
-        try:
-            uri = reference.get('uri', '')
-            if uri.startswith('file://'):
-                file_path = Path(uri.replace('file://', ''))
-                return self._get_package_name(file_path)
-        except Exception:
-            pass
-        return None
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Build a call graph for a Python project using pyright's LSP.",
-        formatter_class=argparse.RawTextHelpFormatter
-    )
-    parser.add_argument("project_dir", help="The root directory of the Python project.")
-    parser.add_argument(
-        "-o", "--output",
-        help="Path to save the output JSON file. If not provided, prints to console."
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging to show all LSP JSON-RPC communication."
-    )
-
-    args = parser.parse_args()
-
-    # Configure logging
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
-    client = None
-    try:
-        # Resolve the project directory path
-        project_path = Path(args.project_dir).resolve()
-
-        # Instantiate and start the client
-        client = PyrightClient(str(project_path), ['pyright-langserver', '--stdio'])
-        client.start()
-
-        # Build the graph
-        call_graph = client.build_call_graph()
-        print(call_graph)
-        hierarchy = client.get_class_hierarchies()
+        hierarchy = client.build_class_hierarchies()
         print(hierarchy)
-        relations = client.get_package_relations()
+        relations = client.build_package_relations()
         print(relations)
     except Exception as e:
         logger.error(f"An error occurred: {e}", exc_info=True)
