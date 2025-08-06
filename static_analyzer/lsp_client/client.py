@@ -11,13 +11,10 @@ import pathspec
 from tqdm import tqdm
 
 from static_analyzer.graph import CallGraph, Node
+from static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-LANGUAGE_IDS = {
-    'py': 'python',
-}
 
 
 class LSPClient:
@@ -25,20 +22,20 @@ class LSPClient:
     Language server protocol client for interacting with langservers
     """
 
-    def __init__(self, project_path: str, server_start_params: List[str], language_suffix: str = 'py'):
+    def __init__(self, project_path: Path, language: ProgrammingLanguage):
         """
-        Initializes the client and starts the pyright-langserver process.
+        Initializes the client and starts the langserver process.
         """
-        self.project_path = Path(project_path).resolve()
+        self.project_path = project_path
         if not self.project_path.is_dir():
             raise ValueError(f"Project path '{project_path}' does not exist or is not a directory.")
 
-        self.server_start_params = server_start_params
+        self.server_start_params = language.get_server_parameters()
         self._process = None
         self._reader_thread = None
         self._shutdown_flag = threading.Event()
-        self.language_suffix = language_suffix
-        self.language_id = LANGUAGE_IDS[language_suffix]
+        self.language_suffix_pattern = language.get_suffix_pattern()
+        self.language_id = language.get_language_id()
 
         self._message_id = 1
         self._responses = {}
@@ -215,17 +212,17 @@ class LSPClient:
         Returns:
             A CallGraph object containing all function call relationships.
         """
-        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
         spec = self.get_exclude_dirs()
-        py_files = self.filter_python_files(py_files, spec)
-        total_files = len(py_files)
-        logger.info(f"Found {total_files} Python files. Analyzing...")
+        src_files = self.filter_src_files(src_files, spec)
+        total_files = len(src_files)
+        logger.info(f"Found {total_files} source files. Analyzing...")
 
-        if not py_files:
-            logger.warning("No Python files found in the project.")
+        if not src_files:
+            logger.warning("No source files found in the project.")
             return self.call_graph
 
-        for i, file_path in tqdm(enumerate(py_files), desc="[CallGraph] Processing files", total=total_files):
+        for i, file_path in tqdm(enumerate(src_files), desc="[CallGraph] Processing files", total=total_files):
             file_uri = file_path.as_uri()
 
             # 1. Notify the server that the file is open
@@ -312,10 +309,10 @@ class LSPClient:
         logger.info("Call graph construction complete.")
         return self.call_graph
 
-    def filter_python_files(self, python_files, spec):
+    def filter_src_files(self, src_files, spec):
         # Return files that do NOT match any of the ignore patterns AND do not have "test" in their path
         filtered_files = []
-        for file in python_files:
+        for file in src_files:
             rel_path = file.relative_to(self.project_path)
             # Skip if matches gitignore patterns
             if spec.match_file(rel_path):
@@ -341,7 +338,7 @@ class LSPClient:
 
     def close(self):
         """Shuts down the language server gracefully."""
-        logger.info("Shutting down pyright-langserver...")
+        logger.info("Shutting down langserver...")
         if self._process:
             # LSP shutdown sequence
             shutdown_id = self._send_request('shutdown', {})
@@ -377,11 +374,11 @@ class LSPClient:
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
-        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
         spec = self.get_exclude_dirs()
-        py_files = self.filter_python_files(py_files, spec)
+        src_files = self.filter_src_files(src_files, spec)
 
-        for file_path in tqdm(py_files, desc="[Class Hierarchy] Analyzing class hierarchies"):
+        for file_path in tqdm(src_files, desc="[Class Hierarchy] Analyzing class hierarchies"):
             file_uri = file_path.as_uri()
 
             try:
@@ -696,12 +693,12 @@ class LSPClient:
         logger.info("Collecting package relations...")
         package_relations = {}
 
-        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
         spec = self.get_exclude_dirs()
-        py_files = self.filter_python_files(py_files, spec)
+        src_files = self.filter_src_files(src_files, spec)
 
         # First pass: collect all symbols and build package structure
-        for file_path in tqdm(py_files, desc="[Package Relationships] Analyzing package structure"):
+        for file_path in tqdm(src_files, desc="[Package Relationships] Analyzing package structure"):
             file_uri = file_path.as_uri()
 
             try:
@@ -741,7 +738,7 @@ class LSPClient:
                 continue
 
         # Second pass: use LSP references to find cross-package dependencies
-        for file_path in tqdm(py_files, desc="[Package Relationships] Enhancing with LSP references"):
+        for file_path in tqdm(src_files, desc="[Package Relationships] Enhancing with LSP references"):
             file_uri = file_path.as_uri()
 
             try:
@@ -927,9 +924,9 @@ class LSPClient:
         logger.info("Building references for all symbols...")
         reference_nodes = []
 
-        py_files = list(self.project_path.rglob(f'*.{self.language_suffix}'))
+        py_files = list(self.project_path.rglob(self.language_suffix_pattern))
         spec = self.get_exclude_dirs()
-        py_files = self.filter_python_files(py_files, spec)
+        py_files = self.filter_src_files(py_files, spec)
 
         # Track processed symbols to avoid duplicates
         processed_symbols = set()
@@ -996,3 +993,16 @@ class LSPClient:
             if 'children' in symbol:
                 all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
         return all_symbols
+
+    @classmethod
+    def create_clients(cls, programming_languages: List[ProgrammingLanguage], repository_path: Path) -> list:
+        clients = []
+        for programming_language in programming_languages:
+            if not programming_language.is_supported_lang():
+                logger.warning(f"Unsupported programming language: {programming_language.language}. Skipping.")
+                continue
+            clients.append(LSPClient(
+                language=programming_language,
+                project_path=repository_path
+            ))
+        return clients

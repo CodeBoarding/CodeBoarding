@@ -17,6 +17,7 @@ from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
+from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
 
@@ -184,15 +185,20 @@ class DiagramGenerator:
     def generate_static_analysis(self):
         results = StaticAnalysisResults()
 
-        client = LSPClient(self.repo_location, ['pyright-langserver', '--stdio'], 'py')
-        client.start()
-        call_graph = client.build_call_graph()
-        class_hierarchy = client.build_class_hierarchies()
-        package_graph = client.build_package_relations()
-        references = client.build_references()
-        results.add_references("python", references)
-        results.add_cfg("python", call_graph)
-        results.add_class_hierarchy("python", class_hierarchy)
-        results.add_package_dependencies("python", package_graph)
+        scanner = ProjectScanner(self.repo_location)
+        programming_langs = scanner.scan()
+        clients = LSPClient.create_clients(programming_langs, self.repo_location)
+        for client in clients:
+            client.start()
+
+            call_graph = client.build_call_graph()
+            class_hierarchy = client.build_class_hierarchies()
+            package_graph = client.build_package_relations()
+            references = client.build_references()
+
+            results.add_references("python", references)
+            results.add_cfg("python", call_graph)
+            results.add_class_hierarchy("python", class_hierarchy)
+            results.add_package_dependencies("python", package_graph)
 
         return results

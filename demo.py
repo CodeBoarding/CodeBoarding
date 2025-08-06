@@ -122,6 +122,10 @@ Examples:
     )
 
     args = parser.parse_args()
+    import os
+
+    GEMS_BIN = "/home/ivan/gems/bin"
+    os.environ["PATH"] = f"{GEMS_BIN}:" + os.environ["PATH"]
 
     load_dotenv()
     setup_logging()
