@@ -21,10 +21,19 @@ class SourceCodeReference(BaseModel):
 
     def llm_str(self):
         if self.reference_start_line is None or self.reference_end_line is None:
+            return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
+        if (self.reference_start_line <= self.reference_end_line <= 0 or
+                self.reference_start_line == self.reference_end_line):
+            return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
+        return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`, Lines:({self.reference_start_line}:{self.reference_end_line})"
+
+    def __str__(self):
+        if self.reference_start_line is None or self.reference_end_line is None:
             return f"`{self.qualified_name}`"
-        if self.reference_start_line == 0 and self.reference_end_line == 0:
+        if (self.reference_start_line <= self.reference_end_line <= 0 or
+                self.reference_start_line == self.reference_end_line):
             return f"`{self.qualified_name}`"
-        return f"`{self.qualified_name}` ({self.reference_start_line}:{self.reference_end_line})"
+        return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line})"
 
 
 class Relation(BaseModel):

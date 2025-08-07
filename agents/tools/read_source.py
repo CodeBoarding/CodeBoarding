@@ -58,6 +58,11 @@ class CodeReferenceReader(BaseTool):
             except ValueError:
                 logger.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
                 continue
+            except FileExistsError:
+                logger.warning(
+                    f"[Source Reference Tool] File not found for {code_reference} in {lang}. Make use of the `readFile` tool to read the file content directly.")
+                return f"INFO: {code_reference} is a reference to a file/package and not a specific class or method. " \
+                       f"Please use the `readFile` tool to read the file content."
         # Check if the code reference is a file path:
         logger.warning(f"[Source Reference Tool] No source code reference found for {code_reference} in any language. "
                        f"Suggesting to use our file read tooling.")
@@ -81,5 +86,5 @@ class CodeReferenceReader(BaseTool):
         if start_line < 0 or end_line > len(lines):
             logger.error(f"[Source Reference Tool] Invalid line range: {start_line}-{end_line} for file {file_path}.")
             return f"Error: Invalid line range: {start_line}-{end_line} for file {file_path}."
-
+        logger.info(f"[Source Reference Tool] Success, reading from: {file_path}.")
         return ''.join(lines[start_line:end_line])

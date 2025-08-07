@@ -49,8 +49,9 @@ class StaticAnalysisResults:
         """
         if language not in self.results:
             self.results[language] = {}
-        # transform references to dict:
-        self.results[language] = {reference.fully_qualified_name: reference for reference in references}
+        # transform references to dict and make the keys lower case so that we can search them case-insensitively
+        self.results[language]['references'] = {reference.fully_qualified_name.lower(): reference for reference in
+                                                references}
 
     def get_cfg(self, language):
         """
@@ -100,8 +101,17 @@ class StaticAnalysisResults:
         :param qualified_name: The fully qualified name of the source code element.
         :return: The source code reference or None if not found.
         """
+        lower_qn = qualified_name.lower()
+        if language in self.results and "references" in self.results[language] and lower_qn in \
+                self.results[language]["references"]:
+            return self.results[language]["references"][lower_qn]
+        # Check if the qualified name is a subset meaning it is a file path:
         if language in self.results and "references" in self.results[language]:
-            return self.results[language]["references"][qualified_name]
+            for ref in self.results[language]["references"].keys():
+                if ref.startswith(lower_qn):
+                    raise FileExistsError(
+                        f"Source code reference for '{qualified_name}' in language '{language}' is a file path, "
+                        f"please use the full file path instead of the qualified name.")
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
     def get_languages(self):

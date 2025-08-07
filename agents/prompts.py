@@ -71,7 +71,7 @@ Source Analysis:
 {source_insight}
 
 Instructions:
-Use only the provided analysis data - no additional tools required.
+Use only the provided analysis data - no additional tools required. Validate all reference files with the ``getFileStructure`` tool, use full reference names for qualified names validate those with `readSourceCode` tool.
 
 Required outputs:
 1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow

@@ -48,6 +48,22 @@ uv venv --python 3.11
 uv pip sync requirements.txt
 ```
 
+Language Scanning:
+
+MacOS:
+
+```bash
+brew install cmake pkg-config icu4c
+gem install github-linguist
+```
+
+Linux:
+
+```bash
+sudo apt-get install build-essential cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev
+gem install github-linguist
+```
+
 Installing langservers for different technologies:
 
 ```bash

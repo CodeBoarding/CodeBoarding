@@ -71,6 +71,8 @@ class ReadFileTool(BaseTool):
         total_lines = len(lines)
 
         if line_number < 0 or line_number >= total_lines:
+            logger.error(f"[ReadFile Tool] Line number {line_number} is out of range for file {file_path}. "
+                         f"Total lines: {total_lines}")
             return f"Error: Line number {line_number} is out of range (0-{total_lines - 1})"
 
         # Calculate start and end line numbers based on the specified requirements
@@ -95,7 +97,7 @@ class ReadFileTool(BaseTool):
             f"{i + 1 + start_line:4}:{line}" for i, line in enumerate(selected_lines)
         ]
         content = ''.join(numbered_lines)
-
+        logger.info(f"[ReadFile Tool] Successfully read {len(selected_lines)} lines from {file_path} ")
         return f"File: {file_path}\nLines {start_line}-{end_line - 1} (centered around line {line_number}):\n\n{content}"
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
