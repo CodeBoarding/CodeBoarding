@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 class ReadFileInput(BaseModel):
     """Input for ReadFileTool."""
     file_path: str = Field(...,
-                           description="Path to the Python file to read, use relative paths from the root of the project. ")
+                           description="Path to the file to read, use relative paths from the root of the project. ")
     line_number: int = Field(..., description="Line number to focus on")
 
 
 class ReadFileTool(BaseTool):
     name: str = "readFile"
     description: str = (
-        "Reads specific Python file content around a target line number. "
+        "Reads specific file content around a target line number. "
         "Use only when specific implementation details are needed that CFG cannot provide. "
         "Returns 300 lines centered on the requested line. "
         "Avoid exploratory reading - use only when you know exactly what to examine."
@@ -38,8 +38,7 @@ class ReadFileTool(BaseTool):
         """
         Walk the directory and collect all files.
         """
-        for path in root_project_dir.rglob('*.py'):
-            self.cached_files.append(path)
+        self.cached_files = [path for path in root_project_dir.rglob('*') if path.is_file()]
         self.cached_files.sort(key=lambda x: len(x.parts))
 
     def _run(self, file_path: str, line_number: int) -> str:
@@ -58,14 +57,12 @@ class ReadFileTool(BaseTool):
                 break
 
         common_prefix = str(self.repo_dir)
-        if len(file_path.suffixes) != 1 or file_path.suffix not in ['.py', '.md', '.txt', '.rst', '.yml']:
-            return f"Error: The specified file '{file_path}' is not a supported file type. " \
-                   f"Supported types are: .py, .md, .txt, .rst, .yml.\n"
         if read_file is None:
             files_str = '\n'.join(
                 [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path.suffix])
+            logger.error(f"[ReadFile Tool] File {file_path} not found in cached files.")
             return f"Error: The specified file '{file_path}' was not found in the indexed source files. " \
-                   f"Please ensure the path is correct and points to an existing Python file: {common_prefix}/\n{files_str}."
+                   f"Please ensure the path is correct and points to an existing file: {common_prefix}/\n{files_str}."
 
         # Read the file content
         with open(read_file, 'r', encoding='utf-8') as file:

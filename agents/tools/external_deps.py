@@ -17,9 +17,8 @@ class ExternalDepsInput(BaseModel):
 class ExternalDepsTool(BaseTool):
     name: str = "readExternalDeps"
     description: str = (
-        "Identifies Python project dependency files in the repository. "
-        "Automatically detects common dependency files like requirements.txt, pyproject.toml, setup.py, "
-        "environment.yml (conda), Pipfile, poetry.lock, and others. "
+        "Identifies project dependency files in the repository. "
+        "Automatically detects common dependency files like requirements.txt, pyproject.toml, tsconfig.json, and others. "
         "Returns a list of found dependency files that can be examined with the readFile tool."
     )
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
@@ -41,7 +40,14 @@ class ExternalDepsTool(BaseTool):
         "conda.yml",
         "conda.yaml",
         "pixi.toml",
-        "uv.lock"
+        "uv.lock",
+        # Node.js / TypeScript specific
+        "package.json",
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "bun.lockb",
+        "tsconfig.json",  # TypeScript compiler configuration (not dependencies, but relevant)
     ]
 
     def __init__(self, repo_dir: Path):

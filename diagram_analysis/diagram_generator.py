@@ -15,8 +15,8 @@ from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
+from static_analyzer import create_clients
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
@@ -187,8 +187,9 @@ class DiagramGenerator:
 
         scanner = ProjectScanner(self.repo_location)
         programming_langs = scanner.scan()
-        clients = LSPClient.create_clients(programming_langs, self.repo_location)
+        clients = create_clients(programming_langs, self.repo_location)
         for client in clients:
+            logger.info(f"Starting static analysis for {client.language.language} in {self.repo_location}")
             client.start()
 
             call_graph = client.build_call_graph()
@@ -196,9 +197,9 @@ class DiagramGenerator:
             package_graph = client.build_package_relations()
             references = client.build_references()
 
-            results.add_references("python", references)
-            results.add_cfg("python", call_graph)
-            results.add_class_hierarchy("python", class_hierarchy)
-            results.add_package_dependencies("python", package_graph)
+            results.add_references(client.language.language, references)
+            results.add_cfg(client.language.language, call_graph)
+            results.add_class_hierarchy(client.language.language, class_hierarchy)
+            results.add_package_dependencies(client.language.language, package_graph)
 
         return results

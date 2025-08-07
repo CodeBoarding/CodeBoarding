@@ -1,9 +1,13 @@
 import json
+import logging
 import subprocess
 from pathlib import Path
 from typing import List, Set
 
 from static_analyzer.programming_language import ProgrammingLanguage
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectScanner:
@@ -33,14 +37,16 @@ class ProjectScanner:
             programming_languages = []
             for technology, info in linguist_data.items():
                 suffixes = self._extract_suffixes(info.get('files', []))
-                programming_languages.append(
-                    ProgrammingLanguage(
+                pl = ProgrammingLanguage(
                         language=technology,
                         size=info.get('size', 0),
-                        percentage=info.get('percentage', '0'),
+                        percentage=float(info.get('percentage', '0')),
                         suffixes=list(suffixes)
                     )
-                )
+                logger.info(f"Found: {pl}")
+                if pl.percentage >= 1:
+                    programming_languages.append(pl)
+                    logger.info(f"Added {pl}")
 
             return programming_languages
 

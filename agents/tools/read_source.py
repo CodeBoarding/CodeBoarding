@@ -58,6 +58,12 @@ class CodeReferenceReader(BaseTool):
             except ValueError:
                 logger.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
                 continue
+        # Check if the code reference is a file path:
+        logger.warning(f"[Source Reference Tool] No source code reference found for {code_reference} in any language. "
+                       f"Suggesting to use our file read tooling.")
+        return ("No source code reference was found for the given code reference. "
+                "However it is possible that this is a directory use the `getFileStructure` tool to retrieve the file structure of the project. "
+                "It can also be a source file path for that use the `readFile` tool and retrieve the document.")
 
     @staticmethod
     def read_file(file, start_line, end_line) -> str:

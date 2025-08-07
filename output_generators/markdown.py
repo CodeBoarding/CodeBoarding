@@ -73,7 +73,8 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                     continue
                 url = "/".join(repo_ref.split("/")[:7])
                 ref_url = url + reference.reference_file.split(root_dir)[1]
-                if not (reference.reference_start_line <= 0 and reference.reference_end_line <= 0):
+                if not (reference.reference_start_line <= reference.reference_end_line <= 0 or
+                        reference.reference_start_line == reference.reference_end_line):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(
                     f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference.llm_str()}</a>')

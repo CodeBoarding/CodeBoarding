@@ -5,7 +5,6 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import List
 
 import pathspec
 from tqdm import tqdm
@@ -30,6 +29,7 @@ class LSPClient:
         if not self.project_path.is_dir():
             raise ValueError(f"Project path '{project_path}' does not exist or is not a directory.")
 
+        self.language = language
         self.server_start_params = language.get_server_parameters()
         self._process = None
         self._reader_thread = None
@@ -134,7 +134,7 @@ class LSPClient:
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
-        logger.info("Initializing connection...")
+        logger.info(f"Initializing connection for {self.language_id}...")
         params = {
             'processId': os.getpid(),
             'rootUri': self.project_path.as_uri(),
@@ -145,6 +145,11 @@ class LSPClient:
                     'typeHierarchy': {'dynamicRegistration': True},
                     'references': {'dynamicRegistration': True},
                     'semanticTokens': {'dynamicRegistration': True}
+                },
+                'workspace': {
+                    'configuration': True,
+                    'workspaceFolders': True,
+                    'didChangeConfiguration': {'dynamicRegistration': True}
                 }
             },
             'workspace': {
@@ -152,6 +157,10 @@ class LSPClient:
                 'workspaceEdit': {'documentChanges': True}
             }
         }
+
+        # Allow subclasses to customize initialization parameters
+        params = self._customize_initialization_params(params)
+
         init_id = self._send_request('initialize', params)
         response = self._wait_for_response(init_id, timeout=20)
 
@@ -160,6 +169,9 @@ class LSPClient:
 
         logger.info("Initialization successful.")
         self._send_notification('initialized', {})
+
+        # Allow subclasses to perform post-initialization setup
+        self._post_initialization_setup()
 
     def _get_document_symbols(self, file_uri: str):
         """Fetches all document symbols (functions, classes, etc.) for a file."""
@@ -195,6 +207,134 @@ class LSPClient:
                 flat_list.extend(self._flatten_symbols(symbol['children']))
         return flat_list
 
+    def _send_request(self, method: str, params: dict):
+        """Sends a JSON-RPC request to the server."""
+        with self._lock:
+            message_id = self._message_id
+            self._message_id += 1
+
+        request = {
+            'jsonrpc': '2.0',
+            'id': message_id,
+            'method': method,
+            'params': params,
+        }
+
+        body = json.dumps(request)
+        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+
+        self._process.stdin.write(message.encode('utf-8'))
+        self._process.stdin.flush()
+
+        return message_id
+
+    def _send_notification(self, method: str, params: dict):
+        """Sends a JSON-RPC notification to the server."""
+        notification = {
+            'jsonrpc': '2.0',
+            'method': method,
+            'params': params,
+        }
+        body = json.dumps(notification)
+        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+
+        self._process.stdin.write(message.encode('utf-8'))
+        self._process.stdin.flush()
+
+    def _read_messages(self):
+        """
+        Runs in a separate thread to read and process messages from the server's stdout.
+        """
+        while not self._shutdown_flag.is_set():
+            try:
+                line = self._process.stdout.readline().decode('utf-8')
+                if not line or not line.startswith('Content-Length'):
+                    continue
+
+                content_length = int(line.split(':')[1].strip())
+                self._process.stdout.readline()  # Read the blank line
+
+                body = self._process.stdout.read(content_length).decode('utf-8')
+                response = json.loads(body)
+
+                if 'id' in response:
+                    with self._lock:
+                        self._responses[response['id']] = response
+                else:  # It's a notification from the server
+                    with self._lock:
+                        self._notifications.append(response)
+
+            except (IOError, ValueError) as e:
+                if not self._shutdown_flag.is_set():
+                    logger.error(f"Error reading from server: {e}")
+                break
+
+    def _wait_for_response(self, message_id: int, timeout: int = 120):
+        """Waits for a response with a specific message ID to arrive."""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            with self._lock:
+                if message_id in self._responses:
+                    return self._responses.pop(message_id)
+            time.sleep(0.01)
+        raise TimeoutError(f"Timed out waiting {timeout}s for response to message {message_id}")
+
+    def _initialize(self):
+        """Performs the LSP initialization handshake."""
+        logger.info(f"Initializing connection for {self.language_id}...")
+        params = {
+            'processId': os.getpid(),
+            'rootUri': self.project_path.as_uri(),
+            'capabilities': {
+                'textDocument': {
+                    'callHierarchy': {'dynamicRegistration': True},
+                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
+                    'typeHierarchy': {'dynamicRegistration': True},
+                    'references': {'dynamicRegistration': True},
+                    'semanticTokens': {'dynamicRegistration': True}
+                },
+                'workspace': {
+                    'configuration': True,
+                    'workspaceFolders': True,
+                    'didChangeConfiguration': {'dynamicRegistration': True}
+                }
+            },
+            'workspace': {
+                'applyEdit': True,
+                'workspaceEdit': {'documentChanges': True}
+            }
+        }
+
+        # Allow subclasses to customize initialization parameters
+        params = self._customize_initialization_params(params)
+
+        init_id = self._send_request('initialize', params)
+        response = self._wait_for_response(init_id, timeout=20)
+
+        if 'error' in response:
+            raise RuntimeError(f"Initialization failed: {response['error']}")
+
+        logger.info("Initialization successful.")
+        self._send_notification('initialized', {})
+
+        # Allow subclasses to perform post-initialization setup
+        self._post_initialization_setup()
+
+    def _customize_initialization_params(self, params: dict) -> dict:
+        """Override in subclasses to customize initialization parameters."""
+        return params
+
+    def _post_initialization_setup(self):
+        """Override in subclasses to perform language-specific setup after initialization."""
+        pass
+
+    def _get_source_files(self) -> list:
+        """Get source files for this language. Override in subclasses for custom logic."""
+        src_files = []
+        for pattern in self.language_suffix_pattern:
+            src_files.extend(list(self.project_path.rglob(pattern)))
+        return src_files
+
     def _create_qualified_name(self, file_path: Path, symbol_name: str) -> str:
         """Create a fully qualified name for a symbol."""
         try:
@@ -212,10 +352,11 @@ class LSPClient:
         Returns:
             A CallGraph object containing all function call relationships.
         """
-        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
+        src_files = self._get_source_files()
         spec = self.get_exclude_dirs()
         src_files = self.filter_src_files(src_files, spec)
         total_files = len(src_files)
+
         logger.info(f"Found {total_files} source files. Analyzing...")
 
         if not src_files:
@@ -370,11 +511,14 @@ class LSPClient:
         logger.info("Collecting class hierarchies using core LSP methods...")
         class_hierarchies = {}
 
+        # Allow subclasses to perform pre-analysis setup
+        self._prepare_for_analysis()
+
         # First, get all classes in the workspace using workspace/symbol
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
-        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
+        src_files = self._get_source_files()
         spec = self.get_exclude_dirs()
         src_files = self.filter_src_files(src_files, spec)
 
@@ -438,6 +582,10 @@ class LSPClient:
         logger.info(f"Found {len(class_hierarchies)} classes with hierarchy information")
         return class_hierarchies
 
+    def _prepare_for_analysis(self):
+        """Override in subclasses to perform language-specific preparation before analysis."""
+        pass
+
     def _get_all_classes_in_workspace(self) -> list:
         """Get all class symbols in the workspace using workspace/symbol."""
         try:
@@ -446,8 +594,9 @@ class LSPClient:
             response = self._wait_for_response(req_id, timeout=30)
 
             if 'error' in response:
-                logger.warning(f"workspace/symbol failed: {response['error']}")
-                return []
+                error_msg = response['error']
+                logger.warning(f"workspace/symbol failed: {error_msg}")
+                return self._handle_workspace_symbol_failure()
 
             symbols = response.get('result', [])
             # Filter for class symbols (kind 5)
@@ -693,7 +842,7 @@ class LSPClient:
         logger.info("Collecting package relations...")
         package_relations = {}
 
-        src_files = list(self.project_path.rglob(self.language_suffix_pattern))
+        src_files = self._get_source_files()
         spec = self.get_exclude_dirs()
         src_files = self.filter_src_files(src_files, spec)
 
@@ -924,14 +1073,14 @@ class LSPClient:
         logger.info("Building references for all symbols...")
         reference_nodes = []
 
-        py_files = list(self.project_path.rglob(self.language_suffix_pattern))
+        src_files = self._get_source_files()
         spec = self.get_exclude_dirs()
-        py_files = self.filter_src_files(py_files, spec)
+        src_files = self.filter_src_files(src_files, spec)
 
         # Track processed symbols to avoid duplicates
         processed_symbols = set()
 
-        for file_path in tqdm(py_files, desc="[References collection] Collecting symbol references"):
+        for file_path in tqdm(src_files, desc="[References collection] Collecting symbol references"):
             file_uri = file_path.as_uri()
 
             try:
@@ -994,15 +1143,10 @@ class LSPClient:
                 all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
         return all_symbols
 
-    @classmethod
-    def create_clients(cls, programming_languages: List[ProgrammingLanguage], repository_path: Path) -> list:
-        clients = []
-        for programming_language in programming_languages:
-            if not programming_language.is_supported_lang():
-                logger.warning(f"Unsupported programming language: {programming_language.language}. Skipping.")
-                continue
-            clients.append(LSPClient(
-                language=programming_language,
-                project_path=repository_path
-            ))
-        return clients
+    def _customize_initialization_params(self, params: dict) -> dict:
+        """Override in subclasses to customize initialization parameters."""
+        return params
+
+    def _post_initialization_setup(self):
+        """Override in subclasses to perform language-specific setup after initialization."""
+        pass
