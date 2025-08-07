@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -12,6 +13,47 @@ class TypeScriptClient(LSPClient):
     TypeScript/JavaScript-specific Language Server Protocol client.
     Extends the base LSPClient with TypeScript-specific functionality.
     """
+
+    def _initialize(self):
+        """Performs the LSP initialization handshake."""
+        logger.info(f"Initializing connection for {self.language_id}...")
+        params = {
+            'processId': os.getpid(),
+            'rootUri': self.project_path.as_uri(),
+            'capabilities': {
+                'textDocument': {
+                    'callHierarchy': {'dynamicRegistration': True},
+                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
+                    'typeHierarchy': {'dynamicRegistration': True},
+                    'references': {'dynamicRegistration': True},
+                    'semanticTokens': {'dynamicRegistration': True}
+                },
+                'workspace': {
+                    'configuration': True,
+                    'workspaceFolders': True,
+                    'didChangeConfiguration': {'dynamicRegistration': True}
+                }
+            },
+            'workspace': {
+                'applyEdit': True,
+                'workspaceEdit': {'documentChanges': True}
+            }
+        }
+
+        # Allow subclasses to customize initialization parameters
+        params = self._customize_initialization_params(params)
+
+        init_id = self._send_request('initialize', params)
+        response = self._wait_for_response(init_id, timeout=20)
+
+        if 'error' in response:
+            raise RuntimeError(f"Initialization failed: {response['error']}")
+
+        logger.info("Initialization successful.")
+        self._send_notification('initialized', {})
+
+        # Allow subclasses to perform post-initialization setup
+        self._post_initialization_setup()
 
     def _customize_initialization_params(self, params: dict) -> dict:
         """Add TypeScript-specific initialization parameters."""

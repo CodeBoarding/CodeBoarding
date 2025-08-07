@@ -145,11 +145,6 @@ class LSPClient:
                     'typeHierarchy': {'dynamicRegistration': True},
                     'references': {'dynamicRegistration': True},
                     'semanticTokens': {'dynamicRegistration': True}
-                },
-                'workspace': {
-                    'configuration': True,
-                    'workspaceFolders': True,
-                    'didChangeConfiguration': {'dynamicRegistration': True}
                 }
             },
             'workspace': {
@@ -157,10 +152,6 @@ class LSPClient:
                 'workspaceEdit': {'documentChanges': True}
             }
         }
-
-        # Allow subclasses to customize initialization parameters
-        params = self._customize_initialization_params(params)
-
         init_id = self._send_request('initialize', params)
         response = self._wait_for_response(init_id, timeout=20)
 
@@ -170,13 +161,11 @@ class LSPClient:
         logger.info("Initialization successful.")
         self._send_notification('initialized', {})
 
-        # Allow subclasses to perform post-initialization setup
-        self._post_initialization_setup()
-
     def _get_document_symbols(self, file_uri: str):
         """Fetches all document symbols (functions, classes, etc.) for a file."""
         params = {'textDocument': {'uri': file_uri}}
         req_id = self._send_request('textDocument/documentSymbol', params)
+        logger.info(f"Requesting document symbols for {file_uri} with ID {req_id}")
         response = self._wait_for_response(req_id)
         return response.get('result', [])
 
@@ -206,119 +195,6 @@ class LSPClient:
             if 'children' in symbol:
                 flat_list.extend(self._flatten_symbols(symbol['children']))
         return flat_list
-
-    def _send_request(self, method: str, params: dict):
-        """Sends a JSON-RPC request to the server."""
-        with self._lock:
-            message_id = self._message_id
-            self._message_id += 1
-
-        request = {
-            'jsonrpc': '2.0',
-            'id': message_id,
-            'method': method,
-            'params': params,
-        }
-
-        body = json.dumps(request)
-        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
-
-        self._process.stdin.write(message.encode('utf-8'))
-        self._process.stdin.flush()
-
-        return message_id
-
-    def _send_notification(self, method: str, params: dict):
-        """Sends a JSON-RPC notification to the server."""
-        notification = {
-            'jsonrpc': '2.0',
-            'method': method,
-            'params': params,
-        }
-        body = json.dumps(notification)
-        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
-
-        self._process.stdin.write(message.encode('utf-8'))
-        self._process.stdin.flush()
-
-    def _read_messages(self):
-        """
-        Runs in a separate thread to read and process messages from the server's stdout.
-        """
-        while not self._shutdown_flag.is_set():
-            try:
-                line = self._process.stdout.readline().decode('utf-8')
-                if not line or not line.startswith('Content-Length'):
-                    continue
-
-                content_length = int(line.split(':')[1].strip())
-                self._process.stdout.readline()  # Read the blank line
-
-                body = self._process.stdout.read(content_length).decode('utf-8')
-                response = json.loads(body)
-
-                if 'id' in response:
-                    with self._lock:
-                        self._responses[response['id']] = response
-                else:  # It's a notification from the server
-                    with self._lock:
-                        self._notifications.append(response)
-
-            except (IOError, ValueError) as e:
-                if not self._shutdown_flag.is_set():
-                    logger.error(f"Error reading from server: {e}")
-                break
-
-    def _wait_for_response(self, message_id: int, timeout: int = 120):
-        """Waits for a response with a specific message ID to arrive."""
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            with self._lock:
-                if message_id in self._responses:
-                    return self._responses.pop(message_id)
-            time.sleep(0.01)
-        raise TimeoutError(f"Timed out waiting {timeout}s for response to message {message_id}")
-
-    def _initialize(self):
-        """Performs the LSP initialization handshake."""
-        logger.info(f"Initializing connection for {self.language_id}...")
-        params = {
-            'processId': os.getpid(),
-            'rootUri': self.project_path.as_uri(),
-            'capabilities': {
-                'textDocument': {
-                    'callHierarchy': {'dynamicRegistration': True},
-                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
-                    'typeHierarchy': {'dynamicRegistration': True},
-                    'references': {'dynamicRegistration': True},
-                    'semanticTokens': {'dynamicRegistration': True}
-                },
-                'workspace': {
-                    'configuration': True,
-                    'workspaceFolders': True,
-                    'didChangeConfiguration': {'dynamicRegistration': True}
-                }
-            },
-            'workspace': {
-                'applyEdit': True,
-                'workspaceEdit': {'documentChanges': True}
-            }
-        }
-
-        # Allow subclasses to customize initialization parameters
-        params = self._customize_initialization_params(params)
-
-        init_id = self._send_request('initialize', params)
-        response = self._wait_for_response(init_id, timeout=20)
-
-        if 'error' in response:
-            raise RuntimeError(f"Initialization failed: {response['error']}")
-
-        logger.info("Initialization successful.")
-        self._send_notification('initialized', {})
-
-        # Allow subclasses to perform post-initialization setup
-        self._post_initialization_setup()
 
     def _customize_initialization_params(self, params: dict) -> dict:
         """Override in subclasses to customize initialization parameters."""
