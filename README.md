@@ -9,7 +9,7 @@
 It’s designed to support onboarding, documentation, and comprehension for large, complex systems.
 
 - Extract modules and their relationships based on the control flow graph of the project.
-- Builds different levels of abstraction with an LLM agent (multi-provider support)
+- Builds different levels of abstraction with an LLM agent (multi-provider support) using remote and local inference.
 - Outputs interactive diagrams (Mermaid.js) for integration into docs, IDEs, CI/CD.
 
 📄 Existing visual generations: [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings)  
@@ -72,7 +72,9 @@ pip install pygraphviz \
 OPENAI_API_KEY=                 
 ANTHROPIC_API_KEY=                 
 GOOGLE_API_KEY=                  
-AWS_BEARER_TOKEN_BEDROCK=         
+AWS_BEARER_TOKEN_BEDROCK=
+OLLAMA_BASE_URL=
+OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
