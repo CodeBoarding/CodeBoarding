@@ -6,7 +6,6 @@ from typing import List, Set
 
 from static_analyzer.programming_language import ProgrammingLanguage
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -21,43 +20,35 @@ class ProjectScanner:
         Returns:
             Dict containing technologies with their sizes, percentages, files, and suffixes
         """
-        try:
-            # Execute github-linguist command
-            result = subprocess.run(
-                ['github-linguist', '-b', '-j'],
-                cwd=self.repo_location,
-                capture_output=True,
-                text=True,
-                check=True
+        result = subprocess.run(
+            ['github-linguist', '-b', '-j'],
+            cwd=self.repo_location,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        # Parse JSON output
+        linguist_data = json.loads(result.stdout)
+
+        programming_languages = []
+        for technology, info in linguist_data.items():
+            suffixes = self._extract_suffixes(info.get('files', []))
+            pl = ProgrammingLanguage(
+                language=technology,
+                size=info.get('size', 0),
+                percentage=float(info.get('percentage', '0')),
+                suffixes=list(suffixes)
             )
+            logger.info(f"Found: {pl}")
+            if pl.percentage >= 1:
+                programming_languages.append(pl)
+                logger.info(f"Added {pl}")
 
-            # Parse JSON output
-            linguist_data = json.loads(result.stdout)
+        return programming_languages
 
-            programming_languages = []
-            for technology, info in linguist_data.items():
-                suffixes = self._extract_suffixes(info.get('files', []))
-                pl = ProgrammingLanguage(
-                        language=technology,
-                        size=info.get('size', 0),
-                        percentage=float(info.get('percentage', '0')),
-                        suffixes=list(suffixes)
-                    )
-                logger.info(f"Found: {pl}")
-                if pl.percentage >= 1:
-                    programming_languages.append(pl)
-                    logger.info(f"Added {pl}")
-
-            return programming_languages
-
-        except subprocess.CalledProcessError as e:
-            raise subprocess.CalledProcessError(f"Error running github-linguist: {e.stderr}")
-        except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"Error parsing JSON output: {e}")
-        except FileNotFoundError:
-            raise FileNotFoundError("github-linguist not found. Please ensure it's installed and in PATH")
-
-    def _extract_suffixes(self, files: List[str]) -> Set[str]:
+    @staticmethod
+    def _extract_suffixes(files: List[str]) -> Set[str]:
         """
         Extract unique file suffixes from a list of files.
         

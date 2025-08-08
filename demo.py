@@ -12,7 +12,6 @@ from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
-
 from repo_utils import (
     clone_repository,
     get_branch,
@@ -40,8 +39,10 @@ def validate_env_vars():
         os.environ["REPO_ROOT"] = "repos"
 
     if not os.getenv("ROOT_RESULT"):
-        logging.warning("ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'")
+        logging.warning(
+            "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'")
         os.environ["ROOT_RESULT"] = "results"
+
 
 def onboarding_materials_exist(project_name: str, source_dir: str):
     repo = Repo(source_dir)
@@ -147,10 +148,6 @@ Examples:
     )
 
     args = parser.parse_args()
-    import os
-
-    GEMS_BIN = "/home/ivan/gems/bin"
-    os.environ["PATH"] = f"{GEMS_BIN}:" + os.environ["PATH"]
 
     load_dotenv()
     validate_env_vars()
@@ -166,6 +163,6 @@ Examples:
             if args.output_dir:
                 copy_files(temp_repo_folder, args.output_dir)
         except Exception as e:
-             logger.error(f"Failed to generate docs for {repo}: {e}")
+            logger.error(f"Failed to generate docs for {repo}: {e}")
         finally:
             remove_temp_repo_folder(temp_repo_folder)
