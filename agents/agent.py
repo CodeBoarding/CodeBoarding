@@ -1,14 +1,15 @@
 import logging
 import os
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
+from langchain_anthropic import ChatAnthropic
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_aws import ChatBedrockConverse
 from langgraph.prebuilt import create_react_agent
 from trustcall import create_extractor
 
@@ -17,12 +18,13 @@ from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelation
     MethodInvocationsTool, ReadFileTool
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 
 class CodeBoardingAgent:
-    def __init__(self, repo_dir, static_analysis, system_message):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.repo_dir = repo_dir
@@ -147,7 +149,7 @@ class CodeBoardingAgent:
                         reference.reference_file = node.file_path
                         reference.line_start = node.line_start
                         reference.line_end = node.line_end
-                    except ValueError as e:
+                    except (ValueError, FileExistsError) as e:
                         # before we give up let's retry with the file:
                         logger.warning(
                             f"[Reference Resolution] Reference {reference.qualified_name} not found in {lang}: {e}")
@@ -155,7 +157,18 @@ class CodeBoardingAgent:
                             joined_path = os.path.join(self.repo_dir, reference.reference_file)
                             if os.path.exists(joined_path):
                                 reference.reference_file = joined_path
+                                break
                             else:
                                 logger.warning(
                                     f"[Reference Resolution] Reference file {reference.reference_file} does not exist for {lang}.")
+                                reference.reference_file = None
+                        # Check if the code reference is a file path:
+                        file_path = reference.qualified_name.replace(".", "/")  # Get file path
+                        full_path = os.path.join(self.repo_dir, file_path)
+                        # This is the case when the reference is a file path but wrong:
+                        file_ref = ".".join(full_path.rsplit("/", 1))
+                        paths = [full_path, f"{file_path}.py", file_ref]
+                        for path in paths:
+                            if os.path.exists(path):
+                                reference.reference_file = str(path)
         return analysis
