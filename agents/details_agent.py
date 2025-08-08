@@ -1,17 +1,21 @@
 import logging
+from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component, \
+    MetaAnalysisInsights
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
     DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 
 class DetailsAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, static_analysis, project_name, meta_context):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
+                 meta_context: MetaAnalysisInsights):
         super().__init__(repo_dir, static_analysis, SYSTEM_DETAILS_MESSAGE)
         self.project_name = project_name
         self.meta_context = meta_context

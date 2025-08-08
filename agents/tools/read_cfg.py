@@ -56,12 +56,12 @@ class GetCFGTool(BaseTool):
                     qual_name = ref.qualified_name
                     if "/" in qual_name:
                         qual_name = qual_name.replace("/", ".")
-                    if qual_name.endswith(".py"):
-                        qual_name = qual_name[:-3]
                     if qual_name == node.fully_qualified_name or qual_name in node.fully_qualified_name or node.fully_qualified_name in qual_name:
                         result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
                         items += 1
                         break
 
         logger.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {items}")
+        if items == 0:
+            return "No control flow graph data available for this component. Ensure static analysis was performed correctly or the component has valid source code references."
         return result

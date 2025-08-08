@@ -52,7 +52,7 @@ class TypeScriptClient(LSPClient):
         self._send_notification('initialized', {})
 
         # Allow subclasses to perform post-initialization setup
-        self._post_initialization_setup()
+        self._configure_typescript_workspace()
 
     def _customize_initialization_params(self, params: dict) -> dict:
         """Add TypeScript-specific initialization parameters."""
@@ -72,10 +72,6 @@ class TypeScriptClient(LSPClient):
         }
 
         return params
-
-    def _post_initialization_setup(self):
-        """Configure TypeScript workspace after initialization."""
-        self._configure_typescript_workspace()
 
     def _configure_typescript_workspace(self):
         """Send TypeScript-specific workspace configuration after initialization."""
@@ -139,7 +135,7 @@ class TypeScriptClient(LSPClient):
         return config_found
 
     def _bootstrap_project(self, ts_files: list, config_found: bool):
-        """Bootstrap TypeScript project by opening sample files."""
+        """Bootstrap TypeScript project by opening files."""
         logger.info("Opening sample files to bootstrap TypeScript project...")
         spec = self.get_exclude_dirs()
         filtered_ts_files = self.filter_src_files(ts_files, spec)
@@ -184,10 +180,6 @@ class TypeScriptClient(LSPClient):
                 })
             except Exception:
                 pass
-
-    def _get_source_files(self) -> list:
-        """Override to use explicit TypeScript/JavaScript file patterns."""
-        return self._find_typescript_files()
 
     def _prepare_for_analysis(self):
         """TypeScript-specific preparation before analysis."""

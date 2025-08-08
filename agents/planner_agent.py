@@ -1,14 +1,17 @@
+from pathlib import Path
+from typing import List
+
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
-from typing import List
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
 from agents.prompts import EXPANSION_PROMPT, PLANNER_SYSTEM_MESSAGE
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class PlannerAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, static_analysis):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         super().__init__(repo_dir, static_analysis, PLANNER_SYSTEM_MESSAGE)
         self.expansion_prompt = PromptTemplate(template=EXPANSION_PROMPT, input_variables=["component"])
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,

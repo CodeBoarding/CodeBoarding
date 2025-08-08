@@ -1,13 +1,14 @@
 import logging
+from pathlib import Path
 from typing import List
 
+from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
+from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
 from agents.prompts import SYSTEM_DIFF_ANALYSIS_MESSAGE, DIFF_ANALYSIS_MESSAGE
-from langchain_core.prompts import PromptTemplate
-
-from agents.agent import CodeBoardingAgent
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 from agents.tools.read_git_diff import ReadDiffTool
@@ -17,7 +18,7 @@ from repo_utils.git_diff import FileChange, get_git_diff
 
 
 class DiffAnalyzingAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, static_analysis, project_name):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
         super().__init__(repo_dir, static_analysis, SYSTEM_DIFF_ANALYSIS_MESSAGE)
         self.project_name = project_name
         self.repo_dir = repo_dir

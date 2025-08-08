@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Set
 
 from static_analyzer.programming_language import ProgrammingLanguage
+from utils import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -20,25 +21,24 @@ class ProjectScanner:
         Returns:
             Dict containing technologies with their sizes, percentages, files, and suffixes
         """
-        result = subprocess.run(
-            ['github-linguist', '-b', '-j'],
-            cwd=self.repo_location,
-            capture_output=True,
-            text=True,
-            check=True
-        )
 
+        commands = get_config('tools')['github_linguist']['command']
+        result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
+
+        server_config = get_config('lsp_servers')
         # Parse JSON output
         linguist_data = json.loads(result.stdout)
 
         programming_languages = []
         for technology, info in linguist_data.items():
             suffixes = self._extract_suffixes(info.get('files', []))
+            command = server_config.get(technology.lower(), {'command': None})['command']
             pl = ProgrammingLanguage(
                 language=technology,
                 size=info.get('size', 0),
                 percentage=float(info.get('percentage', '0')),
-                suffixes=list(suffixes)
+                suffixes=list(suffixes),
+                server_commands=command
             )
             logger.info(f"Found: {pl}")
             if pl.percentage >= 1:

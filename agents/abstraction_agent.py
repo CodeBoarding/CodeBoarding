@@ -1,16 +1,19 @@
 import logging
+from pathlib import Path
 
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, static_analysis, project_name, meta_context):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
+                 meta_context: MetaAnalysisInsights):
         super().__init__(repo_dir, static_analysis, SYSTEM_MESSAGE)
 
         self.project_name = project_name

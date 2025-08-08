@@ -1,7 +1,9 @@
 import os
 import shutil
-import uuid
 from pathlib import Path
+
+import uuid
+import yaml
 
 
 class CFGGenerationError(Exception):
@@ -32,3 +34,18 @@ def contains_json(node_id, files):
         if str(file).endswith(f"{node_id}.json"):
             return True
     return False
+
+
+def get_config(item_key: str):
+    path = os.getenv("STATIC_ANALYSIS_CONFIG")
+    if not path:
+        raise ValueError("STATIC_ANALYSIS_CONFIG environment variable is not set.")
+    config_path = Path(path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found at {config_path}")
+
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    if item_key not in config:
+        raise KeyError(f"Item '{item_key}' not found in configuration.")
+    return config[item_key]

@@ -28,18 +28,18 @@ def validate_env_vars():
     api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
 
     if len(api_env_keys) == 0:
-        logging.error(f"API key not set, set one of the following: {api_provider_keys}")
+        logger.error(f"API key not set, set one of the following: {api_provider_keys}")
         exit(1)
     elif len(api_env_keys) > 1:
-        logging.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
+        logger.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
         exit(2)
 
     if not os.getenv("REPO_ROOT"):
-        logging.warning("REPO_ROOT environment variable not set, setting REPO_ROOT environment variable to 'repos'")
+        logger.warning("REPO_ROOT environment variable not set, setting REPO_ROOT environment variable to 'repos'")
         os.environ["REPO_ROOT"] = "repos"
 
     if not os.getenv("ROOT_RESULT"):
-        logging.warning(
+        logger.warning(
             "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'")
         os.environ["ROOT_RESULT"] = "results"
 
@@ -162,7 +162,7 @@ Examples:
             # Copy markdown files to output directory if specified
             if args.output_dir:
                 copy_files(temp_repo_folder, args.output_dir)
-        except Exception as e:
-            logger.error(f"Failed to generate docs for {repo}: {e}")
+        # except Exception as e:
+        #     logger.error(f"Failed to generate docs for {repo}: {e}")
         finally:
             remove_temp_repo_folder(temp_repo_folder)

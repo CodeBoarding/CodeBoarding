@@ -150,6 +150,13 @@ class CodeBoardingAgent:
                         reference.line_start = node.line_start
                         reference.line_end = node.line_end
                     except (ValueError, FileExistsError) as e:
+                        # Try resolving with loose matching:
+                        _, node = self.static_analysis.get_reference(lang, reference.qualified_name)
+                        if node is not None:
+                            reference.reference_file = node.file_path
+                            reference.line_start = node.line_start
+                            reference.line_end = node.line_end
+                            break
                         # before we give up let's retry with the file:
                         logger.warning(
                             f"[Reference Resolution] Reference {reference.qualified_name} not found in {lang}: {e}")

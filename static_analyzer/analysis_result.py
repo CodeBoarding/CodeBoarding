@@ -114,6 +114,24 @@ class StaticAnalysisResults:
                         f"please use the full file path instead of the qualified name.")
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
+    def get_loose_reference(self, language, qualified_name) -> tuple[str, Node]:
+        lower_qn = qualified_name.lower()
+        if language in self.results and "references" in self.results[language]:
+            # Check if the qualified name is a subset of any reference:
+            subset_refs = []
+            for ref in self.results[language]["references"].keys():
+                if ref.endswith(lower_qn):
+                    return f"Found a loose match with a fully quantified name: {ref}", \
+                        self.results[language]["references"][ref]
+                if lower_qn in ref:
+                    subset_refs.append(ref)
+            if len(subset_refs) != 1:
+                return f"Multiple references found for '{qualified_name}' in language: {subset_refs}", \
+                    self.results[language]["references"][subset_refs[0]]
+            if len(subset_refs) == 1:
+                return subset_refs[0], self.results[language]["references"][subset_refs[0]]
+        return None, None
+
     def get_languages(self):
         """
         Retrieves the list of languages for which results are available.
