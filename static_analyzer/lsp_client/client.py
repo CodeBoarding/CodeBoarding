@@ -161,7 +161,7 @@ class LSPClient:
         logger.info("Initialization successful.")
         self._send_notification('initialized', {})
 
-    def _get_document_symbols(self, file_uri: str):
+    def _get_document_symbols(self, file_uri: str) -> list:
         """Fetches all document symbols (functions, classes, etc.) for a file."""
         params = {'textDocument': {'uri': file_uri}}
         req_id = self._send_request('textDocument/documentSymbol', params)
@@ -169,7 +169,7 @@ class LSPClient:
         response = self._wait_for_response(req_id)
         return response.get('result', [])
 
-    def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int):
+    def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int) -> list:
         """Prepares a call hierarchy at a specific location."""
         params = {
             'textDocument': {'uri': file_uri},
@@ -177,9 +177,9 @@ class LSPClient:
         }
         req_id = self._send_request('textDocument/prepareCallHierarchy', params)
         response = self._wait_for_response(req_id)
-        return response.get('result')
+        return response.get('result', [])
 
-    def _get_incoming_calls(self, item: dict):
+    def _get_incoming_calls(self, item: dict) -> list:
         """Gets incoming calls for a call hierarchy item."""
         req_id = self._send_request('callHierarchy/incomingCalls', {'item': item})
         response = self._wait_for_response(req_id)
@@ -195,14 +195,6 @@ class LSPClient:
             if 'children' in symbol:
                 flat_list.extend(self._flatten_symbols(symbol['children']))
         return flat_list
-
-    def _customize_initialization_params(self, params: dict) -> dict:
-        """Override in subclasses to customize initialization parameters."""
-        return params
-
-    def _post_initialization_setup(self):
-        """Override in subclasses to perform language-specific setup after initialization."""
-        pass
 
     def _get_source_files(self) -> list:
         """Get source files for this language. Override in subclasses for custom logic."""
@@ -471,8 +463,8 @@ class LSPClient:
 
             if 'error' in response:
                 error_msg = response['error']
-                logger.warning(f"workspace/symbol failed: {error_msg}")
-                return self._handle_workspace_symbol_failure()
+                logger.error(f"workspace/symbol failed: {error_msg}")
+                return []
 
             symbols = response.get('result', [])
             # Filter for class symbols (kind 5)
@@ -837,7 +829,8 @@ class LSPClient:
                                 # This looks like an external import
                                 imports.append(symbol_name)
                 except Exception:
-                    pass
+                    logger.warning(f"Failed to extract imports from symbol {symbol_name}")
+                    continue
 
         # Also use text-based heuristics for common import patterns
         lines = content.split('\n')
@@ -886,14 +879,11 @@ class LSPClient:
         except ValueError:
             return 'external'
 
-    def _extract_package_from_import(self, module_name: str) -> str:
+    @staticmethod
+    def _extract_package_from_import(module_name: str) -> str:
         """Extract top-level package from an import module name."""
-        if not module_name:
-            return None
-
-        # Handle relative imports
-        if module_name.startswith('.'):
-            return None
+        if not module_name or module_name.startswith('.'):
+            return ""
 
         # Get the top-level package
         parts = module_name.split('.')
@@ -938,7 +928,7 @@ class LSPClient:
                 return self._get_package_name(file_path)
         except Exception:
             pass
-        return None
+        return ""
 
     def build_references(self) -> list:
         """
@@ -1018,11 +1008,3 @@ class LSPClient:
             if 'children' in symbol:
                 all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
         return all_symbols
-
-    def _customize_initialization_params(self, params: dict) -> dict:
-        """Override in subclasses to customize initialization parameters."""
-        return params
-
-    def _post_initialization_setup(self):
-        """Override in subclasses to perform language-specific setup after initialization."""
-        pass

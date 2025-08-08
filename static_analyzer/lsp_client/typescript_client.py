@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-from pathlib import Path
 
 from .client import LSPClient
 
@@ -198,11 +197,6 @@ class TypeScriptClient(LSPClient):
         if not self._validate_typescript_project():
             logger.warning("TypeScript project not properly loaded. Analysis may be limited.")
 
-    def _handle_workspace_symbol_failure(self) -> list:
-        """Handle workspace/symbol failure with TypeScript-specific fallback."""
-        logger.info("Falling back to file-by-file class discovery for TypeScript project")
-        return self._get_classes_via_file_scanning()
-
     def _validate_typescript_project(self) -> bool:
         """Validate that TypeScript server has a project loaded."""
         try:
@@ -226,18 +220,3 @@ class TypeScriptClient(LSPClient):
         except Exception as e:
             logger.error(f"Failed to validate TypeScript project: {e}")
             return False
-
-    def _find_superclasses(self, file_uri: str, class_symbol: dict, content: str, file_path: Path) -> list:
-        """Find superclasses using textDocument/definition and text analysis."""
-        superclasses = []
-
-        # Method 1: Use textDocument/definition on class inheritance
-        lsp_superclasses = self._find_superclasses_via_definition(file_uri, class_symbol, content)
-        superclasses.extend(lsp_superclasses)
-
-        # Method 2: Fallback to text analysis
-        if not superclasses:
-            text_superclasses = self._extract_superclasses_from_text(file_path, class_symbol['name'], content)
-            superclasses.extend(text_superclasses)
-
-        return list(set(superclasses))  # Remove duplicates
