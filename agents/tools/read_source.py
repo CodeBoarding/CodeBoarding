@@ -25,7 +25,7 @@ class CodeReferenceReader(BaseTool):
     description: str = (
         "Retrieves source code for specific classes, methods, or functions. "
         "Use only when CFG analysis lacks critical implementation details. "
-        "Provide complete import path (e.g., 'django.core.management.base.BaseCommand'). "
+        "Provide complete import path (e.g., 'django.core.management.base.BaseCommand'). DO NOT USE WITH FILE PATHS i.e. file.ext (.py, .ts, .c, etc.) for that use the `readFile` tool"
         "Note: Each call is expensive - prefer analyzing CFG data first. "
         "Use only when component responsibilities cannot be determined from CFG or package dependencies."
     )

@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,9 @@ class ProgrammingLanguage:
 
     def get_server_parameters(self) -> List[str]:
         server_params = {
-            'Python': ['pyright-langserver', '--stdio'],
-            'TypeScript': ['typescript-language-server', '--stdio', '--log-level=2'],
+            'Python': [f'pyright-langserver', '--stdio'],
+            'TypeScript': [f'{os.environ["SERVER_LOCATION"]}/typescript/node_modules/.bin/typescript-language-server',
+                           '--stdio', '--log-level=2'],
         }
 
         if self.language not in server_params:

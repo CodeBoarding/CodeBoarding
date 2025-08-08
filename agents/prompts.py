@@ -78,7 +78,7 @@ Required outputs:
 2. Critical interaction pathways from provided data
 3. Final components (max 8, optimally 5) following {project_type} patterns
 4. Component relationships (max 2 per component pair)
-5. Architecture overview paragraph explaining main flow
+5. Architecture overview paragraph explaining the main flow
 
 Constraints:
 - Use only provided analysis data
@@ -96,16 +96,22 @@ Original Analysis:
 
 Instructions:
 1. Evaluate feedback relevance to the analysis
-2. Use tools if information is missing
-3. Address specific feedback points
+2. Use tools to address the missing information or misinformation
+3. Address only the specific feedback points if they are actionable
 
 Required outputs:
-- Assessment if feedback requires architectural changes
-- Updated analysis only if feedback is valid and relevant
-- Maintained component limits and relationship constraints
-- Preserved architectural abstraction level
+1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow
+2. Critical interaction pathways from provided data
+3. Keep the same final components (max 8, optimally 5) without changes if not explicitly requested
+4. Component relationships (max 2 per component pair)
+5. Architecture overview paragraph explaining the main flow
 
-If feedback is not relevant or actionable, return the original analysis unchanged."""
+Constraints:
+- Use only provided analysis data
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Include a description paragraph for project overview
+"""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
 
