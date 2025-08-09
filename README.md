@@ -68,8 +68,12 @@ Installing langservers for different technologies:
 
 ```bash
 pip install pyright # Python
-npm install -g typescript-language-server typescript # Typescript
+npm install --save typescript-language-server typescript # Typescript
 ```
+
+> [!IMPORTANT]  
+> After installing the dependencies and servers you wanted to use, please update the configuration to use them.
+> This configuration can be found in the (static_analysis_config.yml)[./static_analysis_config.yml] file.
 
 ### Environment Variables
 
@@ -86,6 +90,7 @@ REPO_ROOT=./repos                  # Directory for downloaded repositories
 ROOT_RESULT=./results              # Directory for generated outputs
 PROJECT_ROOT=/path/to/CodeBoarding # Source project root (must end with /CodeBoarding)
 DIAGRAM_DEPTH_LEVEL=1              # Max depth level for diagram generation
+STATIC_ANALYSIS_CONFIG=./static_analysis_config.yml # Path to static analysis config
 
 # Optional
 GITHUB_TOKEN=                     # For accessing private repositories
@@ -221,7 +226,7 @@ Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeB
 Codeboarding is integrated with everything we use:
 
 - 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact
-  with the diagram direclty in your IDE.
+  with the diagram directly in your IDE.
 - ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate
   diagram generation in CI/CD.
 - 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the consize documentation to your AI
