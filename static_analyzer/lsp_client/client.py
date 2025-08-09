@@ -44,6 +44,7 @@ class LSPClient:
 
         # Initialize CallGraph
         self.call_graph = CallGraph()
+        self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -189,8 +190,7 @@ class LSPClient:
         """Recursively flattens a list of hierarchical symbols."""
         flat_list = []
         for symbol in symbols:
-            # SymbolKind: 6 for method, 7 for property in LSP 3.17
-            if symbol['kind'] in [6, 7, 12]:  # 12 is Function
+            if symbol['kind'] in self.symbol_kinds:
                 flat_list.append(symbol)
             if 'children' in symbol:
                 flat_list.extend(self._flatten_symbols(symbol['children']))
@@ -965,8 +965,7 @@ class LSPClient:
                     symbol_kind = symbol.get('kind')
                     symbol_name = symbol.get('name', '')
 
-                    # Filter for functions (12), methods (6), and classes (5)
-                    if symbol_kind not in [5, 6, 12]:
+                    if symbol_kind not in self.symbol_kinds:
                         continue
 
                     # Create qualified name

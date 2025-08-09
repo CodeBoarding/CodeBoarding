@@ -77,18 +77,20 @@ class ValidatorAgent(CodeBoardingAgent):
                     full_path = os.path.join(self.repo_dir, file_path)
                     # This is the case when the reference is a file path but wrong:
                     file_ref = ".".join(full_path.rsplit("/", 1))
-                    paths = [full_path, f"{file_path}.py", file_ref]
+                    paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
                     for path in paths:
                         if os.path.exists(path):
-                            if ref.reference_file != path:
+                            if ref.reference_file != path and (not ref.reference_file.startswith(path)):
                                 info.append(
                                     f"Component {component.name} has an incorrect reference: '{ref.llm_str()}'. "
                                     f"Expected: '{path}', but found: '{ref.reference_file}'. "
                                     f"Apply the correct reference please, maybe it is a full file reference, then validate with `readFile` tool.")
-                    else:
-                        info.append(
-                            f"Component {component.name} has {ref.qualified_name} an incorrect reference: '{ref.llm_str()}'. "
-                            f"{ref.qualified_name} is INCORRECT reference, there is no such module or function/class/method in the project. Please reconsider by using `getSourceCode` tool to find the correct reference or validate with `readFile` tool if it is a file reference.")
+                            else:
+                                break
+                if not os.path.exists(ref.reference_file):
+                    info.append(
+                        f"Component {component.name} has {ref.qualified_name} as an incorrect reference: '{ref.llm_str()}'. "
+                        f"{ref.qualified_name} is INCORRECT reference, there is no such module or function/class/method in the project. Please reconsider by using `getSourceCode` tool to find the correct reference or validate with `readFile` tool if it is a file reference.")
         if info:
             return ValidationInsights(is_valid=False,
                                       additional_info="\n".join(info))
@@ -116,6 +118,7 @@ class ValidatorAgent(CodeBoardingAgent):
         Run the validation process on the provided analysis.
         This method should return a tuple containing invalid components and invalid relations.
         """
+        logger.info(f"[ValidatorAgent] Running validation on the analysis.")
         insights = ""
         valid = True
         invalid_components = self.validate_components(analysis)

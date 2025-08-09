@@ -38,9 +38,9 @@ class CodeBoardingAgent:
         self.read_docs = ReadDocsTool(repo_dir=repo_dir)
         self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
 
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
+        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_file_tool,
                                                                self.read_file_structure, self.read_structure_tool,
-                                                               self.read_file_tool])
+                                                               self.read_packages_tool])
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
@@ -145,22 +145,26 @@ class CodeBoardingAgent:
             for reference in component.referenced_source_code:
                 for lang in self.static_analysis.get_languages():
                     try:
-                        node = self.static_analysis.get_reference(lang, reference.qualified_name)
+                        qname = reference.qualified_name.replace("/", ".")
+                        node = self.static_analysis.get_reference(lang, qname)
                         reference.reference_file = node.file_path
                         reference.reference_start_line = node.line_start + 1  # match 1  based indexing
                         reference.reference_end_line = node.line_end + 1  # match 1  based indexing
+                        reference.qualified_name = qname
                     except (ValueError, FileExistsError) as e:
                         # Try resolving with loose matching:
-                        _, node = self.static_analysis.get_loose_reference(lang, reference.qualified_name)
+                        qname = reference.qualified_name.replace("/", ".")
+                        _, node = self.static_analysis.get_loose_reference(lang, qname)
                         if node is not None:
                             reference.reference_file = node.file_path
                             reference.reference_start_line = node.line_start + 1  # match 1  based indexing
                             reference.reference_end_line = node.line_end + 1  # match 1  based indexing
+                            reference.qualified_name = qname
                             break
                         # before we give up let's retry with the file:
                         logger.warning(
                             f"[Reference Resolution] Reference {reference.qualified_name} not found in {lang}: {e}")
-                        if not reference.reference_file.startswith("/"):
+                        if (reference.reference_file is not None) and (not reference.reference_file.startswith("/")):
                             joined_path = os.path.join(self.repo_dir, reference.reference_file)
                             if os.path.exists(joined_path):
                                 reference.reference_file = joined_path
@@ -174,8 +178,16 @@ class CodeBoardingAgent:
                         full_path = os.path.join(self.repo_dir, file_path)
                         # This is the case when the reference is a file path but wrong:
                         file_ref = ".".join(full_path.rsplit("/", 1))
-                        paths = [full_path, f"{file_path}.py", file_ref]
+                        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
+                        found_ref = False
                         for path in paths:
                             if os.path.exists(path):
                                 reference.reference_file = str(path)
+                                found_ref = True
+                                break
+                        if found_ref:
+                            break
+                        if reference.reference_file is None:
+                            logger.error(
+                                f"[Reference Resolution] Reference file {reference.qualified_name} not found!")
         return analysis

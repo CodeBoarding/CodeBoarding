@@ -49,13 +49,13 @@ Instructions:
 2. Use getClassHierarchy if component structure needs clarification
 3. Use getSourceCode to ensure components have source file references
 4. Use readFile for full file references
-5. Use getFileStructure for directory/package references
+5. Use getFileStructure for directory/package references. Recommended to use these paths as references at the highest level. 
 
 Required outputs:
 - Validated component boundaries based on existing analysis
 - Refined components (max 10) using {project_type} patterns
 - Confirmed component relationships and responsibilities
-- Clear source file references for all components
+- Clear source file references for all components. As this is the abstract analysis, it is better to have directory references.
 
 Work primarily with existing insights. Use tools for missing information."""
 
