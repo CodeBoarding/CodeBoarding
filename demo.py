@@ -162,7 +162,7 @@ Examples:
             # Copy markdown files to output directory if specified
             if args.output_dir:
                 copy_files(temp_repo_folder, args.output_dir)
-        # except Exception as e:
-        #     logger.error(f"Failed to generate docs for {repo}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to generate docs for {repo}: {e}")
         finally:
             remove_temp_repo_folder(temp_repo_folder)
