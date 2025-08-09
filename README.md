@@ -225,12 +225,9 @@ Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeB
 
 Codeboarding is integrated with everything we use:
 
-- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact
-  with the diagram directly in your IDE.
-- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate
-  diagram generation in CI/CD.
-- 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the consize documentation to your AI
-  Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
+- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact with the diagram directly in your IDE.
+- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate diagram generation in CI/CD.
+- 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the consize documentation to your AI Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
 
 ## 🤝 Contributing
 
