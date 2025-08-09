@@ -125,9 +125,6 @@ class StaticAnalysisResults:
                         self.results[language]["references"][ref]
                 if lower_qn in ref:
                     subset_refs.append(ref)
-            if len(subset_refs) != 1:
-                return f"Multiple references found for '{qualified_name}' in language: {subset_refs}", \
-                    self.results[language]["references"][subset_refs[0]]
             if len(subset_refs) == 1:
                 return subset_refs[0], self.results[language]["references"][subset_refs[0]]
         return None, None
