@@ -68,6 +68,10 @@ class ValidatorAgent(CodeBoardingAgent):
                         break
                     except ValueError:
                         continue
+                    except FileExistsError:
+                        if os.path.exists(ref.reference_file):
+                            no_code_reference = False
+                            break
                 if no_code_reference:  # check if it is a file reference
                     file_path = ref.qualified_name.replace(".", "/")  # Get file path
                     full_path = os.path.join(self.repo_dir, file_path)

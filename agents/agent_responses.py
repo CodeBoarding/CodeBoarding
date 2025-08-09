@@ -33,7 +33,7 @@ class SourceCodeReference(BaseModel):
         if (self.reference_start_line <= self.reference_end_line <= 0 or
                 self.reference_start_line == self.reference_end_line):
             return f"`{self.qualified_name}`"
-        return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line})"
+        return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
 class Relation(BaseModel):

@@ -147,15 +147,15 @@ class CodeBoardingAgent:
                     try:
                         node = self.static_analysis.get_reference(lang, reference.qualified_name)
                         reference.reference_file = node.file_path
-                        reference.line_start = node.line_start
-                        reference.line_end = node.line_end
+                        reference.reference_start_line = node.line_start + 1  # match 1  based indexing
+                        reference.reference_end_line = node.line_end + 1  # match 1  based indexing
                     except (ValueError, FileExistsError) as e:
                         # Try resolving with loose matching:
-                        _, node = self.static_analysis.get_reference(lang, reference.qualified_name)
+                        _, node = self.static_analysis.get_loose_reference(lang, reference.qualified_name)
                         if node is not None:
                             reference.reference_file = node.file_path
-                            reference.line_start = node.line_start
-                            reference.line_end = node.line_end
+                            reference.reference_start_line = node.line_start + 1  # match 1  based indexing
+                            reference.reference_end_line = node.line_end + 1  # match 1  based indexing
                             break
                         # before we give up let's retry with the file:
                         logger.warning(
