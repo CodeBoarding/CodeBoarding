@@ -43,7 +43,7 @@ class TypeScriptClient(LSPClient):
         params = self._customize_initialization_params(params)
 
         init_id = self._send_request('initialize', params)
-        response = self._wait_for_response(init_id, timeout=20)
+        response = self._wait_for_response(init_id)
 
         if 'error' in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
@@ -195,7 +195,7 @@ class TypeScriptClient(LSPClient):
             logger.debug("Validating TypeScript project is loaded...")
             params = {'query': 'test'}
             req_id = self._send_request('workspace/symbol', params)
-            response = self._wait_for_response(req_id, timeout=10)
+            response = self._wait_for_response(req_id)
 
             if 'error' in response:
                 error_msg = response['error']

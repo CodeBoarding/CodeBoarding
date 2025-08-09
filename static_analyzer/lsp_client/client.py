@@ -123,7 +123,7 @@ class LSPClient:
                     logger.error(f"Error reading from server: {e}")
                 break
 
-    def _wait_for_response(self, message_id: int, timeout: int = 10):
+    def _wait_for_response(self, message_id: int, timeout: int = 360):
         """Waits for a response with a specific message ID to arrive."""
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -131,7 +131,7 @@ class LSPClient:
                 if message_id in self._responses:
                     return self._responses.pop(message_id)
             time.sleep(0.01)
-        raise TimeoutError(f"Timed out waiting for response to message {message_id}")
+        raise TimeoutError(f"Timed out waiting for response to message {message_id}, after {timeout} seconds.")
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
@@ -154,7 +154,7 @@ class LSPClient:
             }
         }
         init_id = self._send_request('initialize', params)
-        response = self._wait_for_response(init_id, timeout=20)
+        response = self._wait_for_response(init_id)
 
         if 'error' in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
@@ -352,7 +352,7 @@ class LSPClient:
             # LSP shutdown sequence
             shutdown_id = self._send_request('shutdown', {})
             try:
-                self._wait_for_response(shutdown_id, timeout=5)
+                self._wait_for_response(shutdown_id)
             except TimeoutError:
                 logger.warning("Did not receive shutdown confirmation from server.")
 
@@ -459,7 +459,7 @@ class LSPClient:
         try:
             params = {'query': ''}
             req_id = self._send_request('workspace/symbol', params)
-            response = self._wait_for_response(req_id, timeout=30)
+            response = self._wait_for_response(req_id)
 
             if 'error' in response:
                 error_msg = response['error']
