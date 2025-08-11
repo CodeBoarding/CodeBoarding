@@ -213,137 +213,254 @@ class LSPClient:
             # File is outside project root
             return f"{file_path.name}.{symbol_name}"
 
-    def build_call_graph(self) -> CallGraph:
+    def build_static_analysis(self) -> dict:
         """
-        Builds the call graph for the entire project.
+        Unified method to build all static analysis data in a single pass through the codebase.
 
         Returns:
-            A CallGraph object containing all function call relationships.
+            A dictionary containing:
+            - 'call_graph': CallGraph object with all function call relationships
+            - 'class_hierarchies': dict mapping class names to inheritance information
+            - 'package_relations': dict mapping package names to their dependencies
+            - 'references': list of Node objects for all symbols
         """
+        logger.info("Starting unified static analysis...")
+
+        # Initialize data structures
+        call_graph = CallGraph()
+        class_hierarchies = {}
+        package_relations = {}
+        reference_nodes = []
+
+        # Get source files and apply filters
         src_files = self._get_source_files()
         spec = self.get_exclude_dirs()
         src_files = self.filter_src_files(src_files, spec)
         total_files = len(src_files)
 
-        logger.info(f"Found {total_files} source files. Analyzing...")
-
         if not src_files:
             logger.warning("No source files found in the project.")
-            return self.call_graph
+            return {
+                'call_graph': call_graph,
+                'class_hierarchies': class_hierarchies,
+                'package_relations': package_relations,
+                'references': reference_nodes
+            }
 
-        for i, file_path in tqdm(enumerate(src_files), desc="[CallGraph] Processing files", total=total_files):
+        logger.info(f"Found {total_files} source files. Starting unified analysis...")
+
+        # Prepare for analysis (language-specific setup)
+        self._prepare_for_analysis()
+
+        # Get all classes in workspace for hierarchy analysis
+        all_classes = self._get_all_classes_in_workspace()
+        logger.info(f"Found {len(all_classes)} classes in workspace")
+
+        # Track processed symbols to avoid duplicates
+        processed_symbols = set()
+
+        # Single pass through all files
+        for file_path in tqdm(src_files, desc="[Unified Analysis] Processing files", total=total_files):
             file_uri = file_path.as_uri()
 
-            # 1. Notify the server that the file is open
             try:
                 content = file_path.read_text(encoding='utf-8')
                 self._send_notification('textDocument/didOpen', {
                     'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
                 })
-            except Exception as e:
-                logger.error(f"Could not read file {file_path}: {e}")
-                continue
 
-            # 2. Get all functions/methods in the file
-            symbols = self._get_document_symbols(file_uri)
-            if not symbols:
-                continue
-
-            # 3. Create nodes for all functions and methods in this file
-            function_symbols = self._flatten_symbols(symbols)
-            if not function_symbols:
-                logger.debug(f"No functions found in {file_path}. Skipping.")
-                continue
-
-            # Create nodes for all functions in this file
-            for symbol in function_symbols:
-                qualified_name = self._create_qualified_name(file_path, symbol['name'])
-                range_info = symbol.get('range', {})
-                start_line = range_info.get('start', {}).get('line', 0)
-                end_line = range_info.get('end', {}).get('line', 0)
-
-                node = Node(
-                    fully_qualified_name=qualified_name,
-                    file_path=str(file_path),
-                    line_start=start_line,
-                    line_end=end_line
-                )
-                self.call_graph.add_node(node)
-                logger.debug(f"Added node: {qualified_name}")
-
-            # 4. Iterate through symbols to find incoming calls
-            for symbol in function_symbols:
-                # Use the start of the selection range for the symbol's position
-                pos = symbol['selectionRange']['start']
-                callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
-
-                # Prepare the call hierarchy at the function's position
-                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
-                if not hierarchy_items:
-                    logger.warning(f"No call hierarchy items found for {callee_qualified_name}.")
+                # Get all symbols in this file once
+                symbols = self._get_document_symbols(file_uri)
+                if not symbols:
+                    self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
                     continue
 
-                # Get incoming calls to this function
-                for item in hierarchy_items:
-                    incoming_calls = self._get_incoming_calls(item)
-                    if not incoming_calls:
-                        logger.warning(f"No incoming calls found for {callee_qualified_name}.")
+                # 1. PACKAGE RELATIONS - Process imports and package structure
+                file_package = self._get_package_name(file_path)
+                if file_package not in package_relations:
+                    package_relations[file_package] = {
+                        "imports": set(),
+                        "imported_by": set(),
+                        "files": []
+                    }
+                package_relations[file_package]["files"].append(str(file_path))
+
+                # Extract imports from symbols and content
+                imports = self._extract_imports_from_symbols(symbols, content)
+                for imported_module in imports:
+                    imported_package = self._extract_package_from_import(imported_module)
+                    if imported_package and imported_package != file_package:
+                        package_relations[file_package]["imports"].add(imported_package)
+
+                # 2. REFERENCES - Collect all symbol references
+                all_symbols = self._get_all_symbols_recursive(symbols)
+                for symbol in all_symbols:
+                    symbol_kind = symbol.get('kind')
+                    symbol_name = symbol.get('name', '')
+
+                    if symbol_kind not in self.symbol_kinds:
                         continue
-                    for call in incoming_calls:
-                        caller_item = call['from']
-                        caller_path = Path(caller_item['uri'].replace('file://', ''))
-                        caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
 
-                        # Create node for caller if it doesn't exist (external function)
-                        if caller_qualified_name not in self.call_graph.nodes:
-                            caller_node = Node(
-                                fully_qualified_name=caller_qualified_name,
-                                file_path=str(caller_path),
-                                line_start=0,
-                                line_end=0
-                            )
-                            self.call_graph.add_node(caller_node)
-                            logger.debug(f"Added external node: {caller_qualified_name}")
+                    qualified_name = self._create_qualified_name(file_path, symbol_name)
 
-                        # Add edge from caller to callee
-                        try:
-                            self.call_graph.add_edge(caller_qualified_name, callee_qualified_name)
-                            logger.info(f"Added edge: {caller_qualified_name} -> {callee_qualified_name}")
-                        except ValueError as e:
-                            logger.debug(f"Could not add edge: {e}")
+                    # Skip if already processed
+                    if qualified_name in processed_symbols:
+                        continue
+                    processed_symbols.add(qualified_name)
 
-            # Close the document
-            self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+                    # Get definition location
+                    range_info = symbol.get('range', {})
+                    start_line = range_info.get('start', {}).get('line', 0)
+                    end_line = range_info.get('end', {}).get('line', 0)
 
-        logger.info("Call graph construction complete.")
-        return self.call_graph
+                    node = Node(
+                        fully_qualified_name=qualified_name,
+                        file_path=str(file_path),
+                        line_start=start_line,
+                        line_end=end_line
+                    )
+                    reference_nodes.append(node)
 
-    def filter_src_files(self, src_files, spec):
-        # Return files that do NOT match any of the ignore patterns AND do not have "test" in their path
-        filtered_files = []
-        for file in src_files:
-            rel_path = file.relative_to(self.project_path)
-            # Skip if matches gitignore patterns
-            if spec.match_file(rel_path):
+                # 3. CALL GRAPH - Process function/method calls
+                function_symbols = self._flatten_symbols(symbols)
+
+                # Create nodes for all functions in this file
+                for symbol in function_symbols:
+                    qualified_name = self._create_qualified_name(file_path, symbol['name'])
+                    range_info = symbol.get('range', {})
+                    start_line = range_info.get('start', {}).get('line', 0)
+                    end_line = range_info.get('end', {}).get('line', 0)
+
+                    node = Node(
+                        fully_qualified_name=qualified_name,
+                        file_path=str(file_path),
+                        line_start=start_line,
+                        line_end=end_line
+                    )
+                    call_graph.add_node(node)
+
+                # Find call relationships
+                for symbol in function_symbols:
+                    pos = symbol['selectionRange']['start']
+                    callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
+
+                    # Prepare the call hierarchy at the function's position
+                    hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
+                    if not hierarchy_items:
+                        continue
+
+                    # Get incoming calls to this function
+                    for item in hierarchy_items:
+                        incoming_calls = self._get_incoming_calls(item)
+                        if not incoming_calls:
+                            continue
+
+                        for call in incoming_calls:
+                            caller_item = call['from']
+                            caller_path = Path(caller_item['uri'].replace('file://', ''))
+                            caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
+
+                            # Create node for caller if it doesn't exist
+                            if caller_qualified_name not in call_graph.nodes:
+                                caller_node = Node(
+                                    fully_qualified_name=caller_qualified_name,
+                                    file_path=str(caller_path),
+                                    line_start=0,
+                                    line_end=0
+                                )
+                                call_graph.add_node(caller_node)
+
+                            # Add edge from caller to callee
+                            try:
+                                call_graph.add_edge(caller_qualified_name, callee_qualified_name)
+                                logger.debug(f"Added edge: {caller_qualified_name} -> {callee_qualified_name}")
+                            except ValueError as e:
+                                logger.debug(f"Could not add edge: {e}")
+
+                # 4. CLASS HIERARCHIES - Process class inheritance
+                class_symbols = self._find_classes_in_symbols(symbols)
+
+                for class_symbol in class_symbols:
+                    qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
+
+                    # Get class info
+                    range_info = class_symbol.get('range', {})
+                    start_line = range_info.get('start', {}).get('line', 0)
+                    end_line = range_info.get('end', {}).get('line', 0)
+
+                    class_info = {
+                        "superclasses": [],
+                        "subclasses": [],
+                        "file_path": str(file_path),
+                        "line_start": start_line,
+                        "line_end": end_line
+                    }
+
+                    # Find inheritance relationships
+                    superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
+                    class_info["superclasses"] = superclasses
+                    for superclass in superclasses:
+                        if superclass not in class_hierarchies:
+                            class_hierarchies[superclass] = {
+                                "superclasses": [],
+                                "subclasses": [],
+                                "file_path": "",
+                                "line_start": 0,
+                                "line_end": 0
+                            }
+                        class_hierarchies[superclass]["subclasses"].append(qualified_name)
+
+                    # Find subclasses by searching references to this class
+                    subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
+                    class_info["subclasses"] = subclasses
+
+                    class_hierarchies[qualified_name] = class_info
+                    for subclass in subclasses:
+                        if subclass not in class_hierarchies:
+                            class_hierarchies[subclass] = {
+                                "superclasses": [],
+                                "subclasses": [],
+                                "file_path": "",
+                                "line_start": 0,
+                                "line_end": 0
+                            }
+                        class_hierarchies[subclass]["superclasses"].append(qualified_name)
+
+                # 5. ENHANCED PACKAGE RELATIONS - Find external references
+                external_refs = self._find_external_references(file_uri, symbols)
+                for ref in external_refs:
+                    ref_package = self._extract_package_from_reference(ref)
+                    if ref_package and ref_package != file_package:
+                        if file_package in package_relations:
+                            package_relations[file_package]["imports"].add(ref_package)
+
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+            except Exception as e:
+                logger.error(f"Error processing file {file_path}: {e}")
                 continue
-            # Skip if "test" is in the path (case-insensitive)
-            if "test" in str(rel_path).lower():
-                logger.debug(f"Skipping test file: {rel_path}")
-                continue
-            filtered_files.append(file)
-        return filtered_files
 
-    def get_exclude_dirs(self):
-        gitignore_path = self.project_path / ".gitignore"
-        if not gitignore_path.exists():
-            return pathspec.PathSpec.from_lines("gitwildmatch", [])
+        # Post-processing: Build reverse relationships for package relations
+        for package, info in package_relations.items():
+            for imported_pkg in info["imports"]:
+                if imported_pkg in package_relations:
+                    package_relations[imported_pkg]["imported_by"].add(package)
 
-        with gitignore_path.open() as f:
-            lines = f.readlines()
+        # Convert sets to lists for serialization
+        for package_info in package_relations.values():
+            package_info["imports"] = list(package_info["imports"])
+            package_info["imported_by"] = list(package_info["imported_by"])
 
-        # Compile .gitignore patterns using pathspec
-        spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
-        return spec
+        logger.info("Unified static analysis complete.")
+        logger.info(f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
+                    f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes")
+
+        return {
+            'call_graph': call_graph,
+            'class_hierarchies': class_hierarchies,
+            'package_relations': package_relations,
+            'references': reference_nodes
+        }
 
     def close(self):
         """Shuts down the language server gracefully."""
@@ -368,87 +485,6 @@ class LSPClient:
                 self._process.kill()
             self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
-
-    def build_class_hierarchies(self) -> dict:
-        """
-        Collects all class hierarchies in the project using core LSP methods.
-
-        Returns:
-            A dictionary mapping class names to their inheritance information.
-        """
-        logger.info("Collecting class hierarchies using core LSP methods...")
-        class_hierarchies = {}
-
-        # Allow subclasses to perform pre-analysis setup
-        self._prepare_for_analysis()
-
-        # First, get all classes in the workspace using workspace/symbol
-        all_classes = self._get_all_classes_in_workspace()
-        logger.info(f"Found {len(all_classes)} classes in workspace")
-
-        src_files = self._get_source_files()
-        spec = self.get_exclude_dirs()
-        src_files = self.filter_src_files(src_files, spec)
-
-        for file_path in tqdm(src_files, desc="[Class Hierarchy] Analyzing class hierarchies"):
-            file_uri = file_path.as_uri()
-
-            try:
-                content = file_path.read_text(encoding='utf-8')
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-                })
-
-                # Get document symbols to find classes in this file
-                symbols = self._get_document_symbols(file_uri)
-                class_symbols = self._find_classes_in_symbols(symbols)
-
-                for class_symbol in class_symbols:
-                    qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
-
-                    # Get class info
-                    range_info = class_symbol.get('range', {})
-                    start_line = range_info.get('start', {}).get('line', 0)
-                    end_line = range_info.get('end', {}).get('line', 0)
-
-                    class_info = {
-                        "superclasses": [],
-                        "subclasses": [],
-                        "file_path": str(file_path),
-                        "line_start": start_line,
-                        "line_end": end_line
-                    }
-
-                    # Find inheritance relationships using multiple methods
-                    superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
-                    class_info["superclasses"] = superclasses
-                    for superclass in superclasses:
-                        if superclass not in class_hierarchies:
-                            class_hierarchies[superclass] = {"superclasses": [], "subclasses": [], "file_path": "",
-                                                             "line_start": 0, "line_end": 0}
-                        class_hierarchies[superclass]["subclasses"].append(qualified_name)
-
-                    # Find subclasses by searching references to this class
-                    subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
-                    class_info["subclasses"] = subclasses
-
-                    class_hierarchies[qualified_name] = class_info
-                    for subclass in subclasses:
-                        if subclass not in class_hierarchies:
-                            class_hierarchies[subclass] = {"superclasses": [], "subclasses": [], "file_path": "",
-                                                           "line_start": 0, "line_end": 0}
-                        class_hierarchies[subclass]["superclasses"].append(qualified_name)
-                    logger.debug(
-                        f"Found class: {qualified_name} with {len(superclasses)} supers, {len(subclasses)} subs")
-
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-
-            except Exception as e:
-                logger.error(f"Error processing class hierarchies in {file_path}: {e}")
-                continue
-
-        logger.info(f"Found {len(class_hierarchies)} classes with hierarchy information")
-        return class_hierarchies
 
     def _prepare_for_analysis(self):
         """Override in subclasses to perform language-specific preparation before analysis."""
@@ -693,109 +729,6 @@ class LSPClient:
         else:
             return class_name
 
-    def build_package_relations(self) -> dict:
-        """
-        Collects package interaction relationships using pure LSP by analyzing symbols and references.
-        
-        Returns:
-            A dictionary mapping package names to their dependencies:
-            {
-                "package.name": {
-                    "imports": ["other.package1", "other.package2"],
-                    "imported_by": ["dependent.package1"],
-                    "files": ["/path/to/file1.py", "/path/to/file2.py"]
-                }
-            }
-        """
-        logger.info("Collecting package relations...")
-        package_relations = {}
-
-        src_files = self._get_source_files()
-        spec = self.get_exclude_dirs()
-        src_files = self.filter_src_files(src_files, spec)
-
-        # First pass: collect all symbols and build package structure
-        for file_path in tqdm(src_files, desc="[Package Relationships] Analyzing package structure"):
-            file_uri = file_path.as_uri()
-
-            try:
-                content = file_path.read_text(encoding='utf-8')
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-                })
-
-                # Determine package for this file
-                file_package = self._get_package_name(file_path)
-
-                if file_package not in package_relations:
-                    package_relations[file_package] = {
-                        "imports": set(),
-                        "imported_by": set(),
-                        "files": []
-                    }
-
-                package_relations[file_package]["files"].append(str(file_path))
-
-                # Get document symbols to find import-like symbols
-                symbols = self._get_document_symbols(file_uri)
-                imports = self._extract_imports_from_symbols(symbols, content)
-
-                # Add imports to this package's imports
-                for imported_module in imports:
-                    imported_package = self._extract_package_from_import(imported_module)
-                    if imported_package and imported_package != file_package:
-                        package_relations[file_package]["imports"].add(imported_package)
-
-                logger.debug(f"File {file_path} belongs to package {file_package}, found {len(imports)} imports")
-
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-
-            except Exception as e:
-                logger.error(f"Error analyzing package structure in {file_path}: {e}")
-                continue
-
-        # Second pass: use LSP references to find cross-package dependencies
-        for file_path in tqdm(src_files, desc="[Package Relationships] Enhancing with LSP references"):
-            file_uri = file_path.as_uri()
-
-            try:
-                content = file_path.read_text(encoding='utf-8')
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-                })
-
-                # Get symbols and find references to external packages
-                symbols = self._get_document_symbols(file_uri)
-                external_refs = self._find_external_references(file_uri, symbols)
-
-                file_package = self._get_package_name(file_path)
-
-                for ref in external_refs:
-                    ref_package = self._extract_package_from_reference(ref)
-                    if ref_package and ref_package != file_package:
-                        if file_package in package_relations:
-                            package_relations[file_package]["imports"].add(ref_package)
-
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-
-            except Exception as e:
-                logger.error(f"Error analyzing references in {file_path}: {e}")
-                continue
-
-        # Build reverse relationships (imported_by)
-        for package, info in package_relations.items():
-            for imported_pkg in info["imports"]:
-                if imported_pkg in package_relations:
-                    package_relations[imported_pkg]["imported_by"].add(package)
-
-        # Convert sets to lists for serialization
-        for package_info in package_relations.values():
-            package_info["imports"] = list(package_info["imports"])
-            package_info["imported_by"] = list(package_info["imported_by"])
-
-        logger.info(f"Found {len(package_relations)} packages with relationship information")
-        return package_relations
-
     def _find_classes_in_symbols(self, symbols: list) -> list:
         """Find all class symbols recursively."""
         classes = []
@@ -930,75 +863,6 @@ class LSPClient:
             pass
         return ""
 
-    def build_references(self) -> list:
-        """
-        Builds a list of reference nodes for all methods/functions and classes in the project.
-        
-        Returns a list of Nodes
-        """
-        logger.info("Building references for all symbols...")
-        reference_nodes = []
-
-        src_files = self._get_source_files()
-        spec = self.get_exclude_dirs()
-        src_files = self.filter_src_files(src_files, spec)
-
-        # Track processed symbols to avoid duplicates
-        processed_symbols = set()
-
-        for file_path in tqdm(src_files, desc="[References collection] Collecting symbol references"):
-            file_uri = file_path.as_uri()
-
-            try:
-                content = file_path.read_text(encoding='utf-8')
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-                })
-
-                # Get all symbols in this file
-                symbols = self._get_document_symbols(file_uri)
-
-                # Process functions, methods, and classes
-                all_symbols = self._get_all_symbols_recursive(symbols)
-
-                for symbol in all_symbols:
-                    symbol_kind = symbol.get('kind')
-                    symbol_name = symbol.get('name', '')
-
-                    if symbol_kind not in self.symbol_kinds:
-                        continue
-
-                    # Create qualified name
-                    qualified_name = self._create_qualified_name(file_path, symbol_name)
-
-                    # Skip if already processed
-                    if qualified_name in processed_symbols:
-                        continue
-
-                    processed_symbols.add(qualified_name)
-
-                    # Get definition location
-                    range_info = symbol.get('range', {})
-                    start_line = range_info.get('start', {}).get('line', 0)
-                    end_line = range_info.get('end', {}).get('line', 0)
-
-                    node = Node(fully_qualified_name=qualified_name,
-                                file_path=str(file_path),
-                                line_start=start_line,
-                                line_end=end_line)
-
-                    reference_nodes.append(node)
-                    logger.debug(f"Added symbol {qualified_name}")
-
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-
-            except Exception as e:
-                logger.error(f"Error collecting references in {file_path}: {e}")
-                continue
-
-        logger.info(f"Built {len(reference_nodes)} reference nodes")
-        return reference_nodes
-
     def _get_all_symbols_recursive(self, symbols: list) -> list:
         """Recursively collect all symbols from a hierarchical symbol list."""
         all_symbols = []
@@ -1007,3 +871,30 @@ class LSPClient:
             if 'children' in symbol:
                 all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
         return all_symbols
+
+    def filter_src_files(self, src_files, spec):
+        # Return files that do NOT match any of the ignore patterns AND do not have "test" in their path
+        filtered_files = []
+        for file in src_files:
+            rel_path = file.relative_to(self.project_path)
+            # Skip if matches gitignore patterns
+            if spec.match_file(rel_path):
+                continue
+            # Skip if "test" is in the path (case-insensitive)
+            if "test" in str(rel_path).lower():
+                logger.debug(f"Skipping test file: {rel_path}")
+                continue
+            filtered_files.append(file)
+        return filtered_files
+
+    def get_exclude_dirs(self):
+        gitignore_path = self.project_path / ".gitignore"
+        if not gitignore_path.exists():
+            return pathspec.PathSpec.from_lines("gitwildmatch", [])
+
+        with gitignore_path.open() as f:
+            lines = f.readlines()
+
+        # Compile .gitignore patterns using pathspec
+        spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
+        return spec

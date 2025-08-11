@@ -6,7 +6,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
-from agents.prompts import SYSTEM_META_ANALYSIS_MESSAGE
+from agents.prompts import SYSTEM_META_ANALYSIS_MESSAGE, META_INFORMATION_PROMPT
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -19,16 +19,7 @@ class MetaAgent(CodeBoardingAgent):
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(
-            template="""Analyze the project '{project_name}' to understand its architectural context.
-
-Tasks:
-1. Read project documentation (README, docs) to understand the project purpose
-2. Analyze file structure and requirements to identify technology stack
-3. Examine dependencies and imports to understand the domain
-4. Based on your expertise, classify the project type and expected architectural patterns
-5. Provide guidance on how components should be organized for this project type
-
-Use the available tools to gather this information.""",
+            template=META_INFORMATION_PROMPT,
             input_variables=["project_name"]
         )
 

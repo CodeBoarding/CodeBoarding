@@ -54,10 +54,7 @@ class ReadDocsTool(BaseTool):
         """
         # If no file_path provided, default to README.md
         if file_path is None:
-            file_path = "README.md"
-
-        logger.info(f"[ReadDocs Tool] Reading file {file_path} around line {line_number}")
-
+            file_path = "README"
         file_path = Path(file_path)
 
         read_file = None
@@ -68,11 +65,11 @@ class ReadDocsTool(BaseTool):
 
         if read_file is None:
             # If README.md not found and it was the default, list available files
-            if file_path.name.lower() == "readme.md":
+            if file_path.stem.lower() == "readme":
                 available_files = [str(f.relative_to(self.repo_dir)) for f in self.cached_files]
                 if not available_files:
                     return "No documentation files found in this repository."
-                return f"README.md not found. Available documentation files:\n\n" + "\n".join(
+                return f"README not found. Available documentation files:\n\n" + "\n".join(
                     f"- {f}" for f in available_files)
 
             files_str = '\n'.join([str(f.relative_to(self.repo_dir)) for f in self.cached_files])
@@ -82,6 +79,7 @@ class ReadDocsTool(BaseTool):
         # Read the file content
         try:
             with open(read_file, 'r', encoding='utf-8') as file:
+                logger.info(f"[ReadDocs Tool] Reading file {read_file} around line {line_number}")
                 lines = file.readlines()
         except Exception as e:
             return f"Error reading file {file_path}: {str(e)}"

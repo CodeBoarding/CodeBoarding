@@ -192,14 +192,11 @@ class DiagramGenerator:
             logger.info(f"Starting static analysis for {client.language.language} in {self.repo_location}")
             client.start()
 
-            call_graph = client.build_call_graph()
-            class_hierarchy = client.build_class_hierarchies()
-            package_graph = client.build_package_relations()
-            references = client.build_references()
+            analysis = client.build_static_analysis()
 
-            results.add_references(client.language.language, references)
-            results.add_cfg(client.language.language, call_graph)
-            results.add_class_hierarchy(client.language.language, class_hierarchy)
-            results.add_package_dependencies(client.language.language, package_graph)
+            results.add_references(client.language.language, analysis.get('references', []))
+            results.add_cfg(client.language.language, analysis.get('call_graph', []))
+            results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
+            results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
 
         return results
