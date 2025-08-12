@@ -70,8 +70,8 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                 url = "/".join(repo_ref.split("/")[:7])
                 ref_url = url + reference.reference_file.split(root_dir)[1]
                 if reference.reference_start_line is not None and reference.reference_end_line is not None and (
-                not (reference.reference_start_line <= reference.reference_end_line <= 0 or
-                     reference.reference_start_line == reference.reference_end_line)):
+                        not (reference.reference_start_line <= reference.reference_end_line <= 0 or
+                             reference.reference_start_line == reference.reference_end_line)):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 qn_list.append(
                     f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference}</a>')

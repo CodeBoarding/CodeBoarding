@@ -36,7 +36,7 @@ class GetCFGTool(BaseTool):
             if cfg is None:
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
-            result_str += f"Control flow graph for {lang}:\n{str(cfg)}\n"
+            result_str += f"Control flow graph for {lang}:\n{cfg.llm_str()}\n"
         if not result_str:
             logging.error("[CFG Tool] No control flow graph data available.")
             return "No control flow graph data available. Ensure static analysis was performed correctly."

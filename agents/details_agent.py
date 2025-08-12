@@ -38,7 +38,11 @@ class DetailsAgent(CodeBoardingAgent):
 
     def step_subcfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
-        self.context['subcfg_insight'] = self.read_cfg_tool.component_cfg(component)
+        self.context['subcfg_insight'] = self._invoke(self.prompts["subcfg"].format(
+            project_name=self.project_name,
+            cfg_str=self.read_cfg_tool._run(),
+            component=component.llm_str(),
+        ))
 
     def step_cfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")

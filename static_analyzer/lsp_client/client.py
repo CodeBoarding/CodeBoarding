@@ -301,9 +301,6 @@ class LSPClient:
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
-        # Aggregate results in main thread (no locks needed here)
-        processed_symbols = set()
-
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
@@ -326,27 +323,11 @@ class LSPClient:
 
             # 2. REFERENCES
             for symbol_node in result.symbols:
-                if symbol_node.fully_qualified_name not in processed_symbols:
-                    reference_nodes.append(symbol_node)
-                    processed_symbols.add(symbol_node.fully_qualified_name)
+                call_graph.add_node(symbol_node)
+                reference_nodes.append(symbol_node)
 
             # 3. CALL GRAPH
-            for symbol_node in result.symbols:
-                if any(func['name'] in symbol_node.fully_qualified_name for func in result.function_symbols):
-                    call_graph.add_node(symbol_node)
-
             for caller_name, callee_name in result.call_relationships:
-                # Create caller node if it doesn't exist
-                if caller_name not in call_graph.nodes:
-                    # Try to find caller info from results or create minimal node
-                    caller_node = Node(
-                        fully_qualified_name=caller_name,
-                        file_path="unknown",
-                        line_start=0,
-                        line_end=0
-                    )
-                    call_graph.add_node(caller_node)
-
                 try:
                     call_graph.add_edge(caller_name, callee_name)
                     logger.debug(f"Added edge: {caller_name} -> {callee_name}")
@@ -431,6 +412,7 @@ class LSPClient:
 
                 node = Node(
                     fully_qualified_name=qualified_name,
+                    node_type=symbol_kind,
                     file_path=str(file_path),
                     line_start=start_line,
                     line_end=end_line

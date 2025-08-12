@@ -39,7 +39,7 @@ class AbstractionAgent(CodeBoardingAgent):
 
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
-            cfg_str=str(self.read_cfg_tool._run()),
+            cfg_str=self.read_cfg_tool._run(),
             meta_context=meta_context_str,
             project_type=project_type
         )

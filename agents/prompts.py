@@ -138,8 +138,10 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-SUBCFG_DETAILS_MESSAGE = """Extract relevant CFG components for {component} from `{project_name}`.
+SUBCFG_DETAILS_MESSAGE = """Analyze subgraph for component the following component in `{project_name}`:
+Component: {component}
 
+Control-flow Project Context:
 {cfg_str}
 
 Instructions:
