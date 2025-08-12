@@ -137,7 +137,7 @@ class ValidatorAgent(CodeBoardingAgent):
         if not component_relations.is_valid:
             insights += f"{component_relations.llm_str()}\n\n"
             valid = False
-        logger.info(f"[ValidatorAgent] Validation result is {valid} with insights: {insights}")
+        logger.info(f"[ValidatorAgent] Validation result: [Valid: {valid}] with insights: {insights}")
 
         return ValidationInsights(is_valid=valid,
                                   additional_info=insights)

@@ -4,7 +4,10 @@ import os
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List
 
 import pathspec
 from tqdm import tqdm
@@ -14,6 +17,21 @@ from static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FileAnalysisResult:
+    """Container for single file analysis results"""
+    file_path: Path
+    package_name: str
+    imports: List[str]
+    symbols: List[Node]
+    function_symbols: List[dict]
+    class_symbols: List[dict]
+    call_relationships: List[tuple]  # (caller_qualified_name, callee_qualified_name)
+    class_hierarchies: Dict[str, dict]
+    external_references: List[dict]
+    error: str = None
 
 
 class LSPClient:
@@ -215,7 +233,7 @@ class LSPClient:
 
     def build_static_analysis(self) -> dict:
         """
-        Unified method to build all static analysis data in a single pass through the codebase.
+        Unified method to build all static analysis data using multithreading.
 
         Returns:
             A dictionary containing:
@@ -224,9 +242,9 @@ class LSPClient:
             - 'package_relations': dict mapping package names to their dependencies
             - 'references': list of Node objects for all symbols
         """
-        logger.info("Starting unified static analysis...")
+        logger.info("Starting unified static analysis with multithreading...")
 
-        # Initialize data structures
+        # Initialize data structures with thread-safe locks
         call_graph = CallGraph()
         class_hierarchies = {}
         package_relations = {}
@@ -256,189 +274,87 @@ class LSPClient:
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
-        # Track processed symbols to avoid duplicates
+        max_workers = max(1, os.cpu_count() - 1)  # Use the number of cores but reserve one
+        successful_results = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all file analysis tasks
+            future_to_file = {
+                executor.submit(self._analyze_single_file, file_path, all_classes): file_path
+                for file_path in src_files
+            }
+
+            # Collect results as they complete
+            with tqdm(total=total_files, desc="[Unified Analysis] Processing files") as pbar:
+                for future in as_completed(future_to_file):
+                    file_path = future_to_file[future]
+                    try:
+                        result = future.result()
+                        if result.error:
+                            logger.error(f"Error processing {file_path}: {result.error}")
+                        else:
+                            successful_results.append(result)
+                    except Exception as e:
+                        logger.error(f"Exception processing {file_path}: {e}")
+                    finally:
+                        pbar.update(1)
+
+        logger.info(f"Successfully processed {len(successful_results)} files")
+
+        # Aggregate results in main thread (no locks needed here)
         processed_symbols = set()
 
-        # Single pass through all files
-        for file_path in tqdm(src_files, desc="[Unified Analysis] Processing files", total=total_files):
-            file_uri = file_path.as_uri()
+        for result in successful_results:
+            # 1. PACKAGE RELATIONS
+            if result.package_name not in package_relations:
+                package_relations[result.package_name] = {
+                    "imports": set(),
+                    "imported_by": set(),
+                    "files": []
+                }
+            package_relations[result.package_name]["files"].append(str(result.file_path))
 
-            try:
-                content = file_path.read_text(encoding='utf-8')
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-                })
+            for imported_module in result.imports:
+                imported_package = self._extract_package_from_import(imported_module)
+                if imported_package and imported_package != result.package_name:
+                    package_relations[result.package_name]["imports"].add(imported_package)
 
-                # Get all symbols in this file once
-                symbols = self._get_document_symbols(file_uri)
-                if not symbols:
-                    self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-                    continue
+            for ref in result.external_references:
+                ref_package = self._extract_package_from_reference(ref)
+                if ref_package and ref_package != result.package_name:
+                    package_relations[result.package_name]["imports"].add(ref_package)
 
-                # 1. PACKAGE RELATIONS - Process imports and package structure
-                file_package = self._get_package_name(file_path)
-                if file_package not in package_relations:
-                    package_relations[file_package] = {
-                        "imports": set(),
-                        "imported_by": set(),
-                        "files": []
-                    }
-                package_relations[file_package]["files"].append(str(file_path))
+            # 2. REFERENCES
+            for symbol_node in result.symbols:
+                if symbol_node.fully_qualified_name not in processed_symbols:
+                    reference_nodes.append(symbol_node)
+                    processed_symbols.add(symbol_node.fully_qualified_name)
 
-                # Extract imports from symbols and content
-                imports = self._extract_imports_from_symbols(symbols, content)
-                for imported_module in imports:
-                    imported_package = self._extract_package_from_import(imported_module)
-                    if imported_package and imported_package != file_package:
-                        package_relations[file_package]["imports"].add(imported_package)
+            # 3. CALL GRAPH
+            for symbol_node in result.symbols:
+                if any(func['name'] in symbol_node.fully_qualified_name for func in result.function_symbols):
+                    call_graph.add_node(symbol_node)
 
-                # 2. REFERENCES - Collect all symbol references
-                all_symbols = self._get_all_symbols_recursive(symbols)
-                for symbol in all_symbols:
-                    symbol_kind = symbol.get('kind')
-                    symbol_name = symbol.get('name', '')
-
-                    if symbol_kind not in self.symbol_kinds:
-                        continue
-
-                    qualified_name = self._create_qualified_name(file_path, symbol_name)
-
-                    # Skip if already processed
-                    if qualified_name in processed_symbols:
-                        continue
-                    processed_symbols.add(qualified_name)
-
-                    # Get definition location
-                    range_info = symbol.get('range', {})
-                    start_line = range_info.get('start', {}).get('line', 0)
-                    end_line = range_info.get('end', {}).get('line', 0)
-
-                    node = Node(
-                        fully_qualified_name=qualified_name,
-                        file_path=str(file_path),
-                        line_start=start_line,
-                        line_end=end_line
+            for caller_name, callee_name in result.call_relationships:
+                # Create caller node if it doesn't exist
+                if caller_name not in call_graph.nodes:
+                    # Try to find caller info from results or create minimal node
+                    caller_node = Node(
+                        fully_qualified_name=caller_name,
+                        file_path="unknown",
+                        line_start=0,
+                        line_end=0
                     )
-                    reference_nodes.append(node)
+                    call_graph.add_node(caller_node)
 
-                # 3. CALL GRAPH - Process function/method calls
-                function_symbols = self._flatten_symbols(symbols)
+                try:
+                    call_graph.add_edge(caller_name, callee_name)
+                    logger.debug(f"Added edge: {caller_name} -> {callee_name}")
+                except ValueError as e:
+                    logger.debug(f"Could not add edge: {e}")
 
-                # Create nodes for all functions in this file
-                for symbol in function_symbols:
-                    qualified_name = self._create_qualified_name(file_path, symbol['name'])
-                    range_info = symbol.get('range', {})
-                    start_line = range_info.get('start', {}).get('line', 0)
-                    end_line = range_info.get('end', {}).get('line', 0)
-
-                    node = Node(
-                        fully_qualified_name=qualified_name,
-                        file_path=str(file_path),
-                        line_start=start_line,
-                        line_end=end_line
-                    )
-                    call_graph.add_node(node)
-
-                # Find call relationships
-                for symbol in function_symbols:
-                    pos = symbol['selectionRange']['start']
-                    callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
-
-                    # Prepare the call hierarchy at the function's position
-                    hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
-                    if not hierarchy_items:
-                        continue
-
-                    # Get incoming calls to this function
-                    for item in hierarchy_items:
-                        incoming_calls = self._get_incoming_calls(item)
-                        if not incoming_calls:
-                            continue
-
-                        for call in incoming_calls:
-                            caller_item = call['from']
-                            caller_path = Path(caller_item['uri'].replace('file://', ''))
-                            caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
-
-                            # Create node for caller if it doesn't exist
-                            if caller_qualified_name not in call_graph.nodes:
-                                caller_node = Node(
-                                    fully_qualified_name=caller_qualified_name,
-                                    file_path=str(caller_path),
-                                    line_start=0,
-                                    line_end=0
-                                )
-                                call_graph.add_node(caller_node)
-
-                            # Add edge from caller to callee
-                            try:
-                                call_graph.add_edge(caller_qualified_name, callee_qualified_name)
-                                logger.debug(f"Added edge: {caller_qualified_name} -> {callee_qualified_name}")
-                            except ValueError as e:
-                                logger.debug(f"Could not add edge: {e}")
-
-                # 4. CLASS HIERARCHIES - Process class inheritance
-                class_symbols = self._find_classes_in_symbols(symbols)
-
-                for class_symbol in class_symbols:
-                    qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
-
-                    # Get class info
-                    range_info = class_symbol.get('range', {})
-                    start_line = range_info.get('start', {}).get('line', 0)
-                    end_line = range_info.get('end', {}).get('line', 0)
-
-                    class_info = {
-                        "superclasses": [],
-                        "subclasses": [],
-                        "file_path": str(file_path),
-                        "line_start": start_line,
-                        "line_end": end_line
-                    }
-
-                    # Find inheritance relationships
-                    superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
-                    class_info["superclasses"] = superclasses
-                    for superclass in superclasses:
-                        if superclass not in class_hierarchies:
-                            class_hierarchies[superclass] = {
-                                "superclasses": [],
-                                "subclasses": [],
-                                "file_path": "",
-                                "line_start": 0,
-                                "line_end": 0
-                            }
-                        class_hierarchies[superclass]["subclasses"].append(qualified_name)
-
-                    # Find subclasses by searching references to this class
-                    subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
-                    class_info["subclasses"] = subclasses
-
-                    class_hierarchies[qualified_name] = class_info
-                    for subclass in subclasses:
-                        if subclass not in class_hierarchies:
-                            class_hierarchies[subclass] = {
-                                "superclasses": [],
-                                "subclasses": [],
-                                "file_path": "",
-                                "line_start": 0,
-                                "line_end": 0
-                            }
-                        class_hierarchies[subclass]["superclasses"].append(qualified_name)
-
-                # 5. ENHANCED PACKAGE RELATIONS - Find external references
-                external_refs = self._find_external_references(file_uri, symbols)
-                for ref in external_refs:
-                    ref_package = self._extract_package_from_reference(ref)
-                    if ref_package and ref_package != file_package:
-                        if file_package in package_relations:
-                            package_relations[file_package]["imports"].add(ref_package)
-
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
-
-            except Exception as e:
-                logger.error(f"Error processing file {file_path}: {e}")
-                continue
+            # 4. CLASS HIERARCHIES
+            class_hierarchies.update(result.class_hierarchies)
 
         # Post-processing: Build reverse relationships for package relations
         for package, info in package_relations.items():
@@ -461,6 +377,131 @@ class LSPClient:
             'package_relations': package_relations,
             'references': reference_nodes
         }
+
+    def _analyze_single_file(self, file_path: Path, all_classes: List[dict]) -> FileAnalysisResult:
+        """
+        Analyze a single file and return all analysis results.
+        Thread-safe method that doesn't modify shared state.
+        """
+        result = FileAnalysisResult(
+            file_path=file_path,
+            package_name="",
+            imports=[],
+            symbols=[],
+            function_symbols=[],
+            class_symbols=[],
+            call_relationships=[],
+            class_hierarchies={},
+            external_references=[]
+        )
+
+        file_uri = file_path.as_uri()
+
+        try:
+            content = file_path.read_text(encoding='utf-8')
+
+            # Thread-safe LSP communication (each thread gets its own connection context)
+            self._send_notification('textDocument/didOpen', {
+                'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
+            })
+
+            # Get all symbols in this file once
+            symbols = self._get_document_symbols(file_uri)
+            if not symbols:
+                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+                return result
+
+            # 1. PACKAGE RELATIONS - Process imports and package structure
+            result.package_name = self._get_package_name(file_path)
+            result.imports = self._extract_imports_from_symbols(symbols, content)
+
+            # 2. REFERENCES - Collect all symbol references
+            all_symbols = self._get_all_symbols_recursive(symbols)
+            for symbol in all_symbols:
+                symbol_kind = symbol.get('kind')
+                symbol_name = symbol.get('name', '')
+
+                if symbol_kind not in self.symbol_kinds:
+                    continue
+
+                qualified_name = self._create_qualified_name(file_path, symbol_name)
+                range_info = symbol.get('range', {})
+                start_line = range_info.get('start', {}).get('line', 0)
+                end_line = range_info.get('end', {}).get('line', 0)
+
+                node = Node(
+                    fully_qualified_name=qualified_name,
+                    file_path=str(file_path),
+                    line_start=start_line,
+                    line_end=end_line
+                )
+                result.symbols.append(node)
+
+            # 3. CALL GRAPH - Process function/method calls
+            result.function_symbols = self._flatten_symbols(symbols)
+
+            # Find call relationships
+            for symbol in result.function_symbols:
+                pos = symbol['selectionRange']['start']
+                callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
+
+                # Prepare the call hierarchy at the function's position
+                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
+                if not hierarchy_items:
+                    continue
+
+                # Get incoming calls to this function
+                for item in hierarchy_items:
+                    incoming_calls = self._get_incoming_calls(item)
+                    if not incoming_calls:
+                        continue
+
+                    for call in incoming_calls:
+                        caller_item = call['from']
+                        caller_path = Path(caller_item['uri'].replace('file://', ''))
+                        caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
+
+                        result.call_relationships.append((caller_qualified_name, callee_qualified_name))
+
+            # 4. CLASS HIERARCHIES - Process class inheritance
+            result.class_symbols = self._find_classes_in_symbols(symbols)
+
+            for class_symbol in result.class_symbols:
+                qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
+
+                # Get class info
+                range_info = class_symbol.get('range', {})
+                start_line = range_info.get('start', {}).get('line', 0)
+                end_line = range_info.get('end', {}).get('line', 0)
+
+                class_info = {
+                    "superclasses": [],
+                    "subclasses": [],
+                    "file_path": str(file_path),
+                    "line_start": start_line,
+                    "line_end": end_line
+                }
+
+                # Find inheritance relationships
+                superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
+                class_info["superclasses"] = superclasses
+
+                # Find subclasses by searching references to this class
+                subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
+                class_info["subclasses"] = subclasses
+
+                result.class_hierarchies[qualified_name] = class_info
+
+            # 5. EXTERNAL REFERENCES
+            result.external_references = self._find_external_references(file_uri, symbols)
+
+            self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+
+        except Exception as e:
+            result.error = str(e)
+            logger.error(f"Error processing file {file_path}: {e}")
+
+        return result
 
     def close(self):
         """Shuts down the language server gracefully."""
@@ -550,7 +591,7 @@ class LSPClient:
             # Extract parent class names from the line
             start = class_line.find('(') + 1
             end = class_line.rfind(')')
-            if start > 0 and end > start:
+            if 0 < start < end:
                 parents_str = class_line[start:end]
                 parent_names = [p.strip() for p in parents_str.split(',') if p.strip()]
 
