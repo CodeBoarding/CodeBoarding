@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import List
 
+from dotenv import load_dotenv
+
 from agents.agent_responses import AnalysisInsights
 from output_generators import sanitize
 from utils import contains_json
@@ -44,13 +46,14 @@ def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], 
 
 
 def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
-                 linked_files=None, demo=False) -> str:
+                 linked_files=None, demo=False, file_name: str = "") -> str:
     """
     Generate a RST document from an AnalysisInsights object.
     """
     linked_files = linked_files or []
 
-    title = f"High-level diagram representation of: {project}"
+    # Use file_name to create a better title, replacing underscores with spaces
+    title = file_name.replace('_', ' ').title()
     title_underline = "=" * len(title)
 
     lines = [title, title_underline, ""]
@@ -66,7 +69,7 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
     lines.append("")
     lines.append(
         ".. |codeboarding-badge| image:: https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square")
-    lines.append("   :target: https://github.com/CodeBoarding/GeneratedOnBoardings")
+    lines.append("   :target: https://github.com/CodeBoarding/CodeBoarding")
     lines.append(".. |demo-badge| image:: https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square")
     lines.append("   :target: https://www.codeboarding.org/demo")
     lines.append(
@@ -95,18 +98,19 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
             lines.append("")
 
             for reference in comp.referenced_source_code:
-                if (reference.reference_start_line is not None and
-                        reference.reference_end_line is not None and
-                        reference.reference_file and
-                        reference.reference_file.startswith(root_dir)):
-                    ref_url = repo_ref + reference.reference_file.split(root_dir)[1] \
-                              + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
-                    ref_line = f"* `{reference.llm_str()} <{ref_url}>`_"
-                else:
-                    ref_line = f"* {reference.llm_str()}"
-
-                lines.append(ref_line)
-
+                print(reference.reference_file, root_dir)
+                if not reference.reference_file:
+                    continue
+                if not reference.reference_file.startswith(root_dir):
+                    lines.append(f"* {str(reference).replace('`', '')}")
+                    continue
+                url = "/".join(repo_ref.split("/")[:7])
+                ref_url = url + reference.reference_file.split(root_dir)[1]
+                if reference.reference_start_line is not None and reference.reference_end_line is not None and (
+                        not (reference.reference_start_line <= reference.reference_end_line <= 0 or
+                             reference.reference_start_line == reference.reference_end_line)):
+                    ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
+                lines.append(f"* `{str(reference).replace('`', '')} <{ref_url}>`_")
             lines.append("")
         else:
             lines.append("**Related Classes/Methods**: *None*")
@@ -129,7 +133,7 @@ def generate_rst_file(file_name: str, insights: AnalysisInsights, project: str, 
     Generate a RST file with the given insights and save it to the specified directory.
     """
     content = generate_rst(insights, project=project, repo_ref=repo_ref,
-                           linked_files=linked_files, demo=demo)
+                           linked_files=linked_files, demo=demo, file_name=file_name)
     rst_file = temp_dir / f"{file_name}.rst"
     with open(rst_file, "w") as f:
         f.write(content)
@@ -148,3 +152,13 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
         return f"{header_text}\n{header_underline}\n\n:ref:`Expand <{sanitized_name}>`"
     else:
         return f"{header_text}\n{header_underline}"
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    file = "/home/ivan/StartUp/CodeBoarding/analysis.json"
+    with open(file, 'r') as f:
+        example_insights = AnalysisInsights.model_validate_json(f.read())
+    rst_content = generate_rst_file("overview", insights=example_insights, project="aestetik",
+                                    repo_ref="www.github.com/CodeBoarding",
+                                    linked_files=[], temp_dir=Path("./"))

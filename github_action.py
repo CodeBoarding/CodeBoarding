@@ -27,7 +27,7 @@ def generate_markdown(analysis_files: List[str], repo_name: str, repo_url: str, 
                 logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
-                    fname = "on_boarding"
+                    fname = "overview"
                 generate_markdown_file(fname, analysis, repo_name,
                                        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
                                        linked_files=analysis_files,
@@ -44,7 +44,7 @@ def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, targ
                 logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
-                    fname = "on_boarding"
+                    fname = "overview"
                 generate_html_file(fname, analysis, repo_name,
                                    repo_ref=f"{repo_url}/blob/{target_branch}",
                                    linked_files=analysis_files,
@@ -61,7 +61,7 @@ def generate_mdx(analysis_files: List[str], repo_name: str, repo_url: str, targe
                 logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
-                    fname = "on_boarding"
+                    fname = "overview"
                 generate_mdx_file(fname, analysis, repo_name,
                                   repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
                                   linked_files=analysis_files,
@@ -78,7 +78,7 @@ def generate_rst(analysis_files: List[str], repo_name: str, repo_url: str, targe
                 logger.info(f"Generated analysis file: {file}")
                 fname = Path(file).stem
                 if fname.endswith("analysis"):
-                    fname = "on_boarding"
+                    fname = "overview"
                 generate_rst_file(fname, analysis, repo_name,
                                   repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
                                   linked_files=analysis_files,
