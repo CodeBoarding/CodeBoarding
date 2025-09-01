@@ -118,8 +118,3 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
         raise ValueError(f"Unsupported extension: {extension}")
 
     return temp_repo_folder
-
-
-if __name__ == '__main__':
-    load_dotenv()
-    generate_analysis("https://github.com/adaptyvbio/ProteinFlow", "main", "main", ".html", )
