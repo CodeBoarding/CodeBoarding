@@ -10,6 +10,7 @@ from diagram_analysis import DiagramGenerator
 from output_generators.markdown import generate_markdown_file
 from output_generators.html import generate_html_file
 from output_generators.mdx import generate_mdx_file
+from output_generators.sphinx import generate_rst_file
 from repo_utils import clone_repository, checkout_repo
 from utils import create_temp_repo_folder
 
@@ -62,7 +63,24 @@ def generate_mdx(analysis_files: List[str], repo_name: str, repo_url: str, targe
                 if fname.endswith("analysis"):
                     fname = "on_boarding"
                 generate_mdx_file(fname, analysis, repo_name,
-                                  repo_ref=f"{repo_url}/blob/{target_branch}",
+                                  repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+                                  linked_files=analysis_files,
+                                  temp_dir=temp_repo_folder)
+
+
+def generate_rst(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path,
+                 output_dir):
+    for file in analysis_files:
+        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
+            print(f"Processing analysis file: {file}")
+            with open(file, 'r') as f:
+                analysis = AnalysisInsights.model_validate_json(f.read())
+                logger.info(f"Generated analysis file: {file}")
+                fname = Path(file).stem
+                if fname.endswith("analysis"):
+                    fname = "on_boarding"
+                generate_rst_file(fname, analysis, repo_name,
+                                  repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
                                   linked_files=analysis_files,
                                   temp_dir=temp_repo_folder)
 
