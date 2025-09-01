@@ -1,9 +1,40 @@
-from typing import List, Optional
+import abc
+from abc import abstractmethod
+from typing import List, Optional, get_origin
 
 from pydantic import BaseModel, Field
 
 
-class SourceCodeReference(BaseModel):
+class LLMBaseModel(BaseModel, abc.ABC):
+    @abstractmethod
+    def llm_str(self):
+        raise NotImplementedError("LLM String has to be implemented.")
+
+    @classmethod
+    def extractor_str(cls):
+        # Here iterate over the fields that we have and use their description like:
+        result_str = "please extract the following: "
+        for fname, fvalue in cls.model_fields.items():
+            # check if the field type is Optional
+            ftype = fvalue.annotation
+            # Check if the type is a typing.List (e.g., typing.List[SomeType])
+            if get_origin(ftype) is list:
+                # get the type of the list:
+                ftype = ftype.__args__[0]
+                result_str += f"{fname} which is a list ("
+            if ftype is Optional:
+                result_str += f"{fname} ({fvalue.description}), "
+            elif issubclass(ftype, LLMBaseModel):
+                # Now I need to call the extractor_str method of the field
+                result_str += ftype.extractor_str()
+            else:
+                result_str += f"{fname} ({fvalue.description}), "
+            if get_origin(ftype) is list:
+                result_str += "), "
+        return result_str
+
+
+class SourceCodeReference(LLMBaseModel):
     qualified_name: str = Field(
         description="Qualified name of the source code, e.g., `langchain.tools.tool` or `langchain_core.output_parsers.JsonOutputParser` or `langchain_core.output_parsers.JsonOutputParser:parse`."
     )
@@ -36,7 +67,7 @@ class SourceCodeReference(BaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-class Relation(BaseModel):
+class Relation(LLMBaseModel):
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
@@ -45,7 +76,7 @@ class Relation(BaseModel):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
 
-class Component(BaseModel):
+class Component(LLMBaseModel):
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
     referenced_source_code: List[SourceCodeReference] = Field(
@@ -62,9 +93,9 @@ class Component(BaseModel):
         return "\n".join([n, d, qn]).strip()
 
 
-class AnalysisInsights(BaseModel):
+class AnalysisInsights(LLMBaseModel):
     description: str = Field(
-        "One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
+        description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
     components: List[Component] = Field(
         description="List of the components identified in the project.")
     components_relations: List[Relation] = Field(
@@ -80,7 +111,7 @@ class AnalysisInsights(BaseModel):
         return title + body + relations
 
 
-class CFGComponent(BaseModel):
+class CFGComponent(LLMBaseModel):
     name: str = Field(description="Name of the abstract component")
     description: str = Field(description="One paragraph explaining the component.")
     referenced_source: List[str] = Field(
@@ -97,7 +128,7 @@ class CFGComponent(BaseModel):
         return "\n".join([n, d, qn]).strip()
 
 
-class CFGAnalysisInsights(BaseModel):
+class CFGAnalysisInsights(LLMBaseModel):
     components: List[CFGComponent] = Field(description="List of components identified in the CFG.")
     components_relations: List[Relation] = Field(
         description="List of relations among the components in the CFG."
@@ -112,7 +143,7 @@ class CFGAnalysisInsights(BaseModel):
         return title + body + relations
 
 
-class ExpandComponent(BaseModel):
+class ExpandComponent(LLMBaseModel):
     should_expand: bool = Field(description="Whether the component should be expanded in detail or not.")
     reason: str = Field(description="Reasoning behind the decision to expand or not.")
 
@@ -120,7 +151,7 @@ class ExpandComponent(BaseModel):
         return f"- *Should Expand:* {self.should_expand}\n- *Reason:* {self.reason}"
 
 
-class ValidationInsights(BaseModel):
+class ValidationInsights(LLMBaseModel):
     is_valid: bool = Field(
         description="Indicates whether the validation results in valid or not."
     )
@@ -132,7 +163,7 @@ class ValidationInsights(BaseModel):
         return f"**Feedback Information:**\n{self.additional_info}"
 
 
-class UpdateAnalysis(BaseModel):
+class UpdateAnalysis(LLMBaseModel):
     update_degree: int = Field(
         description="Degree to which the diagram needs update. 0 means no update, 10 means complete update."
     )
@@ -142,7 +173,7 @@ class UpdateAnalysis(BaseModel):
         return f"**Updated Analysis:**\n{self.analysis.llm_str()}\n\n**Feedback:**\n{self.feedback}"
 
 
-class MetaAnalysisInsights(BaseModel):
+class MetaAnalysisInsights(LLMBaseModel):
     project_type: str = Field(
         description="Type/category of the project (e.g., web framework, data processing, ML library, etc.)")
     domain: str = Field(

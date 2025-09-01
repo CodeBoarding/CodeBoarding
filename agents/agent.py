@@ -1,17 +1,22 @@
 import logging
 import os
 import time
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
+from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights
@@ -28,6 +33,7 @@ class CodeBoardingAgent:
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
+        self.extractor_llm = self._initialize_llm()
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -65,7 +71,7 @@ class CodeBoardingAgent:
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
-                max_retries=2,
+                max_retries=0,
                 api_key=self.openai_api_key,
                 base_url=self.openai_base_url
             )
@@ -76,7 +82,7 @@ class CodeBoardingAgent:
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
-                max_retries=2,
+                max_retries=0,
                 api_key=self.anthropic_api_key,
             )
         elif self.google_api_key:
@@ -86,7 +92,7 @@ class CodeBoardingAgent:
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
-                max_retries=2,
+                max_retries=0,
                 api_key=self.google_api_key,
             )
         elif self.aws_bearer_token:
@@ -101,12 +107,9 @@ class CodeBoardingAgent:
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
             return ChatOllama(
-                model="qwen3:32b",
+                model="qwen3:30b",
                 base_url=self.ollama_base_url,
-                temperature=0,
-                max_tokens=None,
-                timeout=None,
-                max_retries=2,
+                temperature=0.6
             )
         else:
             raise ValueError(
@@ -147,9 +150,20 @@ class CodeBoardingAgent:
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            result = extractor.invoke(response)["responses"][0]
-            return return_type.model_validate(result)
-        except (ResourceExhausted, Exception) as e:
+            result = extractor.invoke(return_type.extractor_str() + response)
+            if "responses" in result and len(result["responses"]) != 0:
+                return return_type.model_validate(result["responses"][0])
+            if "messages" in result and len(result["messages"]) != 0:
+                message = result["messages"][0].content
+                parser = PydanticOutputParser(pydantic_object=return_type)
+                return self._try_parse(message, parser)
+            parser = PydanticOutputParser(pydantic_object=return_type)
+            return self._try_parse(response, parser)
+        except IndexError as e:
+            # try to parse with the json parser if possible
+            logger.error(f"IndexError while parsing response: {response}, Error: {e}")
+            return self._parse_response(prompt, response, return_type, max_retries - 1)
+        except (ResourceExhausted) as e:
             logger.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
             time.sleep(60)
             return self._parse_response(prompt, response, return_type, max_retries - 1)
@@ -205,3 +219,25 @@ class CodeBoardingAgent:
                             logger.error(
                                 f"[Reference Resolution] Reference file {reference.qualified_name} not found!")
         return analysis
+
+    def _try_parse(self, message_content, parser):
+        try:
+            prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
+            
+            Here is the content to parse and fix: {adjective}
+            
+            Please provide only the JSON output without any additional text."""
+            prompt = PromptTemplate(
+                template=prompt_template,
+                input_variables=["adjective"],
+                partial_variables={"format_instructions": parser.get_format_instructions()},
+            )
+            chain = prompt | self.extractor_llm | parser
+            return chain.invoke({"adjective": message_content})
+        except (ValidationError, OutputParserException):
+            for k, v in json.loads(message_content).items():
+                try:
+                    return self._try_parse(json.dumps(v), parser)
+                except:
+                    pass
+        raise ValueError(f"Couldn't parse {message_content}")

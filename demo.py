@@ -12,20 +12,15 @@ from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
-from repo_utils import (
-    clone_repository,
-    get_branch,
-    get_repo_name,
-    store_token,
-    upload_onboarding_materials,
-)
+from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
 from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
 
 def validate_env_vars():
-    api_provider_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "OLLAMA_BASE_URL"]
+    api_provider_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY", "AWS_BEARER_TOKEN_BEDROCK",
+                         "OLLAMA_BASE_URL"]
     api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
 
     if len(api_env_keys) == 0:
@@ -53,6 +48,7 @@ def onboarding_materials_exist(project_name: str, source_dir: str):
         return True
     else:
         return False
+
 
 def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     # Create directories if they don't exist
