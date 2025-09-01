@@ -112,6 +112,8 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
         generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
     elif extension == ".mdx":
         generate_mdx(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+    elif extension == ".rst":
+        generate_rst(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
     else:
         raise ValueError(f"Unsupported extension: {extension}")
 
