@@ -116,14 +116,6 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
             lines.append("**Related Classes/Methods**: *None*")
             lines.append("")
 
-    # Add FAQ link
-    lines.append("")
-    lines.append("FAQ")
-    lines.append("---")
-    lines.append("")
-    lines.append(
-        "`See the FAQ <https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq>`_")
-
     return "\n".join(lines)
 
 
