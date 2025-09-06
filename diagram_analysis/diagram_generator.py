@@ -198,5 +198,6 @@ class DiagramGenerator:
             results.add_cfg(client.language.language, analysis.get('call_graph', []))
             results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
             results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
+            results.add_source_files(client.language.language, analysis.get('source_files', []))
 
         return results

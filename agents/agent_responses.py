@@ -82,6 +82,11 @@ class Component(LLMBaseModel):
     referenced_source_code: List[SourceCodeReference] = Field(
         description="A list of source code names of referenced methods and classes to the component."
     )
+    assigned_files: List[str] = Field(
+        description="A list of source code names of files assigned to the component.",
+        default_factory=list,
+        exclude=True
+    )
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
@@ -195,3 +200,12 @@ class MetaAnalysisInsights(LLMBaseModel):
 **Architectural Bias:** {self.architectural_bias}
 """
         return title + content
+
+
+class FileClassification(BaseModel):
+    component_name: str = Field(description="Name of the component or module")
+    file_path: str = Field(description="Path to the file")
+
+
+class ComponentFiles(BaseModel):
+    file_paths: List[FileClassification] = Field(description="All files with their classifications for each of the files assigned to a component.")

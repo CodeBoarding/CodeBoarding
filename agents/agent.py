@@ -223,9 +223,9 @@ class CodeBoardingAgent:
     def _try_parse(self, message_content, parser):
         try:
             prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
-            
+
             Here is the content to parse and fix: {adjective}
-            
+
             Please provide only the JSON output without any additional text."""
             prompt = PromptTemplate(
                 template=prompt_template,

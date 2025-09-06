@@ -4,7 +4,7 @@ from pathlib import Path
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, ComponentFiles
 from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -29,6 +29,8 @@ class AbstractionAgent(CodeBoardingAgent):
             "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
                                              input_variables=["project_name", "cfg_insight", "source_insight",
                                                               "meta_context", "project_type"]),
+            "classification": PromptTemplate(template=CLASSIFICATION_MESSAGE,
+                                             input_variables=["components", "files"]),
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
         }
 
@@ -94,7 +96,30 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
+    def classify(self, analysis: AnalysisInsights):
+        """
+        Classify the analysis and return the classification.
+        This method should classify the analysis based on the analysis provided.
+        """
+        logger.info(f"[AbstractionAgent] Classifying analysis for project: {self.project_name}")
+        component_str = "\n".join([component.llm_str() for component in analysis.components])
+        all_files = self.static_analysis.get_all_source_files()
+
+        files = []
+        for i in range(0, len(all_files), 300):
+            block = all_files[i:i+300]
+            prompt = self.prompts["classification"].format(components=component_str, files="\n".join(block))
+            classification = self._parse_invoke(prompt, ComponentFiles)
+            files.extend(classification.file_paths)
+        for file in files:
+            comp = next((c for c in analysis.components if c.name == file.name), None)
+            assert comp is not None, f"Component not found for file {file}"
+            comp.assigned_files.append(file.path)
+        return files
+
     def run(self):
         self.step_cfg()
         self.step_source()
-        return self.generate_analysis()
+        analysis = self.generate_analysis()
+        self.classify(analysis)
+        return analysis

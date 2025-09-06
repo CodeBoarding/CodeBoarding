@@ -136,3 +136,36 @@ class StaticAnalysisResults:
         :return: A list of programming languages.
         """
         return list(self.results.keys())
+
+    def add_source_files(self, language, source_files):
+        """
+        Adds source files to the analysis results.
+
+        :param language: The programming language.
+        :param source_files: A list of source files.
+        """
+        if language not in self.results:
+            self.results[language] = {}
+        self.results[language]["source_files"] = source_files
+
+    def get_source_files(self, language):
+        """
+        Retrieves the list of source files for a given language.
+
+        :param language: The programming language.
+        :return: A list of source files.
+        """
+        if language not in self.results:
+            return []
+        return self.results[language].get("source_files", [])
+
+    def get_all_source_files(self):
+        """
+        Retrieves the list of all source files across all languages.
+
+        :return: A list of source files.
+        """
+        all_source_files = []
+        for language in self.results:
+            all_source_files.extend(self.get_source_files(language))
+        return all_source_files

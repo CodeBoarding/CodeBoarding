@@ -356,7 +356,8 @@ class LSPClient:
             'call_graph': call_graph,
             'class_hierarchies': class_hierarchies,
             'package_relations': package_relations,
-            'references': reference_nodes
+            'references': reference_nodes,
+            'source_files': src_files
         }
 
     def _analyze_single_file(self, file_path: Path, all_classes: List[dict]) -> FileAnalysisResult:
