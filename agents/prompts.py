@@ -61,6 +61,16 @@ Required outputs:
 
 Work primarily with existing insights. Use tools for missing information. Consider both documentation clarity and flow graph representation."""
 
+CLASSIFICATION_MESSAGE = """You are the software architecture expert, you have analysed the project {project_name} and have identified the following components:
+{components}
+
+Now you have to classify each of the file projects into one of the components. Here is a batch of unclassified files:
+{files}
+
+You can use the readFile tool to read the file content if you need more information to classify the file correctly. Please take a look at the file content before making a decision especially if you don't find it relevant to the already related files in the component.
+If you can't find a relevant component for the file, classify it as part of the "Unclassified" component.
+"""
+
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}` optimized for representing the flow.
 
 Project Context:

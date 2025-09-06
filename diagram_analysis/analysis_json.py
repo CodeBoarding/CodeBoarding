@@ -10,6 +10,10 @@ class ComponentJson(Component):
         description="Whether the component can be expanded in detail or not.",
         default=False
     )
+    assigned_files: List[str] = Field(
+        description="A list of source code names of files assigned to the component.",
+        default_factory=list
+    )
 
 
 class AnalysisInsightsJson(BaseModel):
@@ -38,5 +42,6 @@ def from_component_to_json_component(component: Component, new_components: List[
         name=component.name,
         description=component.description,
         referenced_source_code=component.referenced_source_code,
+        assigned_files=component.assigned_files,
         can_expand=can_expand
     )

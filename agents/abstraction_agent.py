@@ -4,8 +4,10 @@ from pathlib import Path
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, ComponentFiles
-from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE
+from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
+    ComponentFiles, Component
+from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE, \
+    CLASSIFICATION_MESSAGE
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -30,7 +32,7 @@ class AbstractionAgent(CodeBoardingAgent):
                                              input_variables=["project_name", "cfg_insight", "source_insight",
                                                               "meta_context", "project_type"]),
             "classification": PromptTemplate(template=CLASSIFICATION_MESSAGE,
-                                             input_variables=["components", "files"]),
+                                             input_variables=["project_name", "components", "files"]),
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
         }
 
@@ -96,30 +98,35 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    def classify(self, analysis: AnalysisInsights):
+    def classify_files(self, analysis: AnalysisInsights) -> list[ComponentFiles]:
         """
-        Classify the analysis and return the classification.
-        This method should classify the analysis based on the analysis provided.
+        Classify files into components based on the analysis. It will modify directly the analysis object.
+        This method assigns files to components based on their relevance.
+        It returns a list of ComponentFiles indicating which files belong to which components.
+        It also adds an "Unclassified" component for files that do not fit into any other component.
         """
         logger.info(f"[AbstractionAgent] Classifying analysis for project: {self.project_name}")
         component_str = "\n".join([component.llm_str() for component in analysis.components])
         all_files = self.static_analysis.get_all_source_files()
+        analysis.components.append(Component(name="Unclassified",
+                                             description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+                                             referenced_source_code=[]))
 
         files = []
         for i in range(0, len(all_files), 300):
-            block = all_files[i:i+300]
-            prompt = self.prompts["classification"].format(components=component_str, files="\n".join(block))
+            file_block = [str(f) for f in all_files[i:i + 300]]
+            prompt = self.prompts["classification"].format(project_name=self.project_name, components=component_str,
+                                                           files="\n".join(file_block))
             classification = self._parse_invoke(prompt, ComponentFiles)
             files.extend(classification.file_paths)
         for file in files:
-            comp = next((c for c in analysis.components if c.name == file.name), None)
+            comp = next((c for c in analysis.components if c.name == file.component_name), None)
             assert comp is not None, f"Component not found for file {file}"
-            comp.assigned_files.append(file.path)
+            comp.assigned_files.append(file.file_path)
         return files
 
     def run(self):
         self.step_cfg()
         self.step_source()
         analysis = self.generate_analysis()
-        self.classify(analysis)
         return analysis

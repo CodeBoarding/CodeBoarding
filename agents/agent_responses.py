@@ -202,10 +202,21 @@ class MetaAnalysisInsights(LLMBaseModel):
         return title + content
 
 
-class FileClassification(BaseModel):
+class FileClassification(LLMBaseModel):
     component_name: str = Field(description="Name of the component or module")
     file_path: str = Field(description="Path to the file")
 
+    def llm_str(self):
+        return f"`{self.file_path}` -> Component: `{self.component_name}`"
 
-class ComponentFiles(BaseModel):
-    file_paths: List[FileClassification] = Field(description="All files with their classifications for each of the files assigned to a component.")
+
+class ComponentFiles(LLMBaseModel):
+    file_paths: List[FileClassification] = Field(
+        description="All files with their classifications for each of the files assigned to a component.")
+
+    def llm_str(self):
+        if not self.file_paths:
+            return "No files classified."
+        title = "# 📄 Component File Classifications\n"
+        body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
+        return title + body

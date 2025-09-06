@@ -129,7 +129,6 @@ class DiagramGenerator:
                 analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
         else:
             analysis = self.diff_analyzer_agent.get_analysis()
-
         assert analysis is not None, "Analysis should not be None at this point"
 
         # Get the initial components to analyze (level 0)
@@ -138,6 +137,8 @@ class DiagramGenerator:
 
         # Save the root analysis
         analysis_path = os.path.join(self.output_dir, "analysis.json")
+        # Classify files for the root analysis as last step before saving
+        self.abstraction_agent.classify_files(analysis)
         with open(analysis_path, "w") as f:
             f.write(from_analysis_to_json(analysis, current_level_components))
         files.append(analysis_path)
