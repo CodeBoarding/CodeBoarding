@@ -45,7 +45,7 @@ class ValidatorAgent(CodeBoardingAgent):
             if not component.referenced_source_code:
                 info.append(f"Component {component.name} has no source code references. "
                             f"Each component MUST HAVE source code reference."
-                            f"Retry finding the proper source code reference via `getSourceCode` tool or if it is a file reference validate with `readFile`.")
+                            f"Find the source code reference via `getSourceCode` tool or if it is a file reference validate with `readFile`.")
                 continue
 
             for ref in component.referenced_source_code:

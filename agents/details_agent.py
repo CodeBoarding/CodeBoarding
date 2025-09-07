@@ -117,23 +117,25 @@ class DetailsAgent(CodeBoardingAgent):
         This method should return a string representing the classification.
         """
         logger.info(f"[DetailsAgent] Classifying component {component.name} based on assigned files")
-        component_str = "\n".join([component.llm_str() for component in analysis.components])
         all_files = component.assigned_files
         analysis.components.append(Component(name="Unclassified",
                                              description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
                                              referenced_source_code=[]))
+        component_str = "\n".join([component.llm_str() for component in analysis.components])
 
         for comp in analysis.components:
             comp.assigned_files = []
 
         files = []
-        for i in range(0, len(all_files), 300):
-            file_block = [str(f) for f in all_files[i:i + 300]]
+        for i in range(0, len(all_files), 100):
+            file_block = [str(f) for f in all_files[i:i + 100]]
             prompt = self.prompts["classification"].format(project_name=self.project_name, components=component_str,
                                                            files="\n".join(file_block))
             classification = self._parse_invoke(prompt, ComponentFiles)
             files.extend(classification.file_paths)
         for file in files:
             comp = next((c for c in analysis.components if c.name == file.component_name), None)
-            assert comp is not None, f"Component not found for file {file}"
+            if comp is None:
+                logger.warning(f"[DetailsAgent] File {file.component_name} not found in analysis")
+                continue
             comp.assigned_files.append(file.file_path)

@@ -1,9 +1,14 @@
+import logging
 import os
 import shutil
 from pathlib import Path
 
 import uuid
 import yaml
+
+from vscode_constants import VSCODE_CONFIG
+
+logger = logging.getLogger(__name__)
 
 
 class CFGGenerationError(Exception):
@@ -39,7 +44,8 @@ def contains_json(node_id, files):
 def get_config(item_key: str):
     path = os.getenv("STATIC_ANALYSIS_CONFIG")
     if not path:
-        raise ValueError("STATIC_ANALYSIS_CONFIG environment variable is not set.")
+        logger.warning("STATIC_ANALYSIS_CONFIG environment variable is not set, using default VSCode Setup.")
+        return default_config(item_key)
     config_path = Path(path)
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
@@ -49,3 +55,7 @@ def get_config(item_key: str):
     if item_key not in config:
         raise KeyError(f"Item '{item_key}' not found in configuration.")
     return config[item_key]
+
+
+def default_config(item_key: str):
+    return VSCODE_CONFIG.get(item_key)

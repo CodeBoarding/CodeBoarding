@@ -4,8 +4,8 @@ import os
 import shutil
 from pathlib import Path
 
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights

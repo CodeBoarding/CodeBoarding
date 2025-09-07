@@ -105,12 +105,13 @@ class AbstractionAgent(CodeBoardingAgent):
         It returns a list of ComponentFiles indicating which files belong to which components.
         It also adds an "Unclassified" component for files that do not fit into any other component.
         """
-        logger.info(f"[AbstractionAgent] Classifying analysis for project: {self.project_name}")
-        component_str = "\n".join([component.llm_str() for component in analysis.components])
+        logger.info(f"[AbstractionAgent] Classifying files for project: {self.project_name}")
         all_files = self.static_analysis.get_all_source_files()
         analysis.components.append(Component(name="Unclassified",
                                              description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
                                              referenced_source_code=[]))
+        component_str = "\n".join([component.llm_str() for component in analysis.components])
+
         for comp in analysis.components:
             comp.assigned_files = []
 
@@ -123,8 +124,11 @@ class AbstractionAgent(CodeBoardingAgent):
             files.extend(classification.file_paths)
         for file in files:
             comp = next((c for c in analysis.components if c.name == file.component_name), None)
-            assert comp is not None, f"Component not found for file {file}"
+            if comp is None:
+                logger.warning(f"[AbstractionAgent] File {file.component_name} not found in analysis")
+                continue
             comp.assigned_files.append(file.file_path)
+
         return files
 
     def run(self):

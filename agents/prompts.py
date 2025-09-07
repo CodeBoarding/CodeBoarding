@@ -88,7 +88,7 @@ Use provided analysis data to create comprehensive documentation suitable for bo
 Required outputs:
 1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow suitable for diagram explanation
 2. Critical interaction pathways that translate to clear diagram arrows and documentation flow
-3. Final components (max 8, optimally 5) following {project_type} patterns with distinct boundaries for visual representation
+3. Final components (max 8, optimally 5) following {project_type} patterns with distinct boundaries for visual representation. Each should have a source file references, which are the main files/functions/classes/modules that represent the component
 4. Component relationships (max 2 per component pair) that create clear diagram connections and define logical flow
 5. Architecture overview paragraph suitable for both documentation and diagram generation prompts
 
@@ -343,3 +343,19 @@ Analysis steps:
 3. Apply architectural expertise to determine patterns and expected component structure
 
 Focus on extracting metadata that will guide component identification and architectural analysis."""
+
+FILE_CLASSIFICATION_MESSAGE = """
+You are a file reference resolver.
+
+Goal:
+Find which file contains the code reference `{qname}`.
+
+Files to choose from (absolute paths): 
+{files}
+
+Instructions:
+1. You MUST select exactly one file path from the list above. Do not invent or modify paths.
+2. If `{qname}` is a function, method, class, or similar:
+   - Use the `readFile` tool to locate its definition.
+   - Include the start and end line numbers of the definition.
+"""

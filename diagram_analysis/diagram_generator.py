@@ -101,7 +101,7 @@ class DiagramGenerator:
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
             f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
-                            code_boarding_version="0.1.0").model_dump_json(indent=2))
+                            code_boarding_version="0.2.0").model_dump_json(indent=2))
 
     def generate_analysis(self):
         """

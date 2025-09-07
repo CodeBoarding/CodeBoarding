@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights, FilePath
+from agents.prompts import FILE_CLASSIFICATION_MESSAGE
 from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
     MethodInvocationsTool, ReadFileTool
 from agents.tools.external_deps import ExternalDepsTool
@@ -163,31 +164,43 @@ class CodeBoardingAgent:
             # try to parse with the json parser if possible
             logger.error(f"IndexError while parsing response: {response}, Error: {e}")
             return self._parse_response(prompt, response, return_type, max_retries - 1)
-        except (ResourceExhausted) as e:
+        except ResourceExhausted as e:
             logger.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
             time.sleep(60)
             return self._parse_response(prompt, response, return_type, max_retries - 1)
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
+        logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
         for component in analysis.components:
             for reference in component.referenced_source_code:
+                # Check if the file is already resolved
+                if reference.reference_file is not None and os.path.exists(reference.reference_file):
+                    continue
+                matched = False
                 for lang in self.static_analysis.get_languages():
                     try:
                         qname = reference.qualified_name.replace("/", ".")
                         node = self.static_analysis.get_reference(lang, qname)
                         reference.reference_file = node.file_path
-                        reference.reference_start_line = node.line_start + 1  # match 1  based indexing
-                        reference.reference_end_line = node.line_end + 1  # match 1  based indexing
+                        reference.reference_start_line = node.line_start + 1  # match 1 based indexing
+                        reference.reference_end_line = node.line_end + 1  # match 1 based indexing
                         reference.qualified_name = qname
+                        logger.info(
+                            f"[Reference Resolution] Matched {reference.qualified_name} in {lang} at {reference.reference_file}")
+                        matched = True
+                        break
                     except (ValueError, FileExistsError) as e:
                         # Try resolving with loose matching:
                         qname = reference.qualified_name.replace("/", ".")
                         _, node = self.static_analysis.get_loose_reference(lang, qname)
                         if node is not None:
                             reference.reference_file = node.file_path
-                            reference.reference_start_line = node.line_start + 1  # match 1  based indexing
-                            reference.reference_end_line = node.line_end + 1  # match 1  based indexing
+                            reference.reference_start_line = node.line_start + 1
+                            reference.reference_end_line = node.line_end + 1
                             reference.qualified_name = qname
+                            logger.info(
+                                f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}")
+                            matched = True
                             break
                         # before we give up let's retry with the file:
                         logger.warning(
@@ -196,10 +209,11 @@ class CodeBoardingAgent:
                             joined_path = os.path.join(self.repo_dir, reference.reference_file)
                             if os.path.exists(joined_path):
                                 reference.reference_file = joined_path
+                                logger.info(
+                                    f"[Reference Resolution] File path matched for {reference.qualified_name} in {lang} at {reference.reference_file}")
+                                matched = True
                                 break
                             else:
-                                logger.warning(
-                                    f"[Reference Resolution] Reference file {reference.reference_file} does not exist for {lang}.")
                                 reference.reference_file = None
                         # Check if the code reference is a file path:
                         file_path = reference.qualified_name.replace(".", "/")  # Get file path
@@ -207,22 +221,31 @@ class CodeBoardingAgent:
                         # This is the case when the reference is a file path but wrong:
                         file_ref = ".".join(full_path.rsplit("/", 1))
                         paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
-                        found_ref = False
                         for path in paths:
                             if os.path.exists(path):
                                 reference.reference_file = str(path)
-                                found_ref = True
+                                logger.info(
+                                    f"[Reference Resolution] Path matched for {reference.qualified_name} in {lang} at {reference.reference_file}")
+                                matched = True
                                 break
-                        if found_ref:
+                        if matched:
                             break
-                        if reference.reference_file is None:
-                            # If this is the last thing use an LLM:
-                            reference.reference_file = self._parse_invoke(
-                                f"Please find which of the following files is the reference file for the code reference {qname} from the following list: {', '.join(component.assigned_files)}. ",
-                                FilePath).file_path
-                        if reference.reference_file is None:
-                            logger.error(
-                                f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in {lang}.")
+                        if (reference.reference_file is None) or (not matched):
+                            prompt = PromptTemplate(template=FILE_CLASSIFICATION_MESSAGE,
+                                                    input_variables=["qname", "files"]) \
+                                .format(qname=qname, files="\n".join(component.assigned_files))
+                            file_assignment = self._parse_invoke(prompt, FilePath)
+                            logger.info(
+                                f"[Reference Resolution] LLM matched {reference.qualified_name} in {lang} at {file_assignment.file_path}")
+                            reference.reference_file = file_assignment.file_path
+                            reference.reference_start_line = file_assignment.start_line
+                            reference.reference_end_line = file_assignment.end_line
+                            if reference.reference_file is not None:
+                                matched = True
+                                break
+                if not matched:
+                    logger.error(
+                        f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language.")
         return analysis
 
     def _try_parse(self, message_content, parser):

@@ -44,10 +44,10 @@ class SourceCodeReference(LLMBaseModel):
     )
 
     reference_start_line: Optional[int] = Field(
-        description="The line number in the source code where the reference starts."
+        description="The line number in the source code where the reference starts. Only if you are absolutely sure add this, otherwise None."
     )
     reference_end_line: Optional[int] = Field(
-        description="The line number in the source code where the reference ends."
+        description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None."
     )
 
     def llm_str(self):
@@ -80,7 +80,7 @@ class Component(LLMBaseModel):
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
     referenced_source_code: List[SourceCodeReference] = Field(
-        description="A list of source code names of referenced methods and classes to the component."
+        description="A list of source code names of referenced methods and classes to the component. THIS CANNOT BE EMPTY."
     )
     assigned_files: List[str] = Field(
         description="A list of source code names of files assigned to the component.",
@@ -223,7 +223,11 @@ class ComponentFiles(LLMBaseModel):
 
 
 class FilePath(LLMBaseModel):
-    file_path: str = Field(description="Full file path.")
+    file_path: str = Field(description="Full file path for the reference")
+    start_line: Optional[int] = Field(
+        default=None, description="Starting line number in the file for the reference (if applicable).")
+    end_line: Optional[int] = Field(
+        default=None, description="Ending line number in the file for the reference (if applicable).")
 
     def llm_str(self):
-        return f"`{self.file_path}`"
+        return f"`{self.file_path}`: ({self.start_line}:{self.end_line})"
