@@ -111,6 +111,8 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis.components.append(Component(name="Unclassified",
                                              description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
                                              referenced_source_code=[]))
+        for comp in analysis.components:
+            comp.assigned_files = []
 
         files = []
         for i in range(0, len(all_files), 300):

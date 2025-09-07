@@ -5,9 +5,9 @@ from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component, \
-    MetaAnalysisInsights
+    MetaAnalysisInsights, ComponentFiles
 from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
-    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE
+    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE, CLASSIFICATION_MESSAGE
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -32,17 +32,16 @@ class DetailsAgent(CodeBoardingAgent):
                                              input_variables=["insight_so_far", "component", "meta_context",
                                                               "project_type"]),
             "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"]),
+            "classification": PromptTemplate(template=CLASSIFICATION_MESSAGE,
+                                             input_variables=["project_name", "components", "files"]),
         }
 
         self.context = {}
 
     def step_subcfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
-        self.context['subcfg_insight'] = self._invoke(self.prompts["subcfg"].format(
-            project_name=self.project_name,
-            cfg_str=self.read_cfg_tool._run(),
-            component=component.llm_str(),
-        ))
+        # Now lets filter the cfg:
+        self.context['subcfg_insight'] = self.read_cfg_tool.component_cfg(component)
 
     def step_cfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
@@ -111,3 +110,30 @@ class DetailsAgent(CodeBoardingAgent):
         analysis = self.step_analysis(component)
 
         return analysis
+
+    def classify_files(self, component: Component, analysis: AnalysisInsights):
+        """
+        Classify the component using the LLM.
+        This method should return a string representing the classification.
+        """
+        logger.info(f"[DetailsAgent] Classifying component {component.name} based on assigned files")
+        component_str = "\n".join([component.llm_str() for component in analysis.components])
+        all_files = component.assigned_files
+        analysis.components.append(Component(name="Unclassified",
+                                             description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+                                             referenced_source_code=[]))
+
+        for comp in analysis.components:
+            comp.assigned_files = []
+
+        files = []
+        for i in range(0, len(all_files), 300):
+            file_block = [str(f) for f in all_files[i:i + 300]]
+            prompt = self.prompts["classification"].format(project_name=self.project_name, components=component_str,
+                                                           files="\n".join(file_block))
+            classification = self._parse_invoke(prompt, ComponentFiles)
+            files.extend(classification.file_paths)
+        for file in files:
+            comp = next((c for c in analysis.components if c.name == file.component_name), None)
+            assert comp is not None, f"Component not found for file {file}"
+            comp.assigned_files.append(file.file_path)

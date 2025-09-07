@@ -1,6 +1,6 @@
 from typing import List
 
-from static_analyzer.graph import Node
+from static_analyzer.graph import Node, CallGraph
 
 
 class StaticAnalysisResults:
@@ -18,7 +18,7 @@ class StaticAnalysisResults:
             self.results[language] = {}
         self.results[language]["hierarchy"] = hierarchy
 
-    def add_cfg(self, language, cfg):
+    def add_cfg(self, language: str, cfg: CallGraph):
         """
         Adds a control flow graph (CFG) to the results.
 
@@ -53,7 +53,7 @@ class StaticAnalysisResults:
         self.results[language]['references'] = {reference.fully_qualified_name.lower(): reference for reference in
                                                 references}
 
-    def get_cfg(self, language: str):
+    def get_cfg(self, language: str) -> CallGraph:
         """
         Retrieves the control flow graph for a specific language.
 

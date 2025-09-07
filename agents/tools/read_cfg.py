@@ -45,6 +45,7 @@ class GetCFGTool(BaseTool):
     def component_cfg(self, component: Component):
         items = 0
         result = f"Control flow graph for {component.name}:\n"
+        skip_nodes = []
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)
@@ -52,14 +53,10 @@ class GetCFGTool(BaseTool):
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
             for _, node in cfg.nodes.items():
-                for ref in component.referenced_source_code:
-                    qual_name = ref.qualified_name
-                    if "/" in qual_name:
-                        qual_name = qual_name.replace("/", ".")
-                    if qual_name == node.fully_qualified_name or qual_name in node.fully_qualified_name or node.fully_qualified_name in qual_name:
-                        result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
-                        items += 1
-                        break
+                if node.file_path not in component.assigned_files:
+                    skip_nodes.append(node)
+            result += f"{lang}:\n{cfg.llm_str(skip_nodes=skip_nodes)}\n"
+            items += len(cfg.nodes) - len(skip_nodes)
 
         logger.info(f"[CFG Tool] Filtering CFG for component {component.name}, items found: {items}")
         if items == 0:

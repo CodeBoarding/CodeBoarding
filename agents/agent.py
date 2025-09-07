@@ -1,7 +1,7 @@
+import json
 import logging
 import os
 import time
-import json
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -13,13 +13,13 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, FilePath
 from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
     MethodInvocationsTool, ReadFileTool
 from agents.tools.external_deps import ExternalDepsTool
@@ -216,8 +216,13 @@ class CodeBoardingAgent:
                         if found_ref:
                             break
                         if reference.reference_file is None:
+                            # If this is the last thing use an LLM:
+                            reference.reference_file = self._parse_invoke(
+                                f"Please find which of the following files is the reference file for the code reference {qname} from the following list: {', '.join(component.assigned_files)}. ",
+                                FilePath).file_path
+                        if reference.reference_file is None:
                             logger.error(
-                                f"[Reference Resolution] Reference file {reference.qualified_name} not found!")
+                                f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in {lang}.")
         return analysis
 
     def _try_parse(self, message_content, parser):

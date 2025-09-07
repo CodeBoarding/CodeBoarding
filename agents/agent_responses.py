@@ -220,3 +220,10 @@ class ComponentFiles(LLMBaseModel):
         title = "# 📄 Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
+
+
+class FilePath(LLMBaseModel):
+    file_path: str = Field(description="Full file path.")
+
+    def llm_str(self):
+        return f"`{self.file_path}`"

@@ -74,7 +74,7 @@ class CallGraph:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
         return result
 
-    def llm_str(self, size_limit=2_500_000):
+    def llm_str(self, size_limit=2_500_000, skip_nodes=[]):
         """
         Return a string representation with size limits.
         If output exceeds size_limit, group method calls by class.
@@ -95,6 +95,8 @@ class CallGraph:
             f"[CallGraph] Control flow graph is too large, grouping method calls by class. ({len(default_str)} characters)")
 
         for _, node in self.nodes.items():
+            if node in skip_nodes:
+                continue
             if node.type == 6 and node.methods_called_by_me:  # type 6 = method
                 # Extract class name from fully qualified name
                 parts = node.fully_qualified_name.split('.')
