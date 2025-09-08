@@ -116,7 +116,7 @@ class AbstractionAgent(CodeBoardingAgent):
             comp.assigned_files = []
 
         files = []
-        for i in range(0, len(all_files), 300):
+        for i in range(0, len(all_files), 100):
             file_block = [str(f) for f in all_files[i:i + 300]]
             prompt = self.prompts["classification"].format(project_name=self.project_name, components=component_str,
                                                            files="\n".join(file_block))

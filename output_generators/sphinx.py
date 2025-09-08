@@ -98,7 +98,6 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
             lines.append("")
 
             for reference in comp.referenced_source_code:
-                print(reference.reference_file, root_dir)
                 if not reference.reference_file:
                     continue
                 if not reference.reference_file.startswith(root_dir):
@@ -144,13 +143,3 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
         return f"{header_text}\n{header_underline}\n\n:ref:`Expand <{sanitized_name}>`"
     else:
         return f"{header_text}\n{header_underline}"
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    file = "/home/ivan/StartUp/CodeBoarding/analysis.json"
-    with open(file, 'r') as f:
-        example_insights = AnalysisInsights.model_validate_json(f.read())
-    rst_content = generate_rst_file("overview", insights=example_insights, project="aestetik",
-                                    repo_ref="www.github.com/CodeBoarding",
-                                    linked_files=[], temp_dir=Path("./"))
