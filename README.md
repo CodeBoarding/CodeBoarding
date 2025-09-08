@@ -1,4 +1,5 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
+
 ![Support TypeScript 3 Projects](https://img.shields.io/badge/supports-TypeScript.x-blue.svg)
 ![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -18,7 +19,7 @@ It’s designed to support onboarding, documentation, and comprehension for larg
 
 ## 🧩 How it works
 
-For detailed architecture information, see our [diagram documentation](.codeboarding/on_boarding.md).
+For detailed architecture information, see our [diagram documentation](.codeboarding/overview.md).
 
 ```mermaid
 graph LR
@@ -29,26 +30,26 @@ graph LR
     Static_Analysis_Engine["Static Analysis Engine"]
     AI_Interpretation_Layer["AI Interpretation Layer"]
     Output_Generation_Engine["Output Generation Engine"]
-    API_Service -- "Initiates Job" --> Job_Database
-    API_Service -- "Triggers Analysis" --> Orchestration_Engine
-    Orchestration_Engine -- "Manages Job State" --> Job_Database
-    Orchestration_Engine -- "Requests Code" --> Repository_Manager
-    Repository_Manager -- "Provides Code" --> Orchestration_Engine
-    Orchestration_Engine -- "Requests Static Analysis" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "Provides Analysis Results" --> Orchestration_Engine
-    Orchestration_Engine -- "Feeds Data" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "Returns Insights" --> Orchestration_Engine
-    AI_Interpretation_Layer -- "Queries Diff" --> Repository_Manager
-    Orchestration_Engine -- "Passes Final Insights" --> Output_Generation_Engine
-    Output_Generation_Engine -- "Delivers Documentation" --> API_Service
-    click API_Service href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/API_Service.md" "Details"
+    Unclassified["Unclassified"]
+    API_Service -- " Initiates Job " --> Job_Database
+    API_Service -- " Triggers Analysis " --> Orchestration_Engine
+    Orchestration_Engine -- " Manages Job State " --> Job_Database
+    Orchestration_Engine -- " Requests Code " --> Repository_Manager
+    Repository_Manager -- " Provides Code " --> Orchestration_Engine
+    Orchestration_Engine -- " Requests Static Analysis " --> Static_Analysis_Engine
+    Static_Analysis_Engine -- " Provides Richer Analysis Results " --> Orchestration_Engine
+    Orchestration_Engine -- " Feeds Rich Analysis Data " --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- " Returns Enhanced Architectural Insights " --> Orchestration_Engine
+    AI_Interpretation_Layer -- " Queries Diff " --> Repository_Manager
+    Orchestration_Engine -- " Passes Enhanced Insights for Generation " --> Output_Generation_Engine
+    Output_Generation_Engine -- " Delivers Documentation " --> API_Service
     click Job_Database href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Job_Database.md" "Details"
+    click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
-
 
 ## 📌 Setup
 
@@ -64,8 +65,7 @@ Language Scanning:
 MacOS:
 
 ```bash
-brew install cmake pkg-config icu4c
-gem install github-linguist
+brew install tokei
 ```
 
 - Download `xcode` in the Appstore to compile in C++
@@ -73,8 +73,35 @@ gem install github-linguist
 Linux:
 
 ```bash
-sudo apt-get install build-essential cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev
-gem install github-linguist
+# Alpine Linux (since 3.13)
+apk add tokei
+# Arch Linux
+pacman -S tokei
+# Cargo
+cargo install tokei
+# Conda
+conda install -c conda-forge tokei
+# Fedora
+sudo dnf install tokei
+# FreeBSD
+pkg install tokei
+# NetBSD
+pkgin install tokei
+# Nix/NixOS
+nix-env -i tokei
+# OpenSUSE
+sudo zypper install tokei
+# Void Linux
+sudo xbps-install tokei
+```
+
+Windows:
+
+```bash
+# Winget
+winget install XAMPPRocky.tokei
+# Scoop
+scoop install tokei
 ```
 
 Installing langservers for different technologies:
@@ -85,7 +112,8 @@ npm install --save typescript-language-server typescript # Typescript
 ```
 
 > [!IMPORTANT]  
-> After installing the dependencies and servers you wanted to use, please update the configuration to use them. For e.g. `github-linguist` this means pointing to the executable.
+> After installing the dependencies and servers you wanted to use, please update the configuration to use them. For e.g.
+`github-linguist` this means pointing to the executable.
 > This configuration can be found in the [static_analysis_config.yml](./static_analysis_config.yml) file.
 
 ### Environment Variables
@@ -139,15 +167,15 @@ graph LR
     Data_Utilities_torch_utils_data_["Data Utilities (torch.utils.data)"]
     JIT_Compiler_Scripting_TorchScript_["JIT Compiler & Scripting (TorchScript)"]
     Hardware_Backends["Hardware Backends"]
-    Data_Utilities_torch_utils_data_ -- "provides data to" --> Tensor_Operations_Core
-    Tensor_Operations_Core -- "provides primitives for" --> Neural_Network_Modules_torch_nn_
-    Tensor_Operations_Core -- "leverages" --> Hardware_Backends
-    Neural_Network_Modules_torch_nn_ -- "performs operations on" --> Tensor_Operations_Core
-    Neural_Network_Modules_torch_nn_ -- "operations recorded by" --> Automatic_Differentiation_Autograd_Engine_
-    Neural_Network_Modules_torch_nn_ -- "exported to" --> JIT_Compiler_Scripting_TorchScript_
-    Automatic_Differentiation_Autograd_Engine_ -- "computes gradients for" --> Optimizers_torch_optim_
-    Optimizers_torch_optim_ -- "updates parameters of" --> Neural_Network_Modules_torch_nn_
-    Hardware_Backends -- "executes computations for" --> Tensor_Operations_Core
+    Data_Utilities_torch_utils_data_ -- " provides data to " --> Tensor_Operations_Core
+    Tensor_Operations_Core -- " provides primitives for " --> Neural_Network_Modules_torch_nn_
+    Tensor_Operations_Core -- " leverages " --> Hardware_Backends
+    Neural_Network_Modules_torch_nn_ -- " performs operations on " --> Tensor_Operations_Core
+    Neural_Network_Modules_torch_nn_ -- " operations recorded by " --> Automatic_Differentiation_Autograd_Engine_
+    Neural_Network_Modules_torch_nn_ -- " exported to " --> JIT_Compiler_Scripting_TorchScript_
+    Automatic_Differentiation_Autograd_Engine_ -- " computes gradients for " --> Optimizers_torch_optim_
+    Optimizers_torch_optim_ -- " updates parameters of " --> Neural_Network_Modules_torch_nn_
+    Hardware_Backends -- " executes computations for " --> Tensor_Operations_Core
     click Tensor_Operations_Core href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Tensor_Operations_Core.md" "Details"
     click Automatic_Differentiation_Autograd_Engine_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Automatic_Differentiation_Autograd_Engine_.md" "Details"
     click Neural_Network_Modules_torch_nn_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Neural_Network_Modules_torch_nn_.md" "Details"
@@ -229,9 +257,12 @@ Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeB
 
 Codeboarding is integrated with everything we use:
 
-- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact with the diagram directly in your IDE.
-- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate diagram generation in CI/CD.
-- 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the consize documentation to your AI Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
+- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact
+  with the diagram directly in your IDE.
+- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate
+  diagram generation in CI/CD.
+- 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the consize documentation to your AI
+  Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
 
 ## 🤝 Contributing
 
