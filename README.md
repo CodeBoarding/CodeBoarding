@@ -113,7 +113,7 @@ npm install --save typescript-language-server typescript # Typescript
 
 > [!IMPORTANT]  
 > After installing the dependencies and servers you wanted to use, please update the configuration to use them. For e.g.
-`github-linguist` this means pointing to the executable.
+`tokei` this means pointing to the executable.
 > This configuration can be found in the [static_analysis_config.yml](./static_analysis_config.yml) file.
 
 ### Environment Variables

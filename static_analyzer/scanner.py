@@ -45,7 +45,7 @@ class ProjectScanner:
             if code_count == 0:
                 continue
 
-            percentage = (code_count / total_code * 100) if total_code > 0 else 0.0
+            percentage = (code_count / total_code * 100)
 
             # Extract suffixes if reports exist
             suffixes = set()
