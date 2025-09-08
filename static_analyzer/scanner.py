@@ -16,32 +16,48 @@ class ProjectScanner:
 
     def scan(self) -> List[ProgrammingLanguage]:
         """
-        Scan the repository using github-linguist and return parsed results.
-        
+        Scan the repository using Tokei and return parsed results.
+
         Returns:
-            Dict containing technologies with their sizes, percentages, files, and suffixes
+            List[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
         """
 
-        commands = get_config('tools')['github_linguist']['command']
+        commands = get_config('tools')['tokei']['command']
         result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
 
         server_config = get_config('lsp_servers')
-        # Parse JSON output
-        linguist_data = json.loads(result.stdout)
+
+        # Parse Tokei JSON output
+        tokei_data = json.loads(result.stdout)
+
+        # Compute total code count
+        total_code = tokei_data.get("Total", {}).get("code", 0)
+        if not total_code:
+            logger.warning("No total code count found in Tokei output")
+            return []
 
         programming_languages = []
-        for technology, info in linguist_data.items():
-            suffixes = self._extract_suffixes(info.get('files', []))
+        for technology, stats in tokei_data.items():
+            if technology == "Total":
+                continue
+
+            code_count = stats.get("code", 0)
+            if code_count == 0:
+                continue
+
+            percentage = (code_count / total_code * 100) if total_code > 0 else 0.0
+
+            # Extract suffixes if reports exist
+            suffixes = set()
+            for report in stats.get("reports", []):
+                suffixes |= self._extract_suffixes([report["name"]])
+
             command = server_config.get(technology.lower(), {'command': None})['command']
-            pl = ProgrammingLanguage(
-                language=technology,
-                size=info.get('size', 0),
-                percentage=float(info.get('percentage', '0')),
-                suffixes=list(suffixes),
-                server_commands=command
-            )
+            pl = ProgrammingLanguage(language=technology, size=code_count, percentage=percentage,
+                                     suffixes=list(suffixes), server_commands=command)
+
             logger.info(f"Found: {pl}")
-            if pl.percentage >= 1:
+            if pl.percentage >= 1:  # filter PL with less than 1% of code
                 programming_languages.append(pl)
                 logger.info(f"Added {pl}")
 
@@ -51,10 +67,10 @@ class ProjectScanner:
     def _extract_suffixes(files: List[str]) -> Set[str]:
         """
         Extract unique file suffixes from a list of files.
-        
+
         Args:
             files (List[str]): List of file paths
-            
+
         Returns:
             Set[str]: Unique file extensions/suffixes
         """
