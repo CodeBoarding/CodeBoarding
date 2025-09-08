@@ -18,7 +18,7 @@ def cli_args():
     parser.add_argument("--partial_updates_analysis", type=str, default=None,
                         help="The analysis for which the component will be updated")
 
-    parser.add_argument("--binary_location", type=str, help="Enable debug mode.")
+    parser.add_argument("--binary_location", type=str, help="Path to the binary to use for language servers.")
     return parser.parse_args()
 
 
@@ -77,7 +77,7 @@ def main():
 
     # Update to run the commands properly
     for lang, server in VSCODE_CONFIG["lsp_servers"].items():
-        server['command'][0] = args.binary_location + "/" + server['command'][0]
+        server['command'][0] = str(Path(args.binary_location) / server['command'][0])
 
     if args.partial_updates_component and args.partial_updates_analysis:
         partial_updates(args.partial_updates_component, args.partial_updates_analysis)
