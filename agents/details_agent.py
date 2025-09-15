@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
@@ -138,3 +139,15 @@ class DetailsAgent(CodeBoardingAgent):
                 logger.warning(f"[DetailsAgent] File {file.component_name} not found in analysis")
                 continue
             comp.assigned_files.append(file.file_path)
+
+        for comp in analysis.components:
+            files = []
+            for file in comp.assigned_files:
+                if os.path.exists(file):
+                    # relative path from the repo root
+                    rel_file = os.path.relpath(file, self.repo_dir)
+                    files.append(rel_file)
+                else:
+                    files.append(file)
+            comp.assigned_files = files
+        return files

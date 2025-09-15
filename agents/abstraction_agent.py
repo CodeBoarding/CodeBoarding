@@ -1,4 +1,5 @@
 import logging
+import os.path
 from pathlib import Path
 
 from langchain.prompts import PromptTemplate
@@ -128,6 +129,16 @@ class AbstractionAgent(CodeBoardingAgent):
                 continue
             comp.assigned_files.append(file.file_path)
 
+        for comp in analysis.components:
+            files = []
+            for file in comp.assigned_files:
+                if os.path.exists(file):
+                    # relative path from the repo root
+                    rel_file = os.path.relpath(file, self.repo_dir)
+                    files.append(rel_file)
+                else:
+                    files.append(file)
+            comp.assigned_files = files
         return files
 
     def run(self):
