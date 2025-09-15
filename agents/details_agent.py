@@ -150,4 +150,3 @@ class DetailsAgent(CodeBoardingAgent):
                 else:
                     files.append(file)
             comp.assigned_files = files
-        return files

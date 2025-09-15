@@ -98,7 +98,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    def classify_files(self, analysis: AnalysisInsights) -> list[ComponentFiles]:
+    def classify_files(self, analysis: AnalysisInsights):
         """
         Classify files into components based on the analysis. It will modify directly the analysis object.
         This method assigns files to components based on their relevance.
@@ -139,7 +139,6 @@ class AbstractionAgent(CodeBoardingAgent):
                 else:
                     files.append(file)
             comp.assigned_files = files
-        return files
 
     def run(self):
         self.step_cfg()
