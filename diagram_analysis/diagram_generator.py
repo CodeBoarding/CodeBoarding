@@ -58,12 +58,7 @@ class DiagramGenerator:
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
                 analysis = self.details_agent.apply_feedback(analysis, update_insight)
             else:
-                logger.info(f"Processing component: {component.name}")
-                self.details_agent.step_subcfg(component)
-                self.details_agent.step_cfg(component)
-                self.details_agent.step_enhance_structure(component)
-
-                analysis = self.details_agent.step_analysis(component)
+                analysis = self.details_agent.run(component)
                 feedback = self.validator_agent.run(analysis)
                 if not feedback.is_valid:
                     analysis = self.details_agent.apply_feedback(analysis, feedback)

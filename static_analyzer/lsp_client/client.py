@@ -908,6 +908,10 @@ class LSPClient:
             if "test" in str(rel_path).lower():
                 logger.debug(f"Skipping test file: {rel_path}")
                 continue
+            # Skip if file is in a hidden directory (starts with a dot)s
+            if any(part.startswith('.') for part in rel_path.parts):
+                logger.debug(f"Skipping hidden directory file: {rel_path}")
+                continue
             filtered_files.append(file)
         return filtered_files
 

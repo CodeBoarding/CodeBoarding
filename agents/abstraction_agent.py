@@ -85,8 +85,7 @@ class AbstractionAgent(CodeBoardingAgent):
             meta_context=meta_context_str,
             project_type=project_type
         )
-        analysis_result = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis_result)
+        return self._parse_invoke(prompt, AnalysisInsights)
 
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
@@ -135,4 +134,5 @@ class AbstractionAgent(CodeBoardingAgent):
         self.step_cfg()
         self.step_source()
         analysis = self.generate_analysis()
+        analysis = self.fix_source_code_reference_lines(analysis)
         return analysis
