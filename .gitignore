@@ -181,3 +181,5 @@ temp
 
 .idea
 .idea/*
+./static_analyzer/servers/
+./static_analyzer/servers/*

@@ -58,13 +58,18 @@ Setup the environment:
 ```bash
 uv venv --python 3.11
 source .venv/bin/activate
-python install.py
+python setup.py
 ```
 
 > [!IMPORTANT]  
-> After installing the dependencies and servers you wanted to use, please update the configuration to use them. For e.g.
-`tokei` this means pointing to the executable.
-> This configuration can be found in the [static_analysis_config.yml](./static_analysis_config.yml) file.
+> The setup script installs a language server for Python and TypeScript/JavaScript. In order to successfully install
+> the TypeScript Language Server, you need to have `npm` installed. If `npm` is not found, the script will skip the
+> installation of the TypeScript Language Server and you will need to install it manually later if you want to analyze
+> TypeScript/JavaScript projects.
+
+
+Configure the environment variables in a `.env` file (you can copy from `.env.example`):
+The `python setup.py` command creates a `.env` file if it doesn't exist with a default value for `REPO_ROOT` and `ROOT_RESULT` as well as OLLAMA_BASE_URL for local LLM inference. If you want to use a different LLM provider, you need to set the corresponding API key in the `.env` file.
 
 ### Environment Variables
 

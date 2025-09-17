@@ -1,24 +1,37 @@
-# LSP Server Configuration
 lsp_servers:
   python:
-    name: "Pyright Language Server"
-    command: [ "./static_analyzer/servers/python/pyright-langserver", "--stdio" ]
-    languages: [ "python" ]
-    file_extensions: [ ".py", ".pyi" ]
-    install_commands: "pip install pyright"
-
+    name: Pyright Language Server
+    command:
+    - ./static_analyzer/servers/py-lsp
+    - --stdio
+    languages:
+    - python
+    file_extensions:
+    - .py
+    - .pyi
+    install_commands: pip install pyright
   typescript:
-    name: "TypeScript Language Server"
-    command: [ "./static_analyzer/servers/typescript/node_modules/.bin/typescript-language-server", "--stdio", "--log-level=2" ]
-    languages: [ "typescript", "javascript" ]
-    file_extensions: [ ".ts", ".tsx", ".js", ".jsx" ]
-    install_commands: "npm install --save-dev typescript-language-server typescript"
-
-# External tools configuration
+    name: TypeScript Language Server
+    command:
+    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+    - --stdio
+    - --log-level=2
+    languages:
+    - typescript
+    - javascript
+    file_extensions:
+    - .ts
+    - .tsx
+    - .js
+    - .jsx
+    install_commands: npm install --save-dev typescript-language-server typescript
 tools:
   tokei:
-    name: "tokei"
-    command: [ "./static_analyzer/servers/tokei", "-o", "json" ]
-    description: "Analyze repository languages and file types"
-    install_command: "conda install -c conda-forge tokei"
-    output_format: "json"
+    name: tokei
+    command:
+    - ./static_analyzer/servers/tokei
+    - -o
+    - json
+    description: Analyze repository languages and file types
+    install_command: conda install -c conda-forge tokei
+    output_format: json

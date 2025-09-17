@@ -5,20 +5,14 @@ import platform
 import shutil
 from pathlib import Path
 
-# Try to import requests, install if not available
-try:
-    import requests
-except ImportError:
-    print("📦 Installing requests library for Google Drive downloads...")
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'requests'], check=True)
-    import requests
-
 
 def check_uv_environment():
     """Validate that we're running within a uv virtual environment."""
+    print("Step: Environment validation started")
+    
     # Check if we're in a virtual environment
     if not hasattr(sys, 'base_prefix') or sys.base_prefix == sys.prefix:
-        print("❌ Error: This script must be run within a virtual environment.")
+        print("Step: Environment validation finished: failure - Not in virtual environment")
         print("Please create and activate a uv environment first:")
         print("  uv venv")
         print("  source .venv/bin/activate  # On Unix/Mac")
@@ -33,60 +27,58 @@ def check_uv_environment():
         with open(uv_marker, 'r') as f:
             content = f.read()
             if 'uv' not in content.lower():
-                print("⚠️  Warning: Virtual environment may not be created by uv.")
-    else:
-        print("⚠️  Warning: Could not verify uv environment.")
-
-    print("✅ Running in virtual environment:", sys.prefix)
+                print("Step: Environment validation finished: warning - May not be uv environment")
+    
+    print("Step: Environment validation finished: success")
 
 
 def install_requirements():
     """Install Python requirements using uv pip."""
+    print("Step: Requirements installation started")
+    
     requirements_file = 'requirements.txt'
 
     if not os.path.exists(requirements_file):
-        print("❌ Error: No requirements file found.")
+        print("Step: Requirements installation finished: failure - No requirements file found")
         sys.exit(1)
-
-    print(f"📦 Installing requirements from {requirements_file}...")
 
     try:
         subprocess.run([
             'uv', 'pip', 'install', '-r', requirements_file
         ], check=True, capture_output=True, text=True)
-        print("✅ Requirements installed successfully.")
+        print("Step: Requirements installation finished: success")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error installing requirements: {e}.\nUsed command: {' '.join(e.cmd)}")
-        print(f"stdout: {e.stdout}")
-        print(f"stderr: {e.stderr}")
+        print(f"Step: Requirements installation finished: failure - {e}")
         sys.exit(1)
 
 
 def check_npm():
     """Check if npm is installed on the system."""
+    print("Step: npm check started")
+    
     npm_path = shutil.which('npm')
 
     if npm_path:
         try:
             result = subprocess.run(['npm', '--version'], capture_output=True, text=True, check=True)
-            print(f"✅ npm found: version {result.stdout.strip()}")
+            print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
         except subprocess.CalledProcessError:
-            print("⚠️  Warning: npm command failed to execute.")
+            print("Step: npm check finished: failure - npm command failed")
             return False
     else:
-        print("⚠️  Warning: npm not found on system.")
-        print("   TypeScript and JavaScript language support will not be available.")
-        print("   To install npm, please install Node.js from: https://nodejs.org/")
+        print("Step: npm check finished: failure - npm not found")
+        print("   Install Node.js from: https://nodejs.org/")
         return False
 
 
 def install_typescript_language_server():
     """Install TypeScript Language Server using npm in the servers directory."""
+    print("Step: TypeScript Language Server installation started")
+    
     servers_dir = Path("static_analyzer/servers")
     servers_dir.mkdir(parents=True, exist_ok=True)
 
-    print("📦 Installing TypeScript Language Server...")
     original_cwd = os.getcwd()
     try:
         # Change to the servers directory
@@ -94,32 +86,26 @@ def install_typescript_language_server():
 
         # Initialize package.json if it doesn't exist
         if not Path("package.json").exists():
-            print("📄 Creating package.json...")
             subprocess.run(['npm', 'init', '-y'], check=True, capture_output=True, text=True)
 
         # Install typescript-language-server and typescript
-        print("📥 Installing typescript-language-server and typescript...")
         subprocess.run(['npm', 'install', 'typescript-language-server', 'typescript'], check=True, capture_output=True,
                        text=True)
-
-        print("✅ TypeScript Language Server installed successfully.")
 
         # Verify the installation
         ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
         if ts_lsp_path.exists():
-            print(f"✅ TypeScript Language Server binary found at: {ts_lsp_path}")
+            print("Step: TypeScript Language Server installation finished: success")
         else:
-            print("⚠️  Warning: TypeScript Language Server binary not found in expected location.")
+            print("Step: TypeScript Language Server installation finished: warning - Binary not found")
 
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error installing TypeScript Language Server: {e}")
-        print(f"stdout: {e.stdout}")
-        print(f"stderr: {e.stderr}")
+        print(f"Step: TypeScript Language Server installation finished: failure - {e}")
         return False
     except Exception as e:
-        print(f"❌ Unexpected error during npm installation: {e}")
+        print(f"Step: TypeScript Language Server installation finished: failure - {e}")
         return False
     finally:
         # Always return to original directory
@@ -159,6 +145,8 @@ def download_file_from_gdrive(file_id, destination):
 
 def download_binary_from_gdrive():
     """Download binaries from Google Drive."""
+    print("Step: Binary download started")
+    
     # File IDs extracted from your share links
     mac_files = {
         "py-lsp": "1a8FaSGq27dyrN5yrKKMOWqfm3H8BK9Zf",
@@ -181,7 +169,7 @@ def download_binary_from_gdrive():
     elif system == "Linux":
         file_ids = linux_files
     else:
-        print(f"❌ Unsupported OS: {system}. Cannot download binaries.")
+        print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
         return
 
     # Create servers directory
@@ -189,8 +177,8 @@ def download_binary_from_gdrive():
     servers_dir.mkdir(parents=True, exist_ok=True)
 
     # Download each binary
+    success_count = 0
     for binary_name, file_id in file_ids.items():
-        print(f"� Downloading {binary_name} binary...")
         binary_path = servers_dir / binary_name
 
         try:
@@ -208,20 +196,148 @@ def download_binary_from_gdrive():
 
                 # Verify the file is not empty
                 if binary_path.stat().st_size > 0:
-                    print(f"✅ {binary_name} binary downloaded successfully to: {binary_path}")
+                    success_count += 1
                 else:
-                    print(f"❌ {binary_name} binary downloaded but file is empty.")
                     binary_path.unlink()  # Remove empty file
-            else:
-                print(f"❌ Failed to download {binary_name} binary.")
 
         except Exception as e:
-            print(f"❌ Error downloading {binary_name} binary: {e}")
-            print(f"   Manual download links:")
-            if binary_name == "py-lsp":
-                print(f"   py-lsp: https://drive.google.com/file/d/{file_id}/view?usp=sharing")
-            elif binary_name == "tokei":
-                print(f"   tokei: https://drive.google.com/file/d/{file_id}/view?usp=sharing")
+            pass  # Continue with other downloads
+
+    if success_count == len(file_ids):
+        print("Step: Binary download finished: success")
+    elif success_count > 0:
+        print(f"Step: Binary download finished: partial success ({success_count}/{len(file_ids)} binaries)")
+    else:
+        print("Step: Binary download finished: failure - No binaries downloaded")
+
+
+def update_static_analysis_config():
+    """Update static_analysis_config.yml with correct paths to binaries."""
+    print("Step: Configuration update started")
+    
+    import yaml
+    
+    config_path = Path("static_analysis_config.yml")
+    if not config_path.exists():
+        print("Step: Configuration update finished: failure - static_analysis_config.yml not found")
+        return
+    
+    # Read the current configuration
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Get the absolute path to the project root
+    project_root = Path.cwd().resolve()
+    servers_dir = project_root / "static_analyzer" / "servers"
+    
+    updates = 0
+    
+    # Update Python LSP server path
+    py_lsp_path = servers_dir / "py-lsp"
+    if py_lsp_path.exists():
+        config['lsp_servers']['python']['command'][0] = str(py_lsp_path)
+        updates += 1
+    
+    # Update TypeScript Language Server path
+    ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
+    if ts_lsp_path.exists():
+        config['lsp_servers']['typescript']['command'][0] = str(ts_lsp_path)
+        updates += 1
+    
+    # Update tokei tool path
+    tokei_path = servers_dir / "tokei"
+    if tokei_path.exists():
+        config['tools']['tokei']['command'][0] = str(tokei_path)
+        updates += 1
+    
+    # Write the updated configuration back to file
+    with open(config_path, 'w') as f:
+        yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+    
+    print(f"Step: Configuration update finished: success ({updates} paths updated)")
+
+
+def init_dot_env_file():
+    """Initialize .env file with default configuration and commented examples."""
+    print("Step: .env file creation started")
+    
+    env_file_path = Path(".env")
+    
+    # Get the absolute path to the project root
+    project_root = Path.cwd().resolve()
+    
+    # Environment variables content
+    env_content = f"""# CodeBoarding Environment Configuration
+# Generated by setup.py
+
+# ============================================================================
+# ACTIVE CONFIGURATION
+# ============================================================================
+
+# LLM Provider Configuration (uncomment and configure one)
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Core Configuration
+REPO_ROOT={project_root}/repos
+STATIC_ANALYSIS_CONFIG={project_root}/static_analysis_config.yml
+ROOT_RESULT={project_root}/results
+PROJECT_ROOT={project_root}
+DIAGRAM_DEPTH_LEVEL=1
+CACHING_DOCUMENTATION=false
+
+# ============================================================================
+# LLM PROVIDER OPTIONS (uncomment and configure as needed)
+# ============================================================================
+
+# OpenAI Configuration
+# OPENAI_API_KEY=your_openai_api_key_here
+# OPENAI_BASE_URL=https://api.openai.com/v1  # Optional: Custom OpenAI endpoint
+
+# Anthropic Configuration
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Google AI Configuration
+# GOOGLE_API_KEY=your_google_api_key_here
+
+# AWS Bedrock Configuration
+# AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here
+
+# ============================================================================
+# OPTIONAL SERVICES
+# ============================================================================
+
+# GitHub Integration
+# GITHUB_TOKEN=your_github_token_here  # For accessing private repositories
+
+# LangSmith Tracing (Optional)
+# LANGSMITH_TRACING=false
+# LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+# LANGSMITH_PROJECT=your_project_name
+# LANGCHAIN_API_KEY=your_langchain_api_key_here
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# 
+# 💡 Tip: Our experience has shown that using Google Gemini-2.5-Pro yields 
+#         the best results for complex diagram generation tasks.
+#
+# 🔧 Configuration: After setup, verify paths in static_analysis_config.yml
+#                   point to the correct executables for your system.
+#
+# 📚 Documentation: Visit https://codeboarding.org for more information
+#
+"""
+    
+    # Write the .env file
+    try:
+        with open(env_file_path, 'w') as f:
+            f.write(env_content)
+        
+        print("Step: .env file creation finished: success")
+        
+    except Exception as e:
+        print(f"Step: .env file creation finished: failure - {e}")
 
 
 if __name__ == "__main__":
@@ -237,20 +353,30 @@ if __name__ == "__main__":
     # Step 3: Check for npm and install TypeScript Language Server if available
     npm_available = check_npm()
 
-    if npm_available:
-        ts_lsp_installed = install_typescript_language_server()
-    else:
-        ts_lsp_installed = False
+    install_typescript_language_server()
 
     # Step 4: Download binary from Google Drive (fallback if npm installation failed)
     download_binary_from_gdrive()
+
+    # Step 5: Update configuration file with absolute paths
+    update_static_analysis_config()
+
+    # Step 6: Initialize .env file
+    init_dot_env_file()
 
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")
 
     if not npm_available:
-        print("\n⚠️  Note: npm was not found. Consider installing Node.js for full language support.")
+        print("ℹ️  Note: npm was not found. Consider installing Node.js for full language support.")
     elif ts_lsp_installed:
-        print("\n✅ TypeScript Language Server installed via npm.")
+        print("ℹ️  Note: TypeScript Language Server installed via npm.")
 
-    print("You can now run the CodeBoarding static analyzer.")
+    init_dot_env_file()
+
+    print("\n" + "=" * 40)
+    print("🎉 Installation completed!")
+
+    print("📝 Don't forget to configure your .env file with your preferred LLM provider!")
+    print("All set you can run: python demo.py <github_repo_url> --output-dir <output_path>")
+
