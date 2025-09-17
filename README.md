@@ -57,58 +57,8 @@ Setup the environment:
 
 ```bash
 uv venv --python 3.11
-uv pip sync requirements.txt
-```
-
-Language Scanning:
-
-MacOS:
-
-```bash
-brew install tokei
-```
-
-- Download `xcode` in the Appstore to compile in C++
-
-Linux:
-
-```bash
-# Alpine Linux (since 3.13)
-apk add tokei
-# Arch Linux
-pacman -S tokei
-# Cargo
-cargo install tokei
-# Conda
-conda install -c conda-forge tokei
-# Fedora
-sudo dnf install tokei
-# FreeBSD
-pkg install tokei
-# NetBSD
-pkgin install tokei
-# Nix/NixOS
-nix-env -i tokei
-# OpenSUSE
-sudo zypper install tokei
-# Void Linux
-sudo xbps-install tokei
-```
-
-Windows:
-
-```bash
-# Winget
-winget install XAMPPRocky.tokei
-# Scoop
-scoop install tokei
-```
-
-Installing langservers for different technologies:
-
-```bash
-pip install pyright # Python
-npm install --save typescript-language-server typescript # Typescript
+source .venv/bin/activate
+python install.py
 ```
 
 > [!IMPORTANT]  
