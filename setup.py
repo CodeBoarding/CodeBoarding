@@ -64,7 +64,7 @@ def check_npm():
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
         except subprocess.CalledProcessError:
-            print("Step: npm check finished: failure - npm command failed")
+            print("Step: npm check finished: failure - npm command failed. Skipping TypeScript Language Server installation.")
             return False
     else:
         print("Step: npm check finished: failure - npm not found")
@@ -352,8 +352,8 @@ if __name__ == "__main__":
 
     # Step 3: Check for npm and install TypeScript Language Server if available
     npm_available = check_npm()
-
-    install_typescript_language_server()
+    if npm_available:
+        install_typescript_language_server()
 
     # Step 4: Download binary from Google Drive (fallback if npm installation failed)
     download_binary_from_gdrive()
@@ -362,11 +362,6 @@ if __name__ == "__main__":
     update_static_analysis_config()
 
     # Step 6: Initialize .env file
-    init_dot_env_file()
-
-    print("\n" + "=" * 40)
-    print("🎉 Installation completed!")
-
     init_dot_env_file()
 
     print("\n" + "=" * 40)
