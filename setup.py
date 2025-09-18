@@ -367,11 +367,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")
 
-    if not npm_available:
-        print("ℹ️  Note: npm was not found. Consider installing Node.js for full language support.")
-    elif ts_lsp_installed:
-        print("ℹ️  Note: TypeScript Language Server installed via npm.")
-
     init_dot_env_file()
 
     print("\n" + "=" * 40)
