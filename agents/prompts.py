@@ -12,7 +12,7 @@ Instructions:
 Your analysis must include:
 - Central modules/functions (maximum 20) from CFG data with clear interaction patterns
 - Logical component groupings with clear responsibilities suitable for flow graph representation
-- Component relationships and interactions that translate to clear data flow arrows
+- Component relationships and interactions that translate to clear data flow arrows, avoid multiple relationships between the same components, keep the flow clear and one way, no need for return relationships if there is a call relationship
 - Reference to relevant source files for interactive diagram elements
 
 Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
@@ -32,7 +32,7 @@ Instructions:
 Required outputs:
 - Important modules/functions from CFG data with clear interaction pathways
 - Abstract components (max 15) with clear names, descriptions, and responsibilities
-- Component relationships (max 2 per component pair) suitable for diagram arrows
+- Component relationships (only 1 per component pair) suitable for diagram arrows
 - Source file references from CFG data for interactive click events
 
 Apply {project_type} architectural patterns. Focus on core business logic with clear data flow - exclude logging/error handling components that clutter diagrams."""
@@ -89,7 +89,7 @@ Required outputs:
 1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow suitable for diagram explanation
 2. Critical interaction pathways that translate to clear diagram arrows and documentation flow
 3. Final components (max 8, optimally 5) following {project_type} patterns with distinct boundaries for visual representation. Each should have a source file references, which are the main files/functions/classes/modules that represent the component
-4. Component relationships (max 2 per component pair) that create clear diagram connections and define logical flow
+4. Component relationships (only 1 per component pair) that create clear diagram connections and define logical flow. For relationships which are call/return, keep only the call relationship, so we can maintain the clarity and direction of the diagram.
 5. Architecture overview paragraph suitable for both documentation and diagram generation prompts
 
 Additional considerations for diagram generation:
@@ -122,7 +122,7 @@ Required outputs:
 1. Synthesized insights from CFG and source analysis explaining main flow for documentation and diagram context
 2. Critical interaction pathways suitable for both written documentation and visual arrows
 3. Keep the same final components (max 8, optimally 5) without changes unless explicitly requested for diagram improvement
-4. Component relationships (max 2 per component pair) optimized for both documentation and flow graph representation
+4. Component relationships (only 1 per component pair) optimized for both documentation and flow graph representation.
 5. Architecture overview paragraph suitable for documentation and diagram generation
 
 Constraints:
@@ -213,7 +213,7 @@ Required outputs:
 1. Final component structure from provided data
 2. Max 8 components following {project_type} patterns
 3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair)
+4. Component interactions (only 1 relationship per component pair)
 
 Justify component choices based on fundamental architectural importance."""
 
@@ -267,7 +267,7 @@ RELATIONSHIPS_VALIDATION = """Validate component relationships:
 
 Instructions:
 1. Check relationship clarity and necessity
-2. Verify max 2 relationships per component pair
+2. Verify max 1 relationship per component pair
 3. Assess relationship logical consistency
 
 Output:
