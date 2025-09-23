@@ -61,7 +61,7 @@ class ValidatorAgent(CodeBoardingAgent):
                         if node.file_path != ref.reference_file:
                             info.append(
                                 f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "
-                                f"Expected: '{node.file_path}' (Lines: {node.line_start, node.line_end}), but found: '{ref.file_path}' (Lines: {ref.reference_start_line, ref.reference_end_line}). "
+                                f"Expected: '{node.file_path}' (Lines: {node.line_start, node.line_end}), but found: '{ref.reference_file}' (Lines: {ref.reference_start_line, ref.reference_end_line}). "
                                 f"Apply the correct reference please, maybe it is a full file reference, then validate with `readFile` tool.")
                             break
                         no_code_reference = False
