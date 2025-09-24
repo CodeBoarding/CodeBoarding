@@ -6,7 +6,7 @@ from pathlib import Path
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent_responses import AnalysisInsights, FilePath
-from agents.prompts import FILE_CLASSIFICATION_MESSAGE
+from agents.prompts import get_file_classification_message
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ class ReferenceResolverMixin(abc.ABC):
     def _try_llm_resolution(self, reference, qname, assigned_files):
         """Uses LLM as final fallback for reference resolution."""
         if reference.reference_file is None:
-            prompt = PromptTemplate(template=FILE_CLASSIFICATION_MESSAGE,
+            prompt = PromptTemplate(template=get_file_classification_message(),
                                     input_variables=["qname", "files"]) \
                 .format(qname=qname, files="\n".join(assigned_files))
             file_assignment = self._parse_invoke(prompt, FilePath)

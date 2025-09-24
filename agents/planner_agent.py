@@ -6,14 +6,14 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
-from agents.prompts import EXPANSION_PROMPT, PLANNER_SYSTEM_MESSAGE
+from agents.prompts import get_expansion_prompt, get_planner_system_message
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class PlannerAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
-        super().__init__(repo_dir, static_analysis, PLANNER_SYSTEM_MESSAGE)
-        self.expansion_prompt = PromptTemplate(template=EXPANSION_PROMPT, input_variables=["component"])
+        super().__init__(repo_dir, static_analysis, get_planner_system_message())
+        self.expansion_prompt = PromptTemplate(template=get_expansion_prompt(), input_variables=["component"])
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,
                                                                self.read_packages_tool, self.read_file_structure,
                                                                self.read_structure_tool, self.read_file_tool])

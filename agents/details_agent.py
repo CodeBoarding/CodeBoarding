@@ -7,8 +7,10 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, Component, \
     MetaAnalysisInsights, ComponentFiles
-from agents.prompts import SYSTEM_DETAILS_MESSAGE, CFG_DETAILS_MESSAGE, \
-    DETAILS_MESSAGE, SUBCFG_DETAILS_MESSAGE, ENHANCE_STRUCTURE_MESSAGE, FEEDBACK_MESSAGE, CLASSIFICATION_MESSAGE
+from agents.prompts import (
+    get_system_details_message, get_cfg_details_message, get_details_message,
+    get_subcfg_details_message, get_enhance_structure_message, get_feedback_message, get_classification_message
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -17,23 +19,23 @@ logger = logging.getLogger(__name__)
 class DetailsAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
                  meta_context: MetaAnalysisInsights):
-        super().__init__(repo_dir, static_analysis, SYSTEM_DETAILS_MESSAGE)
+        super().__init__(repo_dir, static_analysis, get_system_details_message())
         self.project_name = project_name
         self.meta_context = meta_context
 
         self.prompts = {
-            "subcfg": PromptTemplate(template=SUBCFG_DETAILS_MESSAGE,
+            "subcfg": PromptTemplate(template=get_subcfg_details_message(),
                                      input_variables=["project_name", "cfg_str", "component"]),
-            "cfg": PromptTemplate(template=CFG_DETAILS_MESSAGE,
+            "cfg": PromptTemplate(template=get_cfg_details_message(),
                                   input_variables=["cfg_str", "project_name", "meta_context", "project_type"]),
-            "structure": PromptTemplate(template=ENHANCE_STRUCTURE_MESSAGE,
+            "structure": PromptTemplate(template=get_enhance_structure_message(),
                                         input_variables=["insight_so_far", "component", "project_name", "meta_context",
                                                          "project_type"]),
-            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE,
+            "final_analysis": PromptTemplate(template=get_details_message(),
                                              input_variables=["insight_so_far", "component", "meta_context",
                                                               "project_type"]),
-            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"]),
-            "classification": PromptTemplate(template=CLASSIFICATION_MESSAGE,
+            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
+            "classification": PromptTemplate(template=get_classification_message(),
                                              input_variables=["project_name", "components", "files"]),
         }
 

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
+from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
@@ -121,6 +122,9 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 
 if __name__ == "__main__":
+    # Initialize the prompt factory for demo.py to use bidirectional prompts
+    initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+    
     parser = argparse.ArgumentParser(
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,

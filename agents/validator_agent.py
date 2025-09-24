@@ -6,7 +6,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import ValidationInsights, AnalysisInsights
-from agents.prompts import COMPONENT_VALIDATION_COMPONENT, RELATIONSHIPS_VALIDATION, VALIDATOR_SYSTEM_MESSAGE
+from agents.prompts import get_component_validation_component, get_relationships_validation, get_validator_system_message
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 
 class ValidatorAgent(CodeBoardingAgent):
     def __init__(self, repo_dir, static_analysis: StaticAnalysisResults):
-        super().__init__(repo_dir, static_analysis, VALIDATOR_SYSTEM_MESSAGE)
+        super().__init__(repo_dir, static_analysis, get_validator_system_message())
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
                                                                self.read_file_structure, self.read_structure_tool,
                                                                self.read_file_tool, self.read_cfg_tool,
                                                                self.read_method_invocations_tool])
 
-        self.valid_component_prompt = PromptTemplate(template=COMPONENT_VALIDATION_COMPONENT,
+        self.valid_component_prompt = PromptTemplate(template=get_component_validation_component(),
                                                      input_variables=["analysis"])
-        self.valid_relations_prompt = PromptTemplate(template=RELATIONSHIPS_VALIDATION,
+        self.valid_relations_prompt = PromptTemplate(template=get_relationships_validation(),
                                                      input_variables=["analysis"])
 
     def validate_components(self, analysis: AnalysisInsights):

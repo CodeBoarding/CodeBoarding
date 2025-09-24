@@ -3,9 +3,13 @@ import logging
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
+from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis.diagram_generator import DiagramGenerator
 from logging_config import setup_logging
 from vscode_constants import VSCODE_CONFIG
+
+# Initialize the prompt factory for vscode_runnable to use unidirectional prompts
+initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.UNIDIRECTIONAL)
 
 
 def cli_args():

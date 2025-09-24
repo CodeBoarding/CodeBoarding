@@ -7,8 +7,10 @@ from langchain.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
     ComponentFiles, Component
-from agents.prompts import CFG_MESSAGE, SOURCE_MESSAGE, SYSTEM_MESSAGE, CONCLUSIVE_ANALYSIS_MESSAGE, FEEDBACK_MESSAGE, \
-    CLASSIFICATION_MESSAGE
+from agents.prompts import (
+    get_cfg_message, get_source_message, get_system_message, 
+    get_conclusive_analysis_message, get_feedback_message, get_classification_message
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 class AbstractionAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
                  meta_context: MetaAnalysisInsights):
-        super().__init__(repo_dir, static_analysis, SYSTEM_MESSAGE)
+        super().__init__(repo_dir, static_analysis, get_system_message())
 
         self.project_name = project_name
         self.meta_context = meta_context
@@ -25,16 +27,16 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context = {"structure_insight": []}  # Store evolving insights here
 
         self.prompts = {
-            "cfg": PromptTemplate(template=CFG_MESSAGE,
+            "cfg": PromptTemplate(template=get_cfg_message(),
                                   input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
-            "source": PromptTemplate(template=SOURCE_MESSAGE,
+            "source": PromptTemplate(template=get_source_message(),
                                      input_variables=["insight_so_far", "meta_context", "project_type"]),
-            "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
+            "final_analysis": PromptTemplate(template=get_conclusive_analysis_message(),
                                              input_variables=["project_name", "cfg_insight", "source_insight",
                                                               "meta_context", "project_type"]),
-            "classification": PromptTemplate(template=CLASSIFICATION_MESSAGE,
+            "classification": PromptTemplate(template=get_classification_message(),
                                              input_variables=["project_name", "components", "files"]),
-            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
+            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"])
         }
 
     def step_cfg(self):

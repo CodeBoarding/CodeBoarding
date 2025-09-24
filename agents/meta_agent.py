@@ -6,7 +6,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
-from agents.prompts import SYSTEM_META_ANALYSIS_MESSAGE, META_INFORMATION_PROMPT
+from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 class MetaAgent(CodeBoardingAgent):
 
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
-        super().__init__(repo_dir, static_analysis, SYSTEM_META_ANALYSIS_MESSAGE)
+        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message())
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(
-            template=META_INFORMATION_PROMPT,
+            template=get_meta_information_prompt(),
             input_variables=["project_name"]
         )
 
