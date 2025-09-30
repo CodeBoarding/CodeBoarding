@@ -1,9 +1,9 @@
 {
-  "description": "The Static Analysis Engine subsystem is designed to process source code and generate detailed structural analysis results. It begins with the `Scanner` component, which performs initial parsing and lexical analysis to produce a raw structural representation, such as an Abstract Syntax Tree (AST). Concurrently, the `LSP Client` integrates with Language Server Protocol servers to gather enriched language-specific data, including symbol information and type definitions. Both the raw structural data from the `Scanner` and the enriched data from the `LSP Client` are fed into the `Reference Resolution Mixin`. This central component is responsible for linking declarations to their usages, identifying call sites, and constructing a comprehensive code graph. Finally, the `Analysis Result Emitter` component acts as the output interface, packaging and emitting the fully resolved structural analysis results for consumption by downstream systems. This architecture ensures a robust and detailed understanding of the codebase's structure and interdependencies.",
+  "description": "The Static Analysis Engine subsystem is responsible for performing deep, language-specific analysis and reference resolution on source code to produce comprehensive structural information. It begins with the Scanner parsing and tokenizing source code to generate an initial structural representation. The LSP Client (TypeScript) then enriches this data by interacting with Language Server Protocol servers to obtain detailed syntax and semantic information. Subsequently, the Reference Resolver Mixin leverages this enriched data to identify and link code references. Finally, all processed and enriched information, including initial structural data, semantic details, and resolved references, is aggregated and structured within the Analysis Result, which serves as the canonical output of the engine.",
   "components": [
     {
       "name": "Scanner",
-      "description": "This is the foundational component responsible for the initial parsing and lexical analysis of source code. It generates a basic structural representation, such as an Abstract Syntax Tree (AST), which serves as the raw input for further analysis stages.",
+      "description": "Initiates the code analysis process by parsing source code, tokenizing, and generating an initial structural representation (e.g., an Abstract Syntax Tree). It focuses on the foundational extraction of code elements.",
       "referenced_source_code": [
         {
           "qualified_name": "Scanner",
@@ -14,11 +14,11 @@
       ]
     },
     {
-      "name": "LSP Client",
-      "description": "This component acts as an integration point with Language Server Protocol (LSP) servers. It enables the Static Analysis Engine to leverage language-specific intelligence, retrieving rich symbol information, type definitions, and other advanced structural details that are crucial for comprehensive analysis, especially for complex languages like TypeScript.",
+      "name": "LSP Client (TypeScript)",
+      "description": "Facilitates language-specific analysis by interacting with Language Server Protocol (LSP) servers. For TypeScript, it leverages LSP capabilities to obtain detailed syntax, semantic information, and crucial reference resolution data. This component is key to the 'language-specific analysis' aspect.",
       "referenced_source_code": [
         {
-          "qualified_name": "LSP Client",
+          "qualified_name": "LSP Client (TypeScript)",
           "reference_file": "static_analyzer/lsp_client/typescript_client.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -26,11 +26,11 @@
       ]
     },
     {
-      "name": "Reference Resolution Mixin",
-      "description": "A core logic component that takes the structural information provided by the `Scanner` and the enriched data from the `LSP Client` to perform comprehensive code reference resolution. Its primary responsibility is to link declarations to their usages, identify call sites, and build a detailed code graph, fulfilling the subsystem's explicit reference resolution capabilities.",
+      "name": "Reference Resolver Mixin",
+      "description": "Provides the core logic for identifying and linking code references (e.g., where a variable is defined and all its usages). This directly implements the 'reference resolution capabilities' of the engine, enhancing the extracted structural information with crucial contextual links.",
       "referenced_source_code": [
         {
-          "qualified_name": "Reference Resolution Mixin",
+          "qualified_name": "Reference Resolver Mixin",
           "reference_file": "static_analyzer/reference_resolve_mixin.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -38,11 +38,11 @@
       ]
     },
     {
-      "name": "Analysis Result Emitter",
-      "description": "This component represents the output interface of the Static Analysis Engine. It is responsible for packaging and emitting the final, detailed structural analysis results, including all resolved references, to downstream components.",
+      "name": "Analysis Result",
+      "description": "Defines the standardized data structures and models used to store the comprehensive output of the static analysis process. This includes the extracted structural information and the resolved references, serving as the canonical representation of the analyzed codebase's structure.",
       "referenced_source_code": [
         {
-          "qualified_name": "Analysis Result Emitter",
+          "qualified_name": "Analysis Result",
           "reference_file": "static_analyzer/analysis_result.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -57,19 +57,29 @@
   ],
   "components_relations": [
     {
-      "relation": "provides raw structural data to",
+      "relation": "provides raw code data to",
       "src_name": "Scanner",
-      "dst_name": "Reference Resolution Mixin"
+      "dst_name": "LSP Client (TypeScript)"
     },
     {
-      "relation": "provides enriched language-specific data to",
-      "src_name": "LSP Client",
-      "dst_name": "Reference Resolution Mixin"
+      "relation": "provides initial structural data to",
+      "src_name": "Scanner",
+      "dst_name": "Analysis Result"
     },
     {
-      "relation": "provides fully resolved reference data to",
-      "src_name": "Reference Resolution Mixin",
-      "dst_name": "Analysis Result Emitter"
+      "relation": "provides enriched semantic details and reference information to",
+      "src_name": "LSP Client (TypeScript)",
+      "dst_name": "Reference Resolver Mixin"
+    },
+    {
+      "relation": "provides semantic information to",
+      "src_name": "LSP Client (TypeScript)",
+      "dst_name": "Analysis Result"
+    },
+    {
+      "relation": "provides resolved references to",
+      "src_name": "Reference Resolver Mixin",
+      "dst_name": "Analysis Result"
     }
   ]
 }

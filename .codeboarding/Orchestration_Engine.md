@@ -6,14 +6,13 @@ graph LR
     Analysis_Layer["Analysis Layer"]
     Output_Generation_Engine["Output Generation Engine"]
     External_Integrations["External Integrations"]
-    Build_and_Deployment_Infrastructure["Build and Deployment Infrastructure"]
     Unclassified["Unclassified"]
     External_Integrations -- "triggers" --> Orchestration_Engine
-    Orchestration_Engine -- "manages" --> Job_Database
+    Orchestration_Engine -- "manages job status with" --> Job_Database
     Orchestration_Engine -- "retrieves code via" --> Repository_Manager
-    Orchestration_Engine -- "initiates" --> Analysis_Layer
-    Analysis_Layer -- "provides results to" --> Orchestration_Engine
-    Orchestration_Engine -- "directs output to" --> Output_Generation_Engine
+    Orchestration_Engine -- "initiates analysis in" --> Analysis_Layer
+    Analysis_Layer -- "provides analysis results to" --> Orchestration_Engine
+    Orchestration_Engine -- "directs output generation to" --> Output_Generation_Engine
     click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
@@ -23,7 +22,7 @@ graph LR
 
 ## Details
 
-The system operates with an Orchestration Engine at its core, initiating and managing all documentation generation jobs. This engine interacts with a Job Database to maintain job status and details. Code repositories are handled by the Repository Manager, which provides the necessary code for analysis. The Analysis Layer performs comprehensive code analysis, including static analysis and AI-driven interpretation, now significantly enhanced by a dedicated prompt management system for AI agents. The results from the Analysis Layer are then passed back to the Orchestration Engine, which directs them to the Output Generation Engine for final documentation and diagram creation. External systems can trigger these workflows through the External Integrations component. The entire system is supported by the Build and Deployment Infrastructure, ensuring its operational readiness.
+The system orchestrates the generation of documentation and diagrams through a well-defined workflow. The Orchestration Engine serves as the central control, initiating and managing all jobs. It interacts with the Job Database to track job statuses and with the Repository Manager to retrieve necessary code. The core analysis is performed by the Analysis Layer, which conducts static code analysis, AI-driven interpretation, and extracts data for diagram generation. A key enhancement within the Analysis Layer is its formalized prompt management system, utilizing an abstract factory pattern for structured and scalable AI prompt generation. Upon completion of the analysis, the Orchestration Engine directs the Output Generation Engine to format and produce the final documentation and diagrams. External systems can seamlessly trigger this entire process via External Integrations. The system's architecture is centered around an Orchestration Engine that governs the end-to-end process of documentation and diagram generation. This engine coordinates with a Job Database for job lifecycle management and a Repository Manager for source code acquisition. The Analysis Layer is the intellectual core, performing detailed code analysis, including AI-driven interpretation facilitated by a newly formalized and extensible prompt management system. The results from the Analysis Layer are then channeled back to the Orchestration Engine, which subsequently instructs the Output Generation Engine to produce the final documentation and diagrams. The entire workflow can be initiated by external systems through External Integrations, ensuring broad applicability and ease of use.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
 The central control subsystem responsible for initiating, managing, and coordinating all analysis and documentation generation jobs, acting as the primary orchestrator for the end-to-end workflow.
@@ -55,7 +54,7 @@ Handles repository operations suchs as cloning code repositories and retrieving 
 
 
 ### Analysis Layer
-Performs comprehensive code analysis, encompassing static code analysis, AI-driven interpretation, and specialized data extraction for diagram generation. This layer now includes a dedicated and structured prompt management system for generating and managing prompts for AI agents, enhancing modularity and scalability.
+Performs comprehensive code analysis, encompassing static code analysis, AI-driven interpretation, and specialized data extraction for diagram generation. This layer now incorporates a formalized and extensible prompt management system, leveraging an abstract factory pattern to generate and manage AI prompts, thereby enhancing modularity and scalability.
 
 
 **Related Classes/Methods**:
@@ -63,9 +62,10 @@ Performs comprehensive code analysis, encompassing static code analysis, AI-driv
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/maindiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/diagram_generator.py:generate_analysis`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.abstract_prompt_factory.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/gemini_flash_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts_bidirectional.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/gemini_flash_prompts_unidirectional.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts_unidirectional.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.py`</a>
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
@@ -85,15 +85,6 @@ Provides interfaces for external systems, such as VSCode and GitHub Actions, to 
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/maingithub_action.py" target="_blank" rel="noopener noreferrer">`github_action.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainvscode_runnable.py" target="_blank" rel="noopener noreferrer">`vscode_runnable.py`</a>
-
-
-### Build and Deployment Infrastructure
-Encompasses the project's packaging, dependency management, and build processes, defining how the system is assembled, distributed, and integrated. This component underpins the operational readiness of all other components.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
 
 
 ### Unclassified

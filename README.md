@@ -4,7 +4,7 @@
 ![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Site: CodeBoarding.org](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2)](https://codeboarding.org)
-[![Join us on Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/zaWg3Tfn)
+[![Join us on Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/T5zHTJYFuy)
 
 **CodeBoarding** is an open-source codebase analysis tool that generates high-level diagram representations of codebases
 using static analysis and LLM agents, that humans and agents can interact with.  

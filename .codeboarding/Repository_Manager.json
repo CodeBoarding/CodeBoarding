@@ -1,5 +1,5 @@
 {
-  "description": "The system's core functionality revolves around analyzing code changes. The `Git Operations Utility` serves as the foundational layer, providing raw repository data and diffs to the `Diff Analyzer`. The `Diff Analyzer` then processes this raw information, transforming it into structured code artifacts and contextual data. These processed outputs are subsequently routed to two distinct downstream components: the `Static Analysis Engine` for identifying code quality and security issues, and the `AI Interpretation Layer` for advanced, AI-driven insights and recommendations based on the code changes. This architecture ensures a clear separation of concerns, with the `Diff Analyzer` acting as a central hub for preparing data for specialized analysis.",
+  "description": "The system is structured around an Agent Orchestrator that drives various analytical tasks. This orchestrator dynamically obtains specialized prompt templates from the Prompt Factory Subsystem, which employs an Abstract Factory pattern to ensure flexible and context-specific prompt generation. To execute its tasks, the Agent Orchestrator leverages a suite of Agent Tools. These tools encapsulate specific functionalities, such as interacting with the Diff Analyzer to process code changes. The Diff Analyzer, in turn, relies on the Git Operations Utility for low-level Git interactions, providing a clear separation of concerns for repository data retrieval and processing. This architecture promotes modularity, allowing for easy extension of agents, prompts, and tools while maintaining a clear flow of information and control.",
   "components": [
     {
       "name": "Diff Analyzer",
@@ -26,12 +26,103 @@
       ]
     },
     {
+      "name": "Prompt Factory Subsystem",
+      "description": "Manages the creation and retrieval of various prompt templates used by different agents. It implements an Abstract Factory pattern, allowing for flexible and extensible prompt generation based on specific agent requirements (e.g., unidirectional or bidirectional communication).",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory:AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory:PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_bidirectional",
+          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_unidirectional",
+          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Agent Orchestrator",
+      "description": "Represents the core agent logic that utilizes prompts and tools to perform its tasks. This component interacts with the `Prompt Factory Subsystem` to obtain appropriate prompts and then executes its operational flow, potentially involving the `Diff Analyzer` and other tools.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent:Agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Agent Tools",
+      "description": "Provides a collection of specialized tools that agents can utilize to interact with the environment, gather information, or perform specific actions. These tools encapsulate functionalities like reading files, analyzing code structures, or fetching Git diffs.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.tools.read_file",
+          "reference_file": "agents/tools/read_file.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools.read_git_diff",
+          "reference_file": "agents/tools/read_git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools.read_source",
+          "reference_file": "agents/tools/read_source.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": []
     }
   ],
   "components_relations": [
+    {
+      "relation": "requests prompts from",
+      "src_name": "Agent Orchestrator",
+      "dst_name": "Prompt Factory Subsystem"
+    },
+    {
+      "relation": "provides prompts to",
+      "src_name": "Prompt Factory Subsystem",
+      "dst_name": "Agent Orchestrator"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "Agent Orchestrator",
+      "dst_name": "Agent Tools"
+    },
+    {
+      "relation": "provides capabilities to",
+      "src_name": "Agent Tools",
+      "dst_name": "Agent Orchestrator"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "Agent Tools",
+      "dst_name": "Diff Analyzer"
+    },
     {
       "relation": "depends on and invokes",
       "src_name": "Diff Analyzer",

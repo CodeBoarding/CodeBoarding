@@ -22,10 +22,10 @@ graph LR
 
 ## Details
 
-The system operates around an `Application Orchestrator` that manages the overall flow from user query to response. User queries are initially processed by the `QueryProcessor`, which embeds them for efficient retrieval from the `VectorStore`. The `DocumentRetriever` then fetches relevant documents, which are passed back to the `Application Orchestrator`. A key architectural enhancement is the introduction of the `PromptFactory`, which centralizes and standardizes the generation of prompts for various agents and language models. The `Application Orchestrator` and `ResponseGenerator` both leverage the `PromptFactory` to obtain optimized prompts, enabling the `ResponseGenerator` to craft natural language responses based on the query and retrieved documents, including specialized prompts for models like Gemini Flash. This structured prompt management significantly refines how the system interacts with large language models, ensuring consistency and adaptability.
+The system operates with an Application Orchestrator at its core, managing the overall flow from user query to final response. It initiates the QueryProcessor to handle and embed incoming queries, which are then used by the DocumentRetriever to query the VectorStore for relevant documents. A key enhancement is the PromptFactory, which now employs an abstract factory pattern to centralize and standardize prompt generation for various agents and language models, including specialized prompts for Gemini Flash. The Application Orchestrator and ResponseGenerator both interact with the PromptFactory to obtain optimized prompts, enabling the ResponseGenerator to craft accurate and contextually rich natural language responses based on the retrieved documents and the user's query. This modular design ensures extensibility and consistent interaction with large language models.
 
 ### Application Orchestrator
-Manages the overall application flow, coordinating interactions between `QueryProcessor`, `DocumentRetriever`, `ResponseGenerator`, and now leveraging the `PromptFactory` for agent prompt generation. It receives user queries and delivers final responses, adapting its agent coordination mechanisms due to recent core agent logic refactoring and the new prompt management system.
+Manages the overall application flow, coordinating interactions between QueryProcessor, DocumentRetriever, ResponseGenerator, and now leveraging the PromptFactory for agent prompt generation. It receives user queries and delivers final responses, adapting its agent coordination mechanisms due to recent core agent logic refactoring and the new prompt management system.
 
 
 **Related Classes/Methods**:
@@ -34,7 +34,7 @@ Manages the overall application flow, coordinating interactions between `QueryPr
 
 
 ### QueryProcessor
-Handles incoming user queries, embeds them, and prepares them for similarity search, potentially utilizing refined prompts from the `PromptFactory` for enhanced query understanding.
+Handles incoming user queries, embeds them, and prepares them for similarity search, potentially utilizing refined prompts from the PromptFactory for enhanced query understanding.
 
 
 **Related Classes/Methods**:
@@ -61,7 +61,7 @@ Retrieves relevant documents from the vector store.
 
 
 ### ResponseGenerator
-Generates a natural language response using a large language model based on the query and retrieved documents, now significantly enhanced by leveraging structured prompts from the `PromptFactory`, including specialized prompts for models like Gemini Flash.
+Generates a natural language response using a large language model based on the query and retrieved documents, now significantly enhanced by leveraging structured prompts from the PromptFactory, including specialized prompts for models like Gemini Flash.
 
 
 **Related Classes/Methods**:
@@ -70,12 +70,12 @@ Generates a natural language response using a large language model based on the 
 
 
 ### PromptFactory
-Centralizes the creation and management of prompts for various agents and language models. It provides a structured and standardized approach to prompt generation, including an expanded library of prompts, notably for Gemini Flash, ensuring consistent and optimized interactions with LLMs.
+Centralizes the creation and management of prompts for various agents and language models through an abstract factory pattern. It provides a structured and standardized approach to prompt generation, leveraging an AbstractPromptFactory interface and specialized implementations like GeminiFlashPromptsBidirectional and GeminiFlashPromptsUnidirectional. This ensures consistent and optimized interactions with LLMs, notably for Gemini Flash, by managing an expanded library of prompts.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py#L27-L77" target="_blank" rel="noopener noreferrer">`prompt_factory.PromptFactory`:27-77</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py#L29-L90" target="_blank" rel="noopener noreferrer">`prompt_factory.PromptFactory`:29-90</a>
 
 
 ### Unclassified

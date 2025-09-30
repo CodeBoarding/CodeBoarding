@@ -1,49 +1,37 @@
 {
-  "description": "This subsystem, primarily driven by the Output Generation Orchestrator within a GitHub Actions Environment, is responsible for transforming validated architectural insights into various documentation formats. An external Orchestration Engine initiates this process by providing the necessary insights. The orchestrator then intelligently delegates content generation to internal Content Formatters for standard formats like Markdown, HTML, and MDX, and to a specialized Sphinx Generator for comprehensive technical documentation. Upon completion, the orchestrator provides the generated outputs to the GitHub Actions Environment for deployment or publishing, and communicates the status back to the Orchestration Engine.",
+  "description": "The `Output Generation Engine` is orchestrated by the `Output Generation Orchestrator`, which receives validated architectural insights. This orchestrator intelligently dispatches these insights to either the `GitHub Action Output Handler` for GitHub Actions-compatible formats (HTML, Markdown, MDX) or the `Sphinx Documentation Generator` for Sphinx-specific documentation. Each generator processes the data and returns the formatted output or generation status back to the orchestrator, ensuring a streamlined and adaptable documentation generation workflow.",
   "components": [
     {
       "name": "Output Generation Orchestrator",
-      "description": "The central component responsible for receiving validated architectural insights, determining the required output formats, coordinating the invocation of specific format generators, and managing the generated outputs within the GitHub Actions environment.",
+      "description": "Acts as the central control point, receiving processed architectural insights. It intelligently determines the appropriate output format based on configuration or environment, then delegates the generation task to specialized components.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action",
-          "reference_file": "github_action.py",
+          "qualified_name": "output_generation_orchestrator.py",
+          "reference_file": "output_generation_orchestrator.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ]
     },
     {
-      "name": "Content Formatters",
-      "description": "A collection of internal functions or modules within the orchestrator responsible for transforming architectural insights into various documentation formats such as Markdown, HTML, and MDX.",
+      "name": "GitHub Action Output Handler",
+      "description": "Responsible for transforming the insights into GitHub Actions-compatible formats (HTML, Markdown, MDX) and returning the results to the orchestrator.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action",
-          "reference_file": "github_action.py",
-          "reference_start_line": 20,
-          "reference_end_line": 68
-        }
-      ]
-    },
-    {
-      "name": "Sphinx Generator",
-      "description": "A dedicated component that produces documentation artifacts compatible with the Sphinx documentation generator, commonly used for comprehensive technical project documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.sphinx",
-          "reference_file": "output_generators/sphinx.py",
+          "qualified_name": "github_action_output_handler.py",
+          "reference_file": "github_action_output_handler.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ]
     },
     {
-      "name": "GitHub Actions Environment",
-      "description": "The runtime environment provided by GitHub Actions, which hosts the Output Generation Orchestrator. It manages the execution context, handles inputs and outputs, and facilitates subsequent deployment or publishing of the generated documentation.",
+      "name": "Sphinx Documentation Generator",
+      "description": "Responsible for transforming the insights into Sphinx-specific documentation and returning the generated documentation paths/status to the orchestrator.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action",
-          "reference_file": "github_action.py",
+          "qualified_name": "sphinx_documentation_generator.py",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -57,43 +45,23 @@
   ],
   "components_relations": [
     {
-      "relation": "sends validated insights to",
-      "src_name": "Orchestration Engine",
+      "relation": "dispatches data to",
+      "src_name": "Output Generation Orchestrator",
+      "dst_name": "GitHub Action Output Handler"
+    },
+    {
+      "relation": "returns formatted output to",
+      "src_name": "GitHub Action Output Handler",
       "dst_name": "Output Generation Orchestrator"
     },
     {
-      "relation": "sends generated output status/references to",
+      "relation": "dispatches data to",
       "src_name": "Output Generation Orchestrator",
-      "dst_name": "Orchestration Engine"
+      "dst_name": "Sphinx Documentation Generator"
     },
     {
-      "relation": "requests output generation from",
-      "src_name": "Output Generation Orchestrator",
-      "dst_name": "Content Formatters"
-    },
-    {
-      "relation": "provides generated output to",
-      "src_name": "Content Formatters",
-      "dst_name": "Output Generation Orchestrator"
-    },
-    {
-      "relation": "requests output generation from",
-      "src_name": "Output Generation Orchestrator",
-      "dst_name": "Sphinx Generator"
-    },
-    {
-      "relation": "provides generated Sphinx output to",
-      "src_name": "Sphinx Generator",
-      "dst_name": "Output Generation Orchestrator"
-    },
-    {
-      "relation": "produces outputs for",
-      "src_name": "Output Generation Orchestrator",
-      "dst_name": "GitHub Actions Environment"
-    },
-    {
-      "relation": "provides execution context to",
-      "src_name": "GitHub Actions Environment",
+      "relation": "returns generated documentation paths/status to",
+      "src_name": "Sphinx Documentation Generator",
       "dst_name": "Output Generation Orchestrator"
     }
   ]

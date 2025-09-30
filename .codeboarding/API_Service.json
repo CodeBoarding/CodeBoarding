@@ -1,5 +1,5 @@
 {
-  "description": "The CodeBoarding platform is orchestrated by `local_app.LocalApp`, which serves as the primary interface for users and the VS Code extension (`vscode_runnable.VSCodeRunnable`). `local_app.LocalApp` initiates and manages analysis jobs, leveraging `duckdb_crud.DuckDBCRUD` for persistent storage of job metadata and `repo_utils.RepoUtils` for repository operations. The core analysis and diagram generation workflow is handled by `diagram_analysis.diagram_generator`. A significant internal enhancement is the `agents.prompts.PromptFactory`, which centralizes and dynamically manages prompts for the various agents utilized by `diagram_analysis.diagram_generator` when interacting with LLMs, ensuring modularity and configurability in prompt management. This structured approach to prompt handling is crucial for the system's interaction with LLMs, which underpins the `diagram_analysis.diagram_generator`'s function.",
+  "description": "CodeBoarding's local application (`local_app.LocalApp`) serves as the central entry point, handling requests from external clients like the VS Code extension (`vscode_runnable.VSCodeRunnable`). It orchestrates the core functionality of the platform, primarily delegating to the `diagram_analysis.diagram_generator` for comprehensive code analysis and diagram creation. The `local_app.LocalApp` also relies on `duckdb_crud.DuckDBCRUD` for persistent storage of job metadata and `repo_utils.RepoUtils` for repository operations. A critical subsystem for LLM interaction is managed by `agents.prompts.PromptFactory`, which, through an Abstract Factory pattern, dynamically provides prompts to the agents utilized by the `diagram_analysis.diagram_generator`, ensuring modularity and extensibility in integrating diverse LLMs and prompt strategies.",
   "components": [
     {
       "name": "local_app.LocalApp",
@@ -27,13 +27,13 @@
     },
     {
       "name": "agents.prompts.PromptFactory",
-      "description": "Manages the dynamic selection and retrieval of prompts used by various agents for interacting with Large Language Models (LLMs). It centralizes prompt definitions, enhancing modularity, configurability, and maintainability of LLM interactions.",
+      "description": "Manages the dynamic selection and retrieval of prompts used by various agents for interacting with Large Language Models (LLMs). It has been refactored to leverage an Abstract Factory pattern, centralizing prompt definitions and enhancing modularity, configurability, and maintainability of LLM interactions. This pattern allows for easy integration of new LLMs and prompt strategies through concrete factory implementations (e.g., `gemini_flash_prompts_bidirectional.py`, `gemini_flash_prompts_unidirectional.py`) based on an abstract interface (`abstract_prompt_factory.py`).",
       "referenced_source_code": [
         {
           "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
           "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 27,
-          "reference_end_line": 77
+          "reference_start_line": 29,
+          "reference_end_line": 90
         }
       ]
     },
@@ -70,6 +70,18 @@
           "reference_file": "vscode_runnable.py",
           "reference_start_line": null,
           "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [
+        {
+          "qualified_name": "unclassified.UnclassifiedComponent",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ]
     },

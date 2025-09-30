@@ -35,7 +35,7 @@ graph LR
 
 ## Details
 
-The CodeBoarding project is structured around a robust pipeline for automated software documentation and diagram generation. At its core, the system processes source code through static analysis, interprets the results using specialized AI agents, and then generates various output formats. The recent architectural enhancements significantly bolster the `AI Interpretation Layer`, particularly in how it manages and applies prompts for interacting with diverse AI models. The main flow begins with the `API Service` receiving user requests, which are then managed by the `Orchestration Engine`. This engine coordinates the entire process, from fetching code via the `Repository Manager` to performing `Static Analysis`. The results of this analysis, now enriched with reference resolution, are fed into the `AI Interpretation Layer`. This layer, comprising multiple AI agents, interprets the data to produce high-level architectural insights. A key update here is the introduction of a sophisticated `Prompt Management System` within this layer, centralizing prompt creation and enabling support for various language models and prompting strategies. Finally, these insights are passed to the `Output Generation Engine` to produce documentation in desired formats, which can then be delivered back via the `API Service` or integrated with external systems like GitHub Actions.
+The CodeBoarding system is designed around a robust, multi-stage documentation generation pipeline. The `API Service` acts as the primary external interface, receiving user requests and initiating documentation jobs. These jobs are then managed by the `Orchestration Engine`, which coordinates the entire workflow, leveraging the `Job Database` for persistent state management. Code acquisition and version difference analysis are handled by the `Repository Manager`. The `Static Analysis Engine` performs deep, language-specific code analysis, including reference resolution, to extract comprehensive structural information. The resulting analysis data is then fed to the `AI Interpretation Layer`, a collection of specialized AI agents that interpret this data to generate high-level architectural insights. This layer features a significantly enhanced and modular prompt management system, utilizing an abstract factory pattern to support various language models and prompting strategies. Finally, the `Output Generation Engine` transforms these insights into various documentation formats, including those suitable for GitHub Actions, which are then delivered back via the `API Service`. This architecture ensures a clear separation of concerns, enabling efficient processing, intelligent interpretation, and flexible output generation for diverse documentation needs.
 
 ### API Service [[Expand]](./API_Service.md)
 The external interface for CodeBoarding, handling user requests, job initiation, status retrieval, and integrating with GitHub Actions for automated documentation generation.
@@ -87,7 +87,7 @@ Performs deep, language-specific analysis of source code, now explicitly includi
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-A collection of specialized AI agents that perform sophisticated interpretation of static analysis data, generating enhanced high-level architectural insights, including detailed abstractions, refined planning, robust validation, and comprehensive diff analysis. This layer now features a **significantly enhanced prompt management system**, utilizing a `prompt_factory` for structured prompt definition, selection, and application, supporting various language models (e.g., Gemini Flash) and prompting strategies.
+A collection of specialized AI agents that perform sophisticated interpretation of static analysis data, generating enhanced high-level architectural insights, including detailed abstractions, refined planning, robust validation, and comprehensive diff analysis. This layer now features a **significantly enhanced prompt management system**, utilizing an `abstract_prompt_factory` and concrete implementations (e.g., `gemini_flash_prompts_bidirectional`, `gemini_flash_prompts_unidirectional`) for structured prompt definition, selection, and application, supporting various language models (e.g., Gemini Flash) and prompting strategies. The `prompt_factory` has been refactored to integrate this modular and extensible system.
 
 
 **Related Classes/Methods**:
@@ -101,6 +101,10 @@ A collection of specialized AI agents that perform sophisticated interpretation 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/agent.py" target="_blank" rel="noopener noreferrer">`agent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agent_responses`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/details_agent.py" target="_blank" rel="noopener noreferrer">`prompts`</a>
+- `abstract_prompt_factory`
+- `gemini_flash_prompts_bidirectional`:1-10
+- `gemini_flash_prompts_unidirectional`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py#L37-L46" target="_blank" rel="noopener noreferrer">`prompt_factory`:37-46</a>
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
