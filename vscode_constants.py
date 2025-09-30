@@ -15,14 +15,14 @@ def get_bin_path(bin_dir):
     return os.path.join(bin_dir, 'bin', subdirs[system])
 
 
-def prepend_bin_path_to_commands(bin_dir):
+def update_command_paths(bin_dir):
     bin_path = get_bin_path(bin_dir)
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
             if key == 'typescript':
                 value['command'][0] = os.path.join(bin_dir, 'node_modules',
                                                    '.bin', value['command'][0])
-            if "command" in value:
+            elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
                     value["command"][0] = os.path.join(bin_path, cmd[0])
@@ -30,7 +30,7 @@ def prepend_bin_path_to_commands(bin_dir):
 
 def update_config(bin_dir=None):
     if bin_dir:
-        prepend_bin_path_to_commands(bin_dir)
+        update_command_paths(bin_dir)
 
 
 VSCODE_CONFIG = {
