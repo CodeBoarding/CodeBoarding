@@ -20,8 +20,7 @@ def update_command_paths(bin_dir):
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
             if key == 'typescript':
-                value['command'][0] = os.path.join(bin_dir, 'node_modules',
-                                                   '.bin', value['command'][0])
+                value['command'][0] = os.path.join(bin_dir, 'dist', 'node_modules', value['command'][0])
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
@@ -44,7 +43,9 @@ VSCODE_CONFIG = {
         },
         "typescript": {
             "name": "TypeScript Language Server",
-            "command": ["typescript-language-server", "--stdio", "--log-level=2"],
+            "command": [
+                "typescript-language-server/lib/cli.mjs",
+                "--stdio", "--log-level=2"],
             "languages": ["typescript", "javascript"],
             "file_extensions": [".ts", ".tsx", ".js", ".jsx"],
             "install_commands": "npm install --save-dev typescript-language-server typescript"
