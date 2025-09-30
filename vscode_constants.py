@@ -1,3 +1,38 @@
+import os
+import platform
+
+
+def get_bin_path(bin_dir):
+    system = platform.system().lower()
+    subdirs = {
+        'windows': 'win',
+        'darwin': 'macos',
+        'linux': 'linux'
+    }
+    if system not in subdirs:
+        raise RuntimeError(
+            f"Unsupported platform: {system}. The extension currently supports Windows, macOS, and Linux.")
+    return os.path.join(bin_dir, 'bin', subdirs[system])
+
+
+def prepend_bin_path_to_commands(bin_dir):
+    bin_path = get_bin_path(bin_dir)
+    for section in VSCODE_CONFIG.values():
+        for key, value in section.items():
+            if key == 'typescript':
+                value['command'][0] = os.path.join(bin_dir, 'node_modules',
+                                                   '.bin', value['command'][0])
+            if "command" in value:
+                cmd = value["command"]
+                if isinstance(cmd, list) and cmd:
+                    value["command"][0] = os.path.join(bin_path, cmd[0])
+
+
+def update_config(bin_dir=None):
+    if bin_dir:
+        prepend_bin_path_to_commands(bin_dir)
+
+
 VSCODE_CONFIG = {
     "lsp_servers": {
         "python": {

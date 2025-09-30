@@ -6,7 +6,7 @@ from agents.agent_responses import AnalysisInsights
 from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis.diagram_generator import DiagramGenerator
 from logging_config import setup_logging
-from vscode_constants import VSCODE_CONFIG
+from vscode_constants import update_config
 
 # Initialize the prompt factory for vscode_runnable to use unidirectional prompts
 initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.UNIDIRECTIONAL)
@@ -80,11 +80,7 @@ def main():
     assert args.binary_location is not None, "Please provide the --binary_location argument."
 
     # Update to run the commands properly
-    for lang, server in VSCODE_CONFIG["lsp_servers"].items():
-        server['command'][0] = str(Path(args.binary_location) / server['command'][0])
-
-    for tool, tool_info in VSCODE_CONFIG["tools"].items():
-        tool_info['command'][0] = str(Path(args.binary_location) / tool_info['command'][0])
+    update_config(Path(args.binary_location))
 
     if args.partial_updates_component and args.partial_updates_analysis:
         partial_updates(args.partial_updates_component, args.partial_updates_analysis)
