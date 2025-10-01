@@ -22,6 +22,9 @@ def update_command_paths(bin_dir):
             if key == 'typescript':
                 # Scan the bin dir to fine the cli.mjs path
                 value['command'][0] = find_cli_js(bin_dir) or value['command'][0]
+                if platform.system().lower() == 'windows':
+                    # Use node to run the .mjs file on Windows
+                    value['command'].insert(0, 'node')
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
