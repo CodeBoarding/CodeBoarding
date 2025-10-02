@@ -32,26 +32,6 @@ def check_uv_environment():
     print("Step: Environment validation finished: success")
 
 
-def install_requirements():
-    """Install Python requirements using uv pip."""
-    print("Step: Requirements installation started")
-    
-    requirements_file = 'requirements.txt'
-
-    if not os.path.exists(requirements_file):
-        print("Step: Requirements installation finished: failure - No requirements file found")
-        sys.exit(1)
-
-    try:
-        subprocess.run([
-            'uv', 'pip', 'install', '-r', requirements_file
-        ], check=True, capture_output=True, text=True)
-        print("Step: Requirements installation finished: success")
-    except subprocess.CalledProcessError as e:
-        print(f"Step: Requirements installation finished: failure - {e}")
-        sys.exit(1)
-
-
 def check_npm():
     """Check if npm is installed on the system."""
     print("Step: npm check started")
@@ -63,7 +43,7 @@ def check_npm():
             result = subprocess.run(['npm', '--version'], capture_output=True, text=True, check=True)
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
-        except:
+        except Exception:
             print("Step: npm check finished: failure - npm command failed. Skipping TypeScript Language Server installation.")
             return False
     else:
@@ -347,21 +327,18 @@ if __name__ == "__main__":
     # Step 1: Validate uv environment
     check_uv_environment()
 
-    # Step 2: Install Python requirements
-    install_requirements()
-
-    # Step 3: Check for npm and install TypeScript Language Server if available
+    # Step 2: Check for npm and install TypeScript Language Server if available
     npm_available = check_npm()
     if npm_available:
         install_typescript_language_server()
 
-    # Step 4: Download binary from Google Drive (fallback if npm installation failed)
+    # Step 3: Download binary from Google Drive (fallback if npm installation failed)
     download_binary_from_gdrive()
 
-    # Step 5: Update configuration file with absolute paths
+    # Step 4: Update configuration file with absolute paths
     update_static_analysis_config()
 
-    # Step 6: Initialize .env file
+    # Step 5: Initialize .env file
     init_dot_env_file()
 
     print("\n" + "=" * 40)
