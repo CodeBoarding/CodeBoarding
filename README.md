@@ -56,10 +56,10 @@ graph LR
 Setup the environment:
 
 ```bash
-python3 -m pip install uv==0.8.22
+python -m pip install uv==0.8.22
 uv sync --frozen
 source .venv/bin/activate
-python3 setup.py
+python setup.py
 ```
 
 > [!IMPORTANT]  
