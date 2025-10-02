@@ -155,6 +155,7 @@ def download_binary_from_gdrive():
     win_files = {
         "py-lsp": "1XKRsteNhUpu2eGhkYqRhXDvJYGhBpV01",
         "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK",
+        "gopls": "162AdxaSb58IPNv_vvqTWUTtZJIo8Xrf_"
 
     }
     linux_files = {
