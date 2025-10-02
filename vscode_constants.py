@@ -60,6 +60,13 @@ VSCODE_CONFIG = {
             "languages": ["typescript", "javascript"],
             "file_extensions": [".ts", ".tsx", ".js", ".jsx"],
             "install_commands": "npm install --save-dev typescript-language-server typescript"
+        },
+        "go": {
+            "name": "Go Language Server (gopls)",
+            "command": ["gopls", "serve"],
+            "languages": ["go"],
+            "file_extensions": [".go"],
+            "install_commands": "go install golang.org/x/tools/gopls@latest"
         }
     },
     "tools": {

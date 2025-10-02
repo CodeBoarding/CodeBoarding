@@ -150,15 +150,17 @@ def download_binary_from_gdrive():
     # File IDs extracted from your share links
     mac_files = {
         "py-lsp": "1a8FaSGq27dyrN5yrKKMOWqfm3H8BK9Zf",
-        "tokei": "1IKJSB7DHXAFZZQfwGOt6LypVUDlCQTLc"
+        "tokei": "1IKJSB7DHXAFZZQfwGOt6LypVUDlCQTLc",
     }
     win_files = {
         "py-lsp": "1XKRsteNhUpu2eGhkYqRhXDvJYGhBpV01",
-        "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK"
+        "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK",
+
     }
     linux_files = {
         "py-lsp": "17XcohKWZKHv26DgRIdrxcPRMN0LKyt0i",
-        "tokei": "1Wbx3bK0j-5c-hTJCfPcd86jqfQY0JsvF"
+        "tokei": "1Wbx3bK0j-5c-hTJCfPcd86jqfQY0JsvF",
+        "gopls": "1MYlJiT2fOb9aIQnlB7jRCE6cxQ5_71U2",
     }
 
     system = platform.system()
