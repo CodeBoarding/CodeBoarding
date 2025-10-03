@@ -21,9 +21,9 @@ class PromptType(Enum):
 class LLMType(Enum):
     """Enum for different LLM types."""
     GEMINI_FLASH = "gemini_flash"
+    CLAUDE = "claude"
     # Future LLM types can be added here
     # GPT4 = "gpt4"
-    # CLAUDE = "claude"
 
 
 class PromptFactory:
@@ -41,6 +41,13 @@ class PromptFactory:
                 return GeminiFlashBidirectionalPromptFactory()
             else:
                 return GeminiFlashUnidirectionalPromptFactory()
+        elif self.llm_type == LLMType.CLAUDE: #Adding Claude support
+            if self.prompt_type == PromptType.BIDIRECTIONAL:
+                from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
+                return ClaudeBidirectionalPromptFactory()
+            else:
+                from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
+                return ClaudeUnidirectionalPromptFactory()
         else:
             # Default fallback
             return GeminiFlashBidirectionalPromptFactory()
@@ -81,6 +88,7 @@ class PromptFactory:
         llm_mapping = {
             "gemini": LLMType.GEMINI_FLASH,
             "gemini_flash": LLMType.GEMINI_FLASH,
+            "claude": LLMType.CLAUDE,
             # Future mappings can be added here
         }
         
