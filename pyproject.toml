@@ -54,7 +54,7 @@ dependencies = [
     "python-call-graph==2.1.3",
     "pyyaml==6.0.3",
     "regex==2024.11.6",
-    "rich==12.6.0", # pdm
+    "rich==12.6.0",
     "sqlparse==0.5.3",
     "tomli==2.2.1",
     "trustcall==0.0.39",
