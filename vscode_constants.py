@@ -20,11 +20,22 @@ def update_command_paths(bin_dir):
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
             if key == 'typescript':
-                value['command'][0] = os.path.join(bin_dir, 'dist', 'node_modules', value['command'][0])
+                # Scan the bin dir to fine the cli.mjs path
+                value['command'][0] = find_cli_js(bin_dir) or value['command'][0]
+                if platform.system().lower() == 'windows':
+                    # Use node to run the .mjs file on Windows
+                    value['command'].insert(0, 'node')
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
                     value["command"][0] = os.path.join(bin_path, cmd[0])
+
+
+def find_cli_js(bin_dir, search_file='cli.mjs'):
+    for root, dirs, files in os.walk(bin_dir):
+        if search_file in files and 'typescript-language-server' in root:
+            return os.path.join(root, search_file)
+    return None
 
 
 def update_config(bin_dir=None):
@@ -44,11 +55,18 @@ VSCODE_CONFIG = {
         "typescript": {
             "name": "TypeScript Language Server",
             "command": [
-                "typescript-language-server/lib/cli.mjs",
+                "cli.mjs",
                 "--stdio", "--log-level=2"],
             "languages": ["typescript", "javascript"],
             "file_extensions": [".ts", ".tsx", ".js", ".jsx"],
             "install_commands": "npm install --save-dev typescript-language-server typescript"
+        },
+        "go": {
+            "name": "Go Language Server (gopls)",
+            "command": ["gopls", "serve"],
+            "languages": ["go"],
+            "file_extensions": [".go"],
+            "install_commands": "go install golang.org/x/tools/gopls@latest"
         }
     },
     "tools": {

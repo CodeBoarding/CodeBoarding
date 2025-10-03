@@ -1,168 +1,197 @@
 {
-  "description": "The system orchestrates the generation of documentation and diagrams through a well-defined workflow. The Orchestration Engine serves as the central control, initiating and managing all jobs. It interacts with the Job Database to track job statuses and with the Repository Manager to retrieve necessary code. The core analysis is performed by the Analysis Layer, which conducts static code analysis, AI-driven interpretation, and extracts data for diagram generation. A key enhancement within the Analysis Layer is its formalized prompt management system, utilizing an abstract factory pattern for structured and scalable AI prompt generation. Upon completion of the analysis, the Orchestration Engine directs the Output Generation Engine to format and produce the final documentation and diagrams. External systems can seamlessly trigger this entire process via External Integrations. The system's architecture is centered around an Orchestration Engine that governs the end-to-end process of documentation and diagram generation. This engine coordinates with a Job Database for job lifecycle management and a Repository Manager for source code acquisition. The Analysis Layer is the intellectual core, performing detailed code analysis, including AI-driven interpretation facilitated by a newly formalized and extensible prompt management system. The results from the Analysis Layer are then channeled back to the Orchestration Engine, which subsequently instructs the Output Generation Engine to produce the final documentation and diagrams. The entire workflow can be initiated by external systems through External Integrations, ensuring broad applicability and ease of use.",
+  "description": "The core of the system is the `Orchestration Engine`, which centrally manages the documentation generation pipeline. It begins by managing the `ProjectScanner` to collect raw static analysis data, which is then stored in `StaticAnalysisResults`. The `Orchestration Engine` then iteratively orchestrates a suite of specialized AI agents—`MetaAgent`, `AbstractionAgent`, `DetailsAgent`, `PlannerAgent`, and `ValidatorAgent`—exchanging data with them to progressively refine the architectural understanding. This iterative process, driven by the `Orchestration Engine`, ensures comprehensive analysis, from initial metadata gathering and high-level abstraction to detailed component examination, workflow planning, and final validation, culminating in accurate and consistent architectural documentation.",
   "components": [
     {
       "name": "Orchestration Engine",
-      "description": "The central control subsystem responsible for initiating, managing, and coordinating all analysis and documentation generation jobs, acting as the primary orchestrator for the end-to-end workflow.",
+      "description": "The central control unit that manages the entire documentation generation pipeline, coordinating all analysis and generation stages. It initializes and coordinates AI agents, handles pre-analysis, processes components, determines update needs, applies feedback, and saves results.",
       "referenced_source_code": [
         {
-          "qualified_name": "local_app.py:start_generation_job",
-          "reference_file": "local_app.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "local_app.py:start_docs_generation_job",
-          "reference_file": "local_app.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "local_app.py:process_docs_generation_job",
-          "reference_file": "local_app.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Job Database",
-      "description": "Manages the storage and retrieval of job details, including status updates, for the documentation generation pipeline.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "duckdb_crud.py",
-          "reference_file": "duckdb_crud.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Repository Manager",
-      "description": "Handles repository operations suchs as cloning code repositories and retrieving code differences for analysis.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "repo_utils.git_diff.py",
-          "reference_file": "repo_utils/git_diff.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Analysis Layer",
-      "description": "Performs comprehensive code analysis, encompassing static code analysis, AI-driven interpretation, and specialized data extraction for diagram generation. This layer now incorporates a formalized and extensible prompt management system, leveraging an abstract factory pattern to generate and manage AI prompts, thereby enhancing modularity and scalability.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer.scanner.py",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.agent.py",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "diagram_analysis/diagram_generator.py:generate_analysis",
+          "qualified_name": "diagram_generator",
           "reference_file": "diagram_analysis/diagram_generator.py",
           "reference_start_line": null,
           "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.prompts.abstract_prompt_factory.py",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.prompts.prompt_factory.py",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.prompts.gemini_flash_prompts_bidirectional.py",
-          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.prompts.gemini_flash_prompts_unidirectional.py",
-          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
-          "reference_start_line": null,
-          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py",
+        "../../diagram_analysis/diagram_generator.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Output Generation Engine",
-      "description": "Responsible for the final formatting and generation of documentation and diagrams in various formats.",
+      "name": "MetaAgent",
+      "description": "An AI agent responsible for performing initial project metadata analysis, providing foundational context for subsequent analysis stages.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.markdown.py",
-          "reference_file": "output_generators/markdown.py",
+          "qualified_name": "meta_agent",
+          "reference_file": "agents/meta_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "External Integrations",
-      "description": "Provides interfaces for external systems, such as VSCode and GitHub Actions, to trigger analysis workflows.",
+      "name": "AbstractionAgent",
+      "description": "An AI agent that generates high-level architectural abstractions from the analyzed code, identifying major components and their relationships.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action.py",
-          "reference_file": "github_action.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "vscode_runnable.py",
-          "reference_file": "vscode_runnable.py",
+          "qualified_name": "abstraction_agent",
+          "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "An AI agent that provides detailed analysis of individual components, delving into their responsibilities, internal structure, and specific interactions.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "details_agent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "PlannerAgent",
+      "description": "An AI agent that plans the next set of components to analyze, optimizing the analysis workflow based on dependencies and previous results.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "planner_agent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidatorAgent",
+      "description": "An AI agent that validates the generated analysis and provides feedback, ensuring accuracy and consistency of the documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "validator_agent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "ProjectScanner",
+      "description": "A component responsible for initiating and collecting static analysis data from the codebase, serving as the primary input for the analysis pipeline.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "scanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "StaticAnalysisResults",
+      "description": "A data structure that holds the comprehensive results of static analysis, making this information accessible to the Orchestration Engine and AI agents.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "analysis_result",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "triggers",
-      "src_name": "External Integrations",
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "manages",
+      "src_name": "Orchestration Engine",
+      "dst_name": "ProjectScanner"
+    },
+    {
+      "relation": "produces",
+      "src_name": "ProjectScanner",
+      "dst_name": "StaticAnalysisResults"
+    },
+    {
+      "relation": "is used by",
+      "src_name": "StaticAnalysisResults",
       "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "manages job status with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Job Database"
-    },
-    {
-      "relation": "retrieves code via",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Repository Manager"
-    },
-    {
-      "relation": "initiates analysis in",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Analysis Layer"
-    },
-    {
-      "relation": "provides analysis results to",
-      "src_name": "Analysis Layer",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "directs output generation to",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Output Generation Engine"
     }
   ]
 }

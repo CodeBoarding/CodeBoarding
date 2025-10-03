@@ -1,126 +1,173 @@
 {
-  "description": "CodeBoarding's local application (`local_app.LocalApp`) serves as the central entry point, handling requests from external clients like the VS Code extension (`vscode_runnable.VSCodeRunnable`). It orchestrates the core functionality of the platform, primarily delegating to the `diagram_analysis.diagram_generator` for comprehensive code analysis and diagram creation. The `local_app.LocalApp` also relies on `duckdb_crud.DuckDBCRUD` for persistent storage of job metadata and `repo_utils.RepoUtils` for repository operations. A critical subsystem for LLM interaction is managed by `agents.prompts.PromptFactory`, which, through an Abstract Factory pattern, dynamically provides prompts to the agents utilized by the `diagram_analysis.diagram_generator`, ensuring modularity and extensibility in integrating diverse LLMs and prompt strategies.",
+  "description": "The CodeBoarding system operates with an `API Service` as its entry point, handling user requests and initiating code analysis jobs. These jobs are managed by an `Orchestration Engine` which coordinates the entire workflow, from fetching code via the `Repository Manager` to executing the `Analysis Pipeline` (encompassing static analysis and AI interpretation). The `Job Database` maintains the state and metadata of all ongoing and completed jobs. Once the analysis is complete, the `Output Generation Engine` formats the results into user-consumable documentation and visualizations, which are then retrieved by the `API Service`. A `Configuration & Utilities` component provides essential services and settings across the entire system, ensuring consistent operation and reusability. This architecture supports an asynchronous, pipeline-driven approach to code documentation and analysis.",
   "components": [
     {
-      "name": "local_app.LocalApp",
-      "description": "Serves as the primary local interface for CodeBoarding, enabling local users and the VS Code extension to initiate, manage, and retrieve the status of analysis jobs, and to trigger documentation generation. It acts as a local API endpoint, orchestrating interactions with core analysis and data management components.",
+      "name": "API Service",
+      "description": "The API Service acts as the primary external interface for CodeBoarding, responsible for receiving and processing user requests related to code analysis and visualization. It handles the initiation of new analysis jobs, provides mechanisms for users to retrieve the status of ongoing jobs, and serves the final analysis results, including generated documentation and visualizations. Furthermore, it integrates with external systems like GitHub Actions to trigger automated documentation generation workflows. This component is crucial for orchestrating the interaction between users and the backend analysis pipeline, aligning with the project's pipeline/event-driven and producer-consumer architectural patterns.",
       "referenced_source_code": [
         {
-          "qualified_name": "local_app.LocalApp",
+          "qualified_name": "local_app.app",
           "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "diagram_analysis.diagram_generator",
-      "description": "Orchestrates the comprehensive code analysis and diagram generation workflow, initiated by the `local_app.LocalApp`. It's responsible for the core value proposition of the platform, leveraging various agents and LLMs for analysis.",
+      "name": "Job Database",
+      "description": "Manages the state and metadata of all analysis jobs, including their status, progress, and associated results. It acts as a central ledger for asynchronous operations, ensuring persistence and traceability of analysis tasks.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "agents.prompts.PromptFactory",
-      "description": "Manages the dynamic selection and retrieval of prompts used by various agents for interacting with Large Language Models (LLMs). It has been refactored to leverage an Abstract Factory pattern, centralizing prompt definitions and enhancing modularity, configurability, and maintainability of LLM interactions. This pattern allows for easy integration of new LLMs and prompt strategies through concrete factory implementations (e.g., `gemini_flash_prompts_bidirectional.py`, `gemini_flash_prompts_unidirectional.py`) based on an abstract interface (`abstract_prompt_factory.py`).",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 29,
-          "reference_end_line": 90
-        }
-      ]
-    },
-    {
-      "name": "duckdb_crud.DuckDBCRUD",
-      "description": "Manages persistent storage and retrieval of analysis job metadata and status, crucial for `local_app.LocalApp` to track and report on job progress.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "duckdb_crud.DuckDBCRUD",
+          "qualified_name": "duckdb_crud",
           "reference_file": "duckdb_crud.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "repo_utils.RepoUtils",
-      "description": "Provides repository-related operations such as cloning or fetching diffs, potentially utilized by `local_app.LocalApp` to prepare repositories for analysis.",
+      "name": "Orchestration Engine",
+      "description": "Coordinates the execution of analysis tasks, managing the flow of data and control between different engines. It's responsible for task scheduling, dependency management, and overall workflow execution, embodying the pipeline/event-driven architecture.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.RepoUtils",
-          "reference_file": "repo_utils/__init__.py",
+          "qualified_name": "local_app.generate_onboarding",
+          "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "vscode_runnable.VSCodeRunnable",
-      "description": "An external client that consumes services provided by the `local_app.LocalApp` for VS Code extension functionalities, representing a key external integration point.",
+      "name": "Repository Manager",
+      "description": "Handles interactions with code repositories (e.g., GitHub), including cloning, fetching, and managing local copies of the source code to be analyzed. It ensures the analysis engines have access to the correct code versions.",
       "referenced_source_code": [
         {
-          "qualified_name": "vscode_runnable.VSCodeRunnable",
-          "reference_file": "vscode_runnable.py",
+          "qualified_name": "repo_utils",
+          "reference_file": "repo_utils",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Pipeline",
+      "description": "This component encapsulates the core logic for static analysis and AI-driven interpretation of the codebase. It takes the raw source code, extracts structural information, and then uses AI models to generate insights, summaries, and initial documentation drafts.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "demo.generate_docs_remote",
+          "reference_file": "demo.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Responsible for formatting and generating the final outputs, such as documentation (e.g., Markdown, HTML), visualizations (e.g., Mermaid.js diagrams), and structured data. It transforms processed information into user-consumable formats.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "local_app.generate_onboarding",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Configuration & Utilities",
+      "description": "Provides common utilities, configuration management, and helper functions used across various components. This component ensures consistency and reusability of common functionalities.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "utils",
+          "reference_file": "utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [
-        {
-          "qualified_name": "unclassified.UnclassifiedComponent",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
-      "src_name": "vscode_runnable.VSCodeRunnable",
-      "dst_name": "local_app.LocalApp"
+      "relation": "initiates jobs in",
+      "src_name": "API Service",
+      "dst_name": "Orchestration Engine"
     },
     {
-      "relation": "orchestrates",
-      "src_name": "local_app.LocalApp",
-      "dst_name": "diagram_analysis.diagram_generator"
+      "relation": "queries job status from",
+      "src_name": "API Service",
+      "dst_name": "Job Database"
     },
     {
-      "relation": "manages job data via",
-      "src_name": "local_app.LocalApp",
-      "dst_name": "duckdb_crud.DuckDBCRUD"
+      "relation": "updates job information in",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
     },
     {
-      "relation": "utilizes",
-      "src_name": "local_app.LocalApp",
-      "dst_name": "repo_utils.RepoUtils"
+      "relation": "manages repository via",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Repository Manager"
     },
     {
-      "relation": "utilizes agents which obtain prompts from",
-      "src_name": "diagram_analysis.diagram_generator",
-      "dst_name": "agents.prompts.PromptFactory"
+      "relation": "executes analysis with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Analysis Pipeline"
     },
     {
-      "relation": "provides prompts to",
-      "src_name": "agents.prompts.PromptFactory",
-      "dst_name": "diagram_analysis.diagram_generator"
+      "relation": "processes results from",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "provides source code to",
+      "src_name": "Repository Manager",
+      "dst_name": "Analysis Pipeline"
+    },
+    {
+      "relation": "generates raw analysis data for",
+      "src_name": "Analysis Pipeline",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "provides final results to",
+      "src_name": "Output Generation Engine",
+      "dst_name": "API Service"
+    },
+    {
+      "relation": "provides settings to",
+      "src_name": "Configuration & Utilities",
+      "dst_name": "all components"
+    },
+    {
+      "relation": "offers utility functions to",
+      "src_name": "Configuration & Utilities",
+      "dst_name": "all components"
     }
   ]
 }

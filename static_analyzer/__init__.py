@@ -15,8 +15,11 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
         if not pl.is_supported_lang():
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
             continue
-        if pl.language in ['TypeScript']:
-            clients.append(TypeScriptClient(language=pl, project_path=repository_path))
-        else:
-            clients.append(LSPClient(language=pl, project_path=repository_path))
+        try:
+            if pl.language in ['TypeScript']:
+                clients.append(TypeScriptClient(language=pl, project_path=repository_path))
+            else:
+                clients.append(LSPClient(language=pl, project_path=repository_path))
+        except RuntimeError as e:
+            logger.error(f"Failed to create LSP client for {pl.language}: {e}")
     return clients
