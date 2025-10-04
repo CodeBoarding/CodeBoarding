@@ -79,9 +79,9 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         elif self.anthropic_api_key:
             logger.info("Using Anthropic LLM")
             return ChatAnthropic(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-7-sonnet-20250219",
                 temperature=0,
-                max_tokens=None,
+                max_tokens=8192,
                 timeout=None,
                 max_retries=0,
                 api_key=self.anthropic_api_key,
@@ -140,8 +140,9 @@ class CodeBoardingAgent(ReferenceResolverMixin):
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
+        assert isinstance(response, str), f"Expected a string as reps type got {response}"
         return self._parse_response(prompt, response, type)
-
+    
     def _parse_response(self, prompt, response, return_type, max_retries=5):
         if max_retries == 0:
             logger.error(f"Max retries reached for parsing response: {response}")
