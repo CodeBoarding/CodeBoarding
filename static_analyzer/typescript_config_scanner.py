@@ -32,12 +32,6 @@ class TypeScriptConfigScanner:
             for config_path in self.repo_location.rglob(config_file):
                 if config_path.is_file():
                     project_dir = config_path.parent
-                    
-                    # Avoid duplicates (e.g., if both tsconfig.json and jsconfig.json exist)
-                    if project_dir not in seen_dirs:
-                        seen_dirs.add(project_dir)
-                        project_roots.append(project_dir)
-                        logger.info(f"Found TypeScript project at: {project_dir.relative_to(self.repo_location)}")
 
         if not project_roots:
             logger.warning(f"No TypeScript configuration files found in {self.repo_location}")
