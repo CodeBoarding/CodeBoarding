@@ -33,6 +33,10 @@ class TypeScriptConfigScanner:
                 if config_path.is_file():
                     project_dir = config_path.parent
 
+                    if project_dir not in seen_dirs:
+                       seen_dirs.add(project_dir)
+                       project_roots.append(project_dir)
+
         if not project_roots:
             logger.warning(f"No TypeScript configuration files found in {self.repo_location}")
         else:
