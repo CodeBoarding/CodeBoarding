@@ -32,7 +32,8 @@ class TypeScriptConfigScanner:
             for config_path in self.repo_location.rglob(config_file):
                 if config_path.is_file():
                     project_dir = config_path.parent
-
+                    
+                    # Avoid duplicates (e.g., if both tsconfig.json and jsconfig.json exist)
                     if project_dir not in seen_dirs:
                        seen_dirs.add(project_dir)
                        project_roots.append(project_dir)
