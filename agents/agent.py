@@ -140,7 +140,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
-        assert isinstance(response, str), f"Expected a string as reps type got {response}"
+        assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
     
     def _parse_response(self, prompt, response, return_type, max_retries=5):
