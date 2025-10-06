@@ -8,10 +8,11 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
     ComponentFiles, Component
 from agents.prompts import (
-    get_cfg_message, get_source_message, get_system_message, 
+    get_cfg_message, get_source_message, get_system_message,
     get_conclusive_analysis_message, get_feedback_message, get_classification_message
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from networkx.algorithms import community
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ class AbstractionAgent(CodeBoardingAgent):
 
         self.prompts = {
             "cfg": PromptTemplate(template=get_cfg_message(),
-                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
+                                  input_variables=["project_name", "clusters", "cfg_str", "meta_context",
+                                                   "project_type"]),
             "source": PromptTemplate(template=get_source_message(),
                                      input_variables=["insight_so_far", "meta_context", "project_type"]),
             "final_analysis": PromptTemplate(template=get_conclusive_analysis_message(),
@@ -43,10 +45,24 @@ class AbstractionAgent(CodeBoardingAgent):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        graph_x = self.static_analysis.get_cfg("Python").to_networkx()
+        communities = community.greedy_modularity_communities(graph_x)
+        communities_str = ""
+        # here we should do top 10 or the ones that have more than 10 nodes
+        for i, c in enumerate(communities):
+            if len(c) <= 10 or i >= 10:
+                break
+            communities_str += f"Cluster {i + 1}: {sorted(c)}\n"
+            communities_str += "\n"
+        if len(communities_str) == 0:
+            communities_str = "No significant clusters found.\n"
+        logger.info("[AbstractionAgent] Detected clusters in CFG: " + str(len(
+            [c for c in communities if len(c) > 10])) + " clusters")
 
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
             cfg_str=self.read_cfg_tool._run(),
+            clusters=communities_str,
             meta_context=meta_context_str,
             project_type=project_type
         )

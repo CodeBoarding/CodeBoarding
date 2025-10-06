@@ -67,6 +67,17 @@ class CallGraph:
         # Update the destination node's calling methods
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
+    def to_networkx(self):
+        import networkx as nx
+
+        nx_graph = nx.DiGraph()
+        for node in self.nodes.values():
+            nx_graph.add_node(node.fully_qualified_name, file_path=node.file_path,
+                              line_start=node.line_start, line_end=node.line_end, type=node.type)
+        for edge in self.edges:
+            nx_graph.add_edge(edge.get_source(), edge.get_destination())
+        return nx_graph
+
     def __str__(self):
         result = f"Control flow graph with {len(self.nodes)} nodes and {len(self.edges)} edges\n"
         for _, node in self.nodes.items():

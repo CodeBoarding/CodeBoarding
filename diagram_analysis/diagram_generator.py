@@ -15,9 +15,7 @@ from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
-from static_analyzer import create_clients
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.scanner import ProjectScanner
+from static_analyzer.static_analyzer import StaticAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +77,7 @@ class DiagramGenerator:
             return None, []
 
     def pre_analysis(self):
-        static_analysis = self.generate_static_analysis()
+        static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
         self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
                                     static_analysis=static_analysis)
@@ -159,9 +157,11 @@ class DiagramGenerator:
                 }
 
                 # Use tqdm for a progress bar
-                for future in tqdm(as_completed(future_to_component),
-                                   total=len(future_to_component),
-                                   desc=f"Level {level}"):
+                for future in tqdm(
+                        as_completed(future_to_component),
+                        total=len(future_to_component),
+                        desc=f"Level {level}",
+                ):
                     component = future_to_component[future]
                     try:
                         result_path, new_components = future.result()
@@ -170,7 +170,9 @@ class DiagramGenerator:
                         if new_components:
                             next_level_components.extend(new_components)
                     except Exception as exc:
-                        logging.error(f"Component {component.name} generated an exception: {exc}")
+                        logging.error(
+                            f"Component {component.name} generated an exception: {exc}"
+                        )
 
             logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
             current_level_components = next_level_components
@@ -178,23 +180,3 @@ class DiagramGenerator:
         logger.info(f"Analysis complete. Generated {len(files)} analysis files")
         print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         return files
-
-    def generate_static_analysis(self):
-        results = StaticAnalysisResults()
-
-        scanner = ProjectScanner(self.repo_location)
-        programming_langs = scanner.scan()
-        clients = create_clients(programming_langs, self.repo_location)
-        for client in clients:
-            logger.info(f"Starting static analysis for {client.language.language} in {self.repo_location}")
-            client.start()
-
-            analysis = client.build_static_analysis()
-
-            results.add_references(client.language.language, analysis.get('references', []))
-            results.add_cfg(client.language.language, analysis.get('call_graph', []))
-            results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
-            results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
-            results.add_source_files(client.language.language, analysis.get('source_files', []))
-
-        return results
