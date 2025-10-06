@@ -21,7 +21,7 @@ class PromptType(Enum):
 class LLMType(Enum):
     """Enum for different LLM types."""
     GEMINI_FLASH = "gemini_flash"
-    CLAUDE = "claude"
+    CLAUDE_SONNET = "claude_sonnet"
     # Future LLM types can be added here
     # GPT4 = "gpt4"
 

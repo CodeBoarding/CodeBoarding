@@ -123,7 +123,7 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 if __name__ == "__main__":
     # Initialize the prompt factory for demo.py to use bidirectional prompts
-    initialize_global_factory(LLMType.CLAUDE, PromptType.BIDIRECTIONAL)
+    initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
     
     parser = argparse.ArgumentParser(
         description="Generate onboarding documentation for Git repositories",
