@@ -251,10 +251,10 @@ class LSPClient:
                 if not identifier or identifier[0].isdigit():
                     continue
 
-                python_keywords = {'if', 'for', 'while', 'def', 'class', 'return', 'yield',
-                                   'import', 'from', 'as', 'with', 'try', 'except', 'finally',
-                                   'raise', 'assert', 'lambda', 'pass', 'break', 'continue'}
-                if identifier in python_keywords:
+                keywords = {'if', 'for', 'while', 'def', 'class', 'return', 'yield',
+                            'import', 'from', 'as', 'with', 'try', 'except', 'finally',
+                            'raise', 'assert', 'lambda', 'pass', 'break', 'continue'}
+                if identifier in keywords:
                     continue
 
                 call_positions.append({
@@ -369,7 +369,7 @@ class LSPClient:
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
-        max_workers = 200  # max(1, os.cpu_count() - 1)  # Use the number of cores but reserve one
+        max_workers = max(1, os.cpu_count() - 1)  # Use the number of cores but reserve one
         successful_results = []
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
