@@ -1,6 +1,7 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
-![Support TypeScript 3 Projects](https://img.shields.io/badge/supports-TypeScript.x-blue.svg)
+![Supports Go 3 Projects](https://img.shields.io/badge/supports-Go-blue.svg)
+![Supports TypeScript 3 Projects](https://img.shields.io/badge/supports-TypeScript.x-blue.svg)
 ![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Site: CodeBoarding.org](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2)](https://codeboarding.org)

@@ -35,6 +35,7 @@ class LLMBaseModel(BaseModel, abc.ABC):
 
 
 class SourceCodeReference(LLMBaseModel):
+    """Reference to a specific source code element such as a class or method."""
     qualified_name: str = Field(
         description="Qualified name of the source code, e.g., `langchain.tools.tool` or `langchain_core.output_parsers.JsonOutputParser` or `langchain_core.output_parsers.JsonOutputParser:parse`."
     )
@@ -68,6 +69,7 @@ class SourceCodeReference(LLMBaseModel):
 
 
 class Relation(LLMBaseModel):
+    """Structured representation of a relationship between two components"""
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
@@ -77,6 +79,7 @@ class Relation(LLMBaseModel):
 
 
 class Component(LLMBaseModel):
+    """Structured representation of an abstract component derived from the static analysis"""
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
     referenced_source_code: List[SourceCodeReference] = Field(
@@ -99,6 +102,7 @@ class Component(LLMBaseModel):
 
 
 class AnalysisInsights(LLMBaseModel):
+    """Structured representation of insights derived from the static analysis"""
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.")
     components: List[Component] = Field(
@@ -117,6 +121,7 @@ class AnalysisInsights(LLMBaseModel):
 
 
 class CFGComponent(LLMBaseModel):
+    """Structured representation of an abstract component derived from the CFG analysis"""
     name: str = Field(description="Name of the abstract component")
     description: str = Field(description="One paragraph explaining the component.")
     referenced_source: List[str] = Field(
@@ -134,6 +139,7 @@ class CFGComponent(LLMBaseModel):
 
 
 class CFGAnalysisInsights(LLMBaseModel):
+    """Structured representation of insights derived from the CFG analysis"""
     components: List[CFGComponent] = Field(description="List of components identified in the CFG.")
     components_relations: List[Relation] = Field(
         description="List of relations among the components in the CFG."
@@ -149,6 +155,7 @@ class CFGAnalysisInsights(LLMBaseModel):
 
 
 class ExpandComponent(LLMBaseModel):
+    """Structured representation of whether to expand a component or not"""
     should_expand: bool = Field(description="Whether the component should be expanded in detail or not.")
     reason: str = Field(description="Reasoning behind the decision to expand or not.")
 
@@ -157,6 +164,7 @@ class ExpandComponent(LLMBaseModel):
 
 
 class ValidationInsights(LLMBaseModel):
+    """Structured representation of feedback on the analysis"""
     is_valid: bool = Field(
         description="Indicates whether the validation results in valid or not."
     )
@@ -169,6 +177,7 @@ class ValidationInsights(LLMBaseModel):
 
 
 class UpdateAnalysis(LLMBaseModel):
+    """Structured representation of feedback to update an analysis"""
     update_degree: int = Field(
         description="Degree to which the diagram needs update. 0 means no update, 10 means complete update."
     )
@@ -179,6 +188,7 @@ class UpdateAnalysis(LLMBaseModel):
 
 
 class MetaAnalysisInsights(LLMBaseModel):
+    """Structured representation of project metadata analysis"""
     project_type: str = Field(
         description="Type/category of the project (e.g., web framework, data processing, ML library, etc.)")
     domain: str = Field(
@@ -203,6 +213,7 @@ class MetaAnalysisInsights(LLMBaseModel):
 
 
 class FileClassification(LLMBaseModel):
+    """Classification of a file to a component."""
     component_name: str = Field(description="Name of the component or module")
     file_path: str = Field(description="Path to the file")
 
@@ -211,6 +222,7 @@ class FileClassification(LLMBaseModel):
 
 
 class ComponentFiles(LLMBaseModel):
+    """Files classified to components."""
     file_paths: List[FileClassification] = Field(
         description="All files with their classifications for each of the files assigned to a component.")
 
@@ -223,6 +235,7 @@ class ComponentFiles(LLMBaseModel):
 
 
 class FilePath(LLMBaseModel):
+    """Reference to a specific file and optionally line numbers within that file."""
     file_path: str = Field(description="Full file path for the reference")
     start_line: Optional[int] = Field(
         default=None, description="Starting line number in the file for the reference (if applicable).")

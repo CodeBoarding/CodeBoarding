@@ -1,9 +1,9 @@
 {
-  "description": "The CodeBoarding system operates with an `API Service` as its entry point, handling user requests and initiating code analysis jobs. These jobs are managed by an `Orchestration Engine` which coordinates the entire workflow, from fetching code via the `Repository Manager` to executing the `Analysis Pipeline` (encompassing static analysis and AI interpretation). The `Job Database` maintains the state and metadata of all ongoing and completed jobs. Once the analysis is complete, the `Output Generation Engine` formats the results into user-consumable documentation and visualizations, which are then retrieved by the `API Service`. A `Configuration & Utilities` component provides essential services and settings across the entire system, ensuring consistent operation and reusability. This architecture supports an asynchronous, pipeline-driven approach to code documentation and analysis.",
+  "description": "The system is built around a `FastAPI Application` that serves as the central entry point for all client interactions. It exposes various API endpoints, including those for general job management and specialized `GitHub Action Endpoints`. The `FastAPI Application` delegates the creation of new documentation generation jobs to the `Job Creator`, which initializes job records and interacts with the `Job Database Interface` for persistent storage. The `Job Status Manager` is crucial for tracking the lifecycle of each job, with updates and retrievals facilitated through the `Job Database Interface`. The core logic for processing documentation generation is encapsulated within the `Job Processor`, an asynchronous component that orchestrates the entire pipeline, from repository cloning to content generation, and reports its progress and results back via the `Job Status Manager` and `Job Database Interface`. The `GitHub Action Endpoints` specifically leverage the `Job Creator` and `Job Processor` to automate documentation generation within GitHub workflows and retrieve job statuses from the `Job Database Interface`.",
   "components": [
     {
-      "name": "API Service",
-      "description": "The API Service acts as the primary external interface for CodeBoarding, responsible for receiving and processing user requests related to code analysis and visualization. It handles the initiation of new analysis jobs, provides mechanisms for users to retrieve the status of ongoing jobs, and serves the final analysis results, including generated documentation and visualizations. Furthermore, it integrates with external systems like GitHub Actions to trigger automated documentation generation workflows. This component is crucial for orchestrating the interaction between users and the backend analysis pipeline, aligning with the project's pipeline/event-driven and producer-consumer architectural patterns.",
+      "name": "FastAPI Application",
+      "description": "The core web server, responsible for defining and managing API endpoints, handling incoming HTTP requests, and routing them to appropriate handlers for job initiation, status retrieval, and external integrations. It serves as the primary entry point for all client interactions.",
       "referenced_source_code": [
         {
           "qualified_name": "local_app.app",
@@ -18,11 +18,79 @@
       "can_expand": true
     },
     {
-      "name": "Job Database",
-      "description": "Manages the state and metadata of all analysis jobs, including their status, progress, and associated results. It acts as a central ledger for asynchronous operations, ensuring persistence and traceability of analysis tasks.",
+      "name": "Job Creator",
+      "description": "Responsible for initializing new documentation generation job records. It assigns unique identifiers and sets the initial status (e.g., PENDING) for each new job, preparing it for processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "duckdb_crud",
+          "qualified_name": "local_app.make_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Job Status Manager",
+      "description": "Defines and manages the lifecycle states of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED). It provides a consistent mechanism for updating and retrieving the current status of any job within the system.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "local_app.JobStatus",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.update_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.fetch_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Job Database Interface",
+      "description": "Provides an abstraction layer for persistent storage and retrieval of job-related data. It encapsulates CRUD (Create, Read, Update, Delete) operations for job records, ensuring data integrity and accessibility across the API service.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "duckdb_crud.init_db",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.insert_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.fetch_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.update_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.fetch_all_jobs",
           "reference_file": "duckdb_crud.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -32,8 +100,8 @@
       "can_expand": false
     },
     {
-      "name": "Orchestration Engine",
-      "description": "Coordinates the execution of analysis tasks, managing the flow of data and control between different engines. It's responsible for task scheduling, dependency management, and overall workflow execution, embodying the pipeline/event-driven architecture.",
+      "name": "Job Processor",
+      "description": "An asynchronous component that orchestrates the end-to-end documentation generation pipeline for a single job. It handles repository cloning, invokes the core analysis and generation logic, and manages the processing results, updating job status throughout its execution.",
       "referenced_source_code": [
         {
           "qualified_name": "local_app.generate_onboarding",
@@ -48,39 +116,17 @@
       "can_expand": true
     },
     {
-      "name": "Repository Manager",
-      "description": "Handles interactions with code repositories (e.g., GitHub), including cloning, fetching, and managing local copies of the source code to be analyzed. It ensures the analysis engines have access to the correct code versions.",
+      "name": "GitHub Action Endpoints",
+      "description": "A specialized set of API endpoints within the FastAPI Application designed for seamless integration with GitHub Actions workflows. These endpoints facilitate automated job initiation and status monitoring specifically for GitHub-driven documentation generation requests.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils",
-          "reference_file": "repo_utils",
+          "qualified_name": "local_app.start_docs_generation_job",
+          "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Analysis Pipeline",
-      "description": "This component encapsulates the core logic for static analysis and AI-driven interpretation of the codebase. It takes the raw source code, extracts structural information, and then uses AI models to generate insights, summaries, and initial documentation drafts.",
-      "referenced_source_code": [
+        },
         {
-          "qualified_name": "demo.generate_docs_remote",
-          "reference_file": "demo.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Output Generation Engine",
-      "description": "Responsible for formatting and generating the final outputs, such as documentation (e.g., Markdown, HTML), visualizations (e.g., Mermaid.js diagrams), and structured data. It transforms processed information into user-consumable formats.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "local_app.generate_onboarding",
+          "qualified_name": "local_app.get_github_action_job_status",
           "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -89,20 +135,6 @@
       "assigned_files": [
         "../../local_app.py"
       ],
-      "can_expand": false
-    },
-    {
-      "name": "Configuration & Utilities",
-      "description": "Provides common utilities, configuration management, and helper functions used across various components. This component ensures consistency and reusability of common functionalities.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "utils",
-          "reference_file": "utils.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -115,59 +147,59 @@
   ],
   "components_relations": [
     {
-      "relation": "initiates jobs in",
-      "src_name": "API Service",
-      "dst_name": "Orchestration Engine"
+      "relation": "initiates",
+      "src_name": "FastAPI Application",
+      "dst_name": "Job Processor"
     },
     {
-      "relation": "queries job status from",
-      "src_name": "API Service",
-      "dst_name": "Job Database"
+      "relation": "delegates job creation to",
+      "src_name": "FastAPI Application",
+      "dst_name": "Job Creator"
     },
     {
-      "relation": "updates job information in",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Job Database"
+      "relation": "interacts with",
+      "src_name": "FastAPI Application",
+      "dst_name": "Job Database Interface"
     },
     {
-      "relation": "manages repository via",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Repository Manager"
+      "relation": "utilizes",
+      "src_name": "FastAPI Application",
+      "dst_name": "Job Status Manager"
     },
     {
-      "relation": "executes analysis with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Analysis Pipeline"
+      "relation": "uses",
+      "src_name": "Job Creator",
+      "dst_name": "Job Status Manager"
     },
     {
-      "relation": "processes results from",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Output Generation Engine"
+      "relation": "creates entries in",
+      "src_name": "Job Creator",
+      "dst_name": "Job Database Interface"
     },
     {
-      "relation": "provides source code to",
-      "src_name": "Repository Manager",
-      "dst_name": "Analysis Pipeline"
+      "relation": "communicates with to update",
+      "src_name": "Job Processor",
+      "dst_name": "Job Database Interface"
     },
     {
-      "relation": "generates raw analysis data for",
-      "src_name": "Analysis Pipeline",
-      "dst_name": "Output Generation Engine"
+      "relation": "uses to report progress to",
+      "src_name": "Job Processor",
+      "dst_name": "Job Status Manager"
     },
     {
-      "relation": "provides final results to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "API Service"
+      "relation": "uses to initiate jobs",
+      "src_name": "GitHub Action Endpoints",
+      "dst_name": "Job Creator"
     },
     {
-      "relation": "provides settings to",
-      "src_name": "Configuration & Utilities",
-      "dst_name": "all components"
+      "relation": "triggers",
+      "src_name": "GitHub Action Endpoints",
+      "dst_name": "Job Processor"
     },
     {
-      "relation": "offers utility functions to",
-      "src_name": "Configuration & Utilities",
-      "dst_name": "all components"
+      "relation": "interacts with to retrieve status",
+      "src_name": "GitHub Action Endpoints",
+      "dst_name": "Job Database Interface"
     }
   ]
 }

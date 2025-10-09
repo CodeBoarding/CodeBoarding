@@ -1,5 +1,5 @@
 {
-  "description": "The core of the system is the `Orchestration Engine`, which centrally manages the documentation generation pipeline. It begins by managing the `ProjectScanner` to collect raw static analysis data, which is then stored in `StaticAnalysisResults`. The `Orchestration Engine` then iteratively orchestrates a suite of specialized AI agents—`MetaAgent`, `AbstractionAgent`, `DetailsAgent`, `PlannerAgent`, and `ValidatorAgent`—exchanging data with them to progressively refine the architectural understanding. This iterative process, driven by the `Orchestration Engine`, ensures comprehensive analysis, from initial metadata gathering and high-level abstraction to detailed component examination, workflow planning, and final validation, culminating in accurate and consistent architectural documentation.",
+  "description": "The system operates around an Orchestration Engine that manages the entire documentation generation pipeline. It initiates the process by leveraging the Project Scanner to gather static analysis data, which is then stored in Static Analysis Results. The Orchestration Engine then coordinates a suite of AI Agents, each with specialized roles, to analyze this data. These agents utilize a sophisticated Prompt Factory to construct dynamic prompts for the LLM, enabling both \"bidirectional\" and \"unidirectional\" communication patterns. Agent responses are processed by the Agent Response Processor before being fed back to the Orchestration Engine for further coordination, feedback application, and final result saving. This architecture emphasizes a modular, agent-based approach with a highly adaptable prompting mechanism for intelligent code analysis and documentation generation.",
   "components": [
     {
       "name": "Orchestration Engine",
@@ -11,102 +11,28 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/analysis_json.py",
-        "../../diagram_analysis/diagram_generator.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
-      "name": "MetaAgent",
-      "description": "An AI agent responsible for performing initial project metadata analysis, providing foundational context for subsequent analysis stages.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "meta_agent",
-          "reference_file": "agents/meta_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/version.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "AbstractionAgent",
-      "description": "An AI agent that generates high-level architectural abstractions from the analyzed code, identifying major components and their relationships.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "abstraction_agent",
-          "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "DetailsAgent",
-      "description": "An AI agent that provides detailed analysis of individual components, delving into their responsibilities, internal structure, and specific interactions.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "details_agent",
-          "reference_file": "agents/details_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "PlannerAgent",
-      "description": "An AI agent that plans the next set of components to analyze, optimizing the analysis workflow based on dependencies and previous results.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "planner_agent",
-          "reference_file": "agents/planner_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "ValidatorAgent",
-      "description": "An AI agent that validates the generated analysis and provides feedback, ensuring accuracy and consistency of the documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "validator_agent",
-          "reference_file": "agents/validator_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "ProjectScanner",
-      "description": "A component responsible for initiating and collecting static analysis data from the codebase, serving as the primary input for the analysis pipeline.",
+      "name": "Project Scanner",
+      "description": "A component responsible for initiating and collecting static analysis data from the codebase, including specialized scanning for TypeScript configurations, serving as the primary input for the analysis pipeline.",
       "referenced_source_code": [
         {
           "qualified_name": "scanner",
           "reference_file": "static_analyzer/scanner.py",
           "reference_start_line": null,
           "reference_end_line": null
+        },
+        {
+          "qualified_name": "typescript_config_scanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
-      "name": "StaticAnalysisResults",
+      "name": "Static Analysis Results",
       "description": "A data structure that holds the comprehensive results of static analysis, making this information accessible to the Orchestration Engine and AI agents.",
       "referenced_source_code": [
         {
@@ -115,83 +41,146 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
+    },
+    {
+      "name": "AI Agents",
+      "description": "A collective component representing all specialized AI agents (MetaAgent, AbstractionAgent, DetailsAgent, PlannerAgent, ValidatorAgent) responsible for various stages of code analysis and documentation generation. These agents now incorporate advanced prompting strategies for more complex reasoning.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "meta_agent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "abstraction_agent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "details_agent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "planner_agent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "validator_agent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Prompt Factory",
+      "description": "Responsible for dynamically constructing and managing prompts for the LLM, supporting both \"bidirectional\" and \"unidirectional\" communication patterns, enabling sophisticated reasoning and interaction strategies for the AI Agents.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "prompt_factory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 37,
+          "reference_end_line": 53
+        },
+        {
+          "qualified_name": "claude_prompts_bidirectional",
+          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "claude_prompts_unidirectional",
+          "reference_file": "agents/prompts/claude_prompts_unidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Agent Response Processor",
+      "description": "Handles the parsing, validation, and structuring of responses received from the LLM, ensuring that the output is correctly interpreted and formatted for subsequent processing by the Orchestration Engine and other AI Agents.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agent_responses",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
     {
       "relation": "orchestrates",
       "src_name": "Orchestration Engine",
-      "dst_name": "MetaAgent"
-    },
-    {
-      "relation": "exchanges data with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "MetaAgent"
-    },
-    {
-      "relation": "orchestrates",
-      "src_name": "Orchestration Engine",
-      "dst_name": "AbstractionAgent"
-    },
-    {
-      "relation": "exchanges data with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "AbstractionAgent"
-    },
-    {
-      "relation": "orchestrates",
-      "src_name": "Orchestration Engine",
-      "dst_name": "DetailsAgent"
-    },
-    {
-      "relation": "exchanges data with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "DetailsAgent"
-    },
-    {
-      "relation": "orchestrates",
-      "src_name": "Orchestration Engine",
-      "dst_name": "PlannerAgent"
-    },
-    {
-      "relation": "exchanges data with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "PlannerAgent"
-    },
-    {
-      "relation": "orchestrates",
-      "src_name": "Orchestration Engine",
-      "dst_name": "ValidatorAgent"
-    },
-    {
-      "relation": "exchanges data with",
-      "src_name": "Orchestration Engine",
-      "dst_name": "ValidatorAgent"
-    },
-    {
-      "relation": "manages",
-      "src_name": "Orchestration Engine",
-      "dst_name": "ProjectScanner"
+      "dst_name": "Project Scanner"
     },
     {
       "relation": "produces",
-      "src_name": "ProjectScanner",
-      "dst_name": "StaticAnalysisResults"
+      "src_name": "Project Scanner",
+      "dst_name": "Static Analysis Results"
     },
     {
-      "relation": "is used by",
-      "src_name": "StaticAnalysisResults",
+      "relation": "consumes",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Static Analysis Results"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AI Agents"
+    },
+    {
+      "relation": "exchanges data with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AI Agents"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "AI Agents",
+      "dst_name": "Prompt Factory"
+    },
+    {
+      "relation": "generates prompts for",
+      "src_name": "Prompt Factory",
+      "dst_name": "AI Agents"
+    },
+    {
+      "relation": "sends responses to",
+      "src_name": "AI Agents",
+      "dst_name": "Agent Response Processor"
+    },
+    {
+      "relation": "processes responses for",
+      "src_name": "Agent Response Processor",
       "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "consumes",
+      "src_name": "AI Agents",
+      "dst_name": "Static Analysis Results"
+    },
+    {
+      "relation": "provides prompts to",
+      "src_name": "Prompt Factory",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "provides processed data to",
+      "src_name": "Agent Response Processor",
+      "dst_name": "AI Agents"
     }
   ]
 }
