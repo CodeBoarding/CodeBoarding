@@ -69,10 +69,10 @@ class ExternalDepsTool(BaseTool):
                 found_files.append(file_path)
 
         # Also search for requirements files in common subdirectories
-        for subdir in ["requirements", "deps", "dependencies", "env"]:
-            subdir_path = self.repo_dir / subdir
+        for subdir in ("requirements", "deps", "dependencies", "env"):
+            subdir_path = Path(self.repo_dir, subdir)
             if subdir_path.exists() and subdir_path.is_dir():
-                for pattern in ["*.txt", "*.yml", "*.yaml", "*.toml"]:
+                for pattern in ("*.txt", "*.yml", "*.yaml", "*.toml"):
                     for file_path in subdir_path.glob(pattern):
                         if file_path.is_file():
                             found_files.append(file_path)

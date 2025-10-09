@@ -41,7 +41,7 @@ class ReadDocsTool(BaseTool):
         """
         Walk the directory and collect all markdown files.
         """
-        for pattern in ['*.md', '*.rst', '*.txt', '*.html']:
+        for pattern in ("*.md", "*.rst", "*.txt", "*.html"):
             for path in root_project_dir.rglob(pattern):
                 # Exclude test files and directories
                 if "tests" not in path.parts and "test" not in path.name.lower():
@@ -69,7 +69,7 @@ class ReadDocsTool(BaseTool):
                 available_files = [str(f.relative_to(self.repo_dir)) for f in self.cached_files]
                 if not available_files:
                     return "No documentation files found in this repository."
-                return f"README not found. Available documentation files:\n\n" + "\n".join(
+                return "README not found. Available documentation files:\n\n" + "\n".join(
                     f"- {f}" for f in available_files)
 
             files_str = '\n'.join([str(f.relative_to(self.repo_dir)) for f in self.cached_files])
@@ -128,7 +128,7 @@ class ReadDocsTool(BaseTool):
 
         if other_files:
             relative_files = [str(f.relative_to(self.repo_dir)) for f in other_files]
-            result += f"\n\n--- Other Available Documentation Files ---\n"
+            result += "\n\n--- Other Available Documentation Files ---\n"
             result += "\n".join(f"- {f}" for f in relative_files)
 
         return result
@@ -142,4 +142,5 @@ class ReadDocsTool(BaseTool):
         for i in range(len(full) - len(sub) + 1):
             if full[i:i + len(sub)] == sub:
                 return True
+        
         return False

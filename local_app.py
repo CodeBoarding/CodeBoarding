@@ -2,14 +2,12 @@ import dotenv
 
 from demo import generate_docs_remote
 
-dotenv.load_dotenv()
-
 import logging
 import os
 import uuid
 import asyncio
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from urllib.parse import urlparse
@@ -23,6 +21,10 @@ from duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jo
 from github_action import generate_analysis
 from repo_utils import RepoDontExistError
 from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
+
+
+dotenv.load_dotenv()
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -76,7 +78,7 @@ def extract_repo_name(repo_url: str) -> str:
 # -- Job Creation & Processing --
 def make_job(repo_url: str) -> dict:
     job_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return {
         "id": job_id,
         "repo_url": repo_url,
@@ -90,7 +92,7 @@ def make_job(repo_url: str) -> dict:
 
 
 async def generate_onboarding(job_id: str):
-    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.utcnow())
+    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.now(timezone.utc))
     try:
         async with job_semaphore:
             temp_repo_folder = create_temp_repo_folder()
@@ -102,8 +104,8 @@ async def generate_onboarding(job_id: str):
                     raise ValueError("REPO_ROOT environment variable not set")
 
                 # run generation
-                repo_name = extract_repo_name(job["repo_url"])
-                generated_repo_name = await run_in_threadpool(
+                _ = extract_repo_name(job["repo_url"])
+                _ = await run_in_threadpool(
                     generate_docs_remote,
                     repo_url=job["repo_url"],
                     temp_repo_folder=temp_repo_folder,
@@ -158,7 +160,7 @@ async def generate_onboarding(job_id: str):
             finally:
                 remove_temp_repo_folder(str(temp_repo_folder))
     finally:
-        update_job(job_id, finished_at=datetime.utcnow())
+        update_job(job_id, finished_at=datetime.now(timezone.utc))
 
 
 # -- API Endpoints --
@@ -212,8 +214,9 @@ async def get_job(job_id: str):
     if job["status"] == JobStatus.COMPLETED:
         if job.get("result"):
             # Check if result is a JSON string containing files
+            # NOTE: JSON is imported here to avoid unbound usage in exception
+            import json
             try:
-                import json
                 result_data = json.loads(job["result"])
                 if "files" in result_data:
                     response_data["files"] = result_data["files"]
@@ -376,7 +379,7 @@ async def list_jobs():
 async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, output_dir: str,
                                       extension: str):
     """Background task to process documentation generation"""
-    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.utcnow())
+    update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.now(timezone.utc))
 
     temp_repo_folder = create_temp_repo_folder()
     try:
@@ -412,29 +415,29 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
             update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated",
-                       finished_at=datetime.utcnow())
+                       finished_at=datetime.now(timezone.utc))
             return
 
         # Store result as JSON string in the result field
         import json
         result = json.dumps({"files": docs_content})
-        update_job(job_id, status=JobStatus.COMPLETED, result=result, finished_at=datetime.utcnow())
+        update_job(job_id, status=JobStatus.COMPLETED, result=result, finished_at=datetime.now(timezone.utc))
         logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), url, job_id)
 
-    except RepoDontExistError as e:
+    except RepoDontExistError:
         logger.warning("Repo not found or clone failed: %s (job: %s)", url, job_id)
         update_job(job_id, status=JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}",
-                   finished_at=datetime.utcnow())
+                   finished_at=datetime.now(timezone.utc))
 
-    except CFGGenerationError as e:
+    except CFGGenerationError:
         logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
         update_job(job_id, status=JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂",
-                   finished_at=datetime.utcnow())
+            finished_at=datetime.now(timezone.utc))
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)
-        update_job(job_id, status=JobStatus.FAILED, error="Internal server error", finished_at=datetime.utcnow())
+        update_job(job_id, status=JobStatus.FAILED, error="Internal server error", finished_at=datetime.now(timezone.utc))
 
     finally:
         # cleanup temp folder for this run
-        remove_temp_repo_folder(temp_repo_folder)
+        remove_temp_repo_folder(str(temp_repo_folder))

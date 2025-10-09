@@ -36,21 +36,22 @@ class PromptFactory:
     
     def _create_prompt_factory(self) -> AbstractPromptFactory:
         """Create the appropriate prompt factory based on LLM type and prompt type."""
-        if self.llm_type == LLMType.GEMINI_FLASH:
-            if self.prompt_type == PromptType.BIDIRECTIONAL:
+        match self.llm_type:
+            case LLMType.GEMINI_FLASH:
+                if self.prompt_type == PromptType.BIDIRECTIONAL:
+                    return GeminiFlashBidirectionalPromptFactory()
+                else:
+                    return GeminiFlashUnidirectionalPromptFactory()
+            case LLMType.CLAUDE: #Adding Claude support
+                if self.prompt_type == PromptType.BIDIRECTIONAL:
+                    from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
+                    return ClaudeBidirectionalPromptFactory()
+                else:
+                    from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
+                    return ClaudeUnidirectionalPromptFactory()
+            case _:
+                # Default fallback
                 return GeminiFlashBidirectionalPromptFactory()
-            else:
-                return GeminiFlashUnidirectionalPromptFactory()
-        elif self.llm_type == LLMType.CLAUDE: #Adding Claude support
-            if self.prompt_type == PromptType.BIDIRECTIONAL:
-                from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
-                return ClaudeBidirectionalPromptFactory()
-            else:
-                from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
-                return ClaudeUnidirectionalPromptFactory()
-        else:
-            # Default fallback
-            return GeminiFlashBidirectionalPromptFactory()
     
     def get_prompt(self, prompt_name: str) -> str:
         """Get a specific prompt by name."""
