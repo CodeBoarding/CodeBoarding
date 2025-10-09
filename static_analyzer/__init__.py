@@ -2,9 +2,11 @@ import logging
 from pathlib import Path
 from typing import List
 
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
 
@@ -23,3 +25,26 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
         except RuntimeError as e:
             logger.error(f"Failed to create LSP client for {pl.language}: {e}")
     return clients
+
+
+class StaticAnalyzer:
+    def __init__(self, repository_path: Path):
+        self.repository_path = repository_path
+        programming_langs = ProjectScanner(repository_path).scan()
+        self.clients = create_clients(programming_langs, repository_path)
+
+    def analyze(self):
+        results = StaticAnalysisResults()
+        for client in self.clients:
+            logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
+            client.start()
+
+            analysis = client.build_static_analysis()
+
+            results.add_references(client.language.language, analysis.get('references', []))
+            results.add_cfg(client.language.language, analysis.get('call_graph', []))
+            results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
+            results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
+            results.add_source_files(client.language.language, analysis.get('source_files', []))
+
+        return results

@@ -15,7 +15,7 @@ from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
-from static_analyzer.static_analyzer import StaticAnalyzer
+from static_analyzer import StaticAnalyzer
 
 logger = logging.getLogger(__name__)
 
