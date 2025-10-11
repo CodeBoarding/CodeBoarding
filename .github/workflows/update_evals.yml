@@ -3,12 +3,10 @@ name: Update Evals and Publish
 on:
   push:
     branches: [ test-evals ]
-  workflow_dispatch: # allows manual trigger too
+  workflow_dispatch:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   update-evals:
@@ -17,24 +15,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        # keep default credentials so git push works
+        # with:
+        #   persist-credentials: false
+
+      - name: Use HTTPS for GitHub instead of SSH
+        # Redirect git@github.com:OWNER/REPO.git → https://github.com/OWNER/REPO.git
+        run: git config --global url."https://github.com/".insteadOf git@github.com:
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-# he
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          uv --version
 
       - name: Sync deps (uv)
         run: uv sync --frozen
 
       - name: Run setup/evals
-        # Prefer uv run so you don't have to activate .venv manually
         run: |
           mkdir -p docs
           uv run python setup.py
