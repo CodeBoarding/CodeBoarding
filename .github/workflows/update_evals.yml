@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+# he
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -41,8 +41,7 @@ jobs:
 
       - name: Run evals and update eval.json
         run: |
-          mkdir -p docs
-          python run_evals.py --output-json docs/eval.json
+          python evals/static_analysis_eval.py --output-json docs/eval.json
 
       - name: Commit eval.json if changed
         run: |
