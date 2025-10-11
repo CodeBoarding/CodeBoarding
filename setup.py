@@ -145,7 +145,7 @@ def download_binary_from_gdrive():
     }
 
     system = platform.system()
-    match platform.system():
+    match system:
         case "Darwin":
             file_ids = mac_files
         case "Windows":
