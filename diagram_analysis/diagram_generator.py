@@ -1,6 +1,7 @@
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Dict, Any, List
 
 from tqdm import tqdm
 
@@ -18,6 +19,13 @@ from repo_utils import get_git_commit_hash
 from static_analyzer import create_clients
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
+
+# Import enhanced utilities
+from performance_monitor import DiagramGenerationPerformanceMonitor, performance_timer, performance_monitor
+from error_handler import (
+    DiagramGenerationErrorHandler, DiagramGenerationError, 
+    handle_error, error_handler, safe_execute
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,66 +45,196 @@ class DiagramGenerator:
         self.meta_agent = None
         self.meta_context = None
         self.depth_level = depth_level
+        
+        # Initialize enhanced utilities
+        self.performance_monitor = DiagramGenerationPerformanceMonitor()
+        self.error_handler = DiagramGenerationErrorHandler()
+        self.component_stats: Dict[str, Dict[str, Any]] = {}
+        self.agent_stats: Dict[str, Dict[str, Any]] = {}
 
+    @error_handler(severity="error", recoverable=True)
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
-        try:
-            # Now before we try doing anything, we need to check if the component already exists:
-            update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
-            if update_analysis.update_degree < 4:  # No need to update
-                logging.info(f"Component {component.name} does not require update, skipping analysis.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                safe_name = sanitize(component.name)
+        component_name = getattr(component, 'name', 'unknown')
+        
+        with performance_timer(f"component_analysis_{component_name}") as monitor:
+            try:
+                # Track component analysis start
+                self.performance_monitor.track_component_analysis(component_name)
+                
+                # Now before we try doing anything, we need to check if the component already exists:
+                update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
+                if update_analysis.update_degree < 4:  # No need to update
+                    logging.info(f"Component {component_name} does not require update, skipping analysis.")
+                    analysis = self.diff_analyzer_agent.get_component_analysis(component)
+                    safe_name = sanitize(component_name)
+                    output_path = os.path.join(self.output_dir, f"{safe_name}.json")
+
+                    with open(output_path, "w") as f:
+                        f.write(analysis.model_dump_json(indent=2))
+                    
+                    # Track successful completion
+                    duration = self.performance_monitor.complete_component_analysis(component_name, success=True)
+                    self.component_stats[component_name] = {
+                        'status': 'skipped',
+                        'duration': duration,
+                        'update_degree': update_analysis.update_degree
+                    }
+                    
+                    return self.repo_location / ".codeboarding" / f"{sanitize(component_name)}.json", analysis.components
+                elif 4 < update_analysis.update_degree < 8:
+                    logger.info(f"Component {component_name} requires partial update, applying feedback.")
+                    analysis = self.diff_analyzer_agent.get_component_analysis(component)
+                    update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
+                    analysis = self.details_agent.apply_feedback(analysis, update_insight)
+                else:
+                    analysis = self.details_agent.run(component)
+                    feedback = self.validator_agent.run(analysis)
+                    if not feedback.is_valid:
+                        analysis = self.details_agent.apply_feedback(analysis, feedback)
+                
+                # Get new components to analyze
+                new_components = self.planner_agent.plan_analysis(analysis)
+
+                safe_name = sanitize(component_name)
                 output_path = os.path.join(self.output_dir, f"{safe_name}.json")
 
+                # Save the analysis result
+                self.details_agent.classify_files(component, analysis)
                 with open(output_path, "w") as f:
-                    f.write(analysis.model_dump_json(indent=2))
-                return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
-            elif 4 < update_analysis.update_degree < 8:
-                logger.info(f"Component {component.name} requires partial update, applying feedback.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-                analysis = self.details_agent.apply_feedback(analysis, update_insight)
-            else:
-                analysis = self.details_agent.run(component)
-                feedback = self.validator_agent.run(analysis)
-                if not feedback.is_valid:
-                    analysis = self.details_agent.apply_feedback(analysis, feedback)
-            # Get new components to analyze
-            new_components = self.planner_agent.plan_analysis(analysis)
+                    f.write(from_analysis_to_json(analysis, new_components))
 
-            safe_name = sanitize(component.name)
-            output_path = os.path.join(self.output_dir, f"{safe_name}.json")
+                # Track successful completion
+                duration = self.performance_monitor.complete_component_analysis(component_name, success=True)
+                self.component_stats[component_name] = {
+                    'status': 'completed',
+                    'duration': duration,
+                    'update_degree': update_analysis.update_degree,
+                    'new_components_count': len(new_components)
+                }
 
-            # Save the analysis result
-            self.details_agent.classify_files(component, analysis)
-            with open(output_path, "w") as f:
-                f.write(from_analysis_to_json(analysis, new_components))
+                return output_path, new_components
+                
+            except Exception as e:
+                # Track failed completion
+                duration = self.performance_monitor.complete_component_analysis(component_name, success=False)
+                self.component_stats[component_name] = {
+                    'status': 'failed',
+                    'duration': duration,
+                    'error': str(e)
+                }
+                
+                # Handle the error
+                self.error_handler.handle_component_error(component_name, e, {
+                    'operation': 'process_component',
+                    'depth_level': self.depth_level,
+                    'repo_name': self.repo_name
+                })
+                
+                logging.error(f"Error processing component {component_name}: {e}")
+                return None, []
 
-            return output_path, new_components
-        except Exception as e:
-            logging.error(f"Error processing component {component.name}: {e}")
-            return None, []
-
+    @error_handler(severity="error", recoverable=True)
     def pre_analysis(self):
-        static_analysis = self.generate_static_analysis()
+        """Perform pre-analysis setup with enhanced monitoring and error handling"""
+        with performance_timer("pre_analysis") as monitor:
+            try:
+                # Generate static analysis with monitoring
+                static_analysis = self.generate_static_analysis()
 
-        self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                    static_analysis=static_analysis)
-        meta_context = self.meta_agent.analyze_project_metadata()
-        self.details_agent = DetailsAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                          static_analysis=static_analysis, meta_context=meta_context)
-        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                                  static_analysis=static_analysis, meta_context=meta_context)
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self.diff_analyzer_agent = DiffAnalyzingAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
-                                                      project_name=self.repo_name)
+                # Initialize agents with error handling
+                self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
+                                            static_analysis=static_analysis)
+                
+                # Track meta agent operation
+                self.performance_monitor.track_agent_operation("meta_agent", "analyze_project_metadata")
+                meta_context = self.meta_agent.analyze_project_metadata()
+                self.performance_monitor.complete_agent_operation("meta_agent", "analyze_project_metadata", success=True)
+                
+                self.details_agent = DetailsAgent(repo_dir=self.repo_location, project_name=self.repo_name,
+                                              static_analysis=static_analysis, meta_context=meta_context)
+                self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, project_name=self.repo_name,
+                                                          static_analysis=static_analysis, meta_context=meta_context)
+                self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+                self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+                self.diff_analyzer_agent = DiffAnalyzingAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
+                                                          project_name=self.repo_name)
 
-        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
-        with open(version_file, "w") as f:
-            f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
-                            code_boarding_version="0.2.0").model_dump_json(indent=2))
+                # Save version information
+                version_file = os.path.join(self.output_dir, "codeboarding_version.json")
+                with open(version_file, "w") as f:
+                    f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
+                                    code_boarding_version="0.2.0").model_dump_json(indent=2))
+                
+                logger.info("Pre-analysis completed successfully")
+                
+            except Exception as e:
+                # Handle pre-analysis errors
+                self.error_handler.handle_agent_error("pre_analysis", "setup", e, {
+                    'repo_name': self.repo_name,
+                    'depth_level': self.depth_level
+                })
+                raise DiagramGenerationError(f"Pre-analysis failed: {e}", {
+                    'repo_name': self.repo_name,
+                    'depth_level': self.depth_level
+                })
+
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get comprehensive performance statistics"""
+        return {
+            'diagram_generation': self.performance_monitor.get_diagram_stats(),
+            'component_stats': self.component_stats,
+            'agent_stats': self.agent_stats
+        }
+    
+    def get_error_stats(self) -> Dict[str, Any]:
+        """Get comprehensive error statistics"""
+        return self.error_handler.get_diagram_error_stats()
+    
+    def export_performance_metrics(self, filepath: Optional[str] = None) -> str:
+        """Export performance metrics to file"""
+        if filepath is None:
+            filepath = f"{self.repo_name}_performance_metrics.json"
+        
+        stats = self.get_performance_stats()
+        with open(filepath, 'w') as f:
+            import json
+            json.dump(stats, f, indent=2)
+        
+        logger.info(f"Performance metrics exported to {filepath}")
+        return filepath
+    
+    def export_error_log(self, filepath: Optional[str] = None) -> str:
+        """Export error log to file"""
+        if filepath is None:
+            filepath = f"{self.repo_name}_error_log.json"
+        
+        from error_handler import export_error_log
+        return str(export_error_log(filepath))
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get overall health status of the diagram generator"""
+        perf_stats = self.get_performance_stats()
+        error_stats = self.get_error_stats()
+        
+        total_components = len(self.component_stats)
+        successful_components = len([c for c in self.component_stats.values() if c['status'] == 'completed'])
+        failed_components = len([c for c in self.component_stats.values() if c['status'] == 'failed'])
+        
+        health_score = (successful_components / total_components * 100) if total_components > 0 else 0
+        
+        return {
+            'health_score': health_score,
+            'status': 'healthy' if health_score >= 80 else 'degraded' if health_score >= 60 else 'unhealthy',
+            'components': {
+                'total': total_components,
+                'successful': successful_components,
+                'failed': failed_components,
+                'skipped': len([c for c in self.component_stats.values() if c['status'] == 'skipped'])
+            },
+            'performance': perf_stats,
+            'errors': error_stats
+        }
 
     def generate_analysis(self):
         """
