@@ -41,7 +41,7 @@ jobs:
 
       - name: Run evals and update eval.json
         run: |
-          python evals/static_analysis_eval.py --output-json docs/eval.json
+          uv run python evals/static_analysis_eval.py --output-json docs/eval.json
 
       - name: Commit eval.json if changed
         run: |
