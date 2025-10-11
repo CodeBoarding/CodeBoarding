@@ -108,41 +108,17 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
     # Now generated the markdowns:
     match extension:
         case ".md":
-            generate_markdown(
-                analysis_files,
-                repo_name,
-                repo_url,
-                target_branch,
-                temp_repo_folder,
-                output_dir
-            )
+            generate_markdown(analysis_files, repo_name, repo_url,
+                              target_branch, temp_repo_folder, output_dir)
         case ".html":
-            generate_html(
-                analysis_files,
-                repo_name,
-                repo_url,
-                target_branch,
-                temp_repo_folder,
-                output_dir
-            )
+            generate_html(analysis_files, repo_name, repo_url,
+                          target_branch, temp_repo_folder, output_dir)
         case ".mdx":
-            generate_mdx(
-                analysis_files,
-                repo_name,
-                repo_url,
-                target_branch,
-                temp_repo_folder,
-                output_dir
-            )
+            generate_mdx(analysis_files, repo_name, repo_url,
+                         target_branch, temp_repo_folder, output_dir)
         case ".rst":
-            generate_rst(
-                analysis_files,
-                repo_name,
-                repo_url,
-                target_branch,
-                temp_repo_folder,
-                output_dir
-            )
+            generate_rst(analysis_files, repo_name, repo_url,
+                         target_branch, temp_repo_folder, output_dir)
         case _:
             raise ValueError(f"Unsupported extension: {extension}")
 

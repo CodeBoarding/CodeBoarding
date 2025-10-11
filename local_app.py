@@ -5,6 +5,7 @@ from demo import generate_docs_remote
 import logging
 import os
 import uuid
+import json
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
@@ -145,7 +146,6 @@ async def generate_onboarding(job_id: str):
                     return
 
                 # Store result as JSON string in the result field
-                import json
                 result = json.dumps({"files": docs_content})
                 update_job(job_id, result=result, status=JobStatus.COMPLETED)
                 logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), job["repo_url"], job_id)
@@ -215,7 +215,6 @@ async def get_job(job_id: str):
         if job.get("result"):
             # Check if result is a JSON string containing files
             # NOTE: JSON is imported here to avoid unbound usage in exception
-            import json
             try:
                 result_data = json.loads(job["result"])
                 if "files" in result_data:
@@ -419,7 +418,6 @@ async def process_docs_generation_job(job_id: str, url: str, source_branch: str,
             return
 
         # Store result as JSON string in the result field
-        import json
         result = json.dumps({"files": docs_content})
         update_job(job_id, status=JobStatus.COMPLETED, result=result, finished_at=datetime.now(timezone.utc))
         logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), url, job_id)
