@@ -1,15 +1,15 @@
 # CodeBoarding Static Analysis Evaluation Results
 
-**Timestamp:** 2025-10-11T15:47:30.984855
+**Timestamp:** 2025-10-11T15:45:07.325094
 
-**Total Evaluation Time:** 124.96 seconds
+**Total Evaluation Time:** 102.99 seconds
 
 ## Summary
 
 | Project | Language | Status | Time (s) |
 |---------|----------|--------|----------|
-| markitdown | Python | ✅ Success | 14.42 |
-| tsoa | TypeScript | ✅ Success | 110.55 |
+| markitdown | Python | ✅ Success | 10.67 |
+| tsoa | TypeScript | ✅ Success | 92.32 |
 
 ## Detailed Results
 
@@ -17,31 +17,31 @@
 
 - **URL:** https://github.com/microsoft/markitdown
 - **Expected Language:** Python
-- **Total Time:** 14.42s
+- **Total Time:** 10.67s
 - **Status:** ✅ Success
 
 #### Performance Metrics
 
 | Language | Time (s) | Files | Errors |
 |----------|----------|-------|--------|
-| Python | 13.86 | 43 | 0 |
+| Python | 8.80 | 43 | 0 |
 
 ### tsoa
 
 - **URL:** https://github.com/lukeautry/tsoa
 - **Expected Language:** TypeScript
-- **Total Time:** 110.55s
+- **Total Time:** 92.32s
 - **Status:** ✅ Success
 
 #### Performance Metrics
 
 | Language | Time (s) | Files | Errors |
 |----------|----------|-------|--------|
-| TypeScript | 7.62 | 8 | 0 |
+| TypeScript | 7.45 | 8 | 0 |
 
 ## Overall Statistics
 
-- **Total Analysis Time:** 21.48s
+- **Total Analysis Time:** 16.25s
 - **Total Files Processed:** 51
 - **Total Errors:** 0
-- **Average Time per File:** 0.421s
+- **Average Time per File:** 0.319s

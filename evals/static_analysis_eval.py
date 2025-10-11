@@ -107,6 +107,11 @@ def run_static_analysis_eval():
             "name": "tsoa", 
             "url": "https://github.com/lukeautry/tsoa",
             "expected_language": "TypeScript"
+        },
+        {
+            "name": "cobra",
+            "url": "https://github.com/spf13/cobra",
+            "expected_language": "Go"
         }
     ]
     
@@ -166,76 +171,35 @@ def save_markdown_results(results: Dict[str, Any]) -> None:
     
     with open(output_path, 'w') as f:
         # Header
-        f.write("# CodeBoarding Static Analysis Evaluation Results\n\n")
+        f.write("# LSP Eval\n\n")
         f.write(f"**Timestamp:** {results['timestamp']}\n\n")
         f.write(f"**Total Evaluation Time:** {results['total_eval_time_seconds']:.2f} seconds\n\n")
         
         # Summary table
         f.write("## Summary\n\n")
-        f.write("| Project | Language | Status | Time (s) |\n")
-        f.write("|---------|----------|--------|----------|\n")
+        f.write("| Project | Language | Status | Time (s) | Files read | Errors |\n")
+        f.write("|---------|----------|--------|----------|------------|--------|\n")
         
         for project in results['projects']:
             status = "✅ Success" if project['success'] else "❌ Failed"
             time_taken = f"{project.get('total_time_seconds', 0):.2f}"
             lang = project.get('expected_language', 'Unknown')
-            f.write(f"| {project['project']} | {lang} | {status} | {time_taken} |\n")
-        
-        # Detailed results per project
-        f.write("\n## Detailed Results\n\n")
-        
-        for project in results['projects']:
-            f.write(f"### {project['project']}\n\n")
-            f.write(f"- **URL:** {project['url']}\n")
-            f.write(f"- **Expected Language:** {project.get('expected_language', 'Unknown')}\n")
-            f.write(f"- **Total Time:** {project.get('total_time_seconds', 0):.2f}s\n")
+            
+            # Calculate files and errors for this project
+            files_read = 0
+            errors = 0
             
             if project['success']:
                 metrics = project.get('metrics', {})
                 timing = metrics.get('timing', {})
-                errors = metrics.get('errors', {})
+                error_data = metrics.get('errors', {})
                 
-                f.write(f"- **Status:** ✅ Success\n\n")
-                
-                if timing:
-                    f.write("#### Performance Metrics\n\n")
-                    f.write("| Language | Time (s) | Files | Errors |\n")
-                    f.write("|----------|----------|-------|--------|\n")
-                    
-                    for lang, time_taken in timing.items():
-                        if lang != 'scanner':
-                            file_count = errors.get(lang, {}).get('total_files', 0)
-                            error_count = errors.get(lang, {}).get('errors', 0)
-                            f.write(f"| {lang} | {time_taken:.2f} | {file_count} | {error_count} |\n")
-            else:
-                f.write(f"- **Status:** ❌ Failed\n")
-                f.write(f"- **Error:** {project.get('error', 'Unknown error')}\n")
+                for lang_key, time_taken in timing.items():
+                    if lang_key != 'scanner':
+                        files_read += error_data.get(lang_key, {}).get('total_files', 0)
+                        errors += error_data.get(lang_key, {}).get('errors', 0)
             
-            f.write("\n")
-        
-        # Overall statistics
-        total_files = 0
-        total_errors = 0
-        total_analysis_time = 0
-        
-        for project in results['projects']:
-            if project['success']:
-                metrics = project.get('metrics', {})
-                timing = metrics.get('timing', {})
-                errors = metrics.get('errors', {})
-                
-                for lang, time_taken in timing.items():
-                    if lang != 'scanner':
-                        total_analysis_time += time_taken
-                        total_files += errors.get(lang, {}).get('total_files', 0)
-                        total_errors += errors.get(lang, {}).get('errors', 0)
-        
-        f.write("## Overall Statistics\n\n")
-        f.write(f"- **Total Analysis Time:** {total_analysis_time:.2f}s\n")
-        f.write(f"- **Total Files Processed:** {total_files}\n")
-        f.write(f"- **Total Errors:** {total_errors}\n")
-        if total_files > 0:
-            f.write(f"- **Average Time per File:** {total_analysis_time/total_files:.3f}s\n")
+            f.write(f"| {project['project']} | {lang} | {status} | {time_taken} | {files_read} | {errors} |\n")
     
     logger.info(f"Markdown results saved to {output_path}")
 
@@ -313,6 +277,7 @@ def main():
     print("Testing static analysis performance on:")
     print("  - markitdown (Python)")
     print("  - tsoa (TypeScript)")
+    print("  - cobra (Go)")
     print("="*60)
     
     try:
