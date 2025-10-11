@@ -1,0 +1,52 @@
+name: Update Evals and Publish
+
+on:
+  push:
+    branches: [ test-evals ]
+  workflow_dispatch: # allows manual trigger too
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-evals:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Sync deps (uv)
+        run: uv sync --frozen
+
+      - name: Run setup/evals
+        # Prefer uv run so you don't have to activate .venv manually
+        run: |
+          mkdir -p docs
+          uv run python setup.py
+
+      - name: Run evals and update eval.json
+        run: |
+          mkdir -p docs
+          python run_evals.py --output-json docs/eval.json
+
+      - name: Commit eval.json if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/eval.json
+          git diff --cached --quiet && echo "🟡 No changes in eval.json" || (git commit -m "Update eval.json" && git push)
