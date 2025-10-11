@@ -79,7 +79,7 @@ class DetailsAgent(CodeBoardingAgent):
         return parsed
 
     def step_analysis(self, component: Component):
-        logger.info(f"[DetailsAgent] Generating details documentation")
+        logger.info("[DetailsAgent] Generating details documentation")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 

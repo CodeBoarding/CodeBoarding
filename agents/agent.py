@@ -121,20 +121,22 @@ class CodeBoardingAgent(ReferenceResolverMixin):
     def _invoke(self, prompt) -> str:
         """Unified agent invocation method."""
         max_retries = 5
-        for attempt in range(max_retries):
+        for _ in range(max_retries):
             try:
                 response = self.agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]}
                 )
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
-                if type(agent_response.content) == str:
+                if isinstance(agent_response.content, str):
                     return agent_response.content
-                if type(agent_response.content) == list:
+                if isinstance(agent_response.content, list):
                     return "".join([message for message in agent_response.content])
+
             except (ResourceExhausted, Exception) as e:
                 logger.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
                 time.sleep(60)  # Wait before retrying
+
         logger.error("Max retries reached. Failed to get response from the agent.")
         return "Could not get response from the agent."
 

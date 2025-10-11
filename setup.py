@@ -145,15 +145,16 @@ def download_binary_from_gdrive():
     }
 
     system = platform.system()
-    if system == "Darwin":
-        file_ids = mac_files
-    elif system == "Windows":
-        file_ids = win_files
-    elif system == "Linux":
-        file_ids = linux_files
-    else:
-        print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
-        return
+    match system:
+        case "Darwin":
+            file_ids = mac_files
+        case "Windows":
+            file_ids = win_files
+        case "Linux":
+            file_ids = linux_files
+        case _:
+            print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
+            return
 
     # Create servers directory
     servers_dir = Path("static_analyzer/servers")

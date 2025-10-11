@@ -91,7 +91,7 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
     Generate analysis for a GitHub repository URL.
     This function is intended to be used in a GitHub Action context.
     """
-    repo_root = Path(os.getenv("REPO_ROOT"))
+    repo_root = Path(os.environ["REPO_ROOT"])
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
     checkout_repo(repo_dir, source_branch)
@@ -101,20 +101,25 @@ def generate_analysis(repo_url: str, source_branch: str, target_branch: str, ext
                                  temp_folder=temp_repo_folder,
                                  repo_name=repo_name,
                                  output_dir=temp_repo_folder,
-                                 depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL")))
+                                 depth_level=int(os.environ["DIAGRAM_DEPTH_LEVEL"]))
 
     analysis_files = generator.generate_analysis()
 
     # Now generated the markdowns:
-    if extension == ".md":
-        generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
-    elif extension == ".html":
-        generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
-    elif extension == ".mdx":
-        generate_mdx(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
-    elif extension == ".rst":
-        generate_rst(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
-    else:
-        raise ValueError(f"Unsupported extension: {extension}")
+    match extension:
+        case ".md":
+            generate_markdown(analysis_files, repo_name, repo_url,
+                              target_branch, temp_repo_folder, output_dir)
+        case ".html":
+            generate_html(analysis_files, repo_name, repo_url,
+                          target_branch, temp_repo_folder, output_dir)
+        case ".mdx":
+            generate_mdx(analysis_files, repo_name, repo_url,
+                         target_branch, temp_repo_folder, output_dir)
+        case ".rst":
+            generate_rst(analysis_files, repo_name, repo_url,
+                         target_branch, temp_repo_folder, output_dir)
+        case _:
+            raise ValueError(f"Unsupported extension: {extension}")
 
     return temp_repo_folder

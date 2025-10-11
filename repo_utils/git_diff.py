@@ -52,9 +52,7 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
                 added, removed = [], []
                 filename = line.split(" b/")[-1]
                 current_file = FileChange(filename=filename, additions=0, deletions=0)
-            elif line.startswith("+++ ") or line.startswith("--- "):
-                continue
-            elif line.startswith("@@"):
+            elif line.startswith("+++ ") or line.startswith("--- ") or line.startswith("@@"):
                 continue
             elif line.startswith("+"):
                 added.append(line[1:])

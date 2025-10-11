@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 
+
 logger = logging.getLogger(__name__)
 
 
