@@ -19,10 +19,6 @@ jobs:
         # with:
         #   persist-credentials: false
 
-      - name: Use HTTPS for GitHub instead of SSH
-        # Redirect git@github.com:OWNER/REPO.git → https://github.com/OWNER/REPO.git
-        run: git config --global url."https://github.com/".insteadOf git@github.com:
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
