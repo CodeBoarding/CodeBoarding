@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class DetailsAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
-                 meta_context: MetaAnalysisInsights):
-        super().__init__(repo_dir, static_analysis, get_system_details_message())
+                 meta_context: MetaAnalysisInsights, enable_monitoring: bool = False):
+        super().__init__(repo_dir, static_analysis, get_system_details_message(), enable_monitoring)
         self.project_name = project_name
         self.meta_context = meta_context
 
