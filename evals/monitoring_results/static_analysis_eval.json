@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-10-11T08:33:05.714057",
+  "total_eval_time_seconds": 104.63706493377686,
+  "projects": [
+    {
+      "project": "markitdown",
+      "url": "https://github.com/microsoft/markitdown",
+      "expected_language": "Python",
+      "total_time_seconds": 7,
+      "metrics": {
+        "timing": {
+          "scanner": 0.1124882698059082,
+          "Python": 7.771819114685059
+        },
+        "errors": {
+          "Python": {
+            "total_files": 43,
+            "errors": 0
+          }
+        }
+      },
+      "success": true
+    },
+    {
+      "project": "tsoa",
+      "url": "https://github.com/lukeautry/tsoa",
+      "expected_language": "TypeScript",
+      "total_time_seconds": 93.89417481422424,
+      "metrics": {
+        "timing": {
+          "scanner": 0.0404810905456543,
+          "TypeScript": 7.455858945846558
+        },
+        "errors": {
+          "TypeScript": {
+            "total_files": 8,
+            "errors": 0
+          }
+        }
+      },
+      "success": true
+    }
+  ]
+}
