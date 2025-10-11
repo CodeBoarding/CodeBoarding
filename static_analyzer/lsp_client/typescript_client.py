@@ -1,5 +1,7 @@
 import logging
 import os
+from pathlib import Path
+import subprocess
 import time
 
 from .client import LSPClient
@@ -12,6 +14,30 @@ class TypeScriptClient(LSPClient):
     TypeScript/JavaScript-specific Language Server Protocol client.
     Extends the base LSPClient with TypeScript-specific functionality.
     """
+
+    def start(self):
+        """Starts the language server with dependency check."""
+        # Check and install dependencies if needed
+        self._ensure_dependencies()
+        
+        # Call parent start method
+        super().start()
+
+    def _ensure_dependencies(self):
+        """Check if node_modules exists, run npm install if not."""
+        node_modules_path = self.project_path / 'node_modules'
+        
+        if node_modules_path.exists():
+            logger.info(f"node_modules found at: {node_modules_path}")
+            return
+        
+        logger.warning(f"node_modules not found in {self.project_path}")
+        
+        # Check if package.json exists
+        package_json = self.project_path / 'package.json'
+        if not package_json.exists():
+            logger.warning(f"package.json not found in {self.project_path}.")
+            return
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
@@ -105,8 +131,33 @@ class TypeScriptClient(LSPClient):
         except Exception as e:
             logger.warning(f"Failed to configure TypeScript workspace: {e}")
 
+    def _get_source_files(self) -> list:
+        """Get TypeScript/JavaScript source files, excluding node_modules and dist folders."""
+        all_files = []
+        for pattern in ['*.ts', '*.tsx', '*.js', '*.jsx']:
+            all_files.extend(list(self.project_path.rglob(pattern)))
+        
+        # Filter out node_modules and dist explicitly
+        filtered_files = []
+        for file_path in all_files:
+            try:
+                rel_path = file_path.relative_to(self.project_path)
+                # Skip if any part of the path is node_modules or dist
+                if 'node_modules' in rel_path.parts:
+                    logger.debug(f"Skipping node_modules file: {rel_path}")
+                    continue
+                if 'dist' in rel_path.parts:
+                    logger.debug(f"Skipping dist file: {rel_path}")
+                    continue
+                filtered_files.append(file_path)
+            except ValueError:
+                # File is outside project root, include it
+                filtered_files.append(file_path)
+        
+        return filtered_files
+
     def _find_typescript_files(self) -> list:
-        """Find all TypeScript/JavaScript files in the project."""
+        """Find all TypeScript/JavaScript files in the project (including node_modules for bootstrapping)."""
         return (list(self.project_path.rglob('*.ts')) +
                 list(self.project_path.rglob('*.tsx')) +
                 list(self.project_path.rglob('*.js')) +

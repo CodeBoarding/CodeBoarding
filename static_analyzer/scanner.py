@@ -51,8 +51,9 @@ class ProjectScanner:
             suffixes = set()
             for report in stats.get("reports", []):
                 suffixes |= self._extract_suffixes([report["name"]])
-
+            
             command = server_config.get(technology.lower(), {'command': None})['command']
+            suffixes |= set(server_config.get(technology.lower(), {'file_extensions': []})['file_extensions'])
             pl = ProgrammingLanguage(language=technology, size=code_count, percentage=percentage,
                                      suffixes=list(suffixes), server_commands=command)
 

@@ -186,15 +186,17 @@ class DiagramGenerator:
         programming_langs = scanner.scan()
         clients = create_clients(programming_langs, self.repo_location)
         for client in clients:
-            logger.info(f"Starting static analysis for {client.language.language} in {self.repo_location}")
-            client.start()
+            try:
+                logger.info(f"Starting static analysis for {client.language.language} in {self.repo_location}")
+                client.start()
 
-            analysis = client.build_static_analysis()
+                analysis = client.build_static_analysis()
 
-            results.add_references(client.language.language, analysis.get('references', []))
-            results.add_cfg(client.language.language, analysis.get('call_graph', []))
-            results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
-            results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
-            results.add_source_files(client.language.language, analysis.get('source_files', []))
-
+                results.add_references(client.language.language, analysis.get('references', []))
+                results.add_cfg(client.language.language, analysis.get('call_graph', []))
+                results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
+                results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
+                results.add_source_files(client.language.language, analysis.get('source_files', []))
+            except Exception as e:
+                logger.error(f"Error during static analysis with {client.language.language}: {e}")
         return results
