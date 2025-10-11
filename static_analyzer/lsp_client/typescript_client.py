@@ -1,7 +1,5 @@
 import logging
 import os
-from pathlib import Path
-import subprocess
 import time
 
 from .client import LSPClient
@@ -19,20 +17,20 @@ class TypeScriptClient(LSPClient):
         """Starts the language server with dependency check."""
         # Check and install dependencies if needed
         self._ensure_dependencies()
-        
+
         # Call parent start method
         super().start()
 
     def _ensure_dependencies(self):
-        """Check if node_modules exists, run npm install if not."""
+        """Check if node_modules exists and log an error if they don't."""
         node_modules_path = self.project_path / 'node_modules'
-        
+
         if node_modules_path.exists():
             logger.info(f"node_modules found at: {node_modules_path}")
             return
-        
+
         logger.warning(f"node_modules not found in {self.project_path}")
-        
+
         # Check if package.json exists
         package_json = self.project_path / 'package.json'
         if not package_json.exists():
@@ -136,7 +134,7 @@ class TypeScriptClient(LSPClient):
         all_files = []
         for pattern in ['*.ts', '*.tsx', '*.js', '*.jsx']:
             all_files.extend(list(self.project_path.rglob(pattern)))
-        
+
         # Filter out node_modules and dist explicitly
         filtered_files = []
         for file_path in all_files:
@@ -153,7 +151,7 @@ class TypeScriptClient(LSPClient):
             except ValueError:
                 # File is outside project root, include it
                 filtered_files.append(file_path)
-        
+
         return filtered_files
 
     def _find_typescript_files(self) -> list:
