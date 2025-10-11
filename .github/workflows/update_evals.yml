@@ -38,13 +38,13 @@ jobs:
           mkdir -p docs
           uv run python setup.py
 
-      - name: Run evals and update eval.json
+      - name: Run evals and update eval.md
         run: |
-          uv run python evals/static_analysis_eval.py --output-json docs/eval.json
+          uv run python evals/static_analysis_eval.py
 
-      - name: Commit eval.json if changed
+      - name: Commit eval.md if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add docs/eval.json
-          git diff --cached --quiet && echo "🟡 No changes in eval.json" || (git commit -m "Update eval.json" && git push)
+          git add docs/eval.md
+          git diff --cached --quiet && echo "🟡 No changes in eval.md" || (git commit -m "Update eval.md" && git push)

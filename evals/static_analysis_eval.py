@@ -140,6 +140,7 @@ def run_static_analysis_eval():
     
     # Save results
     save_static_analysis_results(eval_results)
+    save_markdown_results(eval_results)
     print_static_analysis_summary(eval_results)
     
     return eval_results
@@ -156,6 +157,87 @@ def save_static_analysis_results(results: Dict[str, Any]) -> None:
         json.dump(results, f, indent=2)
     
     logger.info(f"Results saved to {output_file}")
+
+
+def save_markdown_results(results: Dict[str, Any]) -> None:
+    """Save static analysis results as a readable Markdown file."""
+    output_path = Path("docs/eval.md")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, 'w') as f:
+        # Header
+        f.write("# CodeBoarding Static Analysis Evaluation Results\n\n")
+        f.write(f"**Timestamp:** {results['timestamp']}\n\n")
+        f.write(f"**Total Evaluation Time:** {results['total_eval_time_seconds']:.2f} seconds\n\n")
+        
+        # Summary table
+        f.write("## Summary\n\n")
+        f.write("| Project | Language | Status | Time (s) |\n")
+        f.write("|---------|----------|--------|----------|\n")
+        
+        for project in results['projects']:
+            status = "✅ Success" if project['success'] else "❌ Failed"
+            time_taken = f"{project.get('total_time_seconds', 0):.2f}"
+            lang = project.get('expected_language', 'Unknown')
+            f.write(f"| {project['project']} | {lang} | {status} | {time_taken} |\n")
+        
+        # Detailed results per project
+        f.write("\n## Detailed Results\n\n")
+        
+        for project in results['projects']:
+            f.write(f"### {project['project']}\n\n")
+            f.write(f"- **URL:** {project['url']}\n")
+            f.write(f"- **Expected Language:** {project.get('expected_language', 'Unknown')}\n")
+            f.write(f"- **Total Time:** {project.get('total_time_seconds', 0):.2f}s\n")
+            
+            if project['success']:
+                metrics = project.get('metrics', {})
+                timing = metrics.get('timing', {})
+                errors = metrics.get('errors', {})
+                
+                f.write(f"- **Status:** ✅ Success\n\n")
+                
+                if timing:
+                    f.write("#### Performance Metrics\n\n")
+                    f.write("| Language | Time (s) | Files | Errors |\n")
+                    f.write("|----------|----------|-------|--------|\n")
+                    
+                    for lang, time_taken in timing.items():
+                        if lang != 'scanner':
+                            file_count = errors.get(lang, {}).get('total_files', 0)
+                            error_count = errors.get(lang, {}).get('errors', 0)
+                            f.write(f"| {lang} | {time_taken:.2f} | {file_count} | {error_count} |\n")
+            else:
+                f.write(f"- **Status:** ❌ Failed\n")
+                f.write(f"- **Error:** {project.get('error', 'Unknown error')}\n")
+            
+            f.write("\n")
+        
+        # Overall statistics
+        total_files = 0
+        total_errors = 0
+        total_analysis_time = 0
+        
+        for project in results['projects']:
+            if project['success']:
+                metrics = project.get('metrics', {})
+                timing = metrics.get('timing', {})
+                errors = metrics.get('errors', {})
+                
+                for lang, time_taken in timing.items():
+                    if lang != 'scanner':
+                        total_analysis_time += time_taken
+                        total_files += errors.get(lang, {}).get('total_files', 0)
+                        total_errors += errors.get(lang, {}).get('errors', 0)
+        
+        f.write("## Overall Statistics\n\n")
+        f.write(f"- **Total Analysis Time:** {total_analysis_time:.2f}s\n")
+        f.write(f"- **Total Files Processed:** {total_files}\n")
+        f.write(f"- **Total Errors:** {total_errors}\n")
+        if total_files > 0:
+            f.write(f"- **Average Time per File:** {total_analysis_time/total_files:.3f}s\n")
+    
+    logger.info(f"Markdown results saved to {output_path}")
 
 
 def print_static_analysis_summary(results: Dict[str, Any]) -> None:
