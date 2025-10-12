@@ -8,15 +8,15 @@ graph LR
     Unclassified["Unclassified"]
     Scanner -- "utilizes" --> Reference_Resolution_Mixin
     Scanner -- "leverages" --> TypeScript_Client
+    TypeScript_Config_Scanner -- "provides comprehensive configuration to" --> TypeScript_Client
     TypeScript_Client -- "uses" --> VSCode_Constants
-    TypeScript_Config_Scanner -- "provides configuration to" --> TypeScript_Client
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The static analysis subsystem is responsible for ingesting source code, analyzing its structure, and resolving references within the codebase. The Scanner component initiates the analysis by parsing code and generating an initial understanding of the project's languages and file types. For TypeScript and JavaScript projects, the TypeScript Client interacts with an external Language Server Protocol (LSP) server to obtain rich semantic information, which is crucial for deep code understanding. The TypeScript Config Scanner plays a vital role in this process by identifying and interpreting TypeScript configuration files, providing essential context for the TypeScript Client's operations. The Reference Resolution Mixin provides the core functionality for resolving code references across different languages, enabling the system to trace definitions, usages, and call hierarchies. Finally, VSCode Constants provides configuration parameters and definitions relevant to the VS Code environment, indicating the system's integration with or dependency on the VS Code ecosystem. This architecture allows for a flexible and extensible static analysis pipeline that can adapt to various programming languages and project configurations.
+The system's architecture is centered around a `Scanner` that performs initial code ingestion and AST generation. For TypeScript projects, the `TypeScript Config Scanner` provides essential and comprehensive project configuration to the `TypeScript Client`. The `TypeScript Client`, now with significantly enhanced capabilities, then communicates with an external TypeScript Language Server (LSP) to extract rich semantic information, leveraging `VSCode Constants` for environment-specific parameters. The `Scanner` further utilizes a `Reference Resolution Mixin` to resolve code references, enabling deep code understanding and navigation across the project. This integrated approach ensures comprehensive and accurate static analysis, particularly for TypeScript codebases, with a strong emphasis on detailed semantic understanding and configuration-driven analysis.
 
 ### Scanner
 Performs the initial parsing, lexical analysis, and Abstract Syntax Tree (AST) generation for various programming languages. It's the primary component for raw code ingestion and initial structural analysis.
@@ -28,7 +28,7 @@ Performs the initial parsing, lexical analysis, and Abstract Syntax Tree (AST) g
 
 
 ### TypeScript Client
-Manages communication with an external TypeScript Language Server (LSP). It leverages LSP capabilities to retrieve rich, semantic information about TypeScript code, such as type definitions, symbol references, and diagnostics, going beyond basic syntactic analysis.
+Manages robust and extensive communication with an external TypeScript Language Server (LSP). It now leverages LSP capabilities more deeply and broadly to retrieve richer, more detailed semantic information about TypeScript code, including advanced type definitions, comprehensive symbol references, and enhanced diagnostics, significantly expanding beyond basic syntactic analysis.
 
 
 **Related Classes/Methods**:
@@ -46,12 +46,12 @@ Provides a set of functionalities or methods for resolving code references (e.g.
 
 
 ### TypeScript Config Scanner
-Specifically designed to parse and interpret TypeScript configuration files (e.g., `tsconfig.json`). It extracts project-specific settings, module resolution strategies, and compilation options, which are crucial for accurate TypeScript analysis.
+Specifically designed to comprehensively parse and interpret TypeScript configuration files (e.g., `tsconfig.json`). It now extracts a wider scope and deeper set of project-specific settings, module resolution strategies, and compilation options, providing more comprehensive and accurate configuration crucial for advanced TypeScript analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py#L8-L46" target="_blank" rel="noopener noreferrer">`static_analyzer.typescript_config_scanner.TypeScriptConfigScanner`:8-46</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py#L8-L57" target="_blank" rel="noopener noreferrer">`static_analyzer.typescript_config_scanner.TypeScriptConfigScanner`:8-57</a>
 
 
 ### VSCode Constants

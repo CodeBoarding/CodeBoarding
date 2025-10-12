@@ -8,6 +8,7 @@ graph LR
     PromptFactory["PromptFactory"]
     Static_Analyzer["Static Analyzer"]
     Unclassified["Unclassified"]
+    Unclassified["Unclassified"]
     Application_Orchestrator -- "initiates" --> QueryProcessor
     Application_Orchestrator -- "requests prompts from" --> PromptFactory
     QueryProcessor -- "embeds query for" --> VectorStore
@@ -24,7 +25,7 @@ graph LR
 
 ## Details
 
-The system orchestrates a Retrieval-Augmented Generation (RAG) process, managed by the `Application Orchestrator`. User queries are first processed by the `QueryProcessor` and embedded for similarity search within the `VectorStore`. The `DocumentRetriever` then fetches relevant documents, which are passed back to the `Application Orchestrator`. The `ResponseGenerator` crafts the final natural language response, leveraging a `PromptFactory` that centralizes and provides structured prompts for various Large Language Models, including specialized prompts for both Gemini Flash and Claude models. A separate `Static Analyzer` component operates independently, focusing on TypeScript configuration scanning.
+The system is primarily a Retrieval-Augmented Generation (RAG) application orchestrated by the Application Orchestrator. It processes user queries by embedding them via the QueryProcessor and retrieving relevant documents from the VectorStore through the DocumentRetriever. A ResponseGenerator then synthesizes a natural language response using an LLM, heavily relying on structured prompts provided by the PromptFactory. In parallel, an independent Static Analyzer component performs in-depth static analysis of TypeScript configurations, now significantly enhanced by a dedicated Language Server Protocol (LSP) client for more sophisticated analysis.
 
 ### Application Orchestrator
 Manages the overall application flow, coordinating interactions between QueryProcessor, DocumentRetriever, ResponseGenerator, and leveraging the PromptFactory for agent prompt generation. It receives user queries and delivers final responses, adapting its agent coordination mechanisms due to recent core agent logic refactoring and the new prompt management system.
@@ -81,12 +82,21 @@ Centralizes the creation and management of prompts for various agents and langua
 
 
 ### Static Analyzer
-A new, independent functional area responsible for performing static analysis, specifically focusing on scanning TypeScript configurations. This component operates in parallel to the core RAG system, providing distinct capabilities without directly altering the RAG data flow.
+A new, independent functional area responsible for performing static analysis, specifically focusing on scanning TypeScript configurations. This component has been significantly enhanced with the integration of a dedicated Language Server Protocol (LSP) client for TypeScript, enabling more sophisticated and in-depth analysis by leveraging the full capabilities of a TypeScript Language Server. It operates in parallel to the core RAG system, providing distinct capabilities without directly altering the RAG data flow.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.typescript_config_scanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/lsp_client/typescript_client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.typescript_client`</a>
+
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**:
+
 
 
 ### Unclassified

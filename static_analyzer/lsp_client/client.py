@@ -97,7 +97,6 @@ class LSPClient:
 
         self._process.stdin.write(message.encode('utf-8'))
         self._process.stdin.flush()
-
         return message_id
 
     def _send_notification(self, method: str, params: dict):

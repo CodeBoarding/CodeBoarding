@@ -157,11 +157,9 @@ class DiagramGenerator:
                 }
 
                 # Use tqdm for a progress bar
-                for future in tqdm(
-                        as_completed(future_to_component),
-                        total=len(future_to_component),
-                        desc=f"Level {level}",
-                ):
+                for future in tqdm(as_completed(future_to_component),
+                                   total=len(future_to_component),
+                                   desc=f"Level {level}"):
                     component = future_to_component[future]
                     try:
                         result_path, new_components = future.result()
@@ -170,9 +168,7 @@ class DiagramGenerator:
                         if new_components:
                             next_level_components.extend(new_components)
                     except Exception as exc:
-                        logging.error(
-                            f"Component {component.name} generated an exception: {exc}"
-                        )
+                        logging.error(f"Component {component.name} generated an exception: {exc}")
 
             logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
             current_level_components = next_level_components

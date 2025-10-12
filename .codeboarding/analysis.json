@@ -1,5 +1,5 @@
 {
-  "description": "The CodeBoarding project is structured around a robust, modular architecture designed for automated software documentation generation. At its core, an Orchestration Engine manages the entire workflow, from receiving user requests via the API Service to delivering final documentation through the Output Generation Engine. A critical aspect of this system is the AI Interpretation Layer, which has been significantly enhanced to support multiple Large Language Models (LLMs), including Gemini Flash and Claude, through a sophisticated and extensible prompt management system. This layer processes detailed static analysis data provided by the Static Analysis Engine and repository information from the Repository Manager to generate high-level architectural insights. All job-related data is persistently managed by the Job Database. This design emphasizes clear component boundaries, enabling efficient data flow and facilitating future expansion of supported languages, LLMs, and output formats. The CodeBoarding architecture is a pipeline-driven system centered around an Orchestration Engine that manages the automated generation of software documentation. User interactions and job requests are handled by the API Service, which then delegates the workflow to the Orchestration Engine. This engine coordinates with the Job Database for state management, the Repository Manager for source code access, and the Static Analysis Engine for in-depth code analysis. The core intelligence resides in the AI Interpretation Layer, which now robustly supports multiple LLMs, including Gemini Flash and Claude, through a sophisticated and extensible prompt management system, transforming static analysis data into high-level architectural insights. Finally, the Output Generation Engine converts these insights into various documentation formats, completing the cycle by delivering them back through the API Service. This modular design ensures scalability, maintainability, and adaptability to evolving AI models and documentation needs.",
+  "description": "The CodeBoarding system is orchestrated by the `Orchestration Engine`, which serves as the central control unit for the documentation generation pipeline. User interactions and job initiations are managed by the `API Service`, which also handles integration with GitHub Actions. The `Orchestration Engine` persists job states and results in the `Job Database` and interacts with the `Repository Manager` to retrieve and manage source code. For in-depth code analysis, the `Orchestration Engine` leverages the `Static Analysis Engine`, which now features significantly enhanced capabilities for TypeScript projects, including a more robust Language Server Protocol (LSP) client and comprehensive configuration scanning. The rich analysis data from the `Static Analysis Engine` is then fed to the `AI Interpretation Layer`, a collection of specialized AI agents that generate high-level architectural insights, abstractions, and perform diff analysis, supported by an enhanced modular prompt management system. Finally, the `Orchestration Engine` passes these refined insights to the `Output Generation Engine` to produce various documentation formats, which are then delivered back through the `API Service`.",
   "components": [
     {
       "name": "API Service",
@@ -45,10 +45,9 @@
         }
       ],
       "assigned_files": [
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/analysis_json.py",
         "diagram_analysis/diagram_generator.py",
-        "diagram_analysis/version.py"
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py"
       ],
       "can_expand": true
     },
@@ -78,7 +77,7 @@
     },
     {
       "name": "Static Analysis Engine",
-      "description": "Performs deep, language-specific analysis of source code, now explicitly including reference resolution capabilities, enhanced integration with the VS Code environment, and comprehensive TypeScript configuration scanning for deeper analysis of TypeScript projects. It potentially leverages VS Code-specific settings or protocols.",
+      "description": "Performs deep, language-specific analysis of source code, now with significantly enhanced capabilities for TypeScript projects. This includes a more robust TypeScript Language Server Protocol (LSP) client for deeper interaction with language services, comprehensive TypeScript configuration scanning, and explicit reference resolution capabilities, leveraging enhanced integration with the VS Code environment.",
       "referenced_source_code": [
         {
           "qualified_name": "scanner",
@@ -120,15 +119,15 @@
       "assigned_files": [
         "vscode_constants.py",
         "vscode_runnable.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/typescript_config_scanner.py",
         "static_analyzer/programming_language.py",
         "static_analyzer/__init__.py",
-        "static_analyzer/reference_resolve_mixin.py",
         "static_analyzer/graph.py",
         "static_analyzer/analysis_result.py",
-        "static_analyzer/scanner.py",
-        "static_analyzer/typescript_config_scanner.py",
         "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/lsp_client/typescript_client.py",
         "static_analyzer/lsp_client/client.py"
       ],
       "can_expand": true
@@ -199,9 +198,9 @@
         },
         {
           "qualified_name": "gemini_flash_prompts_bidirectional",
-          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "full/file/path/example.txt",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         },
         {
           "qualified_name": "gemini_flash_prompts_unidirectional",
@@ -249,7 +248,7 @@
         "agents/tools/read_file.py",
         "agents/tools/utils.py",
         "agents/tools/read_structure.py",
-        "/home/ubuntu/CodeBoarding/repo/CodeBoarding/agents/tools/read_docs.y",
+        "/home/ubuntu/CodeBoarding/repo/CodeBoarding/agents/tools/read_docs.ow",
         "agents/prompts/__init__.py",
         "agents/prompts/claude_prompts_bidirectional.py",
         "agents/prompts/gemini_flash_prompts_bidirectional.py",
@@ -314,22 +313,9 @@
         "utils.py",
         "setup.py",
         "demo.py",
-        "logging_config.py"
+        "logging_config.py",
+        "diagram_analysis/version.py"
       ],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
       "can_expand": false
     }
   ],

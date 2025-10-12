@@ -11,7 +11,6 @@ graph LR
     Unclassified["Unclassified"]
     Repository_Manager -- "provides fetched source code to" --> Static_Analysis_Engine
     Repository_Manager -- "queries to retrieve settings for repository access" --> Configuration_Management
-    Orchestration_Engine -- "instructs to fetch or update codebase" --> Repository_Manager
     Orchestration_Engine -- "dispatches analysis tasks to" --> Static_Analysis_Engine
     Orchestration_Engine -- "submits jobs to for tracking and persistence" --> Job_Database
     Static_Analysis_Engine -- "sends extracted code insights to for further processing" --> AI_Interpretation_Layer
@@ -34,7 +33,7 @@ graph LR
 
 ## Details
 
-The system is designed around a core `Orchestration Engine` that manages the entire codebase analysis workflow. This engine interacts with the `Repository Manager` to acquire source code, which is then passed to the `Static Analysis Engine` for initial processing. The raw analysis data is subsequently fed into the `AI Interpretation Layer`, where Large Language Models generate insights and documentation drafts. The `Output Generation Engine` takes these drafts and formats them into various consumable outputs. An `API Service` provides the external interface for users to initiate analysis jobs, monitor their status, and retrieve results. All job-related information is persisted in the `Job Database`, while the `Configuration Management` component centralizes system settings and credentials, ensuring consistent operation across all components.
+The system operates by orchestrating a series of analysis and generation tasks. The `Orchestration Engine` initiates and manages the entire workflow. It instructs the `Repository Manager` to fetch or update the codebase, which then provides the source code to the `Static Analysis Engine`. The `Static Analysis Engine`, now with enhanced and specialized capabilities for TypeScript analysis, performs in-depth code analysis, extracting structural information and dependencies. It also retrieves analysis rules and configurations from `Configuration Management`. The extracted code insights are then passed to the `AI Interpretation Layer`, which leverages LLMs to interpret the context and generate architectural patterns and documentation drafts. These drafts are subsequently sent to the `Output Generation Engine` for formatting and rendering into various output formats, utilizing templates and styling rules from `Configuration Management`. Finally, the `API Service` provides an interface for users to submit jobs, monitor status, and retrieve the generated documentation and analysis results, querying the `Job Database` for job status and results.
 
 ### Repository Manager [[Expand]](./Repository_Manager.md)
 Manages all interactions with source code repositories, including cloning, fetching, and extracting version differences, to provide the necessary codebase for analysis.
@@ -57,12 +56,14 @@ Coordinates the overall workflow of codebase analysis, managing the sequence of 
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth analysis of the source code provided by the Repository Manager, extracting structural information, dependencies, and other relevant metrics without executing the code.
+Performs in-depth analysis of the source code provided by the Repository Manager, extracting structural information, dependencies, and other relevant metrics without executing the code. Its capabilities for TypeScript analysis have been significantly enhanced and specialized, including dedicated modules for scanning TypeScript configuration files and leveraging Language Server Protocol (LSP) for deeper code analysis.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/lsp_client/typescript_client.py" target="_blank" rel="noopener noreferrer">`static_analyzer/lsp_client/typescript_client.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer/typescript_config_scanner.py`</a>
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)

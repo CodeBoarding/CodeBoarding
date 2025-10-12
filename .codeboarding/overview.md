@@ -8,8 +8,6 @@ graph LR
     AI_Interpretation_Layer["AI Interpretation Layer"]
     Output_Generation_Engine["Output Generation Engine"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
     API_Service -- "initiates jobs and triggers analysis within" --> Orchestration_Engine
     API_Service -- "requests GitHub Action jobs from" --> Orchestration_Engine
     Orchestration_Engine -- "manages job state in" --> Job_Database
@@ -35,7 +33,7 @@ graph LR
 
 ## Details
 
-The CodeBoarding project is structured around a robust, modular architecture designed for automated software documentation generation. At its core, an Orchestration Engine manages the entire workflow, from receiving user requests via the API Service to delivering final documentation through the Output Generation Engine. A critical aspect of this system is the AI Interpretation Layer, which has been significantly enhanced to support multiple Large Language Models (LLMs), including Gemini Flash and Claude, through a sophisticated and extensible prompt management system. This layer processes detailed static analysis data provided by the Static Analysis Engine and repository information from the Repository Manager to generate high-level architectural insights. All job-related data is persistently managed by the Job Database. This design emphasizes clear component boundaries, enabling efficient data flow and facilitating future expansion of supported languages, LLMs, and output formats. The CodeBoarding architecture is a pipeline-driven system centered around an Orchestration Engine that manages the automated generation of software documentation. User interactions and job requests are handled by the API Service, which then delegates the workflow to the Orchestration Engine. This engine coordinates with the Job Database for state management, the Repository Manager for source code access, and the Static Analysis Engine for in-depth code analysis. The core intelligence resides in the AI Interpretation Layer, which now robustly supports multiple LLMs, including Gemini Flash and Claude, through a sophisticated and extensible prompt management system, transforming static analysis data into high-level architectural insights. Finally, the Output Generation Engine converts these insights into various documentation formats, completing the cycle by delivering them back through the API Service. This modular design ensures scalability, maintainability, and adaptability to evolving AI models and documentation needs.
+The CodeBoarding system is orchestrated by the `Orchestration Engine`, which serves as the central control unit for the documentation generation pipeline. User interactions and job initiations are managed by the `API Service`, which also handles integration with GitHub Actions. The `Orchestration Engine` persists job states and results in the `Job Database` and interacts with the `Repository Manager` to retrieve and manage source code. For in-depth code analysis, the `Orchestration Engine` leverages the `Static Analysis Engine`, which now features significantly enhanced capabilities for TypeScript projects, including a more robust Language Server Protocol (LSP) client and comprehensive configuration scanning. The rich analysis data from the `Static Analysis Engine` is then fed to the `AI Interpretation Layer`, a collection of specialized AI agents that generate high-level architectural insights, abstractions, and perform diff analysis, supported by an enhanced modular prompt management system. Finally, the `Orchestration Engine` passes these refined insights to the `Output Generation Engine` to produce various documentation formats, which are then delivered back through the `API Service`.
 
 ### API Service [[Expand]](./API_Service.md)
 The external interface for CodeBoarding, handling user requests, job initiation, status retrieval, and integrating with GitHub Actions for automated documentation generation.
@@ -75,7 +73,7 @@ Manages all interactions with source code repositories, including cloning, fetch
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs deep, language-specific analysis of source code, now explicitly including reference resolution capabilities, enhanced integration with the VS Code environment, and comprehensive TypeScript configuration scanning for deeper analysis of TypeScript projects. It potentially leverages VS Code-specific settings or protocols.
+Performs deep, language-specific analysis of source code, now with significantly enhanced capabilities for TypeScript projects. This includes a more robust TypeScript Language Server Protocol (LSP) client for deeper interaction with language services, comprehensive TypeScript configuration scanning, and explicit reference resolution capabilities, leveraging enhanced integration with the VS Code environment.
 
 
 **Related Classes/Methods**:
@@ -104,7 +102,7 @@ A collection of specialized AI agents that perform sophisticated interpretation 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agent_responses`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/details_agent.py" target="_blank" rel="noopener noreferrer">`prompts`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`abstract_prompt_factory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/gemini_flash_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`gemini_flash_prompts_bidirectional`</a>
+- `gemini_flash_prompts_bidirectional`:1-10
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/gemini_flash_prompts_unidirectional.py" target="_blank" rel="noopener noreferrer">`gemini_flash_prompts_unidirectional`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/claude_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`claude_prompts_bidirectional`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/claude_prompts_unidirectional.py" target="_blank" rel="noopener noreferrer">`claude_prompts_unidirectional`</a>
@@ -123,18 +121,6 @@ Transforms the final, validated architectural insights into various human-readab
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`sphinx`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/maingithub_action.py" target="_blank" rel="noopener noreferrer">`github_action`</a>
 
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

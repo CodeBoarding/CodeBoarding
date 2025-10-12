@@ -3,7 +3,7 @@ name = "codeboarding"
 version = "0.2.0"
 description = "🪄 Interactive Diagrams for Code"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "asgiref==3.9.1",
     "async-timeout==4.0.3",

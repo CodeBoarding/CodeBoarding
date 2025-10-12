@@ -5,6 +5,9 @@ graph LR
     Job_Status_Manager["Job Status Manager"]
     Job_Database_Interface["Job Database Interface"]
     Job_Processor["Job Processor"]
+    Static_Analyzer["Static Analyzer"]
+    TypeScript_LSP_Client["TypeScript LSP Client"]
+    TypeScript_Config_Scanner["TypeScript Config Scanner"]
     GitHub_Action_Endpoints["GitHub Action Endpoints"]
     Unclassified["Unclassified"]
     FastAPI_Application -- "initiates" --> Job_Processor
@@ -15,16 +18,19 @@ graph LR
     Job_Creator -- "creates entries in" --> Job_Database_Interface
     Job_Processor -- "communicates with to update" --> Job_Database_Interface
     Job_Processor -- "uses to report progress to" --> Job_Status_Manager
+    Job_Processor -- "delegates analysis to" --> Static_Analyzer
     GitHub_Action_Endpoints -- "uses to initiate jobs" --> Job_Creator
     GitHub_Action_Endpoints -- "triggers" --> Job_Processor
     GitHub_Action_Endpoints -- "interacts with to retrieve status" --> Job_Database_Interface
+    Static_Analyzer -- "utilizes" --> TypeScript_LSP_Client
+    Static_Analyzer -- "uses" --> TypeScript_Config_Scanner
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is built around a `FastAPI Application` that serves as the central entry point for all client interactions. It exposes various API endpoints, including those for general job management and specialized `GitHub Action Endpoints`. The `FastAPI Application` delegates the creation of new documentation generation jobs to the `Job Creator`, which initializes job records and interacts with the `Job Database Interface` for persistent storage. The `Job Status Manager` is crucial for tracking the lifecycle of each job, with updates and retrievals facilitated through the `Job Database Interface`. The core logic for processing documentation generation is encapsulated within the `Job Processor`, an asynchronous component that orchestrates the entire pipeline, from repository cloning to content generation, and reports its progress and results back via the `Job Status Manager` and `Job Database Interface`. The `GitHub Action Endpoints` specifically leverage the `Job Creator` and `Job Processor` to automate documentation generation within GitHub workflows and retrieve job statuses from the `Job Database Interface`.
+The system is centered around a FastAPI Application that serves as the primary entry point for all client interactions, managing API endpoints for job initiation and status retrieval. It delegates job creation to the Job Creator and interacts with the Job Database Interface for persistent storage, while the Job Status Manager oversees job lifecycle states. The Job Processor is an asynchronous component orchestrating the documentation generation pipeline, which now explicitly delegates code analysis to the Static Analyzer. The Static Analyzer is a critical subsystem, especially for TypeScript projects, leveraging a TypeScript LSP Client for deep language server interactions and a TypeScript Config Scanner for understanding project build contexts. Specialized GitHub Action Endpoints facilitate automated job initiation and status monitoring for GitHub workflows, interacting with the Job Creator, Job Processor, and Job Database Interface. This architecture highlights a clear separation of concerns, with the Static Analyzer providing enhanced language-specific analysis capabilities to the core Job Processor.
 
 ### FastAPI Application
 The core web server, responsible for defining and managing API endpoints, handling incoming HTTP requests, and routing them to appropriate handlers for job initiation, status retrieval, and external integrations. It serves as the primary entry point for all client interactions.
@@ -69,12 +75,40 @@ Provides an abstraction layer for persistent storage and retrieval of job-relate
 
 
 ### Job Processor
-An asynchronous component that orchestrates the end-to-end documentation generation pipeline for a single job. It handles repository cloning, invokes the core analysis and generation logic, and manages the processing results, updating job status throughout its execution.
+An asynchronous component that orchestrates the end-to-end documentation generation pipeline for a single job. It handles repository cloning, invokes the core analysis and generation logic (delegating to the Static Analyzer), and manages the processing results, updating job status throughout its execution.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainlocal_app.py" target="_blank" rel="noopener noreferrer">`local_app.generate_onboarding`</a>
+
+
+### Static Analyzer
+Responsible for performing in-depth code analysis, particularly for TypeScript projects. It leverages an LSP client for language server interactions and a configuration scanner to understand project build settings, providing structured insights to the Job Processor.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer/scanner.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer/lsp_client/client.py`</a>
+
+
+### TypeScript LSP Client
+A specialized client within the Static Analyzer that interacts with the TypeScript Language Server Protocol. It enables sophisticated code understanding, symbol resolution, and semantic analysis for TypeScript projects.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/lsp_client/typescript_client.py" target="_blank" rel="noopener noreferrer">`static_analyzer/lsp_client/typescript_client.py`</a>
+
+
+### TypeScript Config Scanner
+A component within the Static Analyzer responsible for parsing and interpreting TypeScript configuration files (e.g., `tsconfig.json`). It extracts crucial project settings, build contexts, and file inclusions necessary for accurate static analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer/typescript_config_scanner.py`</a>
 
 
 ### GitHub Action Endpoints

@@ -1,5 +1,5 @@
 {
-  "description": "The static analysis subsystem is responsible for ingesting source code, analyzing its structure, and resolving references within the codebase. The Scanner component initiates the analysis by parsing code and generating an initial understanding of the project's languages and file types. For TypeScript and JavaScript projects, the TypeScript Client interacts with an external Language Server Protocol (LSP) server to obtain rich semantic information, which is crucial for deep code understanding. The TypeScript Config Scanner plays a vital role in this process by identifying and interpreting TypeScript configuration files, providing essential context for the TypeScript Client's operations. The Reference Resolution Mixin provides the core functionality for resolving code references across different languages, enabling the system to trace definitions, usages, and call hierarchies. Finally, VSCode Constants provides configuration parameters and definitions relevant to the VS Code environment, indicating the system's integration with or dependency on the VS Code ecosystem. This architecture allows for a flexible and extensible static analysis pipeline that can adapt to various programming languages and project configurations.",
+  "description": "The system's architecture is centered around a `Scanner` that performs initial code ingestion and AST generation. For TypeScript projects, the `TypeScript Config Scanner` provides essential and comprehensive project configuration to the `TypeScript Client`. The `TypeScript Client`, now with significantly enhanced capabilities, then communicates with an external TypeScript Language Server (LSP) to extract rich semantic information, leveraging `VSCode Constants` for environment-specific parameters. The `Scanner` further utilizes a `Reference Resolution Mixin` to resolve code references, enabling deep code understanding and navigation across the project. This integrated approach ensures comprehensive and accurate static analysis, particularly for TypeScript codebases, with a strong emphasis on detailed semantic understanding and configuration-driven analysis.",
   "components": [
     {
       "name": "Scanner",
@@ -11,11 +11,15 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/scanner.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "TypeScript Client",
-      "description": "Manages communication with an external TypeScript Language Server (LSP). It leverages LSP capabilities to retrieve rich, semantic information about TypeScript code, such as type definitions, symbol references, and diagnostics, going beyond basic syntactic analysis.",
+      "description": "Manages robust and extensive communication with an external TypeScript Language Server (LSP). It now leverages LSP capabilities more deeply and broadly to retrieve richer, more detailed semantic information about TypeScript code, including advanced type definitions, comprehensive symbol references, and enhanced diagnostics, significantly expanding beyond basic syntactic analysis.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
@@ -23,7 +27,11 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Reference Resolution Mixin",
@@ -35,19 +43,27 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/reference_resolve_mixin.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "TypeScript Config Scanner",
-      "description": "Specifically designed to parse and interpret TypeScript configuration files (e.g., `tsconfig.json`). It extracts project-specific settings, module resolution strategies, and compilation options, which are crucial for accurate TypeScript analysis.",
+      "description": "Specifically designed to comprehensively parse and interpret TypeScript configuration files (e.g., `tsconfig.json`). It now extracts a wider scope and deeper set of project-specific settings, module resolution strategies, and compilation options, providing more comprehensive and accurate configuration crucial for advanced TypeScript analysis.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
           "reference_file": "static_analyzer/typescript_config_scanner.py",
           "reference_start_line": 8,
-          "reference_end_line": 46
+          "reference_end_line": 57
         }
-      ]
+      ],
+      "assigned_files": [
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "VSCode Constants",
@@ -59,12 +75,26 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../vscode_constants.py",
+        "../../vscode_runnable.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../static_analyzer/programming_language.py",
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/graph.py",
+        "../../static_analyzer/analysis_result.py",
+        "../../static_analyzer/lsp_client/__init__.py",
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
@@ -79,14 +109,14 @@
       "dst_name": "TypeScript Client"
     },
     {
+      "relation": "provides comprehensive configuration to",
+      "src_name": "TypeScript Config Scanner",
+      "dst_name": "TypeScript Client"
+    },
+    {
       "relation": "uses",
       "src_name": "TypeScript Client",
       "dst_name": "VSCode Constants"
-    },
-    {
-      "relation": "provides configuration to",
-      "src_name": "TypeScript Config Scanner",
-      "dst_name": "TypeScript Client"
     }
   ]
 }

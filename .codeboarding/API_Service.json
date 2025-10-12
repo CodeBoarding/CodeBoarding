@@ -1,5 +1,5 @@
 {
-  "description": "The system is built around a `FastAPI Application` that serves as the central entry point for all client interactions. It exposes various API endpoints, including those for general job management and specialized `GitHub Action Endpoints`. The `FastAPI Application` delegates the creation of new documentation generation jobs to the `Job Creator`, which initializes job records and interacts with the `Job Database Interface` for persistent storage. The `Job Status Manager` is crucial for tracking the lifecycle of each job, with updates and retrievals facilitated through the `Job Database Interface`. The core logic for processing documentation generation is encapsulated within the `Job Processor`, an asynchronous component that orchestrates the entire pipeline, from repository cloning to content generation, and reports its progress and results back via the `Job Status Manager` and `Job Database Interface`. The `GitHub Action Endpoints` specifically leverage the `Job Creator` and `Job Processor` to automate documentation generation within GitHub workflows and retrieve job statuses from the `Job Database Interface`.",
+  "description": "The system is centered around a FastAPI Application that serves as the primary entry point for all client interactions, managing API endpoints for job initiation and status retrieval. It delegates job creation to the Job Creator and interacts with the Job Database Interface for persistent storage, while the Job Status Manager oversees job lifecycle states. The Job Processor is an asynchronous component orchestrating the documentation generation pipeline, which now explicitly delegates code analysis to the Static Analyzer. The Static Analyzer is a critical subsystem, especially for TypeScript projects, leveraging a TypeScript LSP Client for deep language server interactions and a TypeScript Config Scanner for understanding project build contexts. Specialized GitHub Action Endpoints facilitate automated job initiation and status monitoring for GitHub workflows, interacting with the Job Creator, Job Processor, and Job Database Interface. This architecture highlights a clear separation of concerns, with the Static Analyzer providing enhanced language-specific analysis capabilities to the core Job Processor.",
   "components": [
     {
       "name": "FastAPI Application",
@@ -28,9 +28,7 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -56,9 +54,7 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -101,7 +97,7 @@
     },
     {
       "name": "Job Processor",
-      "description": "An asynchronous component that orchestrates the end-to-end documentation generation pipeline for a single job. It handles repository cloning, invokes the core analysis and generation logic, and manages the processing results, updating job status throughout its execution.",
+      "description": "An asynchronous component that orchestrates the end-to-end documentation generation pipeline for a single job. It handles repository cloning, invokes the core analysis and generation logic (delegating to the Static Analyzer), and manages the processing results, updating job status throughout its execution.",
       "referenced_source_code": [
         {
           "qualified_name": "local_app.generate_onboarding",
@@ -110,10 +106,56 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
+    },
+    {
+      "name": "Static Analyzer",
+      "description": "Responsible for performing in-depth code analysis, particularly for TypeScript projects. It leverages an LSP client for language server interactions and a configuration scanner to understand project build settings, providing structured insights to the Job Processor.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/scanner.py",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "TypeScript LSP Client",
+      "description": "A specialized client within the Static Analyzer that interacts with the TypeScript Language Server Protocol. It enables sophisticated code understanding, symbol resolution, and semantic analysis for TypeScript projects.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "TypeScript Config Scanner",
+      "description": "A component within the Static Analyzer responsible for parsing and interpreting TypeScript configuration files (e.g., `tsconfig.json`). It extracts crucial project settings, build contexts, and file inclusions necessary for accurate static analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/typescript_config_scanner.py",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "GitHub Action Endpoints",
@@ -132,9 +174,7 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -187,6 +227,11 @@
       "dst_name": "Job Status Manager"
     },
     {
+      "relation": "delegates analysis to",
+      "src_name": "Job Processor",
+      "dst_name": "Static Analyzer"
+    },
+    {
       "relation": "uses to initiate jobs",
       "src_name": "GitHub Action Endpoints",
       "dst_name": "Job Creator"
@@ -200,6 +245,16 @@
       "relation": "interacts with to retrieve status",
       "src_name": "GitHub Action Endpoints",
       "dst_name": "Job Database Interface"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "Static Analyzer",
+      "dst_name": "TypeScript LSP Client"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Static Analyzer",
+      "dst_name": "TypeScript Config Scanner"
     }
   ]
 }
