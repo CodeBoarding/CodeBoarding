@@ -233,3 +233,20 @@ We actively track suggestions and welcome pull requests of all sizes.
 
 **Unified high-level representation for codebases that is accurate** (hence static analysis). This representation is
 used by both people and agents → fully integrated in IDEs, MCP servers, and development workflows.
+
+## 🛠️ Quick Start / Usage Example
+
+Here’s how to use CodeBoarding with a sample Python file:
+
+```bash
+# clone the project
+git clone https://github.com/CodeBoarding/CodeBoarding.git
+cd CodeBoarding
+
+# install dependencies (Python)
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# run demo on example file
+python demo.py path/to/your/code.py
