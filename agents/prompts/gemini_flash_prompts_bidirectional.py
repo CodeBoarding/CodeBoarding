@@ -24,10 +24,8 @@ CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}` with diagra
 Project Context:
 {meta_context}
 
-We have identified the following Control-flow graph clusters, so I suggest you take them into account when creating components:
-{clusters}
-The clusters are groups of nodes that are closely related to each other. They can help you identify components that have a lot of interactions between them.
-
+The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
+As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
 Control-flow Data:
 {cfg_str}
 

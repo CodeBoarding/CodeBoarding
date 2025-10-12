@@ -3,7 +3,6 @@ import os.path
 from pathlib import Path
 
 from langchain.prompts import PromptTemplate
-from networkx.algorithms import community
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
@@ -45,26 +44,11 @@ class AbstractionAgent(CodeBoardingAgent):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        communities = []
-        for lang in self.static_analysis.get_languages():
-            graph_x = self.static_analysis.get_cfg(lang).to_networkx()
-            communities = community.greedy_modularity_communities(graph_x)
-        communities_str = ""
-        # here we should do top 10 or the ones that have more than 10 nodes
-        for i, c in enumerate(communities):
-            if len(c) <= 10 or i >= 10:
-                break
-            communities_str += f"Cluster {i + 1}: {sorted(c)}\n"
-            communities_str += "\n"
-        if len(communities_str) == 0:
-            communities_str = "No significant clusters found.\n"
-        logger.info("[AbstractionAgent] Detected clusters in CFG: " + str(len(
-            [c for c in communities if len(c) > 10])) + " clusters")
+        communities_str = self.static_analysis.get_cfg("Python").to_cluster_strings()
 
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
-            cfg_str=self.read_cfg_tool._run(),
-            clusters=communities_str,
+            cfg_str=communities_str,
             meta_context=meta_context_str,
             project_type=project_type
         )
