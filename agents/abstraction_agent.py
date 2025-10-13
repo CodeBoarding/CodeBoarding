@@ -28,8 +28,7 @@ class AbstractionAgent(CodeBoardingAgent):
 
         self.prompts = {
             "cfg": PromptTemplate(template=get_cfg_message(),
-                                  input_variables=["project_name", "clusters", "cfg_str", "meta_context",
-                                                   "project_type"]),
+                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
             "source": PromptTemplate(template=get_source_message(),
                                      input_variables=["insight_so_far", "meta_context", "project_type"]),
             "final_analysis": PromptTemplate(template=get_conclusive_analysis_message(),
@@ -44,11 +43,17 @@ class AbstractionAgent(CodeBoardingAgent):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        communities_str = self.static_analysis.get_cfg("Python").to_cluster_strings()
+
+        programming_langs = self.static_analysis.get_languages()
+        community_strs = ""
+        if len(programming_langs) != 1:
+            community_strs += f"This project contains multiple programming languages: {', '.join(programming_langs)}.\n"
+        for pl in programming_langs:
+            community_strs += self.static_analysis.get_cfg(pl).to_cluster_string()
 
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
-            cfg_str=communities_str,
+            cfg_str=community_strs,
             meta_context=meta_context_str,
             project_type=project_type
         )

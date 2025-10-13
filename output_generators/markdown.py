@@ -67,8 +67,7 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                 if not os.path.exists(root_dir + "/" + reference.reference_file):
                     qn_list.append(f"{reference}")
                     continue
-                url = "/".join(repo_ref.split("/")[:7])
-                ref_url = url + reference.reference_file
+                ref_url = repo_ref + reference.reference_file
                 if reference.reference_start_line is not None and reference.reference_end_line is not None and (
                         not (reference.reference_start_line <= reference.reference_end_line <= 0 or
                              reference.reference_start_line == reference.reference_end_line)):

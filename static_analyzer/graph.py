@@ -79,7 +79,7 @@ class CallGraph:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
 
-    def to_cluster_strings(self):
+    def to_cluster_string(self) -> str:
         graph_x = self.to_networkx()
         if graph_x.number_of_nodes() == 0:
             summary = "No nodes available for clustering."
@@ -92,20 +92,26 @@ class CallGraph:
             logger.info(summary)
             return summary
 
-        node_to_cluster = {
-            node: idx for idx, community in enumerate(communities) for node in community
-        }
-
-        # Step 1: Cluster definitions
         top_communities = sorted(communities, key=len, reverse=True)[:10]
-        top_nodes = set().union(*top_communities) if top_communities else set()
+        # Each of the top communities has to have at least 5% of the nodes
+        min_nodes = max(2, int(0.05 * graph_x.number_of_nodes()))
+        top_communities = [c for c in top_communities if len(c) >= min_nodes]
+        top_nodes = set().union(*communities) if communities else set()
 
+        cluster_str = self.__cluster_str(top_communities, graph_x, top_nodes)
+        non_cluster_str = self.__non_cluster_str(graph_x, top_nodes)
+
+        return cluster_str + non_cluster_str
+
+    @staticmethod
+    def __cluster_str(communities, graph_x, top_nodes) -> str:
         communities_str = "Cluster Definitions:\n\n"
-        for idx, community in enumerate(top_communities, start=1):
+        for idx, community in enumerate(communities, start=1):
             communities_str += f"Cluster {idx}: {sorted(community)}\n\n"
 
-        # Step 2: Inter-cluster connections with method call details
         cluster_to_cluster_calls = defaultdict(lambda: defaultdict(list))
+        node_to_cluster = {node: idx for idx, community in enumerate(communities) for node in community}
+
         for src, dst in graph_x.edges():
             src_cluster = node_to_cluster.get(src)
             dst_cluster = node_to_cluster.get(dst)
@@ -120,10 +126,12 @@ class CallGraph:
                 for dst_cluster_id in sorted(cluster_to_cluster_calls[src_cluster_id].keys()):
                     calls = cluster_to_cluster_calls[src_cluster_id][dst_cluster_id]
                     # Map cluster indices back to 1-based display indices
-                    src_display = next((i for i, c in enumerate(top_communities, 1)
-                                       if any(n for n in c if node_to_cluster.get(n) == src_cluster_id)), src_cluster_id)
-                    dst_display = next((i for i, c in enumerate(top_communities, 1)
-                                       if any(n for n in c if node_to_cluster.get(n) == dst_cluster_id)), dst_cluster_id)
+                    src_display = next((i for i, c in enumerate(communities, 1)
+                                        if any(n for n in c if node_to_cluster.get(n) == src_cluster_id)),
+                                       src_cluster_id)
+                    dst_display = next((i for i, c in enumerate(communities, 1)
+                                        if any(n for n in c if node_to_cluster.get(n) == dst_cluster_id)),
+                                       dst_cluster_id)
 
                     inter_cluster_str += f"Cluster {src_display} → Cluster {dst_display} via method calls:\n"
                     for call in calls:
@@ -132,7 +140,11 @@ class CallGraph:
         else:
             inter_cluster_str += "No inter-cluster connections detected.\n\n"
 
-        # Step 3: Non-clustered edges
+        return communities_str + inter_cluster_str
+
+    @staticmethod
+    def __non_cluster_str(graph_x, top_nodes) -> str:
+        # Add Non-clustered edges
         non_cluster_edges = []
         for src, dst in graph_x.edges():
             # Edge is non-clustered if at least one node is outside top clusters
@@ -145,11 +157,7 @@ class CallGraph:
             for src, dst in sorted(non_cluster_edges):
                 other_edges_str += f"  - {src} calls {dst}\n"
             other_edges_str += "\n"
-
-        final_summary = communities_str + inter_cluster_str + other_edges_str
-
-        logger.info(final_summary)
-        return final_summary
+        return other_edges_str
 
     def __str__(self):
         result = f"Control flow graph with {len(self.nodes)} nodes and {len(self.edges)} edges\n"
