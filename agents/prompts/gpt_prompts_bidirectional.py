@@ -1,4 +1,4 @@
-"""for gpt-4 bidirectional mode"""
+"""Prompt factory implementation for GPT-4 models in bidirectional analysis mode."""
 from .abstract_prompt_factory import AbstractPromptFactory
 
 
