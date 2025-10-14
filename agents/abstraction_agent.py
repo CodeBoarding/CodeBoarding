@@ -46,8 +46,11 @@ class AbstractionAgent(CodeBoardingAgent):
 
         programming_langs = self.static_analysis.get_languages()
         community_strs = ""
-        if len(programming_langs) != 1:
+        if len(programming_langs) > 1:
             community_strs += f"This project contains multiple programming languages: {', '.join(programming_langs)}.\n"
+        elif len(programming_langs) == 0:
+            logger.warning(f"[AbstractionAgent] No programming languages detected for project: {self.project_name}")
+            community_strs += "No programming languages detected.\n"
         for pl in programming_langs:
             community_strs += self.static_analysis.get_cfg(pl).to_cluster_string()
 

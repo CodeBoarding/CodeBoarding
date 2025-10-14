@@ -83,7 +83,7 @@ class CallGraph:
         graph_x = self.to_networkx()
         if graph_x.number_of_nodes() == 0:
             summary = "No nodes available for clustering."
-            logger.info(summary)
+            logger.warning(summary)
             return summary
 
         communities = list(nx.community.greedy_modularity_communities(graph_x))
