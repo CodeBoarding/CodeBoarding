@@ -1,4 +1,5 @@
 """Prompt factory implementation for GPT-4 models in unidirectional analysis mode.
+"""
 SYSTEM_MESSAGE = """You are an expert software architect analyzing {project_name}.
 
 **Primary Task:** Generate high-level architectural overview optimized for diagram generation from Control Flow Graph (CFG) data.
