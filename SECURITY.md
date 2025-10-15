@@ -1,8 +1,8 @@
 # CodeBoarding Evaluation Report
 
-**Last Updated:** 2025-10-15T17:37:50.692094
+**Last Updated:** 2025-10-15T19:22:36.041715
 
-**Total Evaluation Duration:** 152.90 seconds
+**Total Evaluation Duration:** 5549.57 seconds
 
 ## Overview
 
@@ -18,17 +18,17 @@
 
 ## 1. Static Analysis Performance Evaluation
 
-**Timestamp:** 2025-10-15T17:37:44.628163
+**Timestamp:** 2025-10-15T17:52:35.930504
 
-**Evaluation Time:** 146.84 seconds
+**Evaluation Time:** 149.46 seconds
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Files | Errors |
 |---------|----------|--------|----------|-------|--------|
-| markitdown | Python | ✅ Success | 14.70 | 43 | 0 |
-| tsoa | TypeScript | ✅ Success | 110.49 | 8 | 0 |
-| cobra | Go | ✅ Success | 21.65 | 19 | 0 |
+| markitdown | Python | ✅ Success | 14.64 | 43 | 0 |
+| tsoa | TypeScript | ✅ Success | 110.68 | 8 | 0 |
+| cobra | Go | ✅ Success | 24.14 | 19 | 0 |
 
 ### Detailed Results
 
@@ -36,56 +36,56 @@
 
 - **URL:** https://github.com/microsoft/markitdown
 - **Expected Language:** Python
-- **Total Time:** 14.70s
+- **Total Time:** 14.64s
 - **Status:** ✅ Success
 
 **Performance Metrics:**
 
 | Language | Time (s) | Files | Errors |
 |----------|----------|-------|--------|
-| Python | 14.09 | 43 | 0 |
+| Python | 13.88 | 43 | 0 |
 
 #### tsoa
 
 - **URL:** https://github.com/lukeautry/tsoa
 - **Expected Language:** TypeScript
-- **Total Time:** 110.49s
+- **Total Time:** 110.68s
 - **Status:** ✅ Success
 
 **Performance Metrics:**
 
 | Language | Time (s) | Files | Errors |
 |----------|----------|-------|--------|
-| TypeScript | 7.65 | 8 | 0 |
+| TypeScript | 7.63 | 8 | 0 |
 
 #### cobra
 
 - **URL:** https://github.com/spf13/cobra
 - **Expected Language:** Go
-- **Total Time:** 21.65s
+- **Total Time:** 24.14s
 - **Status:** ✅ Success
 
 **Performance Metrics:**
 
 | Language | Time (s) | Files | Errors |
 |----------|----------|-------|--------|
-| Go | 21.12 | 19 | 0 |
+| Go | 23.42 | 19 | 0 |
 
 ---
 
 ## 2. End-to-End Pipeline Evaluation
 
-**Timestamp:** 2025-10-15T17:37:50.691325
+**Timestamp:** 2025-10-15T19:22:36.040834
 
-**Evaluation Time:** 6.06 seconds
+**Evaluation Time:** 5400.11 seconds
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Total Tokens | Tool Calls |
 |---------|----------|--------|----------|--------------|------------|
-| markitdown | Python | ❌ Failed | 2.03 | 0 | 0 |
-| tsoa | TypeScript | ❌ Failed | 2.02 | 0 | 0 |
-| cobra | Go | ❌ Failed | 2.01 | 0 | 0 |
+| markitdown | Python | ❌ Failed | 1800.06 | 0 | 0 |
+| tsoa | TypeScript | ❌ Failed | 1800.02 | 0 | 0 |
+| cobra | Go | ❌ Failed | 1800.03 | 0 | 0 |
 
 ### Project Details
 
@@ -93,13 +93,13 @@
 
 ## Aggregate Metrics
 
-- **Total Evaluation Time:** 152.90 seconds
+- **Total Evaluation Time:** 5549.57 seconds
 - **Total Projects Tested:** 3
 - **Overall Success Rate:** 50.0%
 - **Total Tokens Consumed:** 0
 - **Total Tool Calls:** 0
 - **Total Files Analyzed:** 70
 - **Total Errors Found:** 0
-- **Average Time per Project:** 50.97 seconds
+- **Average Time per Project:** 1849.86 seconds
 - **Average Tokens per Project:** 0
 - **Average Tool Calls per Project:** 0.0
