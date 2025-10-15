@@ -258,7 +258,7 @@ def init_dot_env_file():
 # ============================================================================
 
 # LLM Provider Configuration (uncomment and configure one)
-OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_BASE_URL=http://localhost:11434
 
 # Core Configuration
 REPO_ROOT={project_root}/repos
