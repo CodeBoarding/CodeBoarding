@@ -1,0 +1,50 @@
+name: Update Evals and Publish
+
+on:
+  push:
+    branches: [ test-evals ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-evals:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        # keep default credentials so git push works
+        # with:
+        #   persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          uv --version
+
+      - name: Sync deps (uv)
+        run: uv sync --frozen
+
+      - name: Run setup/evals
+        run: |
+          mkdir -p docs
+          uv run python setup.py
+
+      - name: Run all evals and update SECURITY.md
+        run: |
+          uv run python evals/run_all_evals.py
+
+      - name: Commit SECURITY.md if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add SECURITY.md
+          git diff --cached --quiet && echo "🟡 No changes in SECURITY.md" || (git commit -m "Update evaluation results in SECURITY.md" && git push)

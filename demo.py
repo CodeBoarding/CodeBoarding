@@ -51,7 +51,7 @@ def onboarding_materials_exist(project_name: str, source_dir: str):
         return False
 
 
-def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
+def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None, enable_monitoring: bool = False):
     # Create directories if they don't exist
     repos_dir = Path(os.getenv("REPO_ROOT"))
     repos_dir.mkdir(parents=True, exist_ok=True)
@@ -59,7 +59,8 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
     repo_path = repos_dir / repo_name
 
     generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                                 output_dir=temp_repo_folder, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")))
+                                 output_dir=temp_repo_folder, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+                                 enable_monitoring=enable_monitoring)
     analysis_files = generator.generate_analysis()
 
     for file in analysis_files:
@@ -76,7 +77,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
                                    temp_dir=temp_repo_folder, demo=True)
 
 
-def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False) -> str:
+def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False, enable_monitoring: bool = False) -> str:
     """
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
@@ -89,7 +90,7 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
     repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT")))
-    generate_docs(repo_name, temp_repo_folder, repo_url)
+    generate_docs(repo_name, temp_repo_folder, repo_url, enable_monitoring=enable_monitoring)
     if os.path.exists(ROOT_RESULT):
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
     else:
@@ -146,6 +147,11 @@ Examples:
         type=Path,
         help='Directory to copy generated markdown files to'
     )
+    parser.add_argument(
+        '--enable-monitoring',
+        action='store_true',
+        help='Enable monitoring to track token usage and tool calls'
+    )
 
     args = parser.parse_args()
 
@@ -157,7 +163,7 @@ Examples:
     for repo in tqdm(args.repositories, desc="Generating docs for repos"):
         temp_repo_folder = create_temp_repo_folder()
         try:
-            generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+            generate_docs_remote(repo, temp_repo_folder, local_dev=True, enable_monitoring=args.enable_monitoring)
 
             # Copy markdown files to output directory if specified
             if args.output_dir:

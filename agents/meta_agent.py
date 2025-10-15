@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class MetaAgent(CodeBoardingAgent):
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
-        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message())
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str, enable_monitoring: bool = False):
+        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), enable_monitoring)
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(

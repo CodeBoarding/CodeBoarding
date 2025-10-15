@@ -18,8 +18,8 @@ from repo_utils.git_diff import FileChange, get_git_diff
 
 
 class DiffAnalyzingAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
-        super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str, enable_monitoring: bool = False):
+        super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message(), enable_monitoring)
         self.project_name = project_name
         self.repo_dir = repo_dir
         self.prompt = PromptTemplate(

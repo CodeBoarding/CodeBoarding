@@ -11,8 +11,8 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class PlannerAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
-        super().__init__(repo_dir, static_analysis, get_planner_system_message())
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, enable_monitoring: bool = False):
+        super().__init__(repo_dir, static_analysis, get_planner_system_message(), enable_monitoring)
         self.expansion_prompt = PromptTemplate(template=get_expansion_prompt(), input_variables=["component"])
         self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,
                                                                self.read_packages_tool, self.read_file_structure,
