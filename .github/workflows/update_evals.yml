@@ -11,6 +11,8 @@ permissions:
 jobs:
   update-evals:
     runs-on: ubuntu-latest
+    env:
+      AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
 
     steps:
       - name: Checkout repository
