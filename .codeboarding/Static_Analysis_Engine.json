@@ -1,9 +1,9 @@
 {
-  "description": "The static analysis subsystem is responsible for ingesting source code, analyzing its structure, and resolving references within the codebase. The Scanner component initiates the analysis by parsing code and generating an initial understanding of the project's languages and file types. For TypeScript and JavaScript projects, the TypeScript Client interacts with an external Language Server Protocol (LSP) server to obtain rich semantic information, which is crucial for deep code understanding. The TypeScript Config Scanner plays a vital role in this process by identifying and interpreting TypeScript configuration files, providing essential context for the TypeScript Client's operations. The Reference Resolution Mixin provides the core functionality for resolving code references across different languages, enabling the system to trace definitions, usages, and call hierarchies. Finally, VSCode Constants provides configuration parameters and definitions relevant to the VS Code environment, indicating the system's integration with or dependency on the VS Code ecosystem. This architecture allows for a flexible and extensible static analysis pipeline that can adapt to various programming languages and project configurations.",
+  "description": "The static analysis subsystem is designed to systematically process and understand a codebase. The `Scanner` initiates the analysis by identifying relevant files and programming languages. The `LSP Client` then interacts with language servers to extract rich semantic information, leveraging the `TypeScript Config Scanner` for language-specific configurations. This raw and semantic data is fed into the `Graph Builder`, which constructs various graph representations of the code, such as call graphs. The `Reference Resolver` utilizes these graphs and the `LSP Client` to trace and resolve code references. Finally, the `Analysis Result Emitter` formats the structured analysis results for consumption by other parts of the system, such as an AI interpretation layer. This architecture ensures a comprehensive and extensible approach to static code analysis.",
   "components": [
     {
       "name": "Scanner",
-      "description": "Performs the initial parsing, lexical analysis, and Abstract Syntax Tree (AST) generation for various programming languages. It's the primary component for raw code ingestion and initial structural analysis.",
+      "description": "Orchestrates the initial phase of code analysis. It's responsible for traversing the codebase, identifying files for analysis, and initiating the parsing process. It acts as the entry point for feeding raw code into the analysis pipeline.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.scanner.ProjectScanner",
@@ -11,23 +11,70 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/scanner.py"
+      ],
+      "can_expand": false
     },
     {
-      "name": "TypeScript Client",
-      "description": "Manages communication with an external TypeScript Language Server (LSP). It leverages LSP capabilities to retrieve rich, semantic information about TypeScript code, such as type definitions, symbol references, and diagnostics, going beyond basic syntactic analysis.",
+      "name": "LSP Client",
+      "description": "Establishes and manages communication with Language Servers (e.g., TypeScript Language Server). It queries language services for Abstract Syntax Trees (ASTs), symbol information, type definitions, and other rich semantic data. The `TypeScript Client` provides specialized capabilities for TypeScript projects.",
       "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
           "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
           "reference_file": "static_analyzer/lsp_client/typescript_client.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Reference Resolution Mixin",
-      "description": "Provides a set of functionalities or methods for resolving code references (e.g., finding definitions, usages, and call hierarchies). This is a critical capability for deep code understanding and navigation.",
+      "name": "TypeScript Config Scanner",
+      "description": "Specifically designed to scan and interpret TypeScript configuration files (e.g., `tsconfig.json`). It extracts crucial project settings, compiler options, and file inclusions/exclusions necessary for accurate TypeScript analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": 8,
+          "reference_end_line": 57
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Graph Builder",
+      "description": "Constructs and manages graph-based representations of the source code. This includes building ASTs, Control Flow Graphs (CFGs), and Dependency Graphs from the data provided by the `Scanner` and `LSP Client`. It provides algorithms for graph traversal and querying to enable deep code relationship analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/graph.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Reference Resolver",
+      "description": "Identifies and resolves code references across the codebase. This involves tracing definitions, usages, and relationships between different code entities (e.g., variables, functions, classes). It leverages the LSP client's capabilities and the graph-based code representation.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
@@ -35,58 +82,107 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/reference_resolve_mixin.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "TypeScript Config Scanner",
-      "description": "Specifically designed to parse and interpret TypeScript configuration files (e.g., `tsconfig.json`). It extracts project-specific settings, module resolution strategies, and compilation options, which are crucial for accurate TypeScript analysis.",
+      "name": "Analysis Result Emitter",
+      "description": "Responsible for processing and formatting the structured analysis results produced by the `Graph Builder` into a consumable format. This component acts as the interface for external systems to receive the static analysis output.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
-          "reference_file": "static_analyzer/typescript_config_scanner.py",
-          "reference_start_line": 8,
-          "reference_end_line": 46
-        }
-      ]
-    },
-    {
-      "name": "VSCode Constants",
-      "description": "Defines constants, enums, or configuration parameters that are specific to the Visual Studio Code environment. Its presence indicates a strong integration or dependency on VS Code's ecosystem, influencing how analysis is performed or how results are consumed within a VS Code context.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "vscode_constants",
-          "reference_file": "vscode_constants.py",
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/analysis_result.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../vscode_constants.py",
+        "../../vscode_runnable.py",
+        "../../static_analyzer/programming_language.py",
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/lsp_client/__init__.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "utilizes",
+      "relation": "delegates analysis to",
       "src_name": "Scanner",
-      "dst_name": "Reference Resolution Mixin"
+      "dst_name": "LSP Client"
     },
     {
-      "relation": "leverages",
+      "relation": "feeds raw code data into",
       "src_name": "Scanner",
-      "dst_name": "TypeScript Client"
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "uses",
-      "src_name": "TypeScript Client",
-      "dst_name": "VSCode Constants"
+      "relation": "relies on configuration from",
+      "src_name": "LSP Client",
+      "dst_name": "TypeScript Config Scanner"
+    },
+    {
+      "relation": "provides semantic data to",
+      "src_name": "LSP Client",
+      "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "responds to queries from",
+      "src_name": "LSP Client",
+      "dst_name": "Reference Resolver"
     },
     {
       "relation": "provides configuration to",
       "src_name": "TypeScript Config Scanner",
-      "dst_name": "TypeScript Client"
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "receives code data from",
+      "src_name": "Graph Builder",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "receives semantic data from",
+      "src_name": "Graph Builder",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "provides graph data to",
+      "src_name": "Graph Builder",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "produces structured results for",
+      "src_name": "Graph Builder",
+      "dst_name": "Analysis Result Emitter"
+    },
+    {
+      "relation": "queries",
+      "src_name": "Reference Resolver",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "utilizes graph data from",
+      "src_name": "Reference Resolver",
+      "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "receives structured analysis results from",
+      "src_name": "Analysis Result Emitter",
+      "dst_name": "Graph Builder"
     }
   ]
 }

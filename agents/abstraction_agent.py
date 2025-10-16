@@ -8,7 +8,7 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
     ComponentFiles, Component
 from agents.prompts import (
-    get_cfg_message, get_source_message, get_system_message, 
+    get_cfg_message, get_source_message, get_system_message,
     get_conclusive_analysis_message, get_feedback_message, get_classification_message
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -44,9 +44,19 @@ class AbstractionAgent(CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        programming_langs = self.static_analysis.get_languages()
+        community_strs = ""
+        if len(programming_langs) > 1:
+            community_strs += f"This project contains multiple programming languages: {', '.join(programming_langs)}.\n"
+        elif len(programming_langs) == 0:
+            logger.warning(f"[AbstractionAgent] No programming languages detected for project: {self.project_name}")
+            community_strs += "No programming languages detected.\n"
+        for pl in programming_langs:
+            community_strs += self.static_analysis.get_cfg(pl).to_cluster_string()
+
         prompt = self.prompts["cfg"].format(
             project_name=self.project_name,
-            cfg_str=self.read_cfg_tool._run(),
+            cfg_str=community_strs,
             meta_context=meta_context_str,
             project_type=project_type
         )

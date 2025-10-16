@@ -1,92 +1,99 @@
 {
-  "description": "The Output Generation Engine subsystem transforms validated architectural insights into various documentation formats and integrates with external systems like GitHub Actions. The main flow involves the `github_action` component acting as the primary entry point, orchestrating the selection and execution of specific output format generators (Markdown, HTML, MDX, Sphinx/RST) based on user configuration. Its purpose is to provide diverse documentation outputs and enable seamless integration within a CI/CD environment.",
+  "description": "The output generation subsystem is orchestrated by the `Output Generation Engine`, which manages the end-to-end process of transforming architectural insights into various documentation formats. This engine first performs repository setup and analysis generation, then dynamically dispatches the resulting insights to specialized generators based on the required output format. The `GitHub Action Output Generator` is responsible for producing documentation in HTML, Markdown, and MDX, primarily for integration into GitHub Actions workflows. Concurrently, the `Sphinx Output Generator` focuses on creating structured reStructuredText (RST) documentation, catering to projects that utilize Sphinx for comprehensive and customizable documentation. This modular design ensures flexibility in output formats while maintaining a clear separation of concerns for each generation process.",
   "components": [
     {
-      "name": "github_action",
-      "description": "Acts as the primary entry point for initiating output generation within a GitHub Actions workflow. It orchestrates the selection and execution of specific output format generators based on user configuration.",
+      "name": "Output Generation Engine",
+      "description": "Acts as the orchestrator for the entire output generation process. It receives architectural insights, delegates to specific format generators, and manages the overall flow of documentation creation and delivery. This component is central due to its role in coordinating all output activities and integrating with upstream (AI Interpretation Layer) and downstream (API Service) components.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action",
+          "qualified_name": "github_action.generate_analysis",
           "reference_file": "github_action.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../github_action.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "output_generators.markdown",
-      "description": "Generates documentation in Markdown format.",
+      "name": "GitHub Action Output Generator",
+      "description": "Specializes in generating documentation outputs tailored for GitHub Actions workflows. It handles the creation of HTML, Markdown, and MDX formats, ensuring compatibility and proper structuring for automated deployment within a GitHub Actions environment. This component is crucial for enabling automated documentation updates and integration into CI/CD pipelines.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.markdown",
-          "reference_file": "output_generators/markdown.py",
+          "qualified_name": "github_action.generate_html",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action.generate_markdown",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action.generate_mdx",
+          "reference_file": "github_action.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
+      ],
+      "can_expand": false
     },
     {
-      "name": "output_generators.html",
-      "description": "Generates documentation in HTML format.",
+      "name": "Sphinx Output Generator",
+      "description": "Focuses exclusively on generating documentation in the Sphinx format. It processes the architectural insights and renders them into the structured and extensible format required by Sphinx, including reStructuredText or MyST Markdown. This component is vital for projects requiring comprehensive, versioned, and highly customizable documentation.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html",
-          "reference_file": "output_generators/html.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "output_generators.mdx",
-      "description": "Generates documentation in MDX (Markdown with JSX) format.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.mdx",
-          "reference_file": "output_generators/mdx.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "output_generators.sphinx",
-      "description": "Generates documentation in reStructuredText (RST) format, specifically tailored for Sphinx documentation projects, including embedded Mermaid diagrams.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.sphinx",
+          "qualified_name": "output_generators.sphinx.generate_rst_file",
           "reference_file": "output_generators/sphinx.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/sphinx.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../output_generators/__init__.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.markdown"
+      "relation": "initiates analysis and delegates to",
+      "src_name": "Output Generation Engine",
+      "dst_name": "GitHub Action Output Generator"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.html"
+      "relation": "initiates analysis and delegates to",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Sphinx Output Generator"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.mdx"
+      "relation": "generates",
+      "src_name": "GitHub Action Output Generator",
+      "dst_name": "HTML, Markdown, MDX documentation"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.sphinx"
+      "relation": "generates",
+      "src_name": "Sphinx Output Generator",
+      "dst_name": "Sphinx (RST) documentation"
     }
   ]
 }

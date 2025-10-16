@@ -1,191 +1,60 @@
 {
-  "description": "The system is designed around a core `Orchestration Engine` that manages the entire codebase analysis workflow. This engine interacts with the `Repository Manager` to acquire source code, which is then passed to the `Static Analysis Engine` for initial processing. The raw analysis data is subsequently fed into the `AI Interpretation Layer`, where Large Language Models generate insights and documentation drafts. The `Output Generation Engine` takes these drafts and formats them into various consumable outputs. An `API Service` provides the external interface for users to initiate analysis jobs, monitor their status, and retrieve results. All job-related information is persisted in the `Job Database`, while the `Configuration Management` component centralizes system settings and credentials, ensuring consistent operation across all components.",
+  "description": "The core of this subsystem revolves around the `DiffAnalyzingAgent`, which acts as the orchestrator for analyzing code changes within a project. It is responsible for managing the overall diff analysis workflow, from retrieving existing analysis and fetching new diff data to processing and interpreting these changes. The `DiffAnalyzingAgent` directly leverages the `Git Diff Utility` to obtain granular file change information, which it then uses to determine the degree of update required for the project's analysis. This streamlined architecture ensures a clear separation of concerns, with the orchestrator managing the analysis process and the utility providing the essential diffing capabilities.",
   "components": [
     {
-      "name": "Repository Manager",
-      "description": "Manages all interactions with source code repositories, including cloning, fetching, and extracting version differences, to provide the necessary codebase for analysis.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "__init__",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 21,
-          "reference_end_line": 32
-        },
-        {
-          "qualified_name": "git_diff",
-          "reference_file": "repo_utils/git_diff.py",
-          "reference_start_line": 27,
-          "reference_end_line": 76
-        }
-      ]
-    },
-    {
-      "name": "Orchestration Engine",
-      "description": "Coordinates the overall workflow of codebase analysis, managing the sequence of operations from repository ingestion to final output generation. It acts as the central control for job execution.",
+      "name": "Repository Manager (Orchestrator)",
+      "description": "This is the overarching component for the subsystem, embodied by the `DiffAnalyzingAgent`. It orchestrates all repository-related operations for diff analysis, acting as the primary interface for managing and processing code changes. It directly utilizes the `Git Diff Utility` to obtain diff data and then uses an LLM to analyze these changes and determine the update degree.",
       "referenced_source_code": [
         {
           "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
           "reference_file": "agents/diff_analyzer.py",
           "reference_start_line": null,
           "reference_end_line": null
-        },
+        }
+      ],
+      "assigned_files": [
+        "../../agents/diff_analyzer.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Git Diff Utility",
+      "description": "A specialized, stateless utility focused solely on calculating and providing version differences between specified code states (e.g., commits, branches, or working directory vs. index). It is fundamental for change analysis within the tool, providing the raw file change data to the `Repository Manager (Orchestrator)`.",
+      "referenced_source_code": [
         {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
+          "qualified_name": "repo_utils.git_diff:get_git_diff",
+          "reference_file": "repo_utils/git_diff.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "Performs in-depth analysis of the source code provided by the Repository Manager, extracting structural information, dependencies, and other relevant metrics without executing the code.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer.scanner.ProjectScanner",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "AI Interpretation Layer",
-      "description": "Processes the raw analysis data from the Static Analysis Engine using Large Language Models (LLMs) to interpret code context, identify architectural patterns, and generate human-readable insights and documentation drafts.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Output Generation Engine",
-      "description": "Formats and renders the interpreted insights and documentation into various output formats (e.g., Mermaid diagrams, Markdown, JSON), making them consumable by users or other systems.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.markdown",
-          "reference_file": "output_generators/markdown.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "API Service",
-      "description": "Provides external interfaces for users and other systems to interact with the tool, enabling job submission, status monitoring, and retrieval of analysis results and generated documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Job Database",
-      "description": "Persists information about analysis jobs, their status, parameters, and results, ensuring durability and enabling asynchronous processing and historical tracking.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents/diff_analyzer.py",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 39,
-          "reference_end_line": 41
-        },
-        {
-          "qualified_name": "agents/diff_analyzer.py",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 48,
-          "reference_end_line": 53
-        }
-      ]
-    },
-    {
-      "name": "Configuration Management",
-      "description": "Centralizes and manages all system configurations, including repository access credentials, analysis rules, LLM API keys, and output preferences, ensuring consistent behavior across components.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": 55,
-          "reference_end_line": 64
-        }
-      ]
+      ],
+      "assigned_files": [
+        "../../repo_utils/git_diff.py",
+        "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../repo_utils/errors.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "provides fetched source code to",
-      "src_name": "Repository Manager",
-      "dst_name": "Static Analysis Engine"
+      "relation": "utilizes",
+      "src_name": "Repository Manager (Orchestrator)",
+      "dst_name": "Git Diff Utility"
     },
     {
-      "relation": "queries to retrieve settings for repository access",
-      "src_name": "Repository Manager",
-      "dst_name": "Configuration Management"
-    },
-    {
-      "relation": "instructs to fetch or update codebase",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Repository Manager"
-    },
-    {
-      "relation": "dispatches analysis tasks to",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Static Analysis Engine"
-    },
-    {
-      "relation": "submits jobs to for tracking and persistence",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Job Database"
-    },
-    {
-      "relation": "sends extracted code insights to for further processing",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "retrieves analysis rules and configurations from",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "Configuration Management"
-    },
-    {
-      "relation": "sends interpreted insights and documentation drafts to",
-      "src_name": "AI Interpretation Layer",
-      "dst_name": "Output Generation Engine"
-    },
-    {
-      "relation": "provides final documentation and diagrams to for delivery",
-      "src_name": "Output Generation Engine",
-      "dst_name": "API Service"
-    },
-    {
-      "relation": "uses templates and styling rules from",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Configuration Management"
-    },
-    {
-      "relation": "submits new analysis jobs to",
-      "src_name": "API Service",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "retrieves final outputs from",
-      "src_name": "API Service",
-      "dst_name": "Output Generation Engine"
-    },
-    {
-      "relation": "is queried by for job status and results",
-      "src_name": "Job Database",
-      "dst_name": "API Service"
+      "relation": "provides diff results to",
+      "src_name": "Git Diff Utility",
+      "dst_name": "Repository Manager (Orchestrator)"
     }
   ]
 }

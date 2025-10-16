@@ -71,7 +71,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
                 fname = "on_boarding"
             target_branch = get_branch(repo_path)
             generate_markdown_file(fname, analysis, repo_name,
-                                   repo_ref=f"{repo_url}/blob/{target_branch}/{temp_repo_folder}",
+                                   repo_ref=f"{repo_url}/blob/{target_branch}/",
                                    linked_files=analysis_files,
                                    temp_dir=temp_repo_folder, demo=True)
 
@@ -124,7 +124,7 @@ def copy_files(temp_folder: Path, output_dir: Path):
 if __name__ == "__main__":
     # Initialize the prompt factory for demo.py to use bidirectional prompts
     initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
-    
+
     parser = argparse.ArgumentParser(
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
