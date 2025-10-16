@@ -105,8 +105,7 @@ async def generate_onboarding(job_id: str):
                     raise ValueError("REPO_ROOT environment variable not set")
 
                 # run generation
-                _ = extract_repo_name(job["repo_url"])
-                _ = await run_in_threadpool(
+                await run_in_threadpool(
                     generate_docs_remote,
                     repo_url=job["repo_url"],
                     temp_repo_folder=temp_repo_folder,

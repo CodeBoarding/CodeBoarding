@@ -12,6 +12,8 @@ from .gemini_flash_prompts_bidirectional import GeminiFlashBidirectionalPromptFa
 from .gemini_flash_prompts_unidirectional import GeminiFlashUnidirectionalPromptFactory
 from .gpt_prompts_bidirectional import GPTBidirectionalPromptFactory
 from .gpt_prompts_unidirectional import GPTUnidirectionalPromptFactory
+from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
+from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
 
 
 class PromptType(Enum):
@@ -41,20 +43,18 @@ class PromptFactory:
             case LLMType.GEMINI_FLASH:
                 if self.prompt_type == PromptType.BIDIRECTIONAL:
                     return GeminiFlashBidirectionalPromptFactory()
-                else:
-                    return GeminiFlashUnidirectionalPromptFactory()
+                return GeminiFlashUnidirectionalPromptFactory()
+
             case LLMType.CLAUDE | LLMType.CLAUDE_SONNET:
                 if self.prompt_type == PromptType.BIDIRECTIONAL:
-                    from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
                     return ClaudeBidirectionalPromptFactory()
-                else:
-                    from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
-                    return ClaudeUnidirectionalPromptFactory()
+                return ClaudeUnidirectionalPromptFactory()
+
             case LLMType.GPT4:
                 if self.prompt_type == PromptType.BIDIRECTIONAL:
                     return GPTBidirectionalPromptFactory()
-                else:
-                    return GPTUnidirectionalPromptFactory()
+                return GPTUnidirectionalPromptFactory()
+
             case _:
                 # Default fallback
                 return GeminiFlashBidirectionalPromptFactory()
