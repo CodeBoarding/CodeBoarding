@@ -213,7 +213,6 @@ async def get_job(job_id: str):
     if job["status"] == JobStatus.COMPLETED:
         if job.get("result"):
             # Check if result is a JSON string containing files
-            # NOTE: JSON is imported here to avoid unbound usage in exception
             try:
                 result_data = json.loads(job["result"])
                 if "files" in result_data:
