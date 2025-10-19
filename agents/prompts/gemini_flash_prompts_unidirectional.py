@@ -1,82 +1,93 @@
 from .abstract_prompt_factory import AbstractPromptFactory
 
-SYSTEM_MESSAGE = """You are a software architecture expert. Your task is to analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level data flow overview optimized for diagram generation.
+SYSTEM_MESSAGE = """Your task is to analyze Control Flow Graphs (CFGs) for `{project_name}` and generate a high-level data flow overview optimized for diagram generation.
 
 Project Context:
 {meta_context}
 
 Instructions:
-1. Analyze the provided CFG data first - identify patterns and structures suitable for flow graph representation
-2. Use tools when information is missing
-3. Focus on architectural patterns for {project_type} projects with clear component boundaries
-4. Consider diagram generation needs - components should have distinct visual boundaries
+Follow a structured approach to analyze and represent CFG data:
 
-Your analysis must include:
-- Central modules/functions (maximum 20) from CFG data with clear interaction patterns
-- Logical component groupings with clear responsibilities suitable for flow graph representation
-- Component relationships and interactions that translate to clear data flow arrows, avoid multiple relationships between the same components, keep the flow clear and one way, no need for return relationships if there is a call relationship
-- Reference to relevant source files for interactive diagram elements
+Step 1 - Analyze the provided CFG data:
+- Identify central modules/functions (up to 20) with clear interaction patterns.
+- Establish logical component groupings with distinct responsibilities suitable for flow graph representation.
 
-Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
+Step 2 - Use tools when information is missing:
+- Apply `getPackageDependencies` for an understanding of package structure.
+- Employ `getClassHierarchy` to clarify component relationships.
 
-CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}` with diagram generation in mind.
+Step 3 - Focus on architectural patterns for `{project_type}` projects:
+- Ensure clear component boundaries are defined based on project requirements.
+- Incorporate suitable architectural patterns into the analysis.
 
-Project Context:
-{meta_context}
+Step 4 - Consider diagram generation needs:
+- Components should have distinct visual boundaries for clarity.
+- Component relationships should translate to unidirectional data flow arrows, avoiding multiple relationships between the same components.
+- Reference relevant source files to enable interactive diagram elements.
 
-The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
-As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
-Control-flow Data:
+Use tools when necessary and ensure your analysis supports both documentation and visual diagram generation."""
+
+CFG_MESSAGE = """Analyze and generate a diagram based on the Control Flow Graph (CFG) for the `{project_name}` project. The analysis should prioritize core business logic and data flow while excluding non-essential components such as logging or error handling.
+
+Follow these instructions:
+1. Review the CFG data provided in the format of clustered methods and edges between them, identifying clear component boundaries for a flow graph representation.
+2. Use `getPackageDependencies` to gather information about the package structure for organizing the diagram.
+3. Apply `getClassHierarchy` when component relationships need clarification, especially regarding arrow connections between components.
+
+Focus on producing the following outputs:
+- Identify important modules/functions from the CFG data, highlighting clear interaction pathways.
+- Define abstract components, with a maximum of 15, including names, concise descriptions, and responsibilities.
+- Create component relationships, ensuring only one relationship per component pair suitable for diagram arrows.
+- Reference the source files from the CFG data, enabling interactive click events within the diagram.
+
+Apply {project_type} specific architectural patterns, emphasizing core business logic and clear data flow, while optimizing the diagram's clarity and excluding clutter from non-core components.
+
+The CFG data is provided below:
 {cfg_str}
+"""
 
-Instructions:
-1. Analyze the provided CFG data first, identifying clear component boundaries for a flow graph representation
-2. Use getPackageDependencies to get information on package structure for diagram organization
-3. Use getClassHierarchy if component relationships need clarification for arrow connections
-
-Required outputs:
-- Important modules/functions from CFG data with clear interaction pathways
-- Abstract components (max 15) with clear names, descriptions, and responsibilities
-- Component relationships (only 1 per component pair) suitable for diagram arrows
-- Source file references from CFG data for interactive click events
-
-Apply {project_type} architectural patterns. Focus on core business logic with clear data flow - exclude logging/error handling components that clutter diagrams."""
-
-SOURCE_MESSAGE = """Validate and enhance component analysis using source code for comprehensive documentation and diagram generation.
+SOURCE_MESSAGE = """Validate and enhance component analysis for comprehensive documentation and diagram generation in `{project_name}`.
 
 Project Context:
 {meta_context}
 
-Current analysis:
+Current Analysis:
 {insight_so_far}
 
 Instructions:
-1. Review current analysis to identify gaps and optimize for flow graph representation
-2. Use getClassHierarchy if component structure needs clarification for diagram mapping
-3. Use getSourceCode to ensure components have clear source file references for click events
-4. Use readFile for full file references when component boundaries need validation
-5. Use getFileStructure for directory/package references - these create better high-level diagram components
+- Review the current analysis to identify any gaps and optimize it for flow graph representation.
+- Utilize `getClassHierarchy` if the component structure requires clarification for effective diagram mapping.
+- Access `getSourceCode` to ensure components include clear source file references for interactive click events in diagrams.
+- Consult `readFile` for comprehensive file references when validating component boundaries.
+- Leverage `getFileStructure` for directory/package references, which aid in creating better high-level diagram components.
 
-Required outputs:
-- Validated component boundaries optimized for both analysis and diagram representation
-- Refined components (max 10) using {project_type} patterns with distinct responsibilities
-- Confirmed component relationships suitable for clear diagram connections
-- Clear source file references for interactive diagram elements and documentation
-- Component groupings that translate well to diagram subgraphs and documentation sections
+Required Outputs:
+1. Validated component boundaries optimized for both analysis and diagram representation.
+2. Refined components (maximum 10), ensuring they follow `{project_type}` patterns and have distinct responsibilities.
+3. Confirmed component relationships suitable for clear and logical diagram connections.
+4. Clear source file references that enhance interactive diagram elements and support documentation.
+5. Component groupings that effectively translate to diagram subgraphs and documentation sections.
 
-Work primarily with existing insights. Use tools for missing information. Consider both documentation clarity and flow graph representation."""
+Focus primarily on existing insights and utilize tools to address missing information. Keep both documentation clarity and flow graph representation as priorities."""
 
-CLASSIFICATION_MESSAGE = """You are the software architecture expert, you have analysed the project {project_name} and have identified the following components:
+CLASSIFICATION_MESSAGE = """As a software architecture expert, you have analyzed the `{project_name}` and identified key components.
+
+Components Identified:
 {components}
 
-Now you have to classify each of the file projects into one of the components. Here is a batch of unclassified files:
+Files to Classify:
 {files}
 
-You can use the readFile tool to read the file content if you need more information to classify the file correctly. Please take a look at the file content before making a decision especially if you don't find it relevant to the already related files in the component.
-If you can't find a relevant component for the file, classify it as part of the "Unclassified" component.
+Instructions:
+- Classify each file into the components listed above.
+- If uncertain, use the `readFile` tool to examine the file content for more information.
+- Carefully inspect file content, especially when the file seems unrelated to existing component files.
+- If a file does not fit any component clearly, categorize it under "Unclassified."
+
+Follow the above steps to ensure accurate classification of project files.
 """
 
-CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}` optimized for representing the flow.
+CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}`, with a focus on flow representation.
 
 Project Context:
 {meta_context}
@@ -88,29 +99,30 @@ Source Analysis:
 {source_insight}
 
 Instructions:
-Use provided analysis data to create comprehensive documentation suitable for both written analysis and visual diagram generation. Validate file references with getFileStructure and readSourceCode for accuracy.
+- Utilize provided analysis data to craft comprehensive documentation that suits both written analysis and visual diagram generation.
+- Validate file references using `getFileStructure` and `readSourceCode` to ensure accuracy.
 
-Required outputs:
-1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow suitable for diagram explanation
-2. Critical interaction pathways that translate to clear diagram arrows and documentation flow
-3. Final components (max 8, optimally 5) following {project_type} patterns with distinct boundaries for visual representation. Each should have a source file references, which are the main files/functions/classes/modules that represent the component
-4. Component relationships (only 1 per component pair) that create clear diagram connections and define logical flow. For relationships which are call/return, keep only the call relationship, so we can maintain the clarity and direction of the diagram.
-5. Architecture overview paragraph suitable for both documentation and diagram generation prompts
+Required Outputs:
+1. Combine CFG and source analysis insights into one cohesive paragraph explaining the main flow, suitable for diagram explanation.
+2. Describe critical interaction pathways to translate into clear diagram arrows and documentation flow.
+3. Identify final components (up to 8, preferably 5) following `{project_type}` patterns with distinct boundaries for visual representation. Each should include source file references for the main files/functions/classes/modules that represent the component.
+4. Define component relationships (limit to 1 per component pair) that create clear diagram connections, focusing on call relationships to maintain diagram clarity and direction.
+5. Write an architecture overview paragraph for both documentation and diagram generation prompts.
 
-Additional considerations for diagram generation:
-- Components should have clear functional boundaries for flow graph representation
-- Use clear naming conventions for components to enhance clarity in the context of the project itself.
-- Relationships should represent clear data/control flow for arrow representation
-- Include file/directory references suitable for interactive click events
-- Group related functionality for potential diagram subgraphs
+Additional Considerations for Diagram Generation:
+- Ensure components have clear functional boundaries for flow graph representation.
+- Apply consistent naming conventions for clarity within the project's context.
+- Illustrate relationships as clear data/control flow suitable for arrow representation.
+- Include file/directory references optimized for potential interactive click events.
+- Organize related functionalities for possible diagram subgraphs.
 
 Constraints:
-- Use only provided analysis data
-- Focus on highest level architectural components suitable for both documentation and flow graph representation
-- Exclude utility/logging components that clutter both documentation and diagrams
-- Include description paragraph that works for project overview and diagram context"""
+- Only use provided analysis data.
+- Concentrate on high-level architectural components ideal for both documentation and flow graph representation.
+- Exclude utility/logging components to prevent clutter in both documentation and diagrams.
+- Include a description paragraph that serves as both a project overview and diagram context."""
 
-FEEDBACK_MESSAGE = """You are a software architect receiving expert feedback on your analysis for documentation and diagram optimization.
+FEEDBACK_MESSAGE = """As a software architect, refine your analysis for documentation and diagram optimization based on expert feedback.
 
 Feedback:
 {feedback}
@@ -119,72 +131,77 @@ Original Analysis:
 {analysis}
 
 Instructions:
-1. Evaluate feedback relevance to both analysis quality and diagram generation suitability
-2. Use tools to address missing information or misinformation affecting the flow graph representation
-3. Address only specific feedback points if they improve both documentation and diagram clarity
+- Evaluate the relevance of the feedback regarding analysis quality and diagram generation suitability.
+- Utilize tools to correct or refine information impacting the control flow graph representation.
+- Focus solely on feedback points that enhance both documentation and diagram clarity.
 
-Required outputs:
-1. Synthesized insights from CFG and source analysis explaining main flow for documentation and diagram context
-2. Critical interaction pathways suitable for both written documentation and visual arrows
-3. Keep the same final components (max 8, optimally 5) without changes unless explicitly requested for diagram improvement
-4. Component relationships (only 1 per component pair) optimized for both documentation and flow graph representation.
-5. Architecture overview paragraph suitable for documentation and diagram generation
+Required Outputs:
+1. Synthesize insights from CFG and source analysis to explain the core flow for documentation and diagram context.
+2. Identify critical interaction pathways suitable for both written documentation and visual representation using arrows.
+3. Retain the final components count (max 8, ideally 5) unless changes are specifically requested for diagram improvement.
+4. Optimize component relationships (limit to 1 per component pair) for both documentation and flow graph representation.
+5. Provide an architecture overview paragraph suitable for inclusion in documentation and diagram generation.
 
 Constraints:
-- Use only provided analysis data enhanced by feedback
-- Focus on highest level architectural components suitable for the flow graph representation
-- Exclude utility/logging components that complicate both documentation and diagrams
-- Maintain consistency between documentation and diagram generation needs"""
+- Enhance only using the provided analysis data and feedback.
+- Concentrate on high-level architectural components suitable for flow graph representation.
+- Exclude utility/logging components to avoid complicating documentation and diagrams.
+- Ensure consistency between documentation and diagram generation requirements."""
 
-SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
+SYSTEM_DETAILS_MESSAGE = """You are tasked with analyzing a subsystem within `{project_name}` as a software architecture expert.
 
 Project Context:
 {meta_context}
 
 Instructions:
-1. Start with available project context and CFG data
-2. Use getClassHierarchy only for the target subsystem
+- Start with the available project context and CFG (Control Flow Graph) data.
+- Use `getClassHierarchy` only for analyzing the target subsystem.
 
-Required outputs:
-- Subsystem boundaries from context
-- Central components (max 10) following {project_type} patterns
-- Component responsibilities and interactions
-- Internal subsystem relationships
+Required Outputs:
+- Define the subsystem boundaries based on the project context.
+- Identify up to 10 central components, ensuring they follow `{project_type}` patterns.
+- Describe component responsibilities and interactions.
+- Explore internal subsystem relationships.
 
-Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
+Note: Focus exclusively on subsystem-specific functionality, avoiding cross-cutting concerns such as logging or error handling."""
 
-SUBCFG_DETAILS_MESSAGE = """Analyze subgraph for component the following component in `{project_name}`:
-Component: {component}
+SUBCFG_DETAILS_MESSAGE = """Analyze the subgraph for the specified component within the `{project_name}` using the provided Control Flow Graph (CFG) data.
 
-Control-flow Project Context:
+Component to analyze:
+{component}
+
+Project Context:
 {cfg_str}
 
 Instructions:
-No tools required - extract from provided CFG data only.
+- Extract the relevant subgraph for the specified component from the CFG.
+- No external tools are required; rely only on the provided CFG data.
 
 Output:
-Return only the relevant subgraph for the specified component."""
+- Present only the subgraph data relevant to the specified component."""
 
-CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
+CFG_DETAILS_MESSAGE = """You are tasked to analyze the Control Flow Graph (CFG) interactions for the `{project_name}` subsystem. Use the project context and provided CFG string data to identify patterns and interactions.
 
 Project Context:
 {meta_context}
 
-{cfg_str}
+Current insights:
+{insight_so_far}
 
 Instructions:
-1. Analyze provided CFG data for subsystem patterns
-2. Use getClassHierarchy if interaction details are unclear
+1. Analyze the CFG data for subsystem patterns.
+2. Use `getClassHierarchy` if interaction details are unclear.
 
-Required outputs:
-- Subsystem modules/functions from CFG
-- Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair)
-- Justification based on {project_type} patterns
+Required Outputs:
+- List of subsystem modules/functions derived from CFG.
+- Identify components with clear responsibilities.
+- Describe component interactions, focusing on up to 10 components and no more than 2 relationships per pair.
+- Provide justification based on `{project_type}` patterns.
 
-Focus on core subsystem functionality only."""
+Focus only on core subsystem functionality.
+"""
 
-ENHANCE_STRUCTURE_MESSAGE = """Validate component analysis for {component} in `{project_name}`.
+ENHANCE_STRUCTURE_MESSAGE = """Your task is is validate component analysis for {component} in `{project_name}`.
 
 Project Context:
 {meta_context}
@@ -203,58 +220,82 @@ Required outputs:
 
 Work primarily with provided insights."""
 
-DETAILS_MESSAGE = """Final component overview for {component}.
+DETAILS_MESSAGE = """Role: Your task is to provide a final component overview for {component} within the context of project {project_type}.
 
 Project Context:
 {meta_context}
 
-Analysis summary:
+Analysis Summary:
 {insight_so_far}
 
 Instructions:
-No tools required - use provided analysis summary only.
+1. Using the provided analysis summary, determine the final structure of the component.
+2. Identify a maximum of 8 components that align with {project_type} architectural patterns.
+3. Give clear descriptions for each component and point out their source files.
+4. Map out interactions between components, limiting to one relationship per component pair.
 
-Required outputs:
-1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns
-3. Clear component descriptions and source files
-4. Component interactions (only 1 relationship per component pair)
-
-Justify component choices based on fundamental architectural importance."""
-
-PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert evaluating component expansion needs.
-
-Instructions:
-1. Use available context (file structure, CFG, source) to assess complexity
-2. Use getClassHierarchy if component internal structure is unclear
-
-Evaluation criteria:
-- Simple functionality (few classes/functions) = NO expansion
-- Complex subsystem (multiple interacting modules) = CONSIDER expansion
-
-Focus on architectural significance, not implementation details."""
-
-EXPANSION_PROMPT = """Evaluate component expansion necessity for: {component}
-
-Instructions:
-1. Review component description and source files
-2. Determine if it represents a complex subsystem worth detailed analysis
-3. Simple function/class groups do NOT need expansion
+Focus: Base your component choices on their architectural significance within the project.
 
 Output:
-Provide clear reasoning for expansion decision based on architectural complexity."""
+- Component Structure: [Detailed list of components]
+- Component Descriptions: [Descriptions and source files]
+- Component Interactions: [List of relationships]
 
-VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture expert validating analysis quality.
+Justification: Explain why each component was chosen based on fundamental architectural importance."""
+
+PLANNER_SYSTEM_MESSAGE = """
+
+Role: You are a software architecture expert tasked with evaluating the need for component expansion based on its complexity.
 
 Instructions:
-1. Review analysis structure and component definitions
-2. Use getClassHierarchy if component validity is questionable
+1. Utilize the available context, including file structure, Control Flow Graph (CFG), and source code, to assess the complexity of the component.
+2. If the internal structure of the component is unclear, employ the `getClassHierarchy` tool for further examination.
 
-Validation criteria:
-- Component clarity and responsibility definition
-- Valid source file references
-- Appropriate relationship mapping
-- Meaningful component naming with code references"""
+Evaluation Criteria:
+- Components exhibiting simple functionality, indicated by few classes or functions, do NOT require expansion.
+- Components functioning as complex subsystems, characterized by multiple interacting modules, should be CONSIDERED for expansion.
+
+Focus: Emphasize architectural significance without delving into implementation details.
+
+Input:
+Insert file structure, CFG, and source code information here
+
+Output:
+- Expansion Decision: [NO expansion/CONSIDER expansion]
+- Reasoning: Provide clear, concise reasoning for the expansion decision based on architectural complexity.
+"""
+
+EXPANSION_PROMPT = """Role: You are tasked with evaluating the necessity for component expansion based on its architectural complexity.
+
+Instructions:
+1. Review the description of the component and inspect the relevant source files.
+2. Assess whether the component represents a complex subsystem that warrants detailed analysis.
+3. Note that simple function or class groups do NOT require expansion.
+
+Input:
+Component Description and Source Files: {component}
+
+Output:
+- Reasoning: Provide clear and concise reasoning based on the architectural complexity observed in the component."""
+
+VALIDATOR_SYSTEM_MESSAGE = """Role: You are an expert in software architecture tasked with validating the quality of analysis.
+
+Instructions:
+Step 1: Review the structure and definitions of components within the analysis.
+Step 2: If component validity is questionable, utilize the `getClassHierarchy` tool for validation.
+   
+Validation Criteria:
+- Ensure clarity and well-defined responsibility of each component.
+- Confirm valid source file references for each component.
+- Verify appropriate mapping of relationships between components.
+- Check for meaningful naming of components with accurate code references.
+
+Input:
+Insert analysis structure and component definitions here
+
+Output:
+- Validation Result: [Valid/Invalid]
+- Reasoning: Provide detailed feedback on each validation criterion"""
 
 COMPONENT_VALIDATION_COMPONENT = """Validate component analysis:
 {analysis}
@@ -267,16 +308,18 @@ Instructions:
 Output:
 Provide validation assessment without additional tool usage."""
 
-RELATIONSHIPS_VALIDATION = """Validate component relationships:
-{analysis}
+RELATIONSHIPS_VALIDATION = """You will analyze the component relationships provided. Your tasks include:
 
 Instructions:
-1. Check relationship clarity and necessity
-2. Verify max 1 relationship per component pair
-3. Assess relationship logical consistency
+1. Check relationship clarity and necessity between components.
+2. Ensure each component pair features no more than two relationships.
+3. Assess relationship logical consistency throughout.
+
+Input Data:
+{analysis}
 
 Output:
-Conclude with VALID or INVALID assessment and specific reasoning."""
+Conclude the assessment with either "VALID" or "INVALID" followed by specific reasoning for your conclusion."""
 
 SYSTEM_DIFF_ANALYSIS_MESSAGE = """You are a software architecture expert analyzing code differences.
 
@@ -289,7 +332,7 @@ Required outputs:
 - Impact assessment on existing architecture analysis
 - Determination if architecture update is warranted"""
 
-DIFF_ANALYSIS_MESSAGE = """Analyze architectural impact of code changes.
+DIFF_ANALYSIS_MESSAGE = """You are tasked with analyzing the architectural impact of the given code changes.
 
 Original Analysis:
 {analysis}
@@ -298,71 +341,103 @@ Code Changes:
 {diff_data}
 
 Instructions:
-1. Review changes against existing architecture
-2. Assess architectural significance
-3. Provide impact score (0-10) with reasoning
+Step 1: Review the code changes against the existing architectural analysis provided.
+Step 2: Assess the architectural significance of these changes.
+Step 3: Provide an impact score between 0-10 based on the scoring guide below.
 
-Scoring guide:
-- 0-2: Minor changes (variable/method renames)
-- 3-4: Small changes (new methods, logic updates)
-- 5-6: Medium changes (new classes, class logic changes)
-- 7-8: Large changes (new modules, flow changes)
-- 9-10: Major changes (architecture changes, major removals)
+Scoring Guide:
+- 0-2: Minor changes (e.g., variable or method renames)
+- 3-4: Small changes (e.g., implementation of new methods or logic updates)
+- 5-6: Medium changes (e.g., creation of new classes or modification of class logic)
+- 7-8: Large changes (e.g., creation of new modules or changes in program flow)
+- 9-10: Major changes (e.g., modifications to architecture, major removals)
 
-No tools required - use provided diff and analysis data only."""
+Output:
+- Impact Score: [0-10]
+- Reasoning: Provide a detailed explanation of your scoring decision based on architectural changes observed."""
 
-SYSTEM_META_ANALYSIS_MESSAGE = """You are a senior software architect with expertise in project analysis and architectural pattern recognition.
+SYSTEM_META_ANALYSIS_MESSAGE = """Role: As a Senior Software Architect, your task is to analyze software projects to extract high-level architectural metadata suitable for documentation and flow diagram generation.
 
-Your role: Analyze software projects to extract high-level architectural metadata for documentation and flow diagram generation.
+Core Responsibilities:
+1. Identify project type, domain, and architectural patterns by examining project structure and documentation.
+2. Extract the technology stack and categorize expected components.
+3. Offer architectural guidance for component organization and diagram representation.
+4. Focus on high-level architectural insights rather than the minutiae of implementation details.
 
-Core responsibilities:
-1. Identify project type, domain, and architectural patterns from project structure and documentation
-2. Extract technology stack and expected component categories
-3. Provide architectural guidance for component organization and diagram representation
-4. Focus on high-level architectural insights rather than implementation details
-
-Analysis approach:
-- Start with project documentation (README, docs) for context and purpose
-- Examine file structure and dependencies for technology identification
-- Apply architectural expertise to classify patterns and suggest component organization
-- Consider both documentation clarity and visual diagram requirements
+Analysis Approach:
+Step 1: Begin with reviewing project documentation (e.g., README, docs) for context and purpose.
+Step 2: Scrutinize file structure and dependencies to identify technologies used.
+Step 3: Utilize your architectural expertise to classify the patterns and propose a component organization.
+Step 4: Ensure documentation clarity and generate requirements for visual diagram representation.
 
 Constraints:
-- Maximum 2 tool calls for critical information gathering
-- Focus on architectural significance over implementation details
-- Provide actionable guidance for component identification and organization"""
+- Use a maximum of two external tool calls for gathering critical information.
+- Emphasize architectural significance over specific implementation details.
+- Supply actionable guidance for identifying and organizing components.
 
-META_INFORMATION_PROMPT = """Analyze project '{project_name}' to extract architectural metadata.
+Input:
+Insert project documentation or references
 
-Required analysis outputs:
-1. **Project Type**: Classify the project category (web framework, data processing library, ML toolkit, CLI tool, etc.)
-2. **Domain**: Identify the primary domain/field (web development, data science, DevOps, AI/ML, etc.)
-3. **Technology Stack**: List main technologies, frameworks, and libraries used
-4. **Architectural Patterns**: Identify common patterns for this project type (MVC, microservices, pipeline, etc.)
-5. **Expected Components**: Predict high-level component categories typical for this project type
-6. **Architectural Bias**: Provide guidance on how to organize and interpret components for this specific project type
+Insert file structure and dependencies details
 
-Analysis steps:
-1. Read project documentation (README, setup files) to understand purpose and domain
-2. Examine file structure and dependencies to identify technology stack
-3. Apply architectural expertise to determine patterns and expected component structure
+Output:
+- Provide a detailed overview of high-level architectural insights, focusing on project type, domain, and patterns.
+- Outline the technology stack and categorize key components.
+- Recommend organizational strategies for components and visual diagram generation."""
 
-Focus on extracting metadata that will guide component identification and architectural analysis."""
+META_INFORMATION_PROMPT = """
+
+You are tasked with analyzing the architectural metadata for the project '{project_name}'.
+
+Required Analysis Outputs:
+1. Project Type: Classify the category of the project (e.g., web framework, data processing library, ML toolkit, CLI tool).
+2. Domain: Identify the primary field or domain (e.g., web development, data science, DevOps, AI/ML).
+3. Technology Stack: List the main technologies, frameworks, and libraries utilized.
+4. Architectural Patterns: Determine common architectural patterns suitable for this project type (e.g., MVC, microservices, pipeline).
+5. Expected Components: Predict high-level component categories typical of this project type.
+6. Architectural Bias: Offer guidance on organizing and interpreting components for this specific project type.
+
+Analysis Steps:
+Step 1: Review project documentation (README, setup files) to understand the project's purpose and domain.
+Step 2: Analyze file structure and dependencies to identify the technology stack used.
+Step 3: Utilize your architectural expertise to determine relevant patterns and the expected component structure.
+
+Focus: Extract metadata to assist in component identification and architectural analysis.
+
+Input:
+Insert project documentation or references
+Insert file structure and dependencies details
+
+Output:
+- Project Type: Classify the project category (web framework, data processing library, ML toolkit, CLI tool, etc.)
+- Domain: Identify the primary domain/field (web development, data science, DevOps, AI/ML, etc.)
+- Technology Stack: List main technologies, frameworks, and libraries used
+- Architectural Patterns: Identify common patterns for this project type (MVC, microservices, pipeline, etc.)
+- Expected Components: Predict high-level component categories typical for this project type
+- Architectural Bias: Provide guidance on how to organize and interpret components for this specific project type
+"""
 
 FILE_CLASSIFICATION_MESSAGE = """
-You are a file reference resolver.
+Role: You are tasked as a file reference resolver.
 
-Goal:
-Find which file contains the code reference `{qname}`.
+Goal: Identify which file contains the code reference '{qname}' from the list of possible files.
 
-Files to choose from (absolute paths): 
-{files}
+Input:
+List of absolute file paths: {files}
 
 Instructions:
-1. You MUST select exactly one file path from the list above. Do not invent or modify paths.
-2. If `{qname}` is a function, method, class, or similar:
-   - Use the `readFile` tool to locate its definition.
-   - Include the start and end line numbers of the definition.
+Step 1: You must select exactly one file path from the list provided above. Ensure you do not create or modify any paths.
+Step 2: If '{qname}' is identified as a function, method, class, or similar entity:
+   - Utilize the `readFile` tool to find its definition within the chosen file.
+   - Record the start and end line numbers where the definition occurs.
+   
+Constraints:
+- Only use the provided list of file paths.
+- Ensure accuracy in identifying the file containing '{qname}'.
+
+Output:
+- Selected File Path: [Chosen file path]
+- Definition Location: Start Line [Number], End Line [Number]
 """
 
 

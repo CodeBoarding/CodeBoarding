@@ -45,29 +45,6 @@ Workflow: Start with CFG data → Use tools strategically → Optimize for dual 
 Focus: Architectural clarity + Visual representation readiness
 """
 
-# CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}` with diagram generation in mind.
-
-# Project Context:
-# {meta_context}
-
-# The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
-# As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
-# Control-flow Data:
-# {cfg_str}
-
-# Instructions:
-# 1. Analyze the provided CFG data first, identifying clear component boundaries for a flow graph representation
-# 2. Use getPackageDependencies to get information on package structure for diagram organization
-# 3. Use getClassHierarchy if component relationships need clarification for arrow connections
-
-# Required outputs:
-# - Important modules/functions from CFG data with clear interaction pathways
-# - Abstract components (max 15) with clear names, descriptions, and responsibilities
-# - Component relationships (max 2 per component pair) suitable for diagram arrows
-# - Source file references from CFG data for interactive click events
-
-# Apply {project_type} architectural patterns. Focus on core business logic with clear data flow - exclude logging/error handling components that clutter diagrams."""
-
 CFG_MESSAGE = """
 Task:
 Analyze the Control Flow Graph (CFG) for the project `{project_name}` with an emphasis on diagram generation.
@@ -488,13 +465,14 @@ Input:
 Insert project documentation or references
 Insert file structure and dependencies details
 
+
 Output:
-- Project Type: [Classification]
-- Domain: [Field/Domain]
-- Technology Stack: [Technologies, Frameworks, Libraries]
-- Architectural Patterns: [Patterns]
-- Expected Components: [Component Categories]
-- Architectural Bias: [Guidance for Component Organization]"""
+- Project Type: Classify the project category (web framework, data processing library, ML toolkit, CLI tool, etc.)
+- Domain: Identify the primary domain/field (web development, data science, DevOps, AI/ML, etc.)
+- Technology Stack: List main technologies, frameworks, and libraries used
+- Architectural Patterns: Identify common patterns for this project type (MVC, microservices, pipeline, etc.)
+- Expected Components: Predict high-level component categories typical for this project type
+- Architectural Bias: Provide guidance on how to organize and interpret components for this specific project type"""
 
 FILE_CLASSIFICATION_MESSAGE = """
 Role: You are tasked as a file reference resolver.
