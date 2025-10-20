@@ -1,16 +1,16 @@
 {
-  "timestamp": "2025-10-20T18:21:07.141641",
-  "total_eval_time_seconds": 111.02259492874146,
+  "timestamp": "2025-10-20T19:08:27.908691",
+  "total_eval_time_seconds": 139.29383659362793,
   "projects": [
     {
       "project": "markitdown",
       "url": "https://github.com/microsoft/markitdown",
       "expected_language": "Python",
-      "total_time_seconds": 9.940037965774536,
+      "total_time_seconds": 13.776594638824463,
       "metrics": {
         "timing": {
-          "scanner": 0.09917998313903809,
-          "Python": 8.036081075668335
+          "scanner": 0.11284613609313965,
+          "Python": 12.629173517227173
         },
         "errors": {
           "Python": {
@@ -25,15 +25,15 @@
       "project": "tsoa",
       "url": "https://github.com/lukeautry/tsoa",
       "expected_language": "TypeScript",
-      "total_time_seconds": 93.01597595214844,
+      "total_time_seconds": 101.65973973274231,
       "metrics": {
         "timing": {
-          "scanner": 0.028994083404541016,
-          "TypeScript": 7.481823205947876
+          "scanner": 0.025433063507080078,
+          "TypeScript": 16.887179613113403
         },
         "errors": {
           "TypeScript": {
-            "total_files": 8,
+            "total_files": 37,
             "errors": 0
           }
         }
@@ -44,11 +44,11 @@
       "project": "cobra",
       "url": "https://github.com/spf13/cobra",
       "expected_language": "Go",
-      "total_time_seconds": 8.064751148223877,
+      "total_time_seconds": 23.855120182037354,
       "metrics": {
         "timing": {
-          "scanner": 0.02407217025756836,
-          "Go": 7.278841018676758
+          "scanner": 0.013041019439697266,
+          "Go": 22.7534818649292
         },
         "errors": {
           "Go": {
