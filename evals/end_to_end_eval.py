@@ -20,6 +20,7 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
+from evals.report_generator import generate_header, generate_e2e_section, write_report
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -347,7 +348,14 @@ def main():
     print("="*60)
     
     try:
-        run_end_to_end_eval()
+        results = run_end_to_end_eval()
+        # Write standalone markdown report (no SECURITY.md)
+        header = generate_header(
+            title="End-to-End Pipeline Evaluation",
+        )
+        body = generate_e2e_section(results)
+        report_md = "\n".join([header, body])
+        write_report(report_md, Path("evals/reports/end-to-end-report.md"))
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
     except Exception as e:

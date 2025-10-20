@@ -10,12 +10,8 @@ permissions:
 
 jobs:
   update-evals:
-    # must be a Blacksmith runner label for caching to work:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-
-    env:
-      AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
-
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,37 +38,14 @@ jobs:
           mkdir -p docs
           uv run python setup.py
 
-      - name: Run all evals and update SECURITY.md
+      - name: Run static_analysis_eval and update SECURITY.md
         run: |
-          uv run python evals/run_all_evals.py
+          uv run python evals/static_analysis_eval.py
 
-      # --- Docker build using Blacksmith cache (example) ---
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3  # v2 also works
-      - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@v1
-
-      # (optional) login to your registry before pushing
-      # - name: Login to GHCR
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build & (optionally) push Docker image with cache
-        uses: useblacksmith/build-push-action@v2
-        with:
-          context: .
-          file: Dockerfile
-          push: false             # set to true if you want to push
-          tags: ghcr.io/${{ github.repository }}:latest
-          # No cache-from / cache-to needed with Blacksmith
-      # --- end Docker example ---
-
-      - name: Commit SECURITY.md if changed
+      - name: Commit eval artifacts if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add SECURITY.md
-          git diff --cached --quiet && echo "🟡 No changes in SECURITY.md" || (git commit -m "Update evaluation results in SECURITY.md" && git push)
+          git add evals/monitoring_results/*.json || true
+          git add evals/reports/*.md || true
+          git diff --cached --quiet && echo "🟡 No changes in eval artifacts" || (git commit -m "Update evaluation artifacts (JSON and Markdown reports)" && git push)

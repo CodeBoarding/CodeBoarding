@@ -19,6 +19,7 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
+from evals.report_generator import generate_header, generate_static_section, write_report
 from diagram_analysis import DiagramGenerator
 from repo_utils import clone_repository
 from utils import create_temp_repo_folder, remove_temp_repo_folder
@@ -242,7 +243,14 @@ def main():
     print("="*60)
     
     try:
-        run_static_analysis_eval()
+        results = run_static_analysis_eval()
+        # Write standalone markdown report (no SECURITY.md)
+        header = generate_header(
+            title="Static Analysis Performance Evaluation",
+        )
+        body = generate_static_section(results)
+        report_md = "\n".join([header, body])
+        write_report(report_md, Path("evals/reports/static-analysis-report.md"))
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
     except Exception as e:
