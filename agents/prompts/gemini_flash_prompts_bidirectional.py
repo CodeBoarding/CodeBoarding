@@ -370,7 +370,7 @@ RELATIONSHIPS_VALIDATION = """You will analyze the component relationships provi
 
 Instructions:
 1. Check relationship clarity and necessity between components.
-2. Ensure each component pair features no more than two relationships.
+2. Verify max 2 relationships per component pair
 3. Assess relationship logical consistency throughout.
 
 Input Data:

@@ -201,7 +201,7 @@ Required Outputs:
 Focus only on core subsystem functionality.
 """
 
-ENHANCE_STRUCTURE_MESSAGE = """Your task is is validate component analysis for {component} in `{project_name}`.
+ENHANCE_STRUCTURE_MESSAGE = """Your task is to validate component analysis for {component} in `{project_name}`.
 
 Project Context:
 {meta_context}
@@ -312,7 +312,7 @@ RELATIONSHIPS_VALIDATION = """You will analyze the component relationships provi
 
 Instructions:
 1. Check relationship clarity and necessity between components.
-2. Ensure each component pair features no more than two relationships.
+2. Verify max 1 relationship per component pair
 3. Assess relationship logical consistency throughout.
 
 Input Data:

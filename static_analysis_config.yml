@@ -2,7 +2,7 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-    - /home/arvin/Desktop/fest/Code_Boarding/CodeBoarding/static_analyzer/servers/py-lsp
+    - ./static_analyzer/servers/py-lsp
     - --stdio
     languages:
     - python
@@ -13,7 +13,7 @@ lsp_servers:
   typescript:
     name: TypeScript Language Server
     command:
-    - /home/arvin/Desktop/fest/Code_Boarding/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
+    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
     - --stdio
     - --log-level=2
     languages:
@@ -39,7 +39,7 @@ tools:
   tokei:
     name: tokei
     command:
-    - /home/arvin/Desktop/fest/Code_Boarding/CodeBoarding/static_analyzer/servers/tokei
+    - ./static_analyzer/servers/tokei
     - -o
     - json
     description: Analyze repository languages and file types
