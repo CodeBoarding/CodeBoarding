@@ -28,6 +28,9 @@ from utils import create_temp_repo_folder, remove_temp_repo_folder
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Get project root from environment variable
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+
 
 def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, Any]:
     """Analyze a single project and return static analysis metrics."""
@@ -155,7 +158,7 @@ def run_static_analysis_eval(projects=None):
 
 def save_static_analysis_results(results: Dict[str, Any]) -> None:
     """Save static analysis results to a JSON file."""
-    output_dir = Path("evals/monitoring_results")
+    output_dir = PROJECT_ROOT / "evals/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_dir / "static_analysis_eval.json"
@@ -240,7 +243,7 @@ def main():
         )
         body = generate_static_section(results)
         report_md = "\n".join([header, body])
-        write_report(report_md, Path("evals/reports/static-analysis-report.md"))
+        write_report(report_md, PROJECT_ROOT / "evals/reports/static-analysis-report.md")
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
     except Exception as e:

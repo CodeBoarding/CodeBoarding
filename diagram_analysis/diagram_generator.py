@@ -33,7 +33,7 @@ class DiagramGenerator:
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.enable_monitoring = enable_monitoring
-        self.monitoring_output_dir = Path("evals/monitoring_results")
+        self.monitoring_output_dir = Path(os.getenv("PROJECT_ROOT")) / "evals/monitoring_results"
 
         self.details_agent = None
         self.abstraction_agent = None

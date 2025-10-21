@@ -26,10 +26,13 @@ from evals.report_generator import generate_header, generate_e2e_section, write_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Get project root from environment variable
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+
 
 def read_monitoring_results(project_name: str) -> Dict[str, Any]:
     """Read monitoring results from the generated JSON file."""
-    monitoring_file = Path(f"evals/monitoring_results/{project_name}_monitoring.json")
+    monitoring_file = PROJECT_ROOT / "evals/monitoring_results" / f"{project_name}_monitoring.json"
     
     if not monitoring_file.exists():
         logger.warning(f"Monitoring file not found: {monitoring_file}")
@@ -236,7 +239,7 @@ def run_end_to_end_eval(projects=None):
     logger.info("Starting end-to-end pipeline evaluation")
     logger.info(f"Testing {len(projects)} projects: {[p['name'] for p in projects]}")
     
-    output_base_dir = Path("evals")
+    output_base_dir = PROJECT_ROOT / "evals"
     results = []
     start_time = time.time()
     
@@ -266,7 +269,7 @@ def run_end_to_end_eval(projects=None):
 
 def save_results(results: Dict[str, Any]) -> None:
     """Save evaluation results to a JSON file."""
-    output_dir = Path("evals/monitoring_results")
+    output_dir = PROJECT_ROOT / "evals/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_dir / "end_to_end_eval.json"
@@ -345,7 +348,7 @@ def main():
         )
         body = generate_e2e_section(results)
         report_md = "\n".join([header, body])
-        write_report(report_md, Path("evals/reports/end-to-end-report.md"))
+        write_report(report_md, PROJECT_ROOT / "evals/reports/end-to-end-report.md")
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
     except Exception as e:
