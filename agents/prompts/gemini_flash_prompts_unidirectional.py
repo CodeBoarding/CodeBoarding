@@ -185,8 +185,8 @@ CFG_DETAILS_MESSAGE = """You are tasked to analyze the Control Flow Graph (CFG) 
 Project Context:
 {meta_context}
 
-Current insights:
-{insight_so_far}
+Control-Flow Data:
+{cfg_str}
 
 Instructions:
 1. Analyze the CFG data for subsystem patterns.
