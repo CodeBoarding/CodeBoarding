@@ -12,8 +12,8 @@ Architectural Context:
 **Core Protocol**:
 1. CFG-First Analysis: Extract natural component boundaries from control flow data
 2. Targeted Tool Usage: Fill information gaps only when essential
-3. {project_type} Patterns: Apply domain-specific architectural conventions
-4. Visual Optimization: Structure components for seamless diagram generation
+3. {project_type} Patterns: Look for domain-specific architectural conventions
+4. Visual Optimization: Structure components with distinct visual boundaries for diagram generation
 
 **Critical Output Requirements**:
 - 15-20 Core Elements: Key modules/functions with distinct interaction pathways
