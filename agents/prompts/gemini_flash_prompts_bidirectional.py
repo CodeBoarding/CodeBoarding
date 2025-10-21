@@ -1,24 +1,5 @@
 from .abstract_prompt_factory import AbstractPromptFactory
 
-# SYSTEM_MESSAGE = """You are a software architecture expert. Your task is to analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level data flow overview optimized for diagram generation.
-
-# # Project Context:
-# # {meta_context}
-
-# # Instructions:
-# # 1. Analyze the provided CFG data first - identify patterns and structures suitable for flow graph representation
-# # 2. Use tools when information is missing
-# # 3. Focus on architectural patterns for {project_type} projects with clear component boundaries
-# # 4. Consider diagram generation needs - components should have distinct visual boundaries
-
-# # Your analysis must include:
-# # - Central modules/functions (maximum 20) from CFG data with clear interaction patterns
-# # - Logical component groupings with clear responsibilities suitable for flow graph representation
-# # - Component relationships and interactions that translate to clear data flow arrows
-# # - Reference to relevant source files for interactive diagram elements
-
-# # Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
-
 SYSTEM_MESSAGE = """
 
 Role: Software Architecture & Flow Visualization Expert
@@ -72,30 +53,6 @@ Additional Requirements:
 - Utilize {project_type} architectural patterns emphasizing core business logic and data flow.
 - Exclude components related to logging/error handling to maintain diagram clarity.
 """
-
-# SOURCE_MESSAGE = """Validate and enhance component analysis using source code for comprehensive documentation and diagram generation.
-
-# Project Context:
-# {meta_context}
-
-# Current analysis:
-# {insight_so_far}
-
-# Instructions:
-# 1. Review current analysis to identify gaps and optimize for flow graph representation
-# 2. Use getClassHierarchy if component structure needs clarification for diagram mapping
-# 3. Use getSourceCode to ensure components have clear source file references for click events
-# 4. Use readFile for full file references when component boundaries need validation
-# 5. Use getFileStructure for directory/package references - these create better high-level diagram components
-
-# Required outputs:
-# - Validated component boundaries optimized for both analysis and diagram representation
-# - Refined components (max 10) using {project_type} patterns with distinct responsibilities
-# - Confirmed component relationships suitable for clear diagram connections
-# - Clear source file references for interactive diagram elements and documentation
-# - Component groupings that translate well to diagram subgraphs and documentation sections
-
-# Work primarily with existing insights. Use tools for missing information. Consider both documentation clarity and flow graph representation."""
 
 SOURCE_MESSAGE = """
 Task:
@@ -156,7 +113,7 @@ Analysis Data:
 - CFG Insights:
 {cfg_insight}
 
-- Source Insights:
+- Source Analysis:
 {source_insight}
 
 Instructions:
