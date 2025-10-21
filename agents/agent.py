@@ -110,7 +110,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
             return ChatOllama(
-                model="qwen3:30b", #qwen3:30b
+                model="qwen3:30b",
                 base_url=self.ollama_base_url,
                 temperature=0.6
             )

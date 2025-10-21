@@ -79,15 +79,11 @@ def run_all_evals():
         
         total_time = time.time() - start_time
         
-        # Print summary
-        print("\n" + "="*80)
-        print("UNIFIED EVALUATION SUMMARY")
-        print("="*80)
-        print(f"Total execution time: {total_time:.2f} seconds")
-        print(f"Static analysis time: {static_results.get('total_eval_time_seconds', 0):.2f} seconds")
-        print(f"End-to-end time: {e2e_results.get('total_eval_time_seconds', 0):.2f} seconds")
-        # Unified markdown is disabled; no output path to report
-        print("="*80)
+        # Log summary
+        logger.info("UNIFIED EVALUATION SUMMARY")
+        logger.info(f"Total execution time: {total_time:.2f} seconds")
+        logger.info(f"Static analysis time: {static_results.get('total_eval_time_seconds', 0):.2f} seconds")
+        logger.info(f"End-to-end time: {e2e_results.get('total_eval_time_seconds', 0):.2f} seconds")
         
         return {
             "timestamp": datetime.utcnow().isoformat(),
@@ -109,12 +105,10 @@ def main():
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
     
-    print("CodeBoarding Unified Evaluation Runner")
-    print("="*60)
-    print("Running all evaluation types:")
-    print("  - Static Analysis Performance Evaluation")
-    print("  - End-to-End Pipeline Evaluation")
-    print("="*60)
+    logger.info("CodeBoarding Unified Evaluation Runner")
+    logger.info("Running all evaluation types:")
+    logger.info("  - Static Analysis Performance Evaluation")
+    logger.info("  - End-to-End Pipeline Evaluation")
     
     try:
         run_all_evals()

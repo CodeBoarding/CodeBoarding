@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -192,9 +193,7 @@ class DiagramGenerator:
         
         return files
 
-    def generate_static_analysis(self):
-        import time
-        
+    def generate_static_analysis(self):        
         results = StaticAnalysisResults()
         timing_data = {}
         error_data = {}

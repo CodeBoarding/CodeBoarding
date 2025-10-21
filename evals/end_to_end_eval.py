@@ -278,57 +278,49 @@ def save_results(results: Dict[str, Any]) -> None:
 
 
 def print_summary(results: Dict[str, Any]) -> None:
-    """Print evaluation summary to console."""
-    print("\n" + "="*80)
-    print("END-TO-END PIPELINE EVALUATION SUMMARY")
-    print("="*80)
-    
-    print(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")
-    print(f"Timestamp: {results['timestamp']}")
-    print()
+    """Log evaluation summary."""
+    logger.info("END-TO-END PIPELINE EVALUATION SUMMARY")
+    logger.info(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")
+    logger.info(f"Timestamp: {results['timestamp']}")
     
     total_tokens = 0
     total_tool_calls = 0
     
     for project in results['projects']:
-        print(f"Project: {project['project']}")
-        print(f"URL: {project['url']}")
-        print(f"Expected Language: {project.get('expected_language', 'Unknown')}")
-        print(f"Total Time: {project.get('total_time_seconds', 0):.2f}s")
+        logger.info(f"Project: {project['project']} ({project['url']})")
+        logger.info(f"Expected Language: {project.get('expected_language', 'Unknown')}")
+        logger.info(f"Total Time: {project.get('total_time_seconds', 0):.2f}s")
         
         if project['success']:
             monitoring = project.get('monitoring', {})
             token_usage = monitoring.get('token_usage', {})
             tool_usage = monitoring.get('tool_usage', {})
             
-            print("✅ SUCCESS")
-            print(f"  Total tokens: {token_usage.get('total_tokens', 0)}")
+            logger.info("✅ SUCCESS")
+            logger.info(f"  Total tokens: {token_usage.get('total_tokens', 0)}")
             
             tool_counts = tool_usage.get('counts', {})
             if tool_counts:
-                print("  Tool calls:")
+                logger.info("  Tool calls:")
                 for tool, count in tool_counts.items():
-                    print(f"    {tool}: {count}")
+                    logger.info(f"    {tool}: {count}")
                     total_tool_calls += count
             
             total_tokens += token_usage.get('total_tokens', 0)
         else:
-            print("❌ FAILED")
+            logger.error("❌ FAILED")
             error = project.get('error', 'Unknown error')
             # Truncate long errors
             if len(error) > 200:
                 error = error[:200] + "..."
-            print(f"  Error: {error}")
-        
-        print("-" * 40)
+            logger.error(f"  Error: {error}")
     
     # Calculate success rate
     successful = sum(1 for p in results['projects'] if p['success'])
     total = len(results['projects'])
-    print(f"\nSuccess Rate: {successful}/{total} ({100*successful/total:.1f}%)")
-    print(f"Total Tokens Used: {total_tokens}")
-    print(f"Total Tool Calls: {total_tool_calls}")
-    print("="*80)
+    logger.info(f"Success Rate: {successful}/{total} ({100*successful/total:.1f}%)")
+    logger.info(f"Total Tokens Used: {total_tokens}")
+    logger.info(f"Total Tool Calls: {total_tool_calls}")
 
 
 def main():
@@ -339,13 +331,11 @@ def main():
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
     
-    print("CodeBoarding End-to-End Pipeline Evaluation")
-    print("="*60)
-    print("Running full pipeline on:")
-    print("  - markitdown (Python)")
-    print("  - tsoa (TypeScript)")
-    print("  - cobra (Go)")
-    print("="*60)
+    logger.info("CodeBoarding End-to-End Pipeline Evaluation")
+    logger.info("Running full pipeline on:")
+    logger.info("  - markitdown (Python)")
+    logger.info("  - tsoa (TypeScript)")
+    logger.info("  - cobra (Go)")
     
     try:
         results = run_end_to_end_eval()

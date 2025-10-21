@@ -66,7 +66,3 @@ class UsageAndToolAggregator(BaseCallbackHandler):
         if run_id and run_id in self._tool_start_times:
             self._tool_start_times.pop(run_id, None)
             self._tool_names.pop(run_id, None)
-
-
-
-### Build this basecallbackhandler into the agent callbacks if the run is an evaluation run

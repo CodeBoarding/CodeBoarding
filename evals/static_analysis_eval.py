@@ -167,39 +167,32 @@ def save_static_analysis_results(results: Dict[str, Any]) -> None:
 
 
 def print_static_analysis_summary(results: Dict[str, Any]) -> None:
-    """Print a summary of static analysis results."""
-    print("\n" + "="*80)
-    print("STATIC ANALYSIS PERFORMANCE EVALUATION SUMMARY")
-    print("="*80)
-    
-    print(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")
-    print(f"Timestamp: {results['timestamp']}")
-    print()
+    """Log a summary of static analysis results."""
+    logger.info("STATIC ANALYSIS PERFORMANCE EVALUATION SUMMARY")
+    logger.info(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")
+    logger.info(f"Timestamp: {results['timestamp']}")
     
     for project in results['projects']:
-        print(f"Project: {project['project']}")
-        print(f"URL: {project['url']}")
-        print(f"Expected Language: {project.get('expected_language', 'Unknown')}")
-        print(f"Total Time: {project.get('total_time_seconds', 0):.2f}s")
+        logger.info(f"Project: {project['project']} ({project['url']})")
+        logger.info(f"Expected Language: {project.get('expected_language', 'Unknown')}")
+        logger.info(f"Total Time: {project.get('total_time_seconds', 0):.2f}s")
         
         if project['success']:
             metrics = project.get('metrics', {})
             timing = metrics.get('timing', {})
             errors = metrics.get('errors', {})
             
-            print("✅ SUCCESS")
-            print(f"  Scanner time: {timing.get('scanner', 0):.2f}s")
+            logger.info("✅ SUCCESS")
+            logger.info(f"  Scanner time: {timing.get('scanner', 0):.2f}s")
             
             for lang, time_taken in timing.items():
                 if lang != 'scanner':
                     file_count = errors.get(lang, {}).get('total_files', 0)
                     error_count = errors.get(lang, {}).get('errors', 0)
-                    print(f"  {lang} analysis: {time_taken:.2f}s ({file_count} files, {error_count} errors)")
+                    logger.info(f"  {lang} analysis: {time_taken:.2f}s ({file_count} files, {error_count} errors)")
         else:
-            print("❌ FAILED")
-            print(f"  Error: {project.get('error', 'Unknown error')}")
-        
-        print("-" * 40)
+            logger.error("❌ FAILED")
+            logger.error(f"  Error: {project.get('error', 'Unknown error')}")
     
     # Calculate totals
     total_files = 0
@@ -218,12 +211,11 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
                     total_files += errors.get(lang, {}).get('total_files', 0)
                     total_errors += errors.get(lang, {}).get('errors', 0)
     
-    print(f"\nTOTALS:")
-    print(f"  Total analysis time: {total_analysis_time:.2f}s")
-    print(f"  Total files processed: {total_files}")
-    print(f"  Total errors: {total_errors}")
-    print(f"  Average time per file: {total_analysis_time/max(total_files, 1):.3f}s")
-    print("="*80)
+    logger.info("TOTALS:")
+    logger.info(f"  Total analysis time: {total_analysis_time:.2f}s")
+    logger.info(f"  Total files processed: {total_files}")
+    logger.info(f"  Total errors: {total_errors}")
+    logger.info(f"  Average time per file: {total_analysis_time/max(total_files, 1):.3f}s")
 
 
 def main():
@@ -234,13 +226,11 @@ def main():
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
     
-    print("CodeBoarding Static Analysis Performance Evaluation")
-    print("="*60)
-    print("Testing static analysis performance on:")
-    print("  - markitdown (Python)")
-    print("  - tsoa (TypeScript)")
-    print("  - cobra (Go)")
-    print("="*60)
+    logger.info("CodeBoarding Static Analysis Performance Evaluation")
+    logger.info("Testing static analysis performance on:")
+    logger.info("  - markitdown (Python)")
+    logger.info("  - tsoa (TypeScript)")
+    logger.info("  - cobra (Go)")
     
     try:
         results = run_static_analysis_eval()
