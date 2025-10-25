@@ -35,9 +35,6 @@ def remote_repo_exists(repo_url: str) -> bool:
         from git import Git
         Git().ls_remote(repo_url)
         return True
-    except (ImportError, OSError) as e:
-        logger.error(f"Error git is not installed on your system: {e}")
-        return False
     except Exception as e:
         logger.error(f"Unexpected error checking remote repository: {e}")
         return False
@@ -134,7 +131,7 @@ def get_git_commit_hash(repo_dir: str) -> str:
         repo = Repo(repo_dir)
         return repo.head.commit.hexsha
     except (ImportError, OSError) as e:
-        logger.error(f"Error git is not installed on your system: {e}")
+        logger.error(f"Git is not installed on your system: {e}")
         return "unknown"
 
 
