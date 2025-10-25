@@ -8,6 +8,7 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
 from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
+from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,8 @@ from repo_utils.git_diff import FileChange, get_git_diff
 
 
 class DiffAnalyzingAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str, enable_monitoring: bool = False):
-        super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message(), enable_monitoring)
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
+        super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
         self.project_name = project_name
         self.repo_dir = repo_dir
         self.prompt = PromptTemplate(
@@ -82,6 +83,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         component_file = self.repo_dir / ".codeboarding" / f"{sanitize(component_name)}.json"
         return component_file.exists()
 
+    @monitoring
     def check_for_updates(self) -> UpdateAnalysis:
         if not self.analysis_exists():
             logger.info("[DiffAnalyzingAgent] No existing analysis found, running full analysis")
@@ -109,6 +111,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         with open(component_file, 'r') as f:
             return AnalysisInsights.model_validate_json(f.read())
 
+    @monitoring
     def check_for_component_updates(self, component: Component) -> UpdateAnalysis:
         """
         Check if there are updates for a specific component.

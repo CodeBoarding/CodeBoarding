@@ -26,6 +26,8 @@ from evals.report_generator import generate_header, generate_e2e_section, write_
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+load_dotenv()
+
 # Get project root from environment variable
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
 
@@ -126,14 +128,17 @@ def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path
     start_time = time.time()
     
     try:
+        # Set environment variable for monitoring
+        env = os.environ.copy()
+        env["ENABLE_MONITORING"] = "true"
+        
         # Run demo.py as subprocess
         cmd = [
             sys.executable,  # Use the same Python interpreter
             "demo.py",
             repo_url,
             "--output-dir",
-            str(output_dir),
-            "--enable-monitoring"
+            str(output_dir)
         ]
         
         logger.info(f"Running command: {' '.join(cmd)}")
@@ -142,7 +147,9 @@ def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path
             cmd,
             capture_output=True,
             text=True,
-            timeout=1800  # 30 minute timeout
+            timeout=1800,  # 30 minute timeout
+            env=env,
+            cwd=PROJECT_ROOT  # Run demo.py from project root to resolve relative paths correctly
         )
         
         elapsed_time = time.time() - start_time
@@ -255,7 +262,7 @@ def run_end_to_end_eval(projects=None):
     
     # Create final results structure
     eval_results = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(datetime.UTC).isoformat(),
         "total_eval_time_seconds": total_time,
         "projects": results
     }
@@ -328,7 +335,6 @@ def print_summary(results: Dict[str, Any]) -> None:
 
 def main():
     """Main evaluation function."""
-    load_dotenv()
     
     # Setup environment variables if not set
     if not os.getenv("REPO_ROOT"):

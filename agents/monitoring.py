@@ -1,4 +1,6 @@
 import sys, json, time
+import os
+import functools
 from pathlib import Path
 from collections import defaultdict
 from typing import Any, Dict, Optional
@@ -6,8 +8,7 @@ from typing import Any, Dict, Optional
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
-# ----- Callback that counts tools + tokens -----
-class UsageAndToolAggregator(BaseCallbackHandler):
+class MonitoringCallback(BaseCallbackHandler):
     def __init__(self):
         # token usage
         self.prompt_tokens = 0
@@ -23,7 +24,6 @@ class UsageAndToolAggregator(BaseCallbackHandler):
         self._tool_start_times = {}                   # run_id -> start_time
         self._tool_names = {}                         # run_id -> tool_name
 
-    # ----- LLM usage -----
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         usage: Dict[str, int] = (response.llm_output or {}).get("token_usage", {}) or {}
         self.prompt_tokens     += int(usage.get("prompt_tokens", 0))
@@ -33,7 +33,6 @@ class UsageAndToolAggregator(BaseCallbackHandler):
         else:
             self.total_tokens  += int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
 
-    # ----- Tool events -----
     def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
         # LangChain passes a 'run_id' you can use to correlate start/end
         run_id: Optional[str] = kwargs.get("run_id")
@@ -66,3 +65,28 @@ class UsageAndToolAggregator(BaseCallbackHandler):
         if run_id and run_id in self._tool_start_times:
             self._tool_start_times.pop(run_id, None)
             self._tool_names.pop(run_id, None)
+
+
+def monitoring(func):
+    """
+    Decorator that enables monitoring for agent methods.
+    Checks ENABLE_MONITORING environment variable to determine if monitoring should be active.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # Check if monitoring is enabled via environment variable
+        enable_monitoring = os.getenv("ENABLE_MONITORING", "").lower() in ("true", "1", "yes", "on")
+        if not enable_monitoring:
+            return func(self, *args, **kwargs)
+            
+        # Initialize monitoring callback if not already present
+        if not hasattr(self, '_monitoring_callback') or self._monitoring_callback is None:
+            self._monitoring_callback = MonitoringCallback()
+        
+        # Store original method for potential callback injection
+        original_func = func
+        
+        # Execute the method with monitoring
+        return original_func(self, *args, **kwargs)
+    
+    return wrapper

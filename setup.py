@@ -268,6 +268,9 @@ PROJECT_ROOT={project_root}
 DIAGRAM_DEPTH_LEVEL=1
 CACHING_DOCUMENTATION=false
 
+# Monitoring Configuration
+ENABLE_MONITORING=false
+
 # ============================================================================
 # LLM PROVIDER OPTIONS (uncomment and configure as needed)
 # ============================================================================

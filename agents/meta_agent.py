@@ -7,6 +7,7 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
+from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 class MetaAgent(CodeBoardingAgent):
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str, enable_monitoring: bool = False):
-        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), enable_monitoring)
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
+        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message())
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(
@@ -26,6 +27,7 @@ class MetaAgent(CodeBoardingAgent):
         self.agent = create_react_agent(model=self.llm,
                                         tools=[self.read_docs, self.external_deps_tool, self.read_file_structure])
 
+    @monitoring
     def analyze_project_metadata(self) -> MetaAnalysisInsights:
         """Analyze project metadata to provide architectural context and bias."""
         logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")

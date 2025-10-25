@@ -56,8 +56,7 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
             temp_folder=temp_folder,
             repo_name=repo_name,
             output_dir=temp_folder,
-            depth_level=1,
-            enable_monitoring=True
+            depth_level=1
         )
         
         # Just run static analysis, not full generation

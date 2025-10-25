@@ -11,6 +11,7 @@ from agents.prompts import (
     get_cfg_message, get_source_message, get_system_message, 
     get_conclusive_analysis_message, get_feedback_message, get_classification_message
 )
+from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 class AbstractionAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
-                 meta_context: MetaAnalysisInsights, enable_monitoring: bool = False):
-        super().__init__(repo_dir, static_analysis, get_system_message(), enable_monitoring)
+                 meta_context: MetaAnalysisInsights):
+        super().__init__(repo_dir, static_analysis, get_system_message())
 
         self.project_name = project_name
         self.meta_context = meta_context
@@ -39,6 +40,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"])
         }
 
+    @monitoring
     def step_cfg(self):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -54,6 +56,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context['cfg_insight'] = parsed_response
         return parsed_response
 
+    @monitoring
     def step_source(self):
         logger.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
@@ -76,6 +79,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = parsed_response
         return parsed_response
 
+    @monitoring
     def generate_analysis(self):
         logger.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -90,6 +94,7 @@ class AbstractionAgent(CodeBoardingAgent):
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
+    @monitoring
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
         Apply feedback to the analysis and return the updated analysis.
@@ -100,6 +105,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
+    @monitoring
     def classify_files(self, analysis: AnalysisInsights):
         """
         Classify files into components based on the analysis. It will modify directly the analysis object.

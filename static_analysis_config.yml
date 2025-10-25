@@ -2,7 +2,7 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-    - ./static_analyzer/servers/py-lsp
+    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/py-lsp
     - --stdio
     languages:
     - python
@@ -13,7 +13,7 @@ lsp_servers:
   typescript:
     name: TypeScript Language Server
     command:
-    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
     - --stdio
     - --log-level=2
     languages:
@@ -28,7 +28,7 @@ lsp_servers:
   go:
     name: Go Language Server (gopls)
     command:
-    - ./static_analyzer/servers/gopls
+    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/gopls
     - serve
     languages:
     - go
@@ -39,7 +39,7 @@ tools:
   tokei:
     name: tokei
     command:
-    - ./static_analyzer/servers/tokei
+    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/tokei
     - -o
     - json
     description: Analyze repository languages and file types

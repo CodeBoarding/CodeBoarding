@@ -27,12 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class DiagramGenerator:
-    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int, enable_monitoring: bool = False):
+    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
-        self.enable_monitoring = enable_monitoring
         self.monitoring_output_dir = Path(os.getenv("PROJECT_ROOT")) / "evals/monitoring_results"
 
         self.details_agent = None
@@ -88,20 +87,16 @@ class DiagramGenerator:
         static_analysis = self.generate_static_analysis()
 
         self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                    static_analysis=static_analysis, enable_monitoring=self.enable_monitoring)
+                                    static_analysis=static_analysis)
         meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                          static_analysis=static_analysis, meta_context=meta_context,
-                                          enable_monitoring=self.enable_monitoring)
+                                          static_analysis=static_analysis, meta_context=meta_context)
         self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                                  static_analysis=static_analysis, meta_context=meta_context,
-                                                  enable_monitoring=self.enable_monitoring)
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
-                                         enable_monitoring=self.enable_monitoring)
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
-                                             enable_monitoring=self.enable_monitoring)
+                                                  static_analysis=static_analysis, meta_context=meta_context)
+        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
         self.diff_analyzer_agent = DiffAnalyzingAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
-                                                      project_name=self.repo_name, enable_monitoring=self.enable_monitoring)
+                                                      project_name=self.repo_name)
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
@@ -188,9 +183,6 @@ class DiagramGenerator:
         logger.info(f"Analysis complete. Generated {len(files)} analysis files")
         print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
         
-        # Collect and save monitoring results if enabled
-        self._collect_and_save_monitoring_results()
-        
         return files
 
     def generate_static_analysis(self):        
@@ -230,49 +222,4 @@ class DiagramGenerator:
             results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
             results.add_source_files(client.language.language, source_files)
 
-        # Store timing/error data if monitoring enabled
-        if self.enable_monitoring:
-            self.static_analysis_metrics = {
-                'timing': timing_data,
-                'errors': error_data
-            }
-
         return results
-
-    def _collect_and_save_monitoring_results(self):
-        """Collect monitoring results from all agents and save to file."""
-        if not self.enable_monitoring:
-            return
-        
-        monitoring_data = {
-            "repo_name": self.repo_name,
-            "timestamp": datetime.utcnow().isoformat(),
-            "agents": {
-                "meta_agent": self.meta_agent.get_monitoring_results() if self.meta_agent else {},
-                "details_agent": self.details_agent.get_monitoring_results() if self.details_agent else {},
-                "abstraction_agent": self.abstraction_agent.get_monitoring_results() if self.abstraction_agent else {},
-                "planner_agent": self.planner_agent.get_monitoring_results() if self.planner_agent else {},
-                "validator_agent": self.validator_agent.get_monitoring_results() if self.validator_agent else {},
-                "diff_analyzer_agent": self.diff_analyzer_agent.get_monitoring_results() if self.diff_analyzer_agent else {}
-            },
-            "static_analysis": getattr(self, 'static_analysis_metrics', {})
-        }
-        
-        # Calculate summary
-        total_tokens = sum(agent.get("token_usage", {}).get("total_tokens", 0) 
-                          for agent in monitoring_data["agents"].values())
-        total_tool_calls = sum(sum(agent.get("tool_usage", {}).get("counts", {}).values())
-                              for agent in monitoring_data["agents"].values())
-        
-        monitoring_data["summary"] = {
-            "total_tokens": total_tokens,
-            "total_tool_calls": total_tool_calls
-        }
-        
-        # Save to file
-        self.monitoring_output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = self.monitoring_output_dir / f"{self.repo_name}_monitoring.json"
-        with open(output_file, 'w') as f:
-            json.dump(monitoring_data, f, indent=2)
-        
-        logger.info(f"Monitoring results saved to {output_file}")
