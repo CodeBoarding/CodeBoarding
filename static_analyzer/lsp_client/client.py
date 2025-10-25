@@ -95,6 +95,9 @@ class LSPClient:
         body = json.dumps(request)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
+        logger.debug(f"Sending request {message_id}: {method}")
+        logger.debug(f"Request body: {body[:500]}...")  # Log first 500 chars
+        
         self._process.stdin.write(message.encode('utf-8'))
         self._process.stdin.flush()
         return message_id
@@ -119,13 +122,24 @@ class LSPClient:
         while not self._shutdown_flag.is_set():
             try:
                 line = self._process.stdout.readline().decode('utf-8')
-                if not line or not line.startswith('Content-Length'):
+                if not line:
+                    # Check if process is still alive
+                    if self._process.poll() is not None:
+                        logger.error(f"Server process terminated with exit code {self._process.poll()}")
+                        break
+                    continue
+                
+                if not line.startswith('Content-Length'):
+                    # Log unexpected output for debugging
+                    if line.strip():
+                        logger.debug(f"[LSP stdout]: {line.strip()}")
                     continue
 
                 content_length = int(line.split(':')[1].strip())
                 self._process.stdout.readline()  # Read the blank line
 
                 body = self._process.stdout.read(content_length).decode('utf-8')
+                logger.debug(f"Received message: {body[:200]}...")  # Log first 200 chars
                 response = json.loads(body)
 
                 if 'id' in response:
@@ -143,11 +157,26 @@ class LSPClient:
     def _wait_for_response(self, message_id: int, timeout: int = 360):
         """Waits for a response with a specific message ID to arrive."""
         start_time = time.time()
+        logged_waiting = False
         while time.time() - start_time < timeout:
             with self._lock:
                 if message_id in self._responses:
                     return self._responses.pop(message_id)
+            
+            # Log if we're waiting too long
+            elapsed = time.time() - start_time
+            if elapsed > 5 and not logged_waiting:
+                logger.warning(f"Still waiting for response to message {message_id} after {elapsed:.1f} seconds...")
+                logger.warning(f"Process alive: {self._process.poll() is None}")
+                logged_waiting = True
+            
             time.sleep(0.01)
+        
+        # Before timing out, check if there are any responses at all
+        with self._lock:
+            logger.error(f"Timeout! Available response IDs: {list(self._responses.keys())}")
+            logger.error(f"Process exit code: {self._process.poll()}")
+        
         raise TimeoutError(f"Timed out waiting for response to message {message_id}, after {timeout} seconds.")
 
     def _initialize(self):
@@ -156,27 +185,40 @@ class LSPClient:
         params = {
             'processId': os.getpid(),
             'rootUri': self.project_path.as_uri(),
+            'rootPath': str(self.project_path),  # Some servers need this deprecated field
             'capabilities': {
                 'textDocument': {
                     'callHierarchy': {'dynamicRegistration': True},
                     'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
                     'typeHierarchy': {'dynamicRegistration': True},
                     'references': {'dynamicRegistration': True},
-                    'semanticTokens': {'dynamicRegistration': True}
+                    'semanticTokens': {'dynamicRegistration': True},
+                    'definition': {'dynamicRegistration': True, 'linkSupport': True}
                 }
             },
             'workspace': {
                 'applyEdit': True,
-                'workspaceEdit': {'documentChanges': True}
+                'workspaceEdit': {'documentChanges': True},
+                'symbol': {'dynamicRegistration': True}
             }
         }
+        
+        logger.debug(f"Sending initialize request with rootUri: {self.project_path.as_uri()}")
         init_id = self._send_request('initialize', params)
-        response = self._wait_for_response(init_id)
+        
+        try:
+            response = self._wait_for_response(init_id, timeout=120)  # Increased timeout for Java LSP
+        except TimeoutError as e:
+            logger.error(f"Initialize request timed out. Checking process status...")
+            if self._process.poll() is not None:
+                logger.error(f"Server process has died with code: {self._process.poll()}")
+            raise e
 
         if 'error' in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
 
         logger.info("Initialization successful.")
+        logger.debug(f"Server capabilities: {response.get('result', {}).get('capabilities', {})}")
         self._send_notification('initialized', {})
 
     def _get_document_symbols(self, file_uri: str) -> list:
