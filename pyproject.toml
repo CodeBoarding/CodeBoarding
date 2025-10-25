@@ -67,6 +67,9 @@ dependencies = [
     "wcwidth==0.2.13",
 ]
 
+[project.scripts]
+codeboarding = "codeboarding.main:main"
+
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"
 Documentation = "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/overview.md"
@@ -75,3 +78,7 @@ Documentation = "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboa
 name = "pypi"
 default = true
 url = "https://pypi.org/simple"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

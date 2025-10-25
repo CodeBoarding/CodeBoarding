@@ -1,7 +1,7 @@
 import unittest
 
-from agents.tools import GetCFGTool, MethodInvocationsTool
-from agents.tools.utils import read_dot_file
+from codeboarding.agents.tools import GetCFGTool, MethodInvocationsTool
+from codeboarding.agents.tools.utils import read_dot_file
 
 
 class TestCFGTools(unittest.TestCase):

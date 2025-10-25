@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from agents.tools.read_file import ReadFileTool
+from codeboarding.agents.tools.read_file import ReadFileTool
 
 
 class TestReadFileTool(unittest.TestCase):

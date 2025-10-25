@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from agents.tools import CodeReferenceReader
+from codeboarding.agents.tools import CodeReferenceReader
 
 
 class TestReadSourceTool(unittest.TestCase):

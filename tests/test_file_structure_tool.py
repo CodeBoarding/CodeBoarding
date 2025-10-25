@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from agents.tools import FileStructureTool
+from codeboarding.agents.tools import FileStructureTool
 
 
 class TestFileStructureTool(unittest.TestCase):
