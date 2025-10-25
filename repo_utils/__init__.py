@@ -129,9 +129,13 @@ def get_git_commit_hash(repo_dir: str) -> str:
     """
     Get the latest commit hash of the repository.
     """
-    from git import Repo
-    repo = Repo(repo_dir)
-    return repo.head.commit.hexsha
+    try:
+        from git import Repo
+        repo = Repo(repo_dir)
+        return repo.head.commit.hexsha
+    except (ImportError, OSError) as e:
+        logger.error(f"Error git is not installed on your system: {e}")
+        return "unknown"
 
 
 def get_branch(repo_dir: Path) -> str:
