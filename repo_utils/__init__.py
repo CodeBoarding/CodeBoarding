@@ -4,8 +4,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from git import Git, GitCommandError, Repo
-
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 
 logger = logging.getLogger(__name__)
@@ -34,14 +32,16 @@ def remote_repo_exists(repo_url: str) -> bool:
     if repo_url is None:
         return False
     try:
+        from git import Git
         Git().ls_remote(repo_url)
         return True
-    except GitCommandError as e:
-        stderr = (e.stderr or "").lower()
-        if "not found" in stderr or "repository not found" in stderr:
-            return False
-        # something else went wrong (auth, network); re-raise so caller can decide
-        raise
+    except (ImportError, OSError) as e:
+        logger.error(f"Error git is not installed on your system: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking remote repository: {e}")
+        return False
+
 
 def get_repo_name(repo_url: str):
     repo_url = sanitize_repo_url(repo_url)
@@ -51,6 +51,7 @@ def get_repo_name(repo_url: str):
 
 
 def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
+    from git import Repo
     repo_url = sanitize_repo_url(repo_url)
     if not remote_repo_exists(repo_url):
         raise RepoDontExistError()
@@ -70,6 +71,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
 
 
 def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
+    from git import Repo
     repo = Repo(repo_dir)
     if branch not in repo.heads:
         logger.info(f"Branch {branch} does not exist, creating it.")
@@ -94,6 +96,7 @@ def store_token():
 
 
 def upload_onboarding_materials(project_name, output_dir, repo_dir):
+    from git import Repo
     repo = Repo(repo_dir)
     origin = repo.remote(name='origin')
     origin.pull()
@@ -126,6 +129,7 @@ def get_git_commit_hash(repo_dir: str) -> str:
     """
     Get the latest commit hash of the repository.
     """
+    from git import Repo
     repo = Repo(repo_dir)
     return repo.head.commit.hexsha
 
@@ -134,5 +138,6 @@ def get_branch(repo_dir: Path) -> str:
     """
     Get the current branch name of the repository.
     """
+    from git import Repo
     repo = Repo(repo_dir)
     return repo.active_branch.name if repo.active_branch else "main"

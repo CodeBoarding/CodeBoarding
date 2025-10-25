@@ -3,8 +3,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
-from git import GitCommandError, Repo
-
 
 @dataclass
 class FileChange:
@@ -35,6 +33,7 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
     changes: List[FileChange] = []
 
     try:
+        from git import Repo
         repo = Repo(repo_dir)
 
         # Compare the specified version to the working tree (including staged + unstaged changes)
@@ -68,14 +67,6 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
         if current_file:
             changes.append(current_file)
 
-    except GitCommandError as exc:
-        logging.error("Git command error: %s", exc)
-
+    except Exception as e:
+        logging.error(f"Error obtaining git diff: {e}")
     return changes
-
-
-if __name__ == '__main__':
-    res = get_git_diff(
-        repo_dir="/home/imilev/Workspace/CodeBoarding/",
-        version="c7e1c51f3ed2889f07db943124e6f9fcc3f41a9a")
-    print([f.llm_str() for f in res])
