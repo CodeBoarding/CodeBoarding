@@ -185,7 +185,7 @@ class DiagramGenerator:
         
         return files
 
-    def generate_static_analysis(self):        
+    def generate_static_analysis(self):
         results = StaticAnalysisResults()
         timing_data = {}
         error_data = {}
