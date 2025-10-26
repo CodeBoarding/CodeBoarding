@@ -28,7 +28,7 @@ lsp_servers:
   go:
     name: Go Language Server (gopls)
     command:
-    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/gopls
+    - ./static_analyzer/servers/gopls
     - serve
     languages:
     - go
