@@ -39,7 +39,7 @@ tools:
   tokei:
     name: tokei
     command:
-    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/tokei
+    - ./static_analyzer/servers/tokei
     - -o
     - json
     description: Analyze repository languages and file types
