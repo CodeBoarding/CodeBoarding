@@ -13,7 +13,7 @@ lsp_servers:
   typescript:
     name: TypeScript Language Server
     command:
-    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
+    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
     - --stdio
     - --log-level=2
     languages:
