@@ -112,6 +112,28 @@ def generate_e2e_section(e2e_results: Dict[str, Any]) -> str:
             f"| {project.get('project', 'Unknown')} | {lang} | {status} | {time_taken} | {total_tokens} | {total_tool_calls} |"
         )
 
+    # Add Generated Diagrams section
+    lines.extend([
+        "",
+        "## Generated Top-Level Diagrams",
+        "",
+    ])
+
+    for project in projects:
+        project_name = project.get('project', 'Unknown')
+        mermaid_diagram = project.get('mermaid_diagram', '')
+        
+        lines.append(f"### {project_name}")
+        lines.append("")
+        
+        if mermaid_diagram:
+            lines.append("```mermaid")
+            lines.append(mermaid_diagram)
+            lines.append("```")
+        else:
+            lines.append("*No diagram generated for this project.*")
+        
+        lines.append("")
 
     return "\n".join(lines)
 

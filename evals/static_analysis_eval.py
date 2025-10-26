@@ -157,7 +157,7 @@ def run_static_analysis_eval(projects=None):
 
 def save_static_analysis_results(results: Dict[str, Any]) -> None:
     """Save static analysis results to a JSON file."""
-    output_dir = PROJECT_ROOT / "evals/monitoring_results"
+    output_dir = PROJECT_ROOT / "evals/artifacts/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_dir / "static_analysis_eval.json"

@@ -263,7 +263,6 @@ OLLAMA_BASE_URL=http://localhost:11434
 # Core Configuration
 REPO_ROOT={project_root}/repos
 STATIC_ANALYSIS_CONFIG={project_root}/static_analysis_config.yml
-ROOT_RESULT={project_root}/results
 PROJECT_ROOT={project_root}
 DIAGRAM_DEPTH_LEVEL=1
 CACHING_DOCUMENTATION=false

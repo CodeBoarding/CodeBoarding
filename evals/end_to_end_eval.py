@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -34,7 +34,7 @@ PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
 
 def read_monitoring_results(project_name: str) -> Dict[str, Any]:
     """Read monitoring results from the generated JSON file."""
-    monitoring_file = PROJECT_ROOT / "evals/monitoring_results" / f"{project_name}_monitoring.json"
+    monitoring_file = PROJECT_ROOT / "evals/artifacts/monitoring_results" / f"{project_name}_monitoring.json"
     
     if not monitoring_file.exists():
         logger.warning(f"Monitoring file not found: {monitoring_file}")
@@ -119,7 +119,7 @@ def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path
     """Run the full CodeBoarding pipeline for a single project using subprocess."""
     repo_url = project_info["url"]
     project_name = project_info["name"]
-    output_dir = output_base_dir / project_name
+    output_dir = output_base_dir / Path("artifacts") / project_name
     output_dir.mkdir(parents=True, exist_ok=True)
     
     logger.info(f"Starting end-to-end pipeline for {project_name} ({repo_url})")
@@ -262,7 +262,7 @@ def run_end_to_end_eval(projects=None):
     
     # Create final results structure
     eval_results = {
-        "timestamp": datetime.now(datetime.UTC).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_eval_time_seconds": total_time,
         "projects": results
     }
@@ -276,7 +276,7 @@ def run_end_to_end_eval(projects=None):
 
 def save_results(results: Dict[str, Any]) -> None:
     """Save evaluation results to a JSON file."""
-    output_dir = PROJECT_ROOT / "evals/monitoring_results"
+    output_dir = PROJECT_ROOT / "evals/artifacts/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_dir / "end_to_end_eval.json"

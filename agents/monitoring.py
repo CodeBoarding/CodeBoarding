@@ -74,19 +74,15 @@ def monitoring(func):
     """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        # Check if monitoring is enabled via environment variable
         enable_monitoring = os.getenv("ENABLE_MONITORING", "").lower() in ("true", "1", "yes", "on")
         if not enable_monitoring:
             return func(self, *args, **kwargs)
             
-        # Initialize monitoring callback if not already present
         if not hasattr(self, '_monitoring_callback') or self._monitoring_callback is None:
             self._monitoring_callback = MonitoringCallback()
         
-        # Store original method for potential callback injection
         original_func = func
         
-        # Execute the method with monitoring
         return original_func(self, *args, **kwargs)
     
     return wrapper
