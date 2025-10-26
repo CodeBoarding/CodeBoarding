@@ -29,6 +29,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get project root from environment variable
+load_dotenv()
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
 
 
@@ -222,7 +223,6 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
 
 def main():
     """Main evaluation function."""
-    load_dotenv()
     
     # Setup environment variables if not set
     if not os.getenv("REPO_ROOT"):

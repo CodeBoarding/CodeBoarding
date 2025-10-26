@@ -38,7 +38,7 @@ jobs:
           mkdir -p docs
           uv run python setup.py
 
-      - name: Run static_analysis_eval and update SECURITY.md
+      - name: Run static_analysis_eval and save to eval/reports
         run: |
           uv run python evals/static_analysis_eval.py
 
@@ -46,6 +46,5 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add evals/monitoring_results/*.json || true
           git add evals/reports/*.md || true
-          git diff --cached --quiet && echo "🟡 No changes in eval artifacts" || (git commit -m "Update evaluation artifacts (JSON and Markdown reports)" && git push)
+          git diff --cached --quiet && echo "🟡 No changes in eval reports" || (git commit -m "Update eval reports" && git push)
