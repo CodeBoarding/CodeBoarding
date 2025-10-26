@@ -63,3 +63,4 @@ node_modules/
 *.tmp
 *.bak
 .cache/
+.ssh/

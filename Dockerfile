@@ -13,7 +13,6 @@ RUN apt-get update && \
         git \
         python3.11 \
         python3-venv \
-        python3-distutils \
         openssh-client \
         libjpeg-dev \
         libpng-dev && \
@@ -21,10 +20,11 @@ RUN apt-get update && \
 
 RUN apt-get remove --purge -y nodejs libnode72 libnode-dev npm || true
 
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs && \
-    node -v && npm -v
+    node -v && npm -v && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN /usr/sbin/update-ccache-symlinks
 RUN mkdir /opt/ccache && ccache --set-config=cache_dir=/opt/ccache  
@@ -41,14 +41,16 @@ RUN update-alternatives --install /usr/bin/uv uv /usr/local/bin/uv 1
 # Create working directory
 WORKDIR /app
 
-# Copy SSH keys (private and public) into the container
-COPY .ssh /root/.ssh
-
-# Set proper permissions for SSH files
-RUN chmod 700 /root/.ssh && chmod 600 /root/.ssh/*
+# Create .ssh directory with correct permissions
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
 # Copy code to container
 COPY . /app
+
+# Add entrypoint script
+COPY docker-entrypoint.sh /
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Default to bash for interactive/manual entry
 CMD ["/bin/bash"]
