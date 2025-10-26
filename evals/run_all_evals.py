@@ -48,9 +48,6 @@ PROJECTS = [
 ]
 
 
-def generate_security_md(static_results: Dict[str, Any], e2e_results: Dict[str, Any], output_path: Path) -> None:
-    """Deprecated: Unified SECURITY.md is no longer generated."""
-    logger.info("Skipping unified SECURITY.md generation (deprecated).")
 
 
 def run_all_evals():
