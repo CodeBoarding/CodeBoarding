@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from agents.tools.read_docs import ReadDocsTool
+from codeboarding.agents.tools.read_docs import ReadDocsTool
 
 
 class TestReadDocsTool(unittest.TestCase):

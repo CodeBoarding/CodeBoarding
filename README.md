@@ -59,7 +59,7 @@ First, make you you have uv installed. Check official installation guide [Instal
 Setup the environment:
 
 ```bash
-uv sync --frozen
+uv sync
 source .venv/bin/activate
 python setup.py
 ```
@@ -107,7 +107,7 @@ LANGCHAIN_API_KEY=                # Optional: LangChain API key
 ### Run it
 
 ```bash
-python demo.py <github_repo_url> --output-dir <output_path>
+codeboarding <github_repo_url> --output-dir <output_path>
 ```
 
 ## 🖥️ Examples:
