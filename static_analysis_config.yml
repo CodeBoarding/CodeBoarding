@@ -2,7 +2,7 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-    - /Users/brovatten/Documents/github_folder/CodeBoarding/static_analyzer/servers/py-lsp
+    - ./static_analyzer/servers/py-lsp
     - --stdio
     languages:
     - python
