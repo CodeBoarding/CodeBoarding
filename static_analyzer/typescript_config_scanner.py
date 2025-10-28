@@ -11,7 +11,7 @@ class TypeScriptConfigScanner:
     Supports multi-project setups (mono-repos) by finding all tsconfig.json and jsconfig.json files.
     """
 
-    CONFIG_FILES = ['tsconfig.json', 'jsconfig.json']
+    CONFIG_FILES = ["tsconfig.json", "jsconfig.json"]
 
     def __init__(self, repo_location: Path):
         self.repo_location = repo_location
@@ -32,22 +32,22 @@ class TypeScriptConfigScanner:
             for config_path in self.repo_location.rglob(config_file):
                 if config_path.is_file():
                     project_dir = config_path.parent
-                    
+
                     # Skip if project is within node_modules
                     try:
                         rel_path = project_dir.relative_to(self.repo_location)
-                        if 'node_modules' in rel_path.parts:
+                        if "node_modules" in rel_path.parts:
                             logger.debug(f"Skipping TypeScript project in node_modules: {rel_path}")
                             continue
                     except ValueError:
                         # Project is outside repo root, skip it
                         logger.debug(f"Skipping TypeScript project outside repo: {project_dir}")
                         continue
-                    
+
                     # Avoid duplicates (e.g., if both tsconfig.json and jsconfig.json exist)
                     if project_dir not in seen_dirs:
-                       seen_dirs.add(project_dir)
-                       project_roots.append(project_dir)
+                        seen_dirs.add(project_dir)
+                        project_roots.append(project_dir)
 
         if not project_roots:
             logger.warning(f"No TypeScript configuration files found in {self.repo_location}")

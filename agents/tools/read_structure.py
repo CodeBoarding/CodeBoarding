@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClassQualifiedName(BaseModel):
-    class_qualified_name: str = Field(
-        description="The fully qualified name of the class, including its package."
-    )
+    class_qualified_name: str = Field(description="The fully qualified name of the class, including its package.")
 
 
 class CodeStructureTool(BaseTool):
@@ -45,9 +43,11 @@ class CodeStructureTool(BaseTool):
                 content = self.static_analysis.get_hierarchy(lang)
                 if qualified_class_name not in content:
                     continue
-                return (f"Class {qualified_class_name} has superclasses: "
-                        f"{content[qualified_class_name]['superclasses']} and subclasses: "
-                        f"{content[qualified_class_name]['subclasses']}\n")
+                return (
+                    f"Class {qualified_class_name} has superclasses: "
+                    f"{content[qualified_class_name]['superclasses']} and subclasses: "
+                    f"{content[qualified_class_name]['subclasses']}\n"
+                )
             except NoRootPackageFoundError as e:
                 logger.error(f"Error retrieving class hierarchy: {e.message}")
                 continue

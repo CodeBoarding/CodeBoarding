@@ -50,8 +50,9 @@ class StaticAnalysisResults:
         if language not in self.results:
             self.results[language] = {}
         # transform references to dict and make the keys lower case so that we can search them case-insensitively
-        self.results[language]['references'] = {reference.fully_qualified_name.lower(): reference for reference in
-                                                references}
+        self.results[language]["references"] = {
+            reference.fully_qualified_name.lower(): reference for reference in references
+        }
 
     def get_cfg(self, language: str) -> CallGraph:
         """
@@ -102,8 +103,11 @@ class StaticAnalysisResults:
         :return: The source code reference or None if not found.
         """
         lower_qn = qualified_name.lower()
-        if language in self.results and "references" in self.results[language] and lower_qn in \
-                self.results[language]["references"]:
+        if (
+            language in self.results
+            and "references" in self.results[language]
+            and lower_qn in self.results[language]["references"]
+        ):
             return self.results[language]["references"][lower_qn]
         # Check if the qualified name is a subset meaning it is a file path:
         if language in self.results and "references" in self.results[language]:
@@ -111,7 +115,8 @@ class StaticAnalysisResults:
                 if ref.startswith(lower_qn):
                     raise FileExistsError(
                         f"Source code reference for '{qualified_name}' in language '{language}' is a file path, "
-                        f"please use the full file path instead of the qualified name.")
+                        f"please use the full file path instead of the qualified name."
+                    )
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
     def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str, Node]:
@@ -121,8 +126,10 @@ class StaticAnalysisResults:
             subset_refs = []
             for ref in self.results[language]["references"].keys():
                 if ref.endswith(lower_qn):
-                    return f"Found a loose match with a fully quantified name: {ref}", \
-                        self.results[language]["references"][ref]
+                    return (
+                        f"Found a loose match with a fully quantified name: {ref}",
+                        self.results[language]["references"][ref],
+                    )
                 if lower_qn in ref:
                     subset_refs.append(ref)
             if len(subset_refs) == 1:

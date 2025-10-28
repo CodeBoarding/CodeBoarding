@@ -1,4 +1,5 @@
 """Prompt factory implementation for GPT-4 models in bidirectional analysis mode."""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 
@@ -567,69 +568,68 @@ For each file:
 **Goal:** Understand file organization to inform component analysis and diagram generation."""
 
 
-
 class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 bidirectional mode."""
-    
+
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
-    
+
     def get_cfg_message(self) -> str:
         return CFG_MESSAGE
-    
+
     def get_source_message(self) -> str:
         return SOURCE_MESSAGE
-    
+
     def get_classification_message(self) -> str:
         return CLASSIFICATION_MESSAGE
-    
+
     def get_conclusive_analysis_message(self) -> str:
         return CONCLUSIVE_ANALYSIS_MESSAGE
-    
+
     def get_feedback_message(self) -> str:
         return FEEDBACK_MESSAGE
-    
+
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
-    
+
     def get_subcfg_details_message(self) -> str:
         return SUBCFG_DETAILS_MESSAGE
-    
+
     def get_cfg_details_message(self) -> str:
         return CFG_DETAILS_MESSAGE
-    
+
     def get_enhance_structure_message(self) -> str:
         return ENHANCE_STRUCTURE_MESSAGE
-    
+
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-    
+
     def get_planner_system_message(self) -> str:
         return PLANNER_SYSTEM_MESSAGE
-    
+
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-    
+
     def get_validator_system_message(self) -> str:
         return VALIDATOR_SYSTEM_MESSAGE
-    
+
     def get_component_validation_component(self) -> str:
         return COMPONENT_VALIDATION_COMPONENT
-    
+
     def get_relationships_validation(self) -> str:
         return RELATIONSHIPS_VALIDATION
-    
+
     def get_system_diff_analysis_message(self) -> str:
         return SYSTEM_DIFF_ANALYSIS_MESSAGE
-    
+
     def get_diff_analysis_message(self) -> str:
         return DIFF_ANALYSIS_MESSAGE
-    
+
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
-    
+
     def get_meta_information_prompt(self) -> str:
         return META_INFORMATION_PROMPT
-    
+
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE

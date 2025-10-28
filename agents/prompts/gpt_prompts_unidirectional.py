@@ -1,5 +1,6 @@
 """Prompt factory implementation for GPT-4 models in unidirectional analysis mode.
 """
+
 from agents.prompts.abstract_prompt_factory import AbstractPromptFactory
 
 SYSTEM_MESSAGE = """You are an expert software architect analyzing {project_name}.

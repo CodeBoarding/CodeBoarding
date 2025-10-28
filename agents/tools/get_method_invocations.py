@@ -40,7 +40,9 @@ class MethodInvocationsTool(BaseTool):
             cfg = self.static_analysis.get_cfg(lang)
             for edge in cfg.edges:
                 if edge.src_node.fully_qualified_name == method:
-                    results += f"Method {edge.src_node.fully_qualified_name} is calling {edge.dst_node.fully_qualified_name}\n"
+                    results += (
+                        f"Method {edge.src_node.fully_qualified_name} is calling {edge.dst_node.fully_qualified_name}\n"
+                    )
                 if edge.dst_node.fully_qualified_name == method:
                     results += f"Method {edge.dst_node.fully_qualified_name} is called by {edge.src_node.fully_qualified_name}\n"
         if results:

@@ -35,7 +35,7 @@ class TestReadDocsTool(unittest.TestCase):
         tool_no_readme = ReadDocsTool(repo_dir=Path("/tmp/nonexistent"))
         content = tool_no_readme._run()
         self.assertIsInstance(content, str)
-        self.assertIn('No markdown documentation files found in this repository.', content)
+        self.assertIn("No markdown documentation files found in this repository.", content)
 
     def test_always_includes_other_files(self):
         # Test that other available files are always listed

@@ -75,3 +75,13 @@ Documentation = "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboa
 name = "pypi"
 default = true
 url = "https://pypi.org/simple"
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.uv]
+dev-dependencies = [
+    "black==24.10.0",
+    "pre-commit==3.8.0",
+]
