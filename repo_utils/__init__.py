@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Handle the case where git is not installed on the system
 try:
     from git import Repo, Git, GitCommandError
+
     GIT_AVAILABLE = True
 except ImportError:
     GIT_AVAILABLE = False
@@ -55,7 +56,7 @@ def sanitize_repo_url(repo_url: str) -> str:
         parts = repo_url.rstrip("/").split("/")
         if "github.com" in parts:
             host_index = parts.index("github.com")
-            user_repo = "/".join(parts[host_index + 1:])
+            user_repo = "/".join(parts[host_index + 1 :])
             return f"git@github.com:{user_repo}.git"
         else:
             raise ValueError("Only GitHub SSH conversion is supported.")
@@ -117,15 +118,11 @@ def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
 
 
 def store_token():
-    if not os.environ.get('GITHUB_TOKEN'):  # Using .get() for safer access
+    if not os.environ.get("GITHUB_TOKEN"):  # Using .get() for safer access
         raise NoGithubTokenFoundError()
     logger.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
     cred = (
-        "protocol=https\n"
-        "host=github.com\n"
-        f"username=git\n"
-        f"password={os.environ['GITHUB_TOKEN']}\n"
-        "\n"
+        "protocol=https\n" "host=github.com\n" f"username=git\n" f"password={os.environ['GITHUB_TOKEN']}\n" "\n"
     ).encode()
     subprocess.run(["git", "credential", "approve"], input=cred)
 
@@ -133,12 +130,12 @@ def store_token():
 @require_git_import()
 def upload_onboarding_materials(project_name, output_dir, repo_dir):
     repo = Repo(repo_dir)
-    origin = repo.remote(name='origin')
+    origin = repo.remote(name="origin")
     origin.pull()
 
     no_new_files = True
     for filename in os.listdir(output_dir):
-        if filename.endswith('.md'):
+        if filename.endswith(".md"):
             no_new_files = False
             break
     if no_new_files:
@@ -151,7 +148,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
     os.makedirs(onboarding_repo_location)
 
     for filename in os.listdir(output_dir):
-        if filename.endswith('.md'):
+        if filename.endswith(".md"):
             shutil.copy(os.path.join(output_dir, filename), os.path.join(onboarding_repo_location, filename))
     # Now commit the changes
     # Equivalent to `git add onboarding_repo_location .`.git.add(A=True)  # Equivalent to `git add .`

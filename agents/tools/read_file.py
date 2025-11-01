@@ -10,8 +10,10 @@ logger = logging.getLogger(__name__)
 
 class ReadFileInput(BaseModel):
     """Input for ReadFileTool."""
-    file_path: str = Field(...,
-                           description="Path to the file to read, use relative paths from the root of the project. ")
+
+    file_path: str = Field(
+        ..., description="Path to the file to read, use relative paths from the root of the project. "
+    )
     line_number: int = Field(..., description="Line number to focus on")
 
 
@@ -38,7 +40,7 @@ class ReadFileTool(BaseTool):
         """
         Walk the directory and collect all files.
         """
-        self.cached_files = [path for path in root_project_dir.rglob('*') if path.is_file()]
+        self.cached_files = [path for path in root_project_dir.rglob("*") if path.is_file()]
         self.cached_files.sort(key=lambda x: len(x.parts))
 
     def _run(self, file_path: str, line_number: int) -> str:
@@ -58,21 +60,26 @@ class ReadFileTool(BaseTool):
 
         common_prefix = str(self.repo_dir)
         if read_file is None:
-            files_str = '\n'.join(
-                [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path.suffix])
+            files_str = "\n".join(
+                [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path.suffix]
+            )
             logger.error(f"[ReadFile Tool] File {file_path} not found in cached files.")
-            return f"Error: The specified file '{file_path}' was not found in the indexed source files. " \
-                   f"Please ensure the path is correct and points to an existing file: {common_prefix}/\n{files_str}."
+            return (
+                f"Error: The specified file '{file_path}' was not found in the indexed source files. "
+                f"Please ensure the path is correct and points to an existing file: {common_prefix}/\n{files_str}."
+            )
 
         # Read the file content
-        with open(read_file, 'r', encoding='utf-8') as file:
+        with open(read_file, "r", encoding="utf-8") as file:
             lines = file.readlines()
 
         total_lines = len(lines)
 
         if line_number < 0 or line_number >= total_lines:
-            logger.error(f"[ReadFile Tool] Line number {line_number} is out of range for file {file_path}. "
-                         f"Total lines: {total_lines}")
+            logger.error(
+                f"[ReadFile Tool] Line number {line_number} is out of range for file {file_path}. "
+                f"Total lines: {total_lines}"
+            )
             return f"Error: Line number {line_number} is out of range (0-{total_lines - 1})"
 
         # Calculate start and end line numbers based on the specified requirements
@@ -93,20 +100,20 @@ class ReadFileTool(BaseTool):
 
         # Extract and number the lines
         selected_lines = lines[start_line:end_line]
-        numbered_lines = [
-            f"{i + 1 + start_line:4}:{line}" for i, line in enumerate(selected_lines)
-        ]
-        content = ''.join(numbered_lines)
+        numbered_lines = [f"{i + 1 + start_line:4}:{line}" for i, line in enumerate(selected_lines)]
+        content = "".join(numbered_lines)
         logger.info(f"[ReadFile Tool] Successfully read {len(selected_lines)} lines from {file_path} ")
-        return f"File: {file_path}\nLines {start_line}-{end_line - 1} (centered around line {line_number}):\n\n{content}"
+        return (
+            f"File: {file_path}\nLines {start_line}-{end_line - 1} (centered around line {line_number}):\n\n{content}"
+        )
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
         # exclude the analysis_dir from the comparison
         sub = sub.parts
         full = full.parts
         repo_dir = self.repo_dir.parts
-        full = full[len(repo_dir):]
+        full = full[len(repo_dir) :]
         for i in range(len(full) - len(sub) + 1):
-            if full[i:i + len(sub)] == sub:
+            if full[i : i + len(sub)] == sub:
                 return True
         return False

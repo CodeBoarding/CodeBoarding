@@ -12,12 +12,15 @@ logger = logging.getLogger(__name__)
 
 class ModuleInput(BaseModel):
     code_reference: str = Field(
-        description=("The fully qualified code reference (import path) to the class, function, or method "
-                     "whose source code is to be retrieved. "
-                     "Examples: `langchain.tools.tool`, `langchain_core.output_parsers.JsonOutputParser`, "
-                     "`langchain.agents.create_react_agent`. "
-                     "Do not include file extensions (e.g., `.py`) or relative paths. "
-                     "If a 'repos.' prefix is present in the agent's context, it should be omitted."))
+        description=(
+            "The fully qualified code reference (import path) to the class, function, or method "
+            "whose source code is to be retrieved. "
+            "Examples: `langchain.tools.tool`, `langchain_core.output_parsers.JsonOutputParser`, "
+            "`langchain.agents.create_react_agent`. "
+            "Do not include file extensions (e.g., `.py`) or relative paths. "
+            "If a 'repos.' prefix is present in the agent's context, it should be omitted."
+        )
+    )
 
 
 class CodeReferenceReader(BaseTool):
@@ -64,18 +67,26 @@ class CodeReferenceReader(BaseTool):
                     continue
                 source_code = self.read_file(node.file_path, node.line_start, node.line_end)
                 logger.info(
-                    f"[Source Reference Tool] Loose match found {code_reference} -> {text}, reading source code.")
+                    f"[Source Reference Tool] Loose match found {code_reference} -> {text}, reading source code."
+                )
                 return text + "\n\n" + source_code
             except FileExistsError:
                 logger.warning(
-                    f"[Source Reference Tool] File not found for {code_reference} in {lang}. Make use of the `readFile` tool to read the file content directly.")
-                return f"INFO: {code_reference} is a reference to a file/package and not a specific class or method. " \
-                       f"Please use the `readFile` tool to read the file content."
-        logger.warning(f"[Source Reference Tool] No source code reference found for {code_reference} in any language. "
-                       f"Suggesting to use our file read tooling.")
-        return ("No source code reference was found for the given code reference. "
-                "However it is possible that this is a directory use the `getFileStructure` tool to retrieve the file structure of the project. "
-                "It can also be a source file path for that use the `readFile` tool and retrieve the document.")
+                    f"[Source Reference Tool] File not found for {code_reference} in {lang}. Make use of the `readFile` tool to read the file content directly."
+                )
+                return (
+                    f"INFO: {code_reference} is a reference to a file/package and not a specific class or method. "
+                    f"Please use the `readFile` tool to read the file content."
+                )
+        logger.warning(
+            f"[Source Reference Tool] No source code reference found for {code_reference} in any language. "
+            f"Suggesting to use our file read tooling."
+        )
+        return (
+            "No source code reference was found for the given code reference. "
+            "However it is possible that this is a directory use the `getFileStructure` tool to retrieve the file structure of the project. "
+            "It can also be a source file path for that use the `readFile` tool and retrieve the document."
+        )
 
     @staticmethod
     def read_file(file, start_line, end_line) -> str:
@@ -87,11 +98,11 @@ class CodeReferenceReader(BaseTool):
             logger.error(f"[Source Reference Tool] File {file_path} does not exist.")
             return f"Error: File {file_path} does not exist."
 
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             lines = f.readlines()
 
         if start_line < 0 or end_line > len(lines):
             logger.error(f"[Source Reference Tool] Invalid line range: {start_line}-{end_line} for file {file_path}.")
             return f"Error: Invalid line range: {start_line}-{end_line} for file {file_path}."
         logger.info(f"[Source Reference Tool] Success, reading from: {file_path}.")
-        return ''.join(lines[start_line:end_line])
+        return "".join(lines[start_line:end_line])

@@ -22,10 +22,10 @@ class ProjectScanner:
             List[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
         """
 
-        commands = get_config('tools')['tokei']['command']
+        commands = get_config("tools")["tokei"]["command"]
         result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
 
-        server_config = get_config('lsp_servers')
+        server_config = get_config("lsp_servers")
 
         # Parse Tokei JSON output
         tokei_data = json.loads(result.stdout)
@@ -45,17 +45,22 @@ class ProjectScanner:
             if code_count == 0:
                 continue
 
-            percentage = (code_count / total_code * 100)
+            percentage = code_count / total_code * 100
 
             # Extract suffixes if reports exist
             suffixes = set()
             for report in stats.get("reports", []):
                 suffixes |= self._extract_suffixes([report["name"]])
 
-            command = server_config.get(technology.lower(), {'command': None})['command']
-            suffixes |= set(server_config.get(technology.lower(), {'file_extensions': []})['file_extensions'])
-            pl = ProgrammingLanguage(language=technology, size=code_count, percentage=percentage,
-                                     suffixes=list(suffixes), server_commands=command)
+            command = server_config.get(technology.lower(), {"command": None})["command"]
+            suffixes |= set(server_config.get(technology.lower(), {"file_extensions": []})["file_extensions"])
+            pl = ProgrammingLanguage(
+                language=technology,
+                size=code_count,
+                percentage=percentage,
+                suffixes=list(suffixes),
+                server_commands=command,
+            )
 
             logger.info(f"Found: {pl}")
             if pl.percentage >= 1:  # filter PL with less than 1% of code

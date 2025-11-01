@@ -62,11 +62,11 @@ class ReferenceResolverMixin(abc.ABC):
             reference.reference_end_line = node.line_end + 1  # match 1 based indexing
             reference.qualified_name = qname
             logger.info(
-                f"[Reference Resolution] Matched {reference.qualified_name} in {lang} at {reference.reference_file}")
+                f"[Reference Resolution] Matched {reference.qualified_name} in {lang} at {reference.reference_file}"
+            )
             return True
         except (ValueError, FileExistsError) as e:
-            logger.warning(
-                f"[Reference Resolution] Exact match failed for {reference.qualified_name} in {lang}: {e}")
+            logger.warning(f"[Reference Resolution] Exact match failed for {reference.qualified_name} in {lang}: {e}")
             return False
 
     def _try_loose_match(self, reference, qname, lang):
@@ -79,7 +79,8 @@ class ReferenceResolverMixin(abc.ABC):
                 reference.reference_end_line = node.line_end + 1
                 reference.qualified_name = qname
                 logger.info(
-                    f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}")
+                    f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}"
+                )
                 return True
         except Exception as e:
             logger.warning(f"[Reference Resolution] Loose match failed for {qname} in {lang}: {e}")
@@ -101,7 +102,8 @@ class ReferenceResolverMixin(abc.ABC):
             if os.path.exists(joined_path):
                 reference.reference_file = joined_path
                 logger.info(
-                    f"[Reference Resolution] File path matched for {reference.qualified_name} in {lang} at {reference.reference_file}")
+                    f"[Reference Resolution] File path matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
+                )
                 return True
             else:
                 reference.reference_file = None
@@ -118,26 +120,27 @@ class ReferenceResolverMixin(abc.ABC):
             if os.path.exists(path):
                 reference.reference_file = str(path)
                 logger.info(
-                    f"[Reference Resolution] Path matched for {reference.qualified_name} in {lang} at {reference.reference_file}")
+                    f"[Reference Resolution] Path matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
+                )
                 return True
         return False
 
     def _try_llm_resolution(self, reference, qname, assigned_files):
         """Uses LLM as final fallback for reference resolution."""
         if reference.reference_file is None:
-            prompt = PromptTemplate(template=get_file_classification_message(),
-                                    input_variables=["qname", "files"]) \
-                .format(qname=qname, files="\n".join(assigned_files))
+            prompt = PromptTemplate(
+                template=get_file_classification_message(), input_variables=["qname", "files"]
+            ).format(qname=qname, files="\n".join(assigned_files))
             file_assignment = self._parse_invoke(prompt, FilePath)
-            logger.info(
-                f"[Reference Resolution] LLM matched {reference.qualified_name} at {file_assignment.file_path}")
+            logger.info(f"[Reference Resolution] LLM matched {reference.qualified_name} at {file_assignment.file_path}")
             reference.reference_file = file_assignment.file_path
             reference.reference_start_line = file_assignment.start_line
             reference.reference_end_line = file_assignment.end_line
 
             if reference.reference_file is None:
                 logger.error(
-                    f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language.")
+                    f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language."
+                )
 
     def _relative_paths(self, analysis: AnalysisInsights):
         """Convert all reference file paths to relative paths."""

@@ -17,7 +17,7 @@ class CFGGenerationError(Exception):
 
 def create_temp_repo_folder():
     unique_id = uuid.uuid4().hex
-    temp_dir = os.path.join('temp', unique_id)
+    temp_dir = os.path.join("temp", unique_id)
     os.makedirs(temp_dir, exist_ok=False)
     return Path(temp_dir)
 
@@ -30,8 +30,8 @@ def remove_temp_repo_folder(temp_path: str):
 
 
 def caching_enabled():
-    print("Caching enabled:", os.getenv('CACHING_DOCUMENTATION', 'false'))
-    return os.getenv('CACHING_DOCUMENTATION', 'false').lower() in ('1', 'true', 'yes')
+    print("Caching enabled:", os.getenv("CACHING_DOCUMENTATION", "false"))
+    return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
 def contains_json(node_id, files):
@@ -50,7 +50,7 @@ def get_config(item_key: str):
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
 
-    with open(config_path, 'r') as file:
+    with open(config_path, "r") as file:
         config = yaml.safe_load(file)
     if item_key not in config:
         raise KeyError(f"Item '{item_key}' not found in configuration.")

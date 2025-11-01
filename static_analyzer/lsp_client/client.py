@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FileAnalysisResult:
     """Container for single file analysis results"""
+
     file_path: Path
     package_name: str
     imports: List[str]
@@ -68,10 +69,7 @@ class LSPClient:
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
         self._process = subprocess.Popen(
-            self.server_start_params,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            self.server_start_params, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
         self._reader_thread = threading.Thread(target=self._read_messages)
@@ -86,30 +84,30 @@ class LSPClient:
             self._message_id += 1
 
         request = {
-            'jsonrpc': '2.0',
-            'id': message_id,
-            'method': method,
-            'params': params,
+            "jsonrpc": "2.0",
+            "id": message_id,
+            "method": method,
+            "params": params,
         }
 
         body = json.dumps(request)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        self._process.stdin.write(message.encode('utf-8'))
+        self._process.stdin.write(message.encode("utf-8"))
         self._process.stdin.flush()
         return message_id
 
     def _send_notification(self, method: str, params: dict):
         """Sends a JSON-RPC notification to the server."""
         notification = {
-            'jsonrpc': '2.0',
-            'method': method,
-            'params': params,
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
         }
         body = json.dumps(notification)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        self._process.stdin.write(message.encode('utf-8'))
+        self._process.stdin.write(message.encode("utf-8"))
         self._process.stdin.flush()
 
     def _read_messages(self):
@@ -118,19 +116,19 @@ class LSPClient:
         """
         while not self._shutdown_flag.is_set():
             try:
-                line = self._process.stdout.readline().decode('utf-8')
-                if not line or not line.startswith('Content-Length'):
+                line = self._process.stdout.readline().decode("utf-8")
+                if not line or not line.startswith("Content-Length"):
                     continue
 
-                content_length = int(line.split(':')[1].strip())
+                content_length = int(line.split(":")[1].strip())
                 self._process.stdout.readline()  # Read the blank line
 
-                body = self._process.stdout.read(content_length).decode('utf-8')
+                body = self._process.stdout.read(content_length).decode("utf-8")
                 response = json.loads(body)
 
-                if 'id' in response:
+                if "id" in response:
                     with self._lock:
-                        self._responses[response['id']] = response
+                        self._responses[response["id"]] = response
                 else:  # It's a notification from the server
                     with self._lock:
                         self._notifications.append(response)
@@ -154,60 +152,54 @@ class LSPClient:
         """Performs the LSP initialization handshake."""
         logger.info(f"Initializing connection for {self.language_id}...")
         params = {
-            'processId': os.getpid(),
-            'rootUri': self.project_path.as_uri(),
-            'capabilities': {
-                'textDocument': {
-                    'callHierarchy': {'dynamicRegistration': True},
-                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
-                    'typeHierarchy': {'dynamicRegistration': True},
-                    'references': {'dynamicRegistration': True},
-                    'semanticTokens': {'dynamicRegistration': True}
+            "processId": os.getpid(),
+            "rootUri": self.project_path.as_uri(),
+            "capabilities": {
+                "textDocument": {
+                    "callHierarchy": {"dynamicRegistration": True},
+                    "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                    "typeHierarchy": {"dynamicRegistration": True},
+                    "references": {"dynamicRegistration": True},
+                    "semanticTokens": {"dynamicRegistration": True},
                 }
             },
-            'workspace': {
-                'applyEdit': True,
-                'workspaceEdit': {'documentChanges': True}
-            }
+            "workspace": {"applyEdit": True, "workspaceEdit": {"documentChanges": True}},
         }
-        init_id = self._send_request('initialize', params)
+        init_id = self._send_request("initialize", params)
         response = self._wait_for_response(init_id)
 
-        if 'error' in response:
+        if "error" in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
 
         logger.info("Initialization successful.")
-        self._send_notification('initialized', {})
+        self._send_notification("initialized", {})
 
     def _get_document_symbols(self, file_uri: str) -> list:
         """Fetches all document symbols (functions, classes, etc.) for a file."""
-        params = {'textDocument': {'uri': file_uri}}
-        req_id = self._send_request('textDocument/documentSymbol', params)
+        params = {"textDocument": {"uri": file_uri}}
+        req_id = self._send_request("textDocument/documentSymbol", params)
         logger.info(f"Requesting document symbols for {file_uri} with ID {req_id}")
         response = self._wait_for_response(req_id)
-        return response.get('result', [])
+        return response.get("result", [])
 
     def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int) -> list:
         """Prepares a call hierarchy at a specific location."""
-        params = {
-            'textDocument': {'uri': file_uri},
-            'position': {'line': line, 'character': character}
-        }
-        req_id = self._send_request('textDocument/prepareCallHierarchy', params)
+        params = {"textDocument": {"uri": file_uri}, "position": {"line": line, "character": character}}
+        req_id = self._send_request("textDocument/prepareCallHierarchy", params)
         response = self._wait_for_response(req_id)
-        return response.get('result', [])
+        return response.get("result", [])
 
     def _get_incoming_calls(self, item: dict) -> list:
         """Gets incoming calls for a call hierarchy item."""
-        req_id = self._send_request('callHierarchy/incomingCalls', {'item': item})
+        req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
         response = self._wait_for_response(req_id)
-        return response.get('result', [])
+        return response.get("result", [])
 
     def _get_outgoing_calls(self, item: dict) -> list:
         """Gets outgoing calls for a call hierarchy item."""
-        req_id = self._send_request('callHierarchy/outgoingCalls', {'item': item})
+        req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
         response = self._wait_for_response(req_id)
-        return response.get('result', [])
+        return response.get("result", [])
 
     def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> List[dict]:
         """
@@ -215,7 +207,7 @@ class LSPClient:
         A call is identified by finding '(' and working backwards to get the identifier.
         Returns list of: {'line': int, 'char': int, 'name': str}
         """
-        lines = content.split('\n')
+        lines = content.split("\n")
         call_positions = []
 
         for line_idx in range(start_line + 1, min(end_line + 1, len(lines))):
@@ -223,13 +215,13 @@ class LSPClient:
 
             # Find all '(' in the line
             for char_idx in range(len(line)):
-                if line[char_idx] != '(':
+                if line[char_idx] != "(":
                     continue
 
                 # Work backwards to find the identifier
                 # Skip whitespace before '('
                 name_end = char_idx - 1
-                while name_end >= 0 and line[name_end] in ' \t':
+                while name_end >= 0 and line[name_end] in " \t":
                     name_end -= 1
 
                 if name_end < 0:
@@ -237,30 +229,45 @@ class LSPClient:
 
                 # Extract identifier (alphanumeric + underscore)
                 name_start = name_end
-                while name_start >= 0 and (line[name_start].isalnum() or line[name_start] == '_'):
+                while name_start >= 0 and (line[name_start].isalnum() or line[name_start] == "_"):
                     name_start -= 1
                 name_start += 1
 
                 if name_start > name_end:
                     continue
 
-                identifier = line[name_start:name_end + 1]
+                identifier = line[name_start : name_end + 1]
 
                 # Skip keywords and invalid identifiers
                 if not identifier or identifier[0].isdigit():
                     continue
 
-                keywords = {'if', 'for', 'while', 'def', 'class', 'return', 'yield',
-                            'import', 'from', 'as', 'with', 'try', 'except', 'finally',
-                            'raise', 'assert', 'lambda', 'pass', 'break', 'continue'}
+                keywords = {
+                    "if",
+                    "for",
+                    "while",
+                    "def",
+                    "class",
+                    "return",
+                    "yield",
+                    "import",
+                    "from",
+                    "as",
+                    "with",
+                    "try",
+                    "except",
+                    "finally",
+                    "raise",
+                    "assert",
+                    "lambda",
+                    "pass",
+                    "break",
+                    "continue",
+                }
                 if identifier in keywords:
                     continue
 
-                call_positions.append({
-                    'line': line_idx,
-                    'char': name_start,
-                    'name': identifier
-                })
+                call_positions.append({"line": line_idx, "char": name_start, "name": identifier})
 
         return call_positions
 
@@ -270,7 +277,7 @@ class LSPClient:
         Returns the qualified name or None if unresolved.
         """
         try:
-            definitions = self._get_definition_for_position(file_uri, call_pos['line'], call_pos['char'])
+            definitions = self._get_definition_for_position(file_uri, call_pos["line"], call_pos["char"])
 
             if not definitions:
                 # Unresolved - might be builtin or external
@@ -279,20 +286,20 @@ class LSPClient:
             # Handle both single definition and list of definitions
             definition = definitions[0] if isinstance(definitions, list) else definitions
 
-            def_uri = definition.get('uri', '')
-            if not def_uri.startswith('file://'):
+            def_uri = definition.get("uri", "")
+            if not def_uri.startswith("file://"):
                 return None
 
-            def_path = Path(def_uri.replace('file://', ''))
+            def_path = Path(def_uri.replace("file://", ""))
 
             # Check if path is within project
             try:
                 def_path.relative_to(self.project_path)
                 # Create qualified name for project files
-                return self._create_qualified_name(def_path, call_pos['name'])
+                return self._create_qualified_name(def_path, call_pos["name"])
             except ValueError:
                 # For external libraries or builtins, use simple name
-                return call_pos['name']
+                return call_pos["name"]
 
         except Exception as e:
             logger.debug(f"Error resolving call position '{call_pos.get('name', '')}': {e}")
@@ -302,10 +309,10 @@ class LSPClient:
         """Recursively flattens a list of hierarchical symbols."""
         flat_list = []
         for symbol in symbols:
-            if symbol['kind'] in self.symbol_kinds:
+            if symbol["kind"] in self.symbol_kinds:
                 flat_list.append(symbol)
-            if 'children' in symbol:
-                flat_list.extend(self._flatten_symbols(symbol['children']))
+            if "children" in symbol:
+                flat_list.extend(self._flatten_symbols(symbol["children"]))
         return flat_list
 
     def _get_source_files(self) -> list:
@@ -353,10 +360,10 @@ class LSPClient:
         if not src_files:
             logger.warning("No source files found in the project.")
             return {
-                'call_graph': call_graph,
-                'class_hierarchies': class_hierarchies,
-                'package_relations': package_relations,
-                'references': reference_nodes
+                "call_graph": call_graph,
+                "class_hierarchies": class_hierarchies,
+                "package_relations": package_relations,
+                "references": reference_nodes,
             }
 
         logger.info(f"Found {total_files} source files. Starting unified analysis...")
@@ -374,8 +381,7 @@ class LSPClient:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all file analysis tasks
             future_to_file = {
-                executor.submit(self._analyze_single_file, file_path, all_classes): file_path
-                for file_path in src_files
+                executor.submit(self._analyze_single_file, file_path, all_classes): file_path for file_path in src_files
             }
 
             # Collect results as they complete
@@ -398,11 +404,7 @@ class LSPClient:
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
-                package_relations[result.package_name] = {
-                    "imports": set(),
-                    "imported_by": set(),
-                    "files": []
-                }
+                package_relations[result.package_name] = {"imports": set(), "imported_by": set(), "files": []}
             package_relations[result.package_name]["files"].append(str(result.file_path))
 
             for imported_module in result.imports:
@@ -443,15 +445,17 @@ class LSPClient:
             package_info["imported_by"] = list(package_info["imported_by"])
 
         logger.info("Unified static analysis complete.")
-        logger.info(f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
-                    f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges")
+        logger.info(
+            f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
+            f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges"
+        )
 
         return {
-            'call_graph': call_graph,
-            'class_hierarchies': class_hierarchies,
-            'package_relations': package_relations,
-            'references': reference_nodes,
-            'source_files': src_files
+            "call_graph": call_graph,
+            "class_hierarchies": class_hierarchies,
+            "package_relations": package_relations,
+            "references": reference_nodes,
+            "source_files": src_files,
         }
 
     def _analyze_single_file(self, file_path: Path, all_classes: List[dict]) -> FileAnalysisResult:
@@ -468,23 +472,24 @@ class LSPClient:
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
-            external_references=[]
+            external_references=[],
         )
 
         file_uri = file_path.as_uri()
 
         try:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
 
             # Thread-safe LSP communication (each thread gets its own connection context)
-            self._send_notification('textDocument/didOpen', {
-                'textDocument': {'uri': file_uri, 'languageId': self.language_id, 'version': 1, 'text': content}
-            })
+            self._send_notification(
+                "textDocument/didOpen",
+                {"textDocument": {"uri": file_uri, "languageId": self.language_id, "version": 1, "text": content}},
+            )
 
             # Get all symbols in this file once
             symbols = self._get_document_symbols(file_uri)
             if not symbols:
-                self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
                 return result
 
             # 1. PACKAGE RELATIONS - Process imports and package structure
@@ -494,23 +499,23 @@ class LSPClient:
             # 2. REFERENCES - Collect all symbol references
             all_symbols = self._get_all_symbols_recursive(symbols)
             for symbol in all_symbols:
-                symbol_kind = symbol.get('kind')
-                symbol_name = symbol.get('name', '')
+                symbol_kind = symbol.get("kind")
+                symbol_name = symbol.get("name", "")
 
                 if symbol_kind not in self.symbol_kinds:
                     continue
 
                 qualified_name = self._create_qualified_name(file_path, symbol_name)
-                range_info = symbol.get('range', {})
-                start_line = range_info.get('start', {}).get('line', 0)
-                end_line = range_info.get('end', {}).get('line', 0)
+                range_info = symbol.get("range", {})
+                start_line = range_info.get("start", {}).get("line", 0)
+                end_line = range_info.get("end", {}).get("line", 0)
 
                 node = Node(
                     fully_qualified_name=qualified_name,
                     node_type=symbol_kind,
                     file_path=str(file_path),
                     line_start=start_line,
-                    line_end=end_line
+                    line_end=end_line,
                 )
                 result.symbols.append(node)
 
@@ -519,11 +524,11 @@ class LSPClient:
 
             # Find call relationships - we need BOTH incoming AND outgoing calls
             for symbol in result.function_symbols:
-                pos = symbol['selectionRange']['start']
-                current_qualified_name = self._create_qualified_name(file_path, symbol['name'])
+                pos = symbol["selectionRange"]["start"]
+                current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
 
                 # Prepare the call hierarchy at the function's position
-                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
+                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos["line"], pos["character"])
                 if not hierarchy_items:
                     continue
 
@@ -533,13 +538,14 @@ class LSPClient:
                     outgoing_calls = self._get_outgoing_calls(item)
                     if outgoing_calls:
                         for call in outgoing_calls:
-                            callee_item = call['to']
+                            callee_item = call["to"]
                             try:
-                                callee_uri = callee_item['uri']
-                                if callee_uri.startswith('file://'):
-                                    callee_path = Path(callee_uri.replace('file://', ''))
-                                    callee_qualified_name = self._create_qualified_name(callee_path,
-                                                                                        callee_item['name'])
+                                callee_uri = callee_item["uri"]
+                                if callee_uri.startswith("file://"):
+                                    callee_path = Path(callee_uri.replace("file://", ""))
+                                    callee_qualified_name = self._create_qualified_name(
+                                        callee_path, callee_item["name"]
+                                    )
 
                                     # Add edge: current_function -> called_function
                                     result.call_relationships.append((current_qualified_name, callee_qualified_name))
@@ -552,13 +558,14 @@ class LSPClient:
                     incoming_calls = self._get_incoming_calls(item)
                     if incoming_calls:
                         for call in incoming_calls:
-                            caller_item = call['from']
+                            caller_item = call["from"]
                             try:
-                                caller_uri = caller_item['uri']
-                                if caller_uri.startswith('file://'):
-                                    caller_path = Path(caller_uri.replace('file://', ''))
-                                    caller_qualified_name = self._create_qualified_name(caller_path,
-                                                                                        caller_item['name'])
+                                caller_uri = caller_item["uri"]
+                                if caller_uri.startswith("file://"):
+                                    caller_path = Path(caller_uri.replace("file://", ""))
+                                    caller_qualified_name = self._create_qualified_name(
+                                        caller_path, caller_item["name"]
+                                    )
 
                                     # Add edge: calling_function -> current_function
                                     result.call_relationships.append((caller_qualified_name, current_qualified_name))
@@ -569,12 +576,12 @@ class LSPClient:
             # METHOD 3: Body-level calls by finding call positions
             try:
                 for func_symbol in result.function_symbols:
-                    func_range = func_symbol.get('range', {})
-                    func_qualified_name = self._create_qualified_name(file_path, func_symbol['name'])
+                    func_range = func_symbol.get("range", {})
+                    func_qualified_name = self._create_qualified_name(file_path, func_symbol["name"])
 
                     # Find all call positions in this function's body
-                    start_line = func_range.get('start', {}).get('line', 0)
-                    end_line = func_range.get('end', {}).get('line', 0)
+                    start_line = func_range.get("start", {}).get("line", 0)
+                    end_line = func_range.get("end", {}).get("line", 0)
                     call_positions = self._find_call_positions_in_range(content, start_line, end_line)
 
                     # Resolve each call
@@ -590,19 +597,19 @@ class LSPClient:
             result.class_symbols = self._find_classes_in_symbols(symbols)
 
             for class_symbol in result.class_symbols:
-                qualified_name = self._create_qualified_name(file_path, class_symbol['name'])
+                qualified_name = self._create_qualified_name(file_path, class_symbol["name"])
 
                 # Get class info
-                range_info = class_symbol.get('range', {})
-                start_line = range_info.get('start', {}).get('line', 0)
-                end_line = range_info.get('end', {}).get('line', 0)
+                range_info = class_symbol.get("range", {})
+                start_line = range_info.get("start", {}).get("line", 0)
+                end_line = range_info.get("end", {}).get("line", 0)
 
                 class_info = {
                     "superclasses": [],
                     "subclasses": [],
                     "file_path": str(file_path),
                     "line_start": start_line,
-                    "line_end": end_line
+                    "line_end": end_line,
                 }
 
                 # Find inheritance relationships
@@ -618,7 +625,7 @@ class LSPClient:
             # 5. EXTERNAL REFERENCES
             result.external_references = self._find_external_references(file_uri, symbols)
 
-            self._send_notification('textDocument/didClose', {'textDocument': {'uri': file_uri}})
+            self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
 
         except Exception as e:
             result.error = str(e)
@@ -631,13 +638,13 @@ class LSPClient:
         logger.info("Shutting down langserver...")
         if self._process:
             # LSP shutdown sequence
-            shutdown_id = self._send_request('shutdown', {})
+            shutdown_id = self._send_request("shutdown", {})
             try:
                 self._wait_for_response(shutdown_id)
             except TimeoutError:
                 logger.warning("Did not receive shutdown confirmation from server.")
 
-            self._send_notification('exit', {})
+            self._send_notification("exit", {})
 
             # Stop the reader thread and terminate the process
             self._shutdown_flag.set()
@@ -657,18 +664,18 @@ class LSPClient:
     def _get_all_classes_in_workspace(self) -> list:
         """Get all class symbols in the workspace using workspace/symbol."""
         try:
-            params = {'query': ''}
-            req_id = self._send_request('workspace/symbol', params)
+            params = {"query": ""}
+            req_id = self._send_request("workspace/symbol", params)
             response = self._wait_for_response(req_id)
 
-            if 'error' in response:
-                error_msg = response['error']
+            if "error" in response:
+                error_msg = response["error"]
                 logger.error(f"workspace/symbol failed: {error_msg}")
                 return []
 
-            symbols = response.get('result', [])
+            symbols = response.get("result", [])
             # Filter for class symbols (kind 5)
-            classes = [s for s in symbols if s.get('kind') == 5]
+            classes = [s for s in symbols if s.get("kind") == 5]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -685,7 +692,7 @@ class LSPClient:
 
         # Method 2: Fallback to text analysis
         if not superclasses:
-            text_superclasses = self._extract_superclasses_from_text(file_path, class_symbol['name'], content)
+            text_superclasses = self._extract_superclasses_from_text(file_path, class_symbol["name"], content)
             superclasses.extend(text_superclasses)
 
         return list(set(superclasses))  # Remove duplicates
@@ -696,13 +703,13 @@ class LSPClient:
 
         try:
             # Get the class definition line from content
-            lines = content.split('\n')
-            class_name = class_symbol['name']
+            lines = content.split("\n")
+            class_name = class_symbol["name"]
             class_line_idx = None
 
             # Find the line with class definition
             for i, line in enumerate(lines):
-                if line.strip().startswith(f'class {class_name}(') and line.strip().endswith(':'):
+                if line.strip().startswith(f"class {class_name}(") and line.strip().endswith(":"):
                     class_line_idx = i
                     break
 
@@ -712,15 +719,15 @@ class LSPClient:
             class_line = lines[class_line_idx].strip()
 
             # Extract parent class names from the line
-            start = class_line.find('(') + 1
-            end = class_line.rfind(')')
+            start = class_line.find("(") + 1
+            end = class_line.rfind(")")
             if 0 < start < end:
                 parents_str = class_line[start:end]
-                parent_names = [p.strip() for p in parents_str.split(',') if p.strip()]
+                parent_names = [p.strip() for p in parents_str.split(",") if p.strip()]
 
                 # For each parent name, use LSP to get its definition
                 for parent_name in parent_names:
-                    if parent_name == 'object':
+                    if parent_name == "object":
                         continue
 
                     # Find the position of this parent name in the class line
@@ -734,24 +741,26 @@ class LSPClient:
 
                         if definition:
                             for def_item in definition:
-                                def_uri = def_item.get('uri', '')
-                                if def_uri.startswith('file://'):
-                                    def_path = Path(def_uri.replace('file://', ''))
+                                def_uri = def_item.get("uri", "")
+                                if def_uri.startswith("file://"):
+                                    def_path = Path(def_uri.replace("file://", ""))
                                     # Get the symbol at the definition location
-                                    def_range = def_item.get('range', {})
-                                    def_line = def_range.get('start', {}).get('line', 0)
+                                    def_range = def_item.get("range", {})
+                                    def_line = def_range.get("start", {}).get("line", 0)
 
                                     # Extract class name from definition
                                     try:
-                                        def_content = def_path.read_text(encoding='utf-8')
-                                        def_lines = def_content.split('\n')
+                                        def_content = def_path.read_text(encoding="utf-8")
+                                        def_lines = def_content.split("\n")
                                         if def_line < len(def_lines):
                                             def_line_text = def_lines[def_line].strip()
-                                            if def_line_text.startswith('class '):
-                                                class_name_match = \
-                                                    def_line_text.split('class ')[1].split('(')[0].split(':')[0].strip()
-                                                qualified_super = self._create_qualified_name(def_path,
-                                                                                              class_name_match)
+                                            if def_line_text.startswith("class "):
+                                                class_name_match = (
+                                                    def_line_text.split("class ")[1].split("(")[0].split(":")[0].strip()
+                                                )
+                                                qualified_super = self._create_qualified_name(
+                                                    def_path, class_name_match
+                                                )
                                                 superclasses.append(qualified_super)
                                     except Exception as e:
                                         logger.debug(f"Could not read definition file: {e}")
@@ -769,18 +778,15 @@ class LSPClient:
     def _get_definition_for_position(self, file_uri: str, line: int, character: int) -> list:
         """Get definition for a specific position."""
         try:
-            params = {
-                'textDocument': {'uri': file_uri},
-                'position': {'line': line, 'character': character}
-            }
-            req_id = self._send_request('textDocument/definition', params)
+            params = {"textDocument": {"uri": file_uri}, "position": {"line": line, "character": character}}
+            req_id = self._send_request("textDocument/definition", params)
             response = self._wait_for_response(req_id)
 
-            if 'error' in response:
+            if "error" in response:
                 logger.debug(f"Definition request failed: {response['error']}")
                 return []
 
-            return response.get('result', [])
+            return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get definition: {e}")
             return []
@@ -790,21 +796,21 @@ class LSPClient:
         superclasses = []
 
         try:
-            lines = content.split('\n')
+            lines = content.split("\n")
 
             # Find the class definition line
             for line in lines:
                 line = line.strip()
-                if line.startswith(f'class {class_name}(') and line.endswith(':'):
+                if line.startswith(f"class {class_name}(") and line.endswith(":"):
                     # Extract parent classes from class definition
-                    start = line.find('(') + 1
-                    end = line.rfind(')')
+                    start = line.find("(") + 1
+                    end = line.rfind(")")
                     if start > 0 and end > start:
                         parents_str = line[start:end]
-                        parents = [p.strip() for p in parents_str.split(',') if p.strip()]
+                        parents = [p.strip() for p in parents_str.split(",") if p.strip()]
 
                         for parent in parents:
-                            if parent != 'object':
+                            if parent != "object":
                                 # Try to resolve to fully qualified name
                                 resolved = self._resolve_class_name(parent, file_path, content)
                                 if resolved:
@@ -822,30 +828,33 @@ class LSPClient:
 
         try:
             # Get references to this class
-            pos = class_symbol['selectionRange']['start']
-            references = self._get_references(file_uri, pos['line'], pos['character'])
+            pos = class_symbol["selectionRange"]["start"]
+            references = self._get_references(file_uri, pos["line"], pos["character"])
 
             for ref in references:
-                ref_uri = ref.get('uri', '')
-                ref_range = ref.get('range', {})
-                ref_line = ref_range.get('start', {}).get('line', 0)
+                ref_uri = ref.get("uri", "")
+                ref_range = ref.get("range", {})
+                ref_line = ref_range.get("start", {}).get("line", 0)
 
-                if ref_uri.startswith('file://'):
-                    ref_path = Path(ref_uri.replace('file://', ''))
+                if ref_uri.startswith("file://"):
+                    ref_path = Path(ref_uri.replace("file://", ""))
 
                     try:
                         # Read the file and check if this reference is in a class inheritance
-                        ref_content = ref_path.read_text(encoding='utf-8')
-                        ref_lines = ref_content.split('\n')
+                        ref_content = ref_path.read_text(encoding="utf-8")
+                        ref_lines = ref_content.split("\n")
 
                         if ref_line < len(ref_lines):
                             ref_line_text = ref_lines[ref_line].strip()
 
                             # Check if this line is a class definition that inherits from our class
-                            if ref_line_text.startswith('class ') and '(' in ref_line_text and class_symbol[
-                                'name'] in ref_line_text:
+                            if (
+                                ref_line_text.startswith("class ")
+                                and "(" in ref_line_text
+                                and class_symbol["name"] in ref_line_text
+                            ):
                                 # Extract the subclass name
-                                subclass_name = ref_line_text.split('class ')[1].split('(')[0].strip()
+                                subclass_name = ref_line_text.split("class ")[1].split("(")[0].strip()
                                 qualified_subclass = self._create_qualified_name(ref_path, subclass_name)
                                 subclasses.append(qualified_subclass)
 
@@ -860,35 +869,35 @@ class LSPClient:
     def _resolve_class_name(self, class_name: str, file_reference, content: str) -> str:
         """Try to resolve a simple class name to a fully qualified name."""
         # If it's already qualified, return as-is
-        if '.' in class_name:
+        if "." in class_name:
             return class_name
 
         # Get file path for context
-        if isinstance(file_reference, str) and file_reference.startswith('file://'):
-            file_path = Path(file_reference.replace('file://', ''))
+        if isinstance(file_reference, str) and file_reference.startswith("file://"):
+            file_path = Path(file_reference.replace("file://", ""))
         elif isinstance(file_reference, Path):
             file_path = file_reference
         else:
             return class_name
 
         # Look for imports in the file that might define this class
-        lines = content.split('\n')
+        lines = content.split("\n")
         for line in lines[:50]:  # Check imports at top of file
             line = line.strip()
-            if f'from ' in line and f' import ' in line and class_name in line:
+            if f"from " in line and f" import " in line and class_name in line:
                 # Try to extract the module
-                if f' import {class_name}' in line or f' import {class_name},' in line:
-                    module_part = line.split(' import ')[0].replace('from ', '').strip()
+                if f" import {class_name}" in line or f" import {class_name}," in line:
+                    module_part = line.split(" import ")[0].replace("from ", "").strip()
                     return f"{module_part}.{class_name}"
-            elif f'import ' in line and class_name in line:
+            elif f"import " in line and class_name in line:
                 # Handle direct imports
-                import_part = line.replace('import ', '').strip()
-                if '.' in import_part and import_part.endswith(class_name):
+                import_part = line.replace("import ", "").strip()
+                if "." in import_part and import_part.endswith(class_name):
                     return import_part
 
         # If we can't resolve it, assume it's in the same package
         file_package = self._get_package_name(file_path)
-        if file_package and file_package != 'root':
+        if file_package and file_package != "root":
             return f"{file_package}.{class_name}"
         else:
             return class_name
@@ -897,10 +906,10 @@ class LSPClient:
         """Find all class symbols recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get('kind') == 5:  # Class symbol kind
+            if symbol.get("kind") == 5:  # Class symbol kind
                 classes.append(symbol)
-            if 'children' in symbol:
-                classes.extend(self._find_classes_in_symbols(symbol['children']))
+            if "children" in symbol:
+                classes.extend(self._find_classes_in_symbols(symbol["children"]))
         return classes
 
     def _extract_imports_from_symbols(self, symbols: list, content: str) -> list:
@@ -910,19 +919,19 @@ class LSPClient:
         # Look for module-level symbols that might indicate imports
         for symbol in symbols:
             # Variables at module level might be imports
-            if symbol.get('kind') == 13:  # Variable symbol kind
-                symbol_name = symbol.get('name', '')
+            if symbol.get("kind") == 13:  # Variable symbol kind
+                symbol_name = symbol.get("name", "")
 
                 # Use LSP to get definition/references for this symbol
-                pos = symbol['selectionRange']['start']
+                pos = symbol["selectionRange"]["start"]
 
                 try:
                     # Try to get definition to see if it's an import
-                    definition = self._get_definition(pos['line'], pos['character'])
+                    definition = self._get_definition(pos["line"], pos["character"])
                     if definition:
                         for def_item in definition:
-                            uri = def_item.get('uri', '')
-                            if uri and not uri.startswith(f'file://{self.project_path}'):
+                            uri = def_item.get("uri", "")
+                            if uri and not uri.startswith(f"file://{self.project_path}"):
                                 # This looks like an external import
                                 imports.append(symbol_name)
                 except Exception:
@@ -930,20 +939,20 @@ class LSPClient:
                     continue
 
         # Also use text-based heuristics for common import patterns
-        lines = content.split('\n')
+        lines = content.split("\n")
         for line in lines[:50]:  # Only check first 50 lines where imports usually are
             line = line.strip()
-            if line.startswith('import ') or line.startswith('from '):
+            if line.startswith("import ") or line.startswith("from "):
                 # Extract module name using simple parsing
-                if line.startswith('import '):
+                if line.startswith("import "):
                     parts = line[7:].split()
                     if parts:
-                        module = parts[0].split('.')[0]  # Get root module
+                        module = parts[0].split(".")[0]  # Get root module
                         imports.append(module)
-                elif line.startswith('from ') and ' import ' in line:
-                    module_part = line[5:].split(' import ')[0].strip()
-                    if module_part and not module_part.startswith('.'):
-                        module = module_part.split('.')[0]  # Get root module
+                elif line.startswith("from ") and " import " in line:
+                    module_part = line[5:].split(" import ")[0].strip()
+                    if module_part and not module_part.startswith("."):
+                        module = module_part.split(".")[0]  # Get root module
                         imports.append(module)
 
         return list(set(imports))  # Remove duplicates
@@ -952,12 +961,12 @@ class LSPClient:
         """Get definition for a position using LSP."""
         try:
             params = {
-                'textDocument': {'uri': 'current_file'},  # This would need the actual URI
-                'position': {'line': line, 'character': character}
+                "textDocument": {"uri": "current_file"},  # This would need the actual URI
+                "position": {"line": line, "character": character},
             }
-            req_id = self._send_request('textDocument/definition', params)
+            req_id = self._send_request("textDocument/definition", params)
             response = self._wait_for_response(req_id)
-            return response.get('result', [])
+            return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get definition: {e}")
             return []
@@ -968,22 +977,22 @@ class LSPClient:
             rel_path = file_path.relative_to(self.project_path)
             # Remove file name and convert to package notation
             package_parts = rel_path.parent.parts
-            if package_parts and package_parts[0] != '.':
-                return '.'.join(package_parts)
+            if package_parts and package_parts[0] != ".":
+                return ".".join(package_parts)
             else:
                 # Root level file
-                return 'root'
+                return "root"
         except ValueError:
-            return 'external'
+            return "external"
 
     @staticmethod
     def _extract_package_from_import(module_name: str) -> str:
         """Extract top-level package from an import module name."""
-        if not module_name or module_name.startswith('.'):
+        if not module_name or module_name.startswith("."):
             return ""
 
         # Get the top-level package
-        parts = module_name.split('.')
+        parts = module_name.split(".")
         return parts[0] if parts else None
 
     def _find_external_references(self, file_uri: str, symbols: list) -> list:
@@ -993,9 +1002,9 @@ class LSPClient:
             # This is a simplified approach - in practice, you'd need to iterate through
             # identifiers in the file and use textDocument/references
             for symbol in symbols:
-                if symbol.get('kind') in [12, 6]:  # Functions and methods
-                    pos = symbol['selectionRange']['start']
-                    refs = self._get_references(file_uri, pos['line'], pos['character'])
+                if symbol.get("kind") in [12, 6]:  # Functions and methods
+                    pos = symbol["selectionRange"]["start"]
+                    refs = self._get_references(file_uri, pos["line"], pos["character"])
                     external_refs.extend(refs)
         except Exception as e:
             logger.debug(f"Error finding external references: {e}")
@@ -1005,13 +1014,13 @@ class LSPClient:
         """Get references for a position using LSP."""
         try:
             params = {
-                'textDocument': {'uri': file_uri},
-                'position': {'line': line, 'character': character},
-                'context': {'includeDeclaration': True}
+                "textDocument": {"uri": file_uri},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": True},
             }
-            req_id = self._send_request('textDocument/references', params)
+            req_id = self._send_request("textDocument/references", params)
             response = self._wait_for_response(req_id)
-            return response.get('result', [])
+            return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get references: {e}")
             return []
@@ -1019,9 +1028,9 @@ class LSPClient:
     def _extract_package_from_reference(self, reference: dict) -> str:
         """Extract package name from a reference location."""
         try:
-            uri = reference.get('uri', '')
-            if uri.startswith('file://'):
-                file_path = Path(uri.replace('file://', ''))
+            uri = reference.get("uri", "")
+            if uri.startswith("file://"):
+                file_path = Path(uri.replace("file://", ""))
                 return self._get_package_name(file_path)
         except Exception:
             pass
@@ -1032,8 +1041,8 @@ class LSPClient:
         all_symbols = []
         for symbol in symbols:
             all_symbols.append(symbol)
-            if 'children' in symbol:
-                all_symbols.extend(self._get_all_symbols_recursive(symbol['children']))
+            if "children" in symbol:
+                all_symbols.extend(self._get_all_symbols_recursive(symbol["children"]))
         return all_symbols
 
     def filter_src_files(self, src_files, spec):
@@ -1049,7 +1058,7 @@ class LSPClient:
                 logger.debug(f"Skipping test file: {rel_path}")
                 continue
             # Skip if file is in a hidden directory (starts with a dot_
-            if any(part.startswith('.') for part in rel_path.parts):
+            if any(part.startswith(".") for part in rel_path.parts):
                 logger.debug(f"Skipping hidden directory file: {rel_path}")
                 continue
             filtered_files.append(file)

@@ -11,6 +11,7 @@ LOCK_PATH = DB_PATH + ".lock"
 def _connect():
     return duckdb.connect(DB_PATH)
 
+
 # Initialize DB on startup
 def init_db():
     # ensure directory exists
@@ -51,8 +52,14 @@ def insert_job(job: dict):
         conn.execute(
             "INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                job["id"], job["repo_url"], job["status"], job["result"],
-                job["error"], job["created_at"], job["started_at"], job["finished_at"]
+                job["id"],
+                job["repo_url"],
+                job["status"],
+                job["result"],
+                job["error"],
+                job["created_at"],
+                job["started_at"],
+                job["finished_at"],
             ],
         )
         conn.close()
@@ -73,9 +80,8 @@ def update_job(job_id: str, **fields):
 def fetch_job(job_id: str) -> Optional[dict]:
     conn = _connect()
     res = conn.execute(
-        "SELECT id, repo_url, status, result, error, created_at, started_at, finished_at"
-        " FROM jobs WHERE id = ?",
-        [job_id]
+        "SELECT id, repo_url, status, result, error, created_at, started_at, finished_at" " FROM jobs WHERE id = ?",
+        [job_id],
     ).fetchall()
     conn.close()
     if not res:
@@ -100,18 +106,20 @@ def fetch_all_jobs() -> list[dict]:
         " FROM jobs ORDER BY created_at DESC"
     ).fetchall()
     conn.close()
-    
+
     jobs = []
     for row in res:
         id_, repo_url, status, result, error, created_at, started_at, finished_at = row
-        jobs.append({
-            "id": id_,
-            "repo_url": repo_url,
-            "status": status,
-            "result": result,
-            "error": error,
-            "created_at": created_at.isoformat() if created_at else None,
-            "started_at": started_at.isoformat() if started_at else None,
-            "finished_at": finished_at.isoformat() if finished_at else None,
-        })
+        jobs.append(
+            {
+                "id": id_,
+                "repo_url": repo_url,
+                "status": status,
+                "result": result,
+                "error": error,
+                "created_at": created_at.isoformat() if created_at else None,
+                "started_at": started_at.isoformat() if started_at else None,
+                "finished_at": finished_at.isoformat() if finished_at else None,
+            }
+        )
     return jobs

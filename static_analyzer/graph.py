@@ -73,8 +73,13 @@ class CallGraph:
     def to_networkx(self):
         nx_graph = nx.DiGraph()
         for node in self.nodes.values():
-            nx_graph.add_node(node.fully_qualified_name, file_path=node.file_path,
-                              line_start=node.line_start, line_end=node.line_end, type=node.type)
+            nx_graph.add_node(
+                node.fully_qualified_name,
+                file_path=node.file_path,
+                line_start=node.line_start,
+                line_end=node.line_end,
+                type=node.type,
+            )
         for edge in self.edges:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
@@ -126,12 +131,22 @@ class CallGraph:
                 for dst_cluster_id in sorted(cluster_to_cluster_calls[src_cluster_id].keys()):
                     calls = cluster_to_cluster_calls[src_cluster_id][dst_cluster_id]
                     # Map cluster indices back to 1-based display indices
-                    src_display = next((i for i, c in enumerate(communities, 1)
-                                        if any(n for n in c if node_to_cluster.get(n) == src_cluster_id)),
-                                       src_cluster_id)
-                    dst_display = next((i for i, c in enumerate(communities, 1)
-                                        if any(n for n in c if node_to_cluster.get(n) == dst_cluster_id)),
-                                       dst_cluster_id)
+                    src_display = next(
+                        (
+                            i
+                            for i, c in enumerate(communities, 1)
+                            if any(n for n in c if node_to_cluster.get(n) == src_cluster_id)
+                        ),
+                        src_cluster_id,
+                    )
+                    dst_display = next(
+                        (
+                            i
+                            for i, c in enumerate(communities, 1)
+                            if any(n for n in c if node_to_cluster.get(n) == dst_cluster_id)
+                        ),
+                        dst_cluster_id,
+                    )
 
                     inter_cluster_str += f"Cluster {src_display} → Cluster {dst_display} via method calls:\n"
                     for call in calls:
@@ -184,25 +199,26 @@ class CallGraph:
         function_calls = []
 
         logger.info(
-            f"[CallGraph] Control flow graph is too large, grouping method calls by class. ({len(default_str)} characters)")
+            f"[CallGraph] Control flow graph is too large, grouping method calls by class. ({len(default_str)} characters)"
+        )
 
         for _, node in self.nodes.items():
             if node in skip_nodes:
                 continue
             if node.type == 6 and node.methods_called_by_me:  # type 6 = method
                 # Extract class name from fully qualified name
-                parts = node.fully_qualified_name.split('.')
+                parts = node.fully_qualified_name.split(".")
                 if len(parts) > 1:
-                    class_name = '.'.join(parts[:-1])  # Everything except method name
+                    class_name = ".".join(parts[:-1])  # Everything except method name
 
                     if class_name not in class_calls:
                         class_calls[class_name] = {}
 
                     # Group called methods by their classes
                     for called_method in node.methods_called_by_me:
-                        called_parts = called_method.split('.')
+                        called_parts = called_method.split(".")
                         if len(called_parts) > 1:
-                            called_class = '.'.join(called_parts[:-1])
+                            called_class = ".".join(called_parts[:-1])
                             if called_class not in class_calls[class_name]:
                                 class_calls[class_name][called_class] = 0
                             class_calls[class_name][called_class] += 1
@@ -214,11 +230,13 @@ class CallGraph:
                 else:
                     # This is a function (not a class method), keep original format
                     function_calls.append(
-                        f"Function {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}")
+                        f"Function {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}"
+                    )
             elif node.methods_called_by_me:
                 # Non-method nodes that have calls, keep original format
                 function_calls.append(
-                    f"Function {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}")
+                    f"Function {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}"
+                )
 
         # Build the grouped output
         result = f"Control flow graph with {len(self.nodes)} nodes and {len(self.edges)} edges (grouped view)\n"

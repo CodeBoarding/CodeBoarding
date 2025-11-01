@@ -9,6 +9,7 @@ class FileChange:
     """
     Container for the changes made to a single file.
     """
+
     filename: str
     additions: int
     deletions: int
@@ -34,10 +35,11 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
 
     try:
         from git import Repo
+
         repo = Repo(repo_dir)
 
         # Compare the specified version to the working tree (including staged + unstaged changes)
-        diff_index = repo.git.diff(version, '--patch')
+        diff_index = repo.git.diff(version, "--patch")
 
         # Group diff by file using parsing logic
         current_file = None

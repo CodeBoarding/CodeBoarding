@@ -20,8 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 def validate_env_vars():
-    api_provider_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY", "AWS_BEARER_TOKEN_BEDROCK",
-                         "OLLAMA_BASE_URL"]
+    api_provider_keys = [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_API_KEY",
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "OLLAMA_BASE_URL",
+    ]
     api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
 
     if len(api_env_keys) == 0:
@@ -37,7 +42,8 @@ def validate_env_vars():
 
     if not os.getenv("ROOT_RESULT"):
         logger.warning(
-            "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'")
+            "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'"
+        )
         os.environ["ROOT_RESULT"] = "results"
 
 
@@ -58,22 +64,32 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str = None):
 
     repo_path = repos_dir / repo_name
 
-    generator = DiagramGenerator(repo_location=repo_path, temp_folder=temp_repo_folder, repo_name=repo_name,
-                                 output_dir=temp_repo_folder, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")))
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=temp_repo_folder,
+        repo_name=repo_name,
+        output_dir=temp_repo_folder,
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+    )
     analysis_files = generator.generate_analysis()
 
     for file in analysis_files:
-        with open(file, 'r') as f:
+        with open(file, "r") as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
             logger.info(f"Generated analysis file: {file}")
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
             target_branch = get_branch(repo_path)
-            generate_markdown_file(fname, analysis, repo_name,
-                                   repo_ref=f"{repo_url}/blob/{target_branch}/",
-                                   linked_files=analysis_files,
-                                   temp_dir=temp_repo_folder, demo=True)
+            generate_markdown_file(
+                fname,
+                analysis,
+                repo_name,
+                repo_ref=f"{repo_url}/blob/{target_branch}/",
+                linked_files=analysis_files,
+                temp_dir=temp_repo_folder,
+                demo=True,
+            )
 
 
 def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False) -> str:
@@ -94,7 +110,8 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
     else:
         logger.warning(
-            f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials.")
+            f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials."
+        )
     return repo_name
 
 
@@ -134,18 +151,10 @@ Examples:
   python demo.py https://github.com/user/repo1 --output-dir ./docs
   python demo.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
   python demo.py --help
-        """
+        """,
     )
-    parser.add_argument(
-        'repositories',
-        nargs='+',
-        help='One or more Git repository URLs to generate documentation for'
-    )
-    parser.add_argument(
-        '--output-dir',
-        type=Path,
-        help='Directory to copy generated markdown files to'
-    )
+    parser.add_argument("repositories", nargs="+", help="One or more Git repository URLs to generate documentation for")
+    parser.add_argument("--output-dir", type=Path, help="Directory to copy generated markdown files to")
 
     args = parser.parse_args()
 

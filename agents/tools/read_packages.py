@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 class PackageInput(BaseModel):
     root_package: str = Field(
         description="The top-level package name for which to retrieve dependencies. "
-                    "This should be the primary name of the package, without file extensions or full paths. "
-                    "For example, use 'langchain' for the `langchain` package, or 'langchain_core' "
-                    "for the `langchain_core` package. Do not include 'repos.' prefix if it's present in agent's context."
+        "This should be the primary name of the package, without file extensions or full paths. "
+        "For example, use 'langchain' for the `langchain` package, or 'langchain_core' "
+        "for the `langchain_core` package. Do not include 'repos.' prefix if it's present in agent's context."
     )
 
 

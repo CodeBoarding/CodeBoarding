@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 
 class ReadDocsFile(BaseModel):
     """Input for ReadDocsTool."""
-    file_path: Optional[str] = Field(None,
-                                     description="Path to the documentation file to read, use relative paths from the root of the project. If not provided, will read README.md")
-    line_number: Optional[int] = Field(0,
-                                       description="Line number to focus on. The tool will return content centered around this line.")
+
+    file_path: Optional[str] = Field(
+        None,
+        description="Path to the documentation file to read, use relative paths from the root of the project. If not provided, will read README.md",
+    )
+    line_number: Optional[int] = Field(
+        0, description="Line number to focus on. The tool will return content centered around this line."
+    )
 
 
 class ReadDocsTool(BaseTool):
@@ -70,15 +74,18 @@ class ReadDocsTool(BaseTool):
                 if not available_files:
                     return "No documentation files found in this repository."
                 return "README not found. Available documentation files:\n\n" + "\n".join(
-                    f"- {f}" for f in available_files)
+                    f"- {f}" for f in available_files
+                )
 
-            files_str = '\n'.join([str(f.relative_to(self.repo_dir)) for f in self.cached_files])
-            return f"Error: The specified file '{file_path}' was not found. " \
-                   f"Available documentation files:\n{files_str}"
+            files_str = "\n".join([str(f.relative_to(self.repo_dir)) for f in self.cached_files])
+            return (
+                f"Error: The specified file '{file_path}' was not found. "
+                f"Available documentation files:\n{files_str}"
+            )
 
         # Read the file content
         try:
-            with open(read_file, 'r', encoding='utf-8') as file:
+            with open(read_file, "r", encoding="utf-8") as file:
                 logger.info(f"[ReadDocs Tool] Reading file {read_file} around line {line_number}")
                 lines = file.readlines()
         except Exception as e:
@@ -110,10 +117,8 @@ class ReadDocsTool(BaseTool):
 
         # Extract and number the lines
         selected_lines = lines[start_line:end_line]
-        numbered_lines = [
-            f"{i + start_line:4}:{line}" for i, line in enumerate(selected_lines)
-        ]
-        content = ''.join(numbered_lines)
+        numbered_lines = [f"{i + start_line:4}:{line}" for i, line in enumerate(selected_lines)]
+        content = "".join(numbered_lines)
 
         # Prepare file information header
         file_info = f"File: {file_path}\n"
@@ -138,8 +143,8 @@ class ReadDocsTool(BaseTool):
         sub = sub.parts
         full = full.parts
         repo_dir = self.repo_dir.parts
-        full = full[len(repo_dir):]
+        full = full[len(repo_dir) :]
         for i in range(len(full) - len(sub) + 1):
-            if full[i:i + len(sub)] == sub:
+            if full[i : i + len(sub)] == sub:
                 return True
         return False

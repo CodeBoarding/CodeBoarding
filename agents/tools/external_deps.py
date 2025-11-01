@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 class ExternalDepsInput(BaseModel):
     """Input for ExternalDepsTool - no arguments needed."""
+
     pass
 
 
@@ -87,9 +88,10 @@ class ExternalDepsTool(BaseTool):
         # List files with suggestions for using readFile
         for i, file_path in enumerate(found_files, 1):
             relative_path = file_path.relative_to(self.repo_dir)
-            summary += f"{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path=\"{relative_path}\" and line_number=0\n\n"
+            summary += f'{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path="{relative_path}" and line_number=0\n\n'
 
         logger.info(
-            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f.relative_to(self.repo_dir)) for f in found_files)}")
+            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f.relative_to(self.repo_dir)) for f in found_files)}"
+        )
 
         return summary

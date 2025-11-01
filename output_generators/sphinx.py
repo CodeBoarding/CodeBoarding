@@ -9,8 +9,9 @@ from output_generators import sanitize
 from utils import contains_json
 
 
-def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str,
-                          demo=False) -> str:
+def generated_mermaid_str(
+    analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str, demo=False
+) -> str:
     """
     Generate a Mermaid diagram representation in RST format.
     """
@@ -40,27 +41,30 @@ def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], 
             else:
                 # For demo, link to a static URL
                 lines.append(
-                    f'      click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.html" "Details"')
+                    f'      click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.html" "Details"'
+                )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
-def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
-                 linked_files=None, demo=False, file_name: str = "") -> str:
+def generate_rst(
+    insights: AnalysisInsights, project: str = "", repo_ref="", linked_files=None, demo=False, file_name: str = ""
+) -> str:
     """
     Generate a RST document from an AnalysisInsights object.
     """
     linked_files = linked_files or []
 
     # Use file_name to create a better title, replacing underscores with spaces
-    title = file_name.replace('_', ' ').title()
+    title = file_name.replace("_", " ").title()
     title_underline = "=" * len(title)
 
     lines = [title, title_underline, ""]
 
     # Add diagram
-    diagram_str = generated_mermaid_str(insights, repo_ref=repo_ref, linked_files=linked_files, project=project,
-                                        demo=demo)
+    diagram_str = generated_mermaid_str(
+        insights, repo_ref=repo_ref, linked_files=linked_files, project=project, demo=demo
+    )
     lines.append(diagram_str)
 
     # Add CodeBoarding footer
@@ -68,12 +72,14 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
     lines.append("| |codeboarding-badge| |demo-badge| |contact-badge|")
     lines.append("")
     lines.append(
-        ".. |codeboarding-badge| image:: https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square")
+        ".. |codeboarding-badge| image:: https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square"
+    )
     lines.append("   :target: https://github.com/CodeBoarding/CodeBoarding")
     lines.append(".. |demo-badge| image:: https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square")
     lines.append("   :target: https://www.codeboarding.org/demo")
     lines.append(
-        ".. |contact-badge| image:: https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square")
+        ".. |contact-badge| image:: https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square"
+    )
     lines.append("   :target: mailto:contact@codeboarding.org")
 
     # Add project details
@@ -85,7 +91,7 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
     lines.append("")
 
     # Add component details
-    root_dir = os.getenv('REPO_ROOT') + "/" + project
+    root_dir = os.getenv("REPO_ROOT") + "/" + project
 
     for comp in insights.components:
         lines.append(component_header(comp.name, linked_files))
@@ -105,9 +111,16 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
                     continue
                 url = "/".join(repo_ref.split("/")[:7])
                 ref_url = url + reference.reference_file.split(root_dir)[1]
-                if reference.reference_start_line is not None and reference.reference_end_line is not None and (
-                        not (reference.reference_start_line <= reference.reference_end_line <= 0 or
-                             reference.reference_start_line == reference.reference_end_line)):
+                if (
+                    reference.reference_start_line is not None
+                    and reference.reference_end_line is not None
+                    and (
+                        not (
+                            reference.reference_start_line <= reference.reference_end_line <= 0
+                            or reference.reference_start_line == reference.reference_end_line
+                        )
+                    )
+                ):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 lines.append(f"* `{str(reference).replace('`', '')} <{ref_url}>`_")
             lines.append("")
@@ -118,13 +131,21 @@ def generate_rst(insights: AnalysisInsights, project: str = "", repo_ref="",
     return "\n".join(lines)
 
 
-def generate_rst_file(file_name: str, insights: AnalysisInsights, project: str, repo_ref: str,
-                      linked_files, temp_dir: Path, demo: bool = False) -> Path:
+def generate_rst_file(
+    file_name: str,
+    insights: AnalysisInsights,
+    project: str,
+    repo_ref: str,
+    linked_files,
+    temp_dir: Path,
+    demo: bool = False,
+) -> Path:
     """
     Generate a RST file with the given insights and save it to the specified directory.
     """
-    content = generate_rst(insights, project=project, repo_ref=repo_ref,
-                           linked_files=linked_files, demo=demo, file_name=file_name)
+    content = generate_rst(
+        insights, project=project, repo_ref=repo_ref, linked_files=linked_files, demo=demo, file_name=file_name
+    )
     rst_file = temp_dir / f"{file_name}.rst"
     with open(rst_file, "w") as f:
         f.write(content)
