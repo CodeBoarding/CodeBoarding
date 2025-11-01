@@ -82,6 +82,6 @@ target-version = ["py312"]
 
 [tool.uv]
 dev-dependencies = [
-    "black==24.10.0",
+    "black==25.9.0",
     "pre-commit==3.8.0",
 ]
