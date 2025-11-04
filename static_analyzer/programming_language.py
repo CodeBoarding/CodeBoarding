@@ -5,8 +5,9 @@ logger = logging.getLogger(__name__)
 
 
 class ProgrammingLanguage:
-    def __init__(self, language: str, size: int, percentage: float, suffixes: List[str],
-                 server_commands: List[str] = None):
+    def __init__(
+        self, language: str, size: int, percentage: float, suffixes: List[str], server_commands: List[str] = None
+    ):
         self.language = language
         self.size = size
         self.percentage = percentage
@@ -26,8 +27,10 @@ class ProgrammingLanguage:
 
     def get_server_parameters(self) -> List[str]:
         if not self.server_commands:
-            raise ValueError(f"No server commands defined for {self.language}. "
-                             "Please ensure the language is supported and has server commands defined.")
+            raise ValueError(
+                f"No server commands defined for {self.language}. "
+                "Please ensure the language is supported and has server commands defined."
+            )
         return self.server_commands
 
     def is_supported_lang(self) -> bool:

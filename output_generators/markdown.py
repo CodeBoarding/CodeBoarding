@@ -7,8 +7,9 @@ from output_generators import sanitize
 from utils import contains_json
 
 
-def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str,
-                          demo=False) -> str:
+def generated_mermaid_str(
+    analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str, demo=False
+) -> str:
     lines = ["```mermaid", "graph LR"]
 
     # 1. Define each component as a node, including its description
@@ -34,26 +35,29 @@ def generated_mermaid_str(analysis: AnalysisInsights, linked_files: List[Path], 
             else:
                 # For demo, link to a static URL
                 lines.append(
-                    f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.md" "Details"')
+                    f'    click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.md" "Details"'
+                )
     lines.append("```")
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
-def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref="",
-                      linked_files=None, demo=False) -> str:
+def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref="", linked_files=None, demo=False) -> str:
     """
     Generate a Mermaid 'graph LR' diagram from an AnalysisInsights object.
     """
 
-    mermaid_str = generated_mermaid_str(insights, repo_ref=repo_ref, linked_files=linked_files, project=project,
-                                        demo=demo)
+    mermaid_str = generated_mermaid_str(
+        insights, repo_ref=repo_ref, linked_files=linked_files, project=project, demo=demo
+    )
 
-    lines = [mermaid_str,
-             "\n[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)"]
+    lines = [
+        mermaid_str,
+        "\n[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)",
+    ]
 
     detail_lines = ["\n## Details\n", f"{insights.description}\n"]
 
-    root_dir = os.getenv('REPO_ROOT') + "/" + project
+    root_dir = os.getenv("REPO_ROOT") + "/" + project
 
     for comp in insights.components:
         detail_lines.append(component_header(comp.name, linked_files))
@@ -68,12 +72,18 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                     qn_list.append(f"{reference}")
                     continue
                 ref_url = repo_ref + reference.reference_file
-                if reference.reference_start_line is not None and reference.reference_end_line is not None and (
-                        not (reference.reference_start_line <= reference.reference_end_line <= 0 or
-                             reference.reference_start_line == reference.reference_end_line)):
+                if (
+                    reference.reference_start_line is not None
+                    and reference.reference_end_line is not None
+                    and (
+                        not (
+                            reference.reference_start_line <= reference.reference_end_line <= 0
+                            or reference.reference_start_line == reference.reference_end_line
+                        )
+                    )
+                ):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
-                qn_list.append(
-                    f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference}</a>')
+                qn_list.append(f'<a href="{ref_url}" target="_blank" rel="noopener noreferrer">{reference}</a>')
             # Join the list into an unordered markdown list, without the leading dash
             references = ""
             for item in qn_list:
@@ -85,14 +95,21 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
         detail_lines.append("")  # blank line between components
 
     detail_lines.append(
-        "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)")
+        "\n\n### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)"
+    )
     return "\n".join(lines + detail_lines)
 
 
-def generate_markdown_file(file_name: str, insights: AnalysisInsights, project: str, repo_ref: str,
-                           linked_files, temp_dir: Path, demo: bool = False) -> Path:
-    content = generate_markdown(insights, project=project, repo_ref=repo_ref,
-                                linked_files=linked_files, demo=demo)
+def generate_markdown_file(
+    file_name: str,
+    insights: AnalysisInsights,
+    project: str,
+    repo_ref: str,
+    linked_files,
+    temp_dir: Path,
+    demo: bool = False,
+) -> Path:
+    content = generate_markdown(insights, project=project, repo_ref=repo_ref, linked_files=linked_files, demo=demo)
     markdown_file = temp_dir / f"{file_name}.md"
     with open(markdown_file, "w") as f:
         f.write(content)

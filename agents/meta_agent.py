@@ -19,12 +19,12 @@ class MetaAgent(CodeBoardingAgent):
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(
-            template=get_meta_information_prompt(),
-            input_variables=["project_name"]
+            template=get_meta_information_prompt(), input_variables=["project_name"]
         )
 
-        self.agent = create_react_agent(model=self.llm,
-                                        tools=[self.read_docs, self.external_deps_tool, self.read_file_structure])
+        self.agent = create_react_agent(
+            model=self.llm, tools=[self.read_docs, self.external_deps_tool, self.read_file_structure]
+        )
 
     def analyze_project_metadata(self) -> MetaAnalysisInsights:
         """Analyze project metadata to provide architectural context and bias."""

@@ -11,7 +11,7 @@ def check_uv_environment():
     print("Step: Environment validation started")
 
     # Check if we're in a virtual environment
-    if not hasattr(sys, 'base_prefix') or sys.base_prefix == sys.prefix:
+    if not hasattr(sys, "base_prefix") or sys.base_prefix == sys.prefix:
         print("Step: Environment validation finished: failure - Not in virtual environment")
         print("Please create and activate a uv environment first:")
         print("  uv venv")
@@ -24,9 +24,9 @@ def check_uv_environment():
     uv_marker = venv_path / "pyvenv.cfg"
 
     if uv_marker.exists():
-        with open(uv_marker, 'r') as f:
+        with open(uv_marker, "r") as f:
             content = f.read()
-            if 'uv' not in content.lower():
+            if "uv" not in content.lower():
                 print("Step: Environment validation finished: warning - May not be uv environment")
 
     print("Step: Environment validation finished: success")
@@ -36,15 +36,17 @@ def check_npm():
     """Check if npm is installed on the system."""
     print("Step: npm check started")
 
-    npm_path = shutil.which('npm')
+    npm_path = shutil.which("npm")
 
     if npm_path:
         try:
-            result = subprocess.run(['npm', '--version'], capture_output=True, text=True, check=True)
+            result = subprocess.run(["npm", "--version"], capture_output=True, text=True, check=True)
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
         except Exception:
-            print("Step: npm check finished: failure - npm command failed. Skipping TypeScript Language Server installation.")
+            print(
+                "Step: npm check finished: failure - npm command failed. Skipping TypeScript Language Server installation."
+            )
             return False
     else:
         print("Step: npm check finished: failure - npm not found")
@@ -66,11 +68,12 @@ def install_typescript_language_server():
 
         # Initialize package.json if it doesn't exist
         if not Path("package.json").exists():
-            subprocess.run(['npm', 'init', '-y'], check=True, capture_output=True, text=True)
+            subprocess.run(["npm", "init", "-y"], check=True, capture_output=True, text=True)
 
         # Install typescript-language-server and typescript
-        subprocess.run(['npm', 'install', 'typescript-language-server', 'typescript'], check=True, capture_output=True,
-                       text=True)
+        subprocess.run(
+            ["npm", "install", "typescript-language-server", "typescript"], check=True, capture_output=True, text=True
+        )
 
         # Verify the installation
         ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
@@ -105,17 +108,17 @@ def download_file_from_gdrive(file_id, destination):
     # Check if we need to handle the download confirmation
     token = None
     for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
+        if key.startswith("download_warning"):
             token = value
             break
 
     if token:
         # Handle large file download confirmation
-        params = {'id': file_id, 'confirm': token}
+        params = {"id": file_id, "confirm": token}
         response = session.get(url, params=params, stream=True)
 
     # Save the file
-    with open(destination, 'wb') as f:
+    with open(destination, "wb") as f:
         for chunk in response.iter_content(chunk_size=32768):
             if chunk:
                 f.write(chunk)
@@ -131,12 +134,12 @@ def download_binary_from_gdrive():
     mac_files = {
         "py-lsp": "1a8FaSGq27dyrN5yrKKMOWqfm3H8BK9Zf",
         "tokei": "1IKJSB7DHXAFZZQfwGOt6LypVUDlCQTLc",
-        "gopls": "1gROk7g88qNDg7eGWqtzOVqitktUXA65c"
+        "gopls": "1gROk7g88qNDg7eGWqtzOVqitktUXA65c",
     }
     win_files = {
         "py-lsp": "1XKRsteNhUpu2eGhkYqRhXDvJYGhBpV01",
         "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK",
-        "gopls": "162AdxaSb58IPNv_vvqTWUTtZJIo8Xrf_"
+        "gopls": "162AdxaSb58IPNv_vvqTWUTtZJIo8Xrf_",
     }
     linux_files = {
         "py-lsp": "17XcohKWZKHv26DgRIdrxcPRMN0LKyt0i",
@@ -175,7 +178,7 @@ def download_binary_from_gdrive():
 
             if success and binary_path.exists():
                 # Make the binary executable on Unix-like systems
-                if platform.system() != 'Windows':
+                if platform.system() != "Windows":
                     os.chmod(binary_path, 0o755)
 
                 # Verify the file is not empty
@@ -207,7 +210,7 @@ def update_static_analysis_config():
         return
 
     # Read the current configuration
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     # Get the absolute path to the project root
@@ -219,23 +222,23 @@ def update_static_analysis_config():
     # Update Python LSP server path
     py_lsp_path = servers_dir / "py-lsp"
     if py_lsp_path.exists():
-        config['lsp_servers']['python']['command'][0] = str(py_lsp_path)
+        config["lsp_servers"]["python"]["command"][0] = str(py_lsp_path)
         updates += 1
 
     # Update TypeScript Language Server path
     ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
     if ts_lsp_path.exists():
-        config['lsp_servers']['typescript']['command'][0] = str(ts_lsp_path)
+        config["lsp_servers"]["typescript"]["command"][0] = str(ts_lsp_path)
         updates += 1
 
     # Update tokei tool path
     tokei_path = servers_dir / "tokei"
     if tokei_path.exists():
-        config['tools']['tokei']['command'][0] = str(tokei_path)
+        config["tools"]["tokei"]["command"][0] = str(tokei_path)
         updates += 1
 
     # Write the updated configuration back to file
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 
     print(f"Step: Configuration update finished: success ({updates} paths updated)")
@@ -315,7 +318,7 @@ CACHING_DOCUMENTATION=false
 
     # Write the .env file
     try:
-        with open(env_file_path, 'w') as f:
+        with open(env_file_path, "w") as f:
             f.write(env_content)
 
         print("Step: .env file creation finished: success")

@@ -15,7 +15,7 @@ class DirInput(BaseModel):
         description=(
             "Relative path to the directory whose file structure should be retrieved. "
             "Defaults to the project root if not specified (i.e., use '.' for root)."
-        )
+        ),
     )
 
 
@@ -112,24 +112,24 @@ class FileStructureTool(BaseTool):
         sub = sub.parts
         full = full.parts
         analysis_parts = self.repo_dir.parts
-        full = full[len(analysis_parts):]
+        full = full[len(analysis_parts) :]
         for i in range(len(full) - len(sub) + 1):
-            if full[i:i + len(sub)] == sub:
+            if full[i : i + len(sub)] == sub:
                 return True
         return False
 
 
-def get_tree_string(startpath, indent='', max_depth=float('inf'), current_depth=0, max_lines=100):
+def get_tree_string(startpath, indent="", max_depth=float("inf"), current_depth=0, max_lines=100):
     """
     Generate a tree-like string representation of the directory structure.
-    
+
     Args:
         startpath: Path to start generating the tree from
         indent: Current indentation string
         max_depth: Maximum depth to traverse (default: unlimited)
         current_depth: Current depth in the traversal (used internally)
         max_lines: Maximum number of lines to generate
-        
+
     Returns:
         List of strings representing the tree structure
     """
@@ -152,17 +152,13 @@ def get_tree_string(startpath, indent='', max_depth=float('inf'), current_depth=
             return tree_lines
 
         path = os.path.join(startpath, entry)
-        connector = '└── ' if i == len(entries) - 1 else '├── '
+        connector = "└── " if i == len(entries) - 1 else "├── "
         tree_lines.append(indent + connector + entry)
 
         if os.path.isdir(path):
-            extension = '    ' if i == len(entries) - 1 else '│   '
+            extension = "    " if i == len(entries) - 1 else "│   "
             subtree = get_tree_string(
-                path,
-                indent + extension,
-                max_depth,
-                current_depth + 1,
-                max_lines - len(tree_lines)
+                path, indent + extension, max_depth, current_depth + 1, max_lines - len(tree_lines)
             )
             tree_lines.extend(subtree)
 
