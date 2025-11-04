@@ -30,6 +30,7 @@ from agents.tools import (
 )
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
+from agents.monitoring import MonitoringCallback
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -42,6 +43,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
+        self._monitoring_callback = None  # Used by monitor decorator
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -128,12 +130,19 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
             )
 
-    def _invoke(self, prompt) -> str:
+    def _invoke(self, prompt, callbacks: list = None) -> str:
         """Unified agent invocation method."""
         max_retries = 5
         for _ in range(max_retries):
             try:
-                response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]})
+                callback_list = callbacks or []
+                if self._monitoring_callback:
+                    callback_list.append(self._monitoring_callback)
+                
+                response = self.agent.invoke(
+                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                    config={"callbacks": callback_list} if callback_list else None
+                )
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):
@@ -162,7 +171,8 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            result = extractor.invoke(return_type.extractor_str() + response)
+            config = {"callbacks": [self._monitoring_callback]} if self._monitoring_callback else None
+            result = extractor.invoke(return_type.extractor_str() + response, config=config)
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:
@@ -193,7 +203,8 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
             chain = prompt | self.extractor_llm | parser
-            return chain.invoke({"adjective": message_content})
+            config = {"callbacks": [self._monitoring_callback]} if self._monitoring_callback else None
+            return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():
                 try:
@@ -201,3 +212,24 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
+
+    def get_monitoring_results(self) -> dict:
+        """Return monitoring statistics if monitoring is enabled."""
+        if not self._monitoring_callback:
+            return {}
+        
+        return {
+            "token_usage": {
+                "prompt_tokens": self._monitoring_callback.prompt_tokens,
+                "completion_tokens": self._monitoring_callback.completion_tokens,
+                "total_tokens": self._monitoring_callback.total_tokens
+            },
+            "tool_usage": {
+                "counts": dict(self._monitoring_callback.tool_counts),
+                "errors": dict(self._monitoring_callback.tool_errors),
+                "avg_latency_ms": {
+                    tool: sum(latencies) / len(latencies) if latencies else 0
+                    for tool, latencies in self._monitoring_callback.tool_latency_ms.items()
+                }
+            }
+        }

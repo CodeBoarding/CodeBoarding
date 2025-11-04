@@ -1,6 +1,10 @@
+import json
 import logging
+import time
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -26,6 +30,7 @@ class DiagramGenerator:
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
+        self.monitoring_output_dir = Path(os.getenv("PROJECT_ROOT")) / "evals/monitoring_results"
 
         self.details_agent = None
         self.abstraction_agent = None
@@ -193,4 +198,44 @@ class DiagramGenerator:
 
         logger.info(f"Analysis complete. Generated {len(files)} analysis files")
         print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
+        
         return files
+
+    def generate_static_analysis(self):
+        results = StaticAnalysisResults()
+        timing_data = {}
+        error_data = {}
+
+        # Track scanner timing
+        scanner_start = time.time()
+        scanner = ProjectScanner(self.repo_location)
+        programming_langs = scanner.scan()
+        timing_data['scanner'] = time.time() - scanner_start
+        
+        clients = create_clients(programming_langs, self.repo_location)
+        
+        for client in clients:
+            lang_name = client.language.language
+            client_start = time.time()
+            
+            logger.info(f"Starting static analysis for {lang_name} in {self.repo_location}")
+            client.start()
+
+            analysis = client.build_static_analysis()
+            
+            timing_data[lang_name] = time.time() - client_start
+            
+            # Track file counts and errors
+            source_files = analysis.get('source_files', [])
+            error_data[lang_name] = {
+                'total_files': len(source_files),
+                'errors': 0  # Will be updated if we can track errors from FileAnalysisResult
+            }
+
+            results.add_references(client.language.language, analysis.get('references', []))
+            results.add_cfg(client.language.language, analysis.get('call_graph', []))
+            results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
+            results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
+            results.add_source_files(client.language.language, source_files)
+
+        return results

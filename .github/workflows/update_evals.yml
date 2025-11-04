@@ -1,0 +1,50 @@
+name: Update Evals and Publish
+
+on:
+  push:
+    branches: [ test-evals ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-evals:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          # make uv available NOW for this step
+          export PATH="$HOME/.local/bin:$PATH"
+          uv --version
+          # and persist it for subsequent steps
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Sync deps (uv)
+        run: uv sync --frozen
+
+      - name: Run setup/evals
+        run: |
+          mkdir -p docs
+          uv run python setup.py
+
+      - name: Run static_analysis_eval and save to eval/reports
+        run: |
+          uv run python evals/static_analysis_eval.py
+
+      - name: Commit eval artifacts if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add evals/reports/*.md || true
+          git diff --cached --quiet && echo "🟡 No changes in eval reports" || (git commit -m "Update eval reports" && git push)

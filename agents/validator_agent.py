@@ -11,6 +11,8 @@ from agents.prompts import (
     get_relationships_validation,
     get_validator_system_message,
 )
+from agents.prompts import get_component_validation_component, get_relationships_validation, get_validator_system_message
+from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -39,12 +41,15 @@ class ValidatorAgent(CodeBoardingAgent):
             template=get_relationships_validation(), input_variables=["analysis"]
         )
 
+    @monitoring
     def validate_components(self, analysis: AnalysisInsights):
         return self._parse_invoke(self.valid_component_prompt.format(analysis=analysis.llm_str()), ValidationInsights)
 
+    @monitoring
     def validate_relations(self, analysis: AnalysisInsights):
         return self._parse_invoke(self.valid_relations_prompt.format(analysis=analysis.llm_str()), ValidationInsights)
 
+    @monitoring
     def validate_references(self, analysis: AnalysisInsights):
         """
         Validating for:
@@ -114,6 +119,7 @@ class ValidatorAgent(CodeBoardingAgent):
             return ValidationInsights(is_valid=False, additional_info="\n".join(info))
         return ValidationInsights(is_valid=True, additional_info="All references are valid.")
 
+    @monitoring
     def validate_component_relations(self, analysis: AnalysisInsights):
         info = []
         for relation in analysis.components_relations:

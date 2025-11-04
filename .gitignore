@@ -183,3 +183,6 @@ temp
 .idea/*
 static_analyzer/servers/
 static_analyzer/servers/*
+
+# Evaluation artifacts
+evals/artifacts/

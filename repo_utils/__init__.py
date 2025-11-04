@@ -47,11 +47,17 @@ def require_git_import(default: Optional[Any] = None) -> Callable:
 
 def sanitize_repo_url(repo_url: str) -> str:
     """
-    Converts various formats of Git URLs to SSH format (e.g., git@github.com:user/repo.git).
+    Normalizes Git URLs to ensure proper format for cloning.
+    Preserves HTTPS URLs for CI compatibility while supporting SSH URLs.
     """
     if repo_url.startswith("git@") or repo_url.startswith("ssh://"):
         return repo_url  # already in SSH format
     elif repo_url.startswith("https://") or repo_url.startswith("http://"):
+        # Keep HTTPS format for compatibility with CI environments
+        # Normalize to ensure .git suffix
+        if not repo_url.endswith(".git"):
+            return f"{repo_url}.git"
+        return repo_url
         # Convert HTTPS to SSH format
         parts = repo_url.rstrip("/").split("/")
         if "github.com" in parts:
