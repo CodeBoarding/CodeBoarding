@@ -2,6 +2,7 @@ import logging
 import logging.config
 from pathlib import Path
 
+
 def setup_logging(
     default_level: str = "INFO",
     log_filename: str = "app.log",
@@ -16,21 +17,21 @@ def setup_logging(
     """
     # Define both handlers from the beginning
     handlers = ["console", "file"]
-    
+
     # Determine log file location - use provided log_dir or default to current directory
     if log_dir is None:
         log_dir_path = Path(".")
     else:
         log_dir_path = Path(log_dir)
-    
+
     logs_dir = log_dir_path / "logs"
-    
+
     # Create logs directory if it doesn't exist
     logs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create full path for log file
     log_file_path = logs_dir / log_filename
-    
+
     # Basic config structure with both handlers defined upfront
     config = {
         "version": 1,
@@ -56,7 +57,7 @@ def setup_logging(
                 "maxBytes": max_bytes,
                 "backupCount": backup_count,
                 "encoding": "utf-8",
-            }
+            },
         },
         "root": {
             "level": default_level,

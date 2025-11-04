@@ -23,14 +23,19 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
         self.project_name = project_name
         self.repo_dir = repo_dir
-        self.prompt = PromptTemplate(
-            template=get_diff_analysis_message(),
-            input_variables=["analysis", "diff_data"]
-        )
+        self.prompt = PromptTemplate(template=get_diff_analysis_message(), input_variables=["analysis", "diff_data"])
         self.read_diff_tool = ReadDiffTool(diffs=self.get_diff_data())
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_packages_tool,
-                                                               self.read_file_structure, self.read_structure_tool,
-                                                               self.read_file_tool, self.read_diff_tool])
+        self.agent = create_react_agent(
+            model=self.llm,
+            tools=[
+                self.read_source_reference,
+                self.read_packages_tool,
+                self.read_file_structure,
+                self.read_structure_tool,
+                self.read_file_tool,
+                self.read_diff_tool,
+            ],
+        )
 
     def get_analysis(self) -> AnalysisInsights:
         """
@@ -38,7 +43,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         This is a placeholder method that can be overridden by subclasses.
         """
         analysis_file = self.repo_dir / ".codeboarding" / "analysis.json"  # Ensure the directory exists
-        with open(analysis_file, 'r') as analysis_file:
+        with open(analysis_file, "r") as analysis_file:
             return AnalysisInsights.model_validate_json(analysis_file.read())
 
     def get_diff_data(self) -> List[FileChange]:
@@ -50,7 +55,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         if not version_file.exists():
             logger.warning("[DiffAnalyzingAgent] No version file found, cannot get diff data")
             return []
-        with open(version_file, 'r') as f:
+        with open(version_file, "r") as f:
             version = Version.model_validate_json(f.read())
         diff = get_git_diff(self.repo_dir, version.commit_hash)
         diff = self.filter_diff(diff)
@@ -96,8 +101,9 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
             return UpdateAnalysis(update_degree=0, feedback="No relevant code differences found")
 
         logger.info("[DiffAnalyzingAgent] Analyzing code differences")
-        prompt = self.prompt.format(analysis=analysis.llm_str(),
-                                    diff_data="\n".join([df.llm_str() for df in diff_data]))
+        prompt = self.prompt.format(
+            analysis=analysis.llm_str(), diff_data="\n".join([df.llm_str() for df in diff_data])
+        )
         update = self._parse_invoke(prompt, UpdateAnalysis)
         logger.info(f"[DiffAnalyzingAgent] Update degree: {update.update_degree}, Feedback: {update.feedback}")
         return update
@@ -108,7 +114,7 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         This method can be overridden by subclasses to provide more specific logic.
         """
         component_file = self.repo_dir / ".codeboarding" / f"{sanitize(component.name)}.json"
-        with open(component_file, 'r') as f:
+        with open(component_file, "r") as f:
             return AnalysisInsights.model_validate_json(f.read())
 
     @monitoring
@@ -120,20 +126,24 @@ class DiffAnalyzingAgent(CodeBoardingAgent):
         # Check if the component exists:
         if not self.component_exists(component.name):
             logger.info(f"[DiffAnalyzingAgent] Component {component.name} does not exist, running full analysis")
-            return UpdateAnalysis(update_degree=10,
-                                  feedback=f"Component {component.name} does not exist, running full analysis")
+            return UpdateAnalysis(
+                update_degree=10, feedback=f"Component {component.name} does not exist, running full analysis"
+            )
 
         diff_data = self.get_diff_data()
         if not diff_data:
             logger.info(f"[DiffAnalyzingAgent] No relevant code differences found for component {component.name}")
-            return UpdateAnalysis(update_degree=0,
-                                  feedback=f"No relevant code differences found for component {component.name}")
+            return UpdateAnalysis(
+                update_degree=0, feedback=f"No relevant code differences found for component {component.name}"
+            )
 
         analysis = self.get_component_analysis(component)
         logger.info(f"[DiffAnalyzingAgent] Analyzing code differences for component {component.name}")
-        prompt = self.prompt.format(analysis=analysis.llm_str(),
-                                    diff_data="\n".join([df.llm_str() for df in diff_data]))
+        prompt = self.prompt.format(
+            analysis=analysis.llm_str(), diff_data="\n".join([df.llm_str() for df in diff_data])
+        )
         update = self._parse_invoke(prompt, UpdateAnalysis)
         logger.info(
-            f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}, Feedback: {update.feedback}")
+            f"[DiffAnalyzingAgent] Update degree for component {component.name}: {update.update_degree}, Feedback: {update.feedback}"
+        )
         return update

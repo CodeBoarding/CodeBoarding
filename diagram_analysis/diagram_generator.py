@@ -84,22 +84,35 @@ class DiagramGenerator:
     def pre_analysis(self):
         static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
-        self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                    static_analysis=static_analysis)
+        self.meta_agent = MetaAgent(
+            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+        )
         meta_context = self.meta_agent.analyze_project_metadata()
-        self.details_agent = DetailsAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                          static_analysis=static_analysis, meta_context=meta_context)
-        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, project_name=self.repo_name,
-                                                  static_analysis=static_analysis, meta_context=meta_context)
+        self.details_agent = DetailsAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+        self.abstraction_agent = AbstractionAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
         self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
         self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self.diff_analyzer_agent = DiffAnalyzingAgent(repo_dir=self.repo_location, static_analysis=static_analysis,
-                                                      project_name=self.repo_name)
+        self.diff_analyzer_agent = DiffAnalyzingAgent(
+            repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
+        )
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
-            f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
-                            code_boarding_version="0.2.0").model_dump_json(indent=2))
+            f.write(
+                Version(
+                    commit_hash=get_git_commit_hash(self.repo_location), code_boarding_version="0.2.0"
+                ).model_dump_json(indent=2)
+            )
 
     def generate_analysis(self):
         """
@@ -109,7 +122,12 @@ class DiagramGenerator:
         """
         files = []
 
-        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None or self.validator_agent is None:
+        if (
+            self.details_agent is None
+            or self.abstraction_agent is None
+            or self.planner_agent is None
+            or self.validator_agent is None
+        ):
             self.pre_analysis()
 
         # Generate the initial analysis
@@ -162,9 +180,9 @@ class DiagramGenerator:
                 }
 
                 # Use tqdm for a progress bar
-                for future in tqdm(as_completed(future_to_component),
-                                   total=len(future_to_component),
-                                   desc=f"Level {level}"):
+                for future in tqdm(
+                    as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
+                ):
                     component = future_to_component[future]
                     try:
                         result_path, new_components = future.result()

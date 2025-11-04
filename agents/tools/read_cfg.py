@@ -32,7 +32,8 @@ class GetCFGTool(BaseTool):
         for lang in self.static_analysis.get_languages():
             cfg = self.static_analysis.get_cfg(lang)
             logger.info(
-                f"[CFG Tool] Reading control flow graph for {lang}, nodes: {len(cfg.nodes)}, edges: {len(cfg.edges)}")
+                f"[CFG Tool] Reading control flow graph for {lang}, nodes: {len(cfg.nodes)}, edges: {len(cfg.edges)}"
+            )
             if cfg is None:
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue

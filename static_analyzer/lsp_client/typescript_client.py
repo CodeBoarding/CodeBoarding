@@ -23,7 +23,7 @@ class TypeScriptClient(LSPClient):
 
     def _ensure_dependencies(self):
         """Check if node_modules exists and log an error if they don't."""
-        node_modules_path = self.project_path / 'node_modules'
+        node_modules_path = self.project_path / "node_modules"
 
         if node_modules_path.exists():
             logger.info(f"node_modules found at: {node_modules_path}")
@@ -32,7 +32,7 @@ class TypeScriptClient(LSPClient):
         logger.warning(f"node_modules not found in {self.project_path}")
 
         # Check if package.json exists
-        package_json = self.project_path / 'package.json'
+        package_json = self.project_path / "package.json"
         if not package_json.exists():
             logger.warning(f"package.json not found in {self.project_path}.")
             return
@@ -41,58 +41,47 @@ class TypeScriptClient(LSPClient):
         """Performs the LSP initialization handshake."""
         logger.info(f"Initializing connection for {self.language_id}...")
         params = {
-            'processId': os.getpid(),
-            'rootUri': self.project_path.as_uri(),
-            'capabilities': {
-                'textDocument': {
-                    'callHierarchy': {'dynamicRegistration': True},
-                    'documentSymbol': {'hierarchicalDocumentSymbolSupport': True},
-                    'typeHierarchy': {'dynamicRegistration': True},
-                    'references': {'dynamicRegistration': True},
-                    'semanticTokens': {'dynamicRegistration': True}
+            "processId": os.getpid(),
+            "rootUri": self.project_path.as_uri(),
+            "capabilities": {
+                "textDocument": {
+                    "callHierarchy": {"dynamicRegistration": True},
+                    "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                    "typeHierarchy": {"dynamicRegistration": True},
+                    "references": {"dynamicRegistration": True},
+                    "semanticTokens": {"dynamicRegistration": True},
                 },
-                'workspace': {
-                    'configuration': True,
-                    'workspaceFolders': True,
-                    'didChangeConfiguration': {'dynamicRegistration': True}
-                }
+                "workspace": {
+                    "configuration": True,
+                    "workspaceFolders": True,
+                    "didChangeConfiguration": {"dynamicRegistration": True},
+                },
             },
-            'workspace': {
-                'applyEdit': True,
-                'workspaceEdit': {'documentChanges': True}
-            }
+            "workspace": {"applyEdit": True, "workspaceEdit": {"documentChanges": True}},
         }
 
         # Allow subclasses to customize initialization parameters
         params = self._customize_initialization_params(params)
 
-        init_id = self._send_request('initialize', params)
+        init_id = self._send_request("initialize", params)
         response = self._wait_for_response(init_id)
 
-        if 'error' in response:
+        if "error" in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
 
         logger.info("Initialization successful.")
-        self._send_notification('initialized', {})
+        self._send_notification("initialized", {})
 
         # Allow subclasses to perform post-initialization setup
         self._configure_typescript_workspace()
 
     def _customize_initialization_params(self, params: dict) -> dict:
         """Add TypeScript-specific initialization parameters."""
-        params['workspaceFolders'] = [{
-            'uri': self.project_path.as_uri(),
-            'name': self.project_path.name
-        }]
+        params["workspaceFolders"] = [{"uri": self.project_path.as_uri(), "name": self.project_path.name}]
 
-        params['initializationOptions'] = {
-            'preferences': {
-                'includeCompletionsForModuleExports': True,
-                'includeCompletionsWithSnippetText': True
-            },
-            'tsserver': {
-                'logVerbosity': 'off'  # Reduce noise in logs
-            }
+        params["initializationOptions"] = {
+            "preferences": {"includeCompletionsForModuleExports": True, "includeCompletionsWithSnippetText": True},
+            "tsserver": {"logVerbosity": "off"},  # Reduce noise in logs
         }
 
         return params
@@ -110,15 +99,15 @@ class TypeScriptClient(LSPClient):
             logger.info(f"Found {len(ts_files)} TypeScript/JavaScript files")
 
             # Notify workspace folders change
-            self._send_notification('workspace/didChangeWorkspaceFolders', {
-                'event': {
-                    'added': [{
-                        'uri': self.project_path.as_uri(),
-                        'name': self.project_path.name
-                    }],
-                    'removed': []
-                }
-            })
+            self._send_notification(
+                "workspace/didChangeWorkspaceFolders",
+                {
+                    "event": {
+                        "added": [{"uri": self.project_path.as_uri(), "name": self.project_path.name}],
+                        "removed": [],
+                    }
+                },
+            )
 
             # Process configuration files
             config_found = self._process_config_files()
@@ -132,7 +121,7 @@ class TypeScriptClient(LSPClient):
     def _get_source_files(self) -> list:
         """Get TypeScript/JavaScript source files, excluding node_modules and dist folders."""
         all_files = []
-        for pattern in ['*.ts', '*.tsx', '*.js', '*.jsx']:
+        for pattern in ["*.ts", "*.tsx", "*.js", "*.jsx"]:
             all_files.extend(list(self.project_path.rglob(pattern)))
 
         # Filter out node_modules and dist explicitly
@@ -141,10 +130,10 @@ class TypeScriptClient(LSPClient):
             try:
                 rel_path = file_path.relative_to(self.project_path)
                 # Skip if any part of the path is node_modules or dist
-                if 'node_modules' in rel_path.parts:
+                if "node_modules" in rel_path.parts:
                     logger.debug(f"Skipping node_modules file: {rel_path}")
                     continue
-                if 'dist' in rel_path.parts:
+                if "dist" in rel_path.parts:
                     logger.debug(f"Skipping dist file: {rel_path}")
                     continue
                 filtered_files.append(file_path)
@@ -156,17 +145,19 @@ class TypeScriptClient(LSPClient):
 
     def _find_typescript_files(self) -> list:
         """Find all TypeScript/JavaScript files in the project (including node_modules for bootstrapping)."""
-        return (list(self.project_path.rglob('*.ts')) +
-                list(self.project_path.rglob('*.tsx')) +
-                list(self.project_path.rglob('*.js')) +
-                list(self.project_path.rglob('*.jsx')))
+        return (
+            list(self.project_path.rglob("*.ts"))
+            + list(self.project_path.rglob("*.tsx"))
+            + list(self.project_path.rglob("*.js"))
+            + list(self.project_path.rglob("*.jsx"))
+        )
 
     def _process_config_files(self) -> bool:
         """Process TypeScript configuration files and return True if any found."""
         config_files = [
-            self.project_path / 'tsconfig.json',
-            self.project_path / 'jsconfig.json',
-            self.project_path / 'package.json'
+            self.project_path / "tsconfig.json",
+            self.project_path / "jsconfig.json",
+            self.project_path / "package.json",
         ]
 
         config_found = False
@@ -174,12 +165,10 @@ class TypeScriptClient(LSPClient):
             if config_path.exists():
                 logger.info(f"Found configuration file: {config_path}")
                 config_found = True
-                self._send_notification('workspace/didChangeWatchedFiles', {
-                    'changes': [{
-                        'uri': config_path.as_uri(),
-                        'type': 1  # Created/Changed
-                    }]
-                })
+                self._send_notification(
+                    "workspace/didChangeWatchedFiles",
+                    {"changes": [{"uri": config_path.as_uri(), "type": 1}]},  # Created/Changed
+                )
 
         return config_found
 
@@ -193,16 +182,12 @@ class TypeScriptClient(LSPClient):
         # Open bootstrap files
         for file_path in sample_files:
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 file_uri = file_path.as_uri()
-                self._send_notification('textDocument/didOpen', {
-                    'textDocument': {
-                        'uri': file_uri,
-                        'languageId': self.language_id,
-                        'version': 1,
-                        'text': content
-                    }
-                })
+                self._send_notification(
+                    "textDocument/didOpen",
+                    {"textDocument": {"uri": file_uri, "languageId": self.language_id, "version": 1, "text": content}},
+                )
                 logger.debug(f"Opened bootstrap file: {file_path}")
             except Exception as e:
                 logger.debug(f"Could not open bootstrap file {file_path}: {e}")
@@ -224,9 +209,7 @@ class TypeScriptClient(LSPClient):
         """Close bootstrap files that were opened for project initialization."""
         for file_path in sample_files:
             try:
-                self._send_notification('textDocument/didClose', {
-                    'textDocument': {'uri': file_path.as_uri()}
-                })
+                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_path.as_uri()}})
             except Exception:
                 pass
 
@@ -242,13 +225,13 @@ class TypeScriptClient(LSPClient):
         """Validate that TypeScript server has a project loaded."""
         try:
             logger.debug("Validating TypeScript project is loaded...")
-            params = {'query': 'test'}
-            req_id = self._send_request('workspace/symbol', params)
+            params = {"query": "test"}
+            req_id = self._send_request("workspace/symbol", params)
             response = self._wait_for_response(req_id)
 
-            if 'error' in response:
-                error_msg = response['error']
-                if 'No Project' in str(error_msg):
+            if "error" in response:
+                error_msg = response["error"]
+                if "No Project" in str(error_msg):
                     logger.error("TypeScript server reports 'No Project' - project not properly loaded")
                     return False
                 else:

@@ -19,8 +19,15 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.tools import CodeReferenceReader, CodeStructureTool, PackageRelationsTool, FileStructureTool, GetCFGTool, \
-    MethodInvocationsTool, ReadFileTool
+from agents.tools import (
+    CodeReferenceReader,
+    CodeStructureTool,
+    PackageRelationsTool,
+    FileStructureTool,
+    GetCFGTool,
+    MethodInvocationsTool,
+    ReadFileTool,
+)
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
 from agents.monitoring import MonitoringCallback
@@ -48,9 +55,16 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self.read_docs = ReadDocsTool(repo_dir=repo_dir)
         self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
 
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference, self.read_file_tool,
-                                                               self.read_file_structure, self.read_structure_tool,
-                                                               self.read_packages_tool])
+        self.agent = create_react_agent(
+            model=self.llm,
+            tools=[
+                self.read_source_reference,
+                self.read_file_tool,
+                self.read_file_structure,
+                self.read_structure_tool,
+                self.read_packages_tool,
+            ],
+        )
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
@@ -76,7 +90,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 timeout=None,
                 max_retries=0,
                 api_key=self.openai_api_key,
-                base_url=self.openai_base_url
+                base_url=self.openai_base_url,
             )
         elif self.anthropic_api_key:
             logger.info("Using Anthropic LLM")
@@ -109,11 +123,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
             )
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
-            return ChatOllama(
-                model="qwen3:30b",
-                base_url=self.ollama_base_url,
-                temperature=0.6
-            )
+            return ChatOllama(model="qwen3:30b", base_url=self.ollama_base_url, temperature=0.6)
         else:
             raise ValueError(
                 "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
@@ -151,7 +161,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
-    
+
     def _parse_response(self, prompt, response, return_type, max_retries=5):
         if max_retries == 0:
             logger.error(f"Max retries reached for parsing response: {response}")

@@ -5,11 +5,21 @@ from pathlib import Path
 from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, CFGAnalysisInsights, ValidationInsights, MetaAnalysisInsights, \
-    ComponentFiles, Component
+from agents.agent_responses import (
+    AnalysisInsights,
+    CFGAnalysisInsights,
+    ValidationInsights,
+    MetaAnalysisInsights,
+    ComponentFiles,
+    Component,
+)
 from agents.prompts import (
-    get_cfg_message, get_source_message, get_system_message,
-    get_conclusive_analysis_message, get_feedback_message, get_classification_message
+    get_cfg_message,
+    get_source_message,
+    get_system_message,
+    get_conclusive_analysis_message,
+    get_feedback_message,
+    get_classification_message,
 )
 from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -18,8 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str,
-                 meta_context: MetaAnalysisInsights):
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        project_name: str,
+        meta_context: MetaAnalysisInsights,
+    ):
         super().__init__(repo_dir, static_analysis, get_system_message())
 
         self.project_name = project_name
@@ -28,16 +43,20 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context = {"structure_insight": []}  # Store evolving insights here
 
         self.prompts = {
-            "cfg": PromptTemplate(template=get_cfg_message(),
-                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
-            "source": PromptTemplate(template=get_source_message(),
-                                     input_variables=["insight_so_far", "meta_context", "project_type"]),
-            "final_analysis": PromptTemplate(template=get_conclusive_analysis_message(),
-                                             input_variables=["project_name", "cfg_insight", "source_insight",
-                                                              "meta_context", "project_type"]),
-            "classification": PromptTemplate(template=get_classification_message(),
-                                             input_variables=["project_name", "components", "files"]),
-            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"])
+            "cfg": PromptTemplate(
+                template=get_cfg_message(), input_variables=["project_name", "cfg_str", "meta_context", "project_type"]
+            ),
+            "source": PromptTemplate(
+                template=get_source_message(), input_variables=["insight_so_far", "meta_context", "project_type"]
+            ),
+            "final_analysis": PromptTemplate(
+                template=get_conclusive_analysis_message(),
+                input_variables=["project_name", "cfg_insight", "source_insight", "meta_context", "project_type"],
+            ),
+            "classification": PromptTemplate(
+                template=get_classification_message(), input_variables=["project_name", "components", "files"]
+            ),
+            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
     @monitoring
@@ -60,10 +79,10 @@ class AbstractionAgent(CodeBoardingAgent):
             project_name=self.project_name,
             cfg_str=community_strs,
             meta_context=meta_context_str,
-            project_type=project_type
+            project_type=project_type,
         )
         parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
-        self.context['cfg_insight'] = parsed_response
+        self.context["cfg_insight"] = parsed_response
         return parsed_response
 
     @monitoring
@@ -81,9 +100,7 @@ class AbstractionAgent(CodeBoardingAgent):
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         prompt = self.prompts["source"].format(
-            insight_so_far=insight_str,
-            meta_context=meta_context_str,
-            project_type=project_type
+            insight_so_far=insight_str, meta_context=meta_context_str, project_type=project_type
         )
         parsed_response = self._parse_invoke(prompt, AnalysisInsights)
         self.context["source"] = parsed_response
@@ -97,10 +114,10 @@ class AbstractionAgent(CodeBoardingAgent):
 
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
-            cfg_insight=self.context.get('cfg_insight').llm_str(),
-            source_insight=self.context.get('source').llm_str(),
+            cfg_insight=self.context.get("cfg_insight").llm_str(),
+            source_insight=self.context.get("source").llm_str(),
             meta_context=meta_context_str,
-            project_type=project_type
+            project_type=project_type,
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
@@ -125,9 +142,13 @@ class AbstractionAgent(CodeBoardingAgent):
         """
         logger.info(f"[AbstractionAgent] Classifying files for project: {self.project_name}")
         all_files = self.static_analysis.get_all_source_files()
-        analysis.components.append(Component(name="Unclassified",
-                                             description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-                                             referenced_source_code=[]))
+        analysis.components.append(
+            Component(
+                name="Unclassified",
+                description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+                referenced_source_code=[],
+            )
+        )
         component_str = "\n".join([component.llm_str() for component in analysis.components])
 
         for comp in analysis.components:
@@ -135,9 +156,10 @@ class AbstractionAgent(CodeBoardingAgent):
 
         files = []
         for i in range(0, len(all_files), 100):
-            file_block = [str(f) for f in all_files[i:i + 100]]
-            prompt = self.prompts["classification"].format(project_name=self.project_name, components=component_str,
-                                                           files="\n".join(file_block))
+            file_block = [str(f) for f in all_files[i : i + 100]]
+            prompt = self.prompts["classification"].format(
+                project_name=self.project_name, components=component_str, files="\n".join(file_block)
+            )
             classification = self._parse_invoke(prompt, ComponentFiles)
             files.extend(classification.file_paths)
         for file in files:
