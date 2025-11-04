@@ -1,92 +1,127 @@
 {
-  "description": "The Output Generation Engine subsystem transforms validated architectural insights into various documentation formats and integrates with external systems like GitHub Actions. The main flow involves the `github_action` component acting as the primary entry point, orchestrating the selection and execution of specific output format generators (Markdown, HTML, MDX, Sphinx/RST) based on user configuration. Its purpose is to provide diverse documentation outputs and enable seamless integration within a CI/CD environment.",
+  "description": "The core of this subsystem revolves around transforming structured architectural data into human-readable documentation and machine-readable diagram definitions. The DocumentationGenerator and DiagramGenerator components act as the primary orchestrators, leveraging a TemplateProcessor to ensure consistent formatting and a dedicated OutputFormatter to finalize the generated content. This structured approach ensures that both textual explanations and visual representations of the codebase are accurate, consistent, and adhere to defined standards.",
   "components": [
     {
-      "name": "github_action",
-      "description": "Acts as the primary entry point for initiating output generation within a GitHub Actions workflow. It orchestrates the selection and execution of specific output format generators based on user configuration.",
+      "name": "DocumentationGenerator",
+      "description": "Responsible for generating human-readable documentation in formats like Markdown. It takes structured data and applies templates to produce coherent textual explanations of the codebase and architecture.",
       "referenced_source_code": [
         {
-          "qualified_name": "github_action",
-          "reference_file": "github_action.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "output_generators.markdown",
-      "description": "Generates documentation in Markdown format.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.markdown",
+          "qualified_name": "output_generators.markdown.MarkdownGenerator",
           "reference_file": "output_generators/markdown.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 42,
+          "reference_end_line": 89
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/markdown.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "output_generators.html",
-      "description": "Generates documentation in HTML format.",
+      "name": "DiagramGenerator",
+      "description": "Creates machine-readable diagram definitions, likely in a format suitable for rendering by tools like Mermaid.js. It translates architectural relationships and structures into a visual representation.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html",
-          "reference_file": "output_generators/html.py",
+          "qualified_name": "output_generators.mermaid.MermaidGenerator",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "output_generators/mermaid.py",
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "output_generators.mdx",
-      "description": "Generates documentation in MDX (Markdown with JSX) format.",
+      "name": "TemplateProcessor",
+      "description": "A utility component that manages and applies various templates to ensure consistency in the generated documentation and diagrams.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.mdx",
-          "reference_file": "output_generators/mdx.py",
+          "qualified_name": "template_processor.TemplateProcessor",
+          "reference_file": "template_processor.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "template_processor.py"
+      ],
+      "can_expand": false
     },
     {
-      "name": "output_generators.sphinx",
-      "description": "Generates documentation in reStructuredText (RST) format, specifically tailored for Sphinx documentation projects, including embedded Mermaid diagrams.",
+      "name": "OutputFormatter",
+      "description": "Ensures that the final generated output (Markdown and JSON) adheres to specified quality standards, syntax, and formatting rules before persistence.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.sphinx",
-          "reference_file": "output_generators/sphinx.py",
+          "qualified_name": "output_formatter.OutputFormatter",
+          "reference_file": "output_formatter.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "output_formatter.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../output_generators/__init__.py",
+        "../../diagram_analysis/__init__.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.markdown"
+      "relation": "utilizes",
+      "src_name": "DocumentationGenerator",
+      "dst_name": "TemplateProcessor"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.html"
+      "relation": "sends output to",
+      "src_name": "DocumentationGenerator",
+      "dst_name": "OutputFormatter"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.mdx"
+      "relation": "utilizes",
+      "src_name": "DiagramGenerator",
+      "dst_name": "TemplateProcessor"
     },
     {
-      "relation": "delegates to",
-      "src_name": "github_action",
-      "dst_name": "output_generators.sphinx"
+      "relation": "sends output to",
+      "src_name": "DiagramGenerator",
+      "dst_name": "OutputFormatter"
+    },
+    {
+      "relation": "provides templates to",
+      "src_name": "TemplateProcessor",
+      "dst_name": "DocumentationGenerator"
+    },
+    {
+      "relation": "provides templates to",
+      "src_name": "TemplateProcessor",
+      "dst_name": "DiagramGenerator"
+    },
+    {
+      "relation": "receives content from",
+      "src_name": "OutputFormatter",
+      "dst_name": "DocumentationGenerator"
+    },
+    {
+      "relation": "receives content from",
+      "src_name": "OutputFormatter",
+      "dst_name": "DiagramGenerator"
     }
   ]
 }

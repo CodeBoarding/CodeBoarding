@@ -1,92 +1,66 @@
 ```mermaid
 graph LR
-    Application_Orchestrator["Application Orchestrator"]
-    QueryProcessor["QueryProcessor"]
-    VectorStore["VectorStore"]
-    DocumentRetriever["DocumentRetriever"]
-    ResponseGenerator["ResponseGenerator"]
-    PromptFactory["PromptFactory"]
-    Static_Analyzer["Static Analyzer"]
+    AIInterpreter["AIInterpreter"]
+    LLMAgentManager["LLMAgentManager"]
+    PromptGenerator["PromptGenerator"]
+    ResponseParser["ResponseParser"]
+    KnowledgeBase["KnowledgeBase"]
     Unclassified["Unclassified"]
-    Application_Orchestrator -- "initiates" --> QueryProcessor
-    Application_Orchestrator -- "requests prompts from" --> PromptFactory
-    QueryProcessor -- "embeds query for" --> VectorStore
-    Application_Orchestrator -- "requests retrieval from" --> DocumentRetriever
-    DocumentRetriever -- "queries" --> VectorStore
-    DocumentRetriever -- "provides documents to" --> Application_Orchestrator
-    Application_Orchestrator -- "sends context to" --> ResponseGenerator
-    ResponseGenerator -- "utilizes prompts from" --> PromptFactory
-    ResponseGenerator -- "returns response to" --> Application_Orchestrator
-    Static_Analyzer -- "operates independently" --> Application_Orchestrator
+    AIInterpreter -- "sends LLM requests to" --> LLMAgentManager
+    LLMAgentManager -- "returns LLM responses to" --> AIInterpreter
+    AIInterpreter -- "requests prompt generation from" --> PromptGenerator
+    PromptGenerator -- "generates and provides prompts to" --> AIInterpreter
+    AIInterpreter -- "sends LLM outputs for parsing to" --> ResponseParser
+    ResponseParser -- "returns structured insights to" --> AIInterpreter
+    AIInterpreter -- "queries and updates" --> KnowledgeBase
+    KnowledgeBase -- "provides stored insights to" --> AIInterpreter
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system orchestrates a Retrieval-Augmented Generation (RAG) process, managed by the `Application Orchestrator`. User queries are first processed by the `QueryProcessor` and embedded for similarity search within the `VectorStore`. The `DocumentRetriever` then fetches relevant documents, which are passed back to the `Application Orchestrator`. The `ResponseGenerator` crafts the final natural language response, leveraging a `PromptFactory` that centralizes and provides structured prompts for various Large Language Models, including specialized prompts for both Gemini Flash and Claude models. A separate `Static Analyzer` component operates independently, focusing on TypeScript configuration scanning.
+The AI Interpretation Layer serves as the intelligent core of the system, responsible for processing various inputs to generate architectural insights. The `AIInterpreter` acts as the central orchestrator, coordinating the flow of information and tasks. It leverages the `PromptGenerator` to craft context-rich prompts based on static analysis data and code diffs. These prompts are then sent to the `LLMAgentManager`, which handles the complexities of interacting with diverse LLM providers, ensuring efficient and reliable communication. Upon receiving responses from the LLMs, the `AIInterpreter` forwards them to the `ResponseParser` for validation, extraction, and transformation into structured architectural insights. Finally, the `KnowledgeBase` is utilized by the `AIInterpreter` to store and retrieve past insights, enhancing the accuracy and consistency of future analyses. This layered approach ensures a modular, scalable, and maintainable architecture for AI-driven architectural analysis.
 
-### Application Orchestrator
-Manages the overall application flow, coordinating interactions between QueryProcessor, DocumentRetriever, ResponseGenerator, and leveraging the PromptFactory for agent prompt generation. It receives user queries and delivers final responses, adapting its agent coordination mechanisms due to recent core agent logic refactoring and the new prompt management system.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent`</a>
-
-
-### QueryProcessor
-Handles incoming user queries, embeds them, and prepares them for similarity search, potentially utilizing refined prompts from the PromptFactory for enhanced query understanding.
+### AIInterpreter
+The core intelligence component, orchestrating the entire AI interpretation process. It receives input data (static analysis, code diffs), selects and invokes LLM agents, manages prompt generation, parses LLM responses, and ultimately generates architectural insights.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main." target="_blank" rel="noopener noreferrer">`langchain_core.embeddings.Embeddings:embed_query`</a>
+- `AIInterpreter`
 
 
-### VectorStore
-Stores and retrieves document embeddings based on similarity search.
-
-
-**Related Classes/Methods**:
-
-- `langchain_community.vectorstores.chroma.Chroma:similarity_search`
-
-
-### DocumentRetriever
-Retrieves relevant documents from the vector store.
+### LLMAgentManager
+Manages interactions with various LLM providers (e.g., OpenAI, Anthropic, Google Gemini, AWS Bedrock, Ollama). It handles configuration loading, request routing, API key management, authentication, retry mechanisms, and rate limiting, abstracting these complexities from the `AIInterpreter`.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main." target="_blank" rel="noopener noreferrer">`langchain_core.retrievers.BaseRetriever:get_relevant_documents`</a>
 
 
-### ResponseGenerator
-Generates a natural language response using a large language model based on the query and retrieved documents, now significantly enhanced by leveraging structured prompts from the PromptFactory, including specialized prompts for models like Gemini Flash and Claude.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main." target="_blank" rel="noopener noreferrer">`langchain_core.language_models.llms.BaseLLM:invoke`</a>
-
-
-### PromptFactory
-Centralizes the creation and management of prompts for various agents and language models through an abstract factory pattern. It provides a structured and standardized approach to prompt generation, leveraging an AbstractPromptFactory interface and specialized implementations like GeminiFlashPromptsBidirectional, GeminiFlashPromptsUnidirectional, ClaudePromptsBidirectional, and ClaudePromptsUnidirectional. This ensures consistent and optimized interactions with LLMs, notably for Gemini Flash and Claude models, by managing an expanded library of prompts.
+### PromptGenerator
+Responsible for dynamically constructing effective and context-rich prompts for the LLMs. It integrates static analysis data, code diffs, and specific task instructions to formulate queries that yield relevant architectural insights.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainagents/prompts/prompt_factory.py#L29-L98" target="_blank" rel="noopener noreferrer">`prompt_factory.PromptFactory`:29-98</a>
 
 
-### Static Analyzer
-A new, independent functional area responsible for performing static analysis, specifically focusing on scanning TypeScript configurations. This component operates in parallel to the core RAG system, providing distinct capabilities without directly altering the RAG data flow.
+### ResponseParser
+Parses, validates, and extracts structured information from the raw outputs received from the LLMs. It handles potential errors, malformed responses, and transforms the LLM's natural language output into a usable format for architectural insights.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainstatic_analyzer/typescript_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.typescript_config_scanner`</a>
+
+
+### KnowledgeBase
+Stores and retrieves previously generated insights, architectural patterns, or domain-specific knowledge. This component helps improve the consistency, accuracy, and efficiency of future interpretations by leveraging past analyses.
+
+
+**Related Classes/Methods**:
+
 
 
 ### Unclassified

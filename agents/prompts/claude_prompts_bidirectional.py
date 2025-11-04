@@ -29,7 +29,10 @@ CFG_MESSAGE = """Analyze Control Flow Graph for {project_name} with comprehensiv
 
 <context>
 {meta_context}
-CFG Data: {cfg_str}
+The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
+As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
+Control-flow Data:
+{cfg_str}
 
 The goal is to create a clear architectural overview that enables new team members to understand the system's flow and structure within their first week.
 </context>
@@ -378,66 +381,66 @@ The goal is to accurately locate the definition to provide precise references fo
 
 class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
     """Optimized prompt factory for Claude bidirectional prompts."""
-    
+
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
-    
+
     def get_cfg_message(self) -> str:
         return CFG_MESSAGE
-    
+
     def get_source_message(self) -> str:
         return SOURCE_MESSAGE
-    
+
     def get_classification_message(self) -> str:
         return CLASSIFICATION_MESSAGE
-    
+
     def get_conclusive_analysis_message(self) -> str:
         return CONCLUSIVE_ANALYSIS_MESSAGE
-    
+
     def get_feedback_message(self) -> str:
         return FEEDBACK_MESSAGE
-    
+
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
-    
+
     def get_subcfg_details_message(self) -> str:
         return SUBCFG_DETAILS_MESSAGE
-    
+
     def get_cfg_details_message(self) -> str:
         return CFG_DETAILS_MESSAGE
-    
+
     def get_enhance_structure_message(self) -> str:
         return ENHANCE_STRUCTURE_MESSAGE
-    
+
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-    
+
     def get_planner_system_message(self) -> str:
         return PLANNER_SYSTEM_MESSAGE
-    
+
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-    
+
     def get_validator_system_message(self) -> str:
         return VALIDATOR_SYSTEM_MESSAGE
-    
+
     def get_component_validation_component(self) -> str:
         return COMPONENT_VALIDATION_COMPONENT
-    
+
     def get_relationships_validation(self) -> str:
         return RELATIONSHIPS_VALIDATION
-    
+
     def get_system_diff_analysis_message(self) -> str:
         return SYSTEM_DIFF_ANALYSIS_MESSAGE
-    
+
     def get_diff_analysis_message(self) -> str:
         return DIFF_ANALYSIS_MESSAGE
-    
+
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
-    
+
     def get_meta_information_prompt(self) -> str:
         return META_INFORMATION_PROMPT
-    
+
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE

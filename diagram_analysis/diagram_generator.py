@@ -19,9 +19,7 @@ from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils import get_git_commit_hash
-from static_analyzer import create_clients
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.scanner import ProjectScanner
+from static_analyzer import StaticAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +82,7 @@ class DiagramGenerator:
             return None, []
 
     def pre_analysis(self):
-        static_analysis = self.generate_static_analysis()
+        static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
         self.meta_agent = MetaAgent(repo_dir=self.repo_location, project_name=self.repo_name,
                                     static_analysis=static_analysis)

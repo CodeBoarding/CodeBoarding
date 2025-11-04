@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pathspec
 from tqdm import tqdm
@@ -97,7 +97,6 @@ class LSPClient:
 
         self._process.stdin.write(message.encode('utf-8'))
         self._process.stdin.flush()
-
         return message_id
 
     def _send_notification(self, method: str, params: dict):
@@ -203,6 +202,101 @@ class LSPClient:
         req_id = self._send_request('callHierarchy/incomingCalls', {'item': item})
         response = self._wait_for_response(req_id)
         return response.get('result', [])
+
+    def _get_outgoing_calls(self, item: dict) -> list:
+        """Gets outgoing calls for a call hierarchy item."""
+        req_id = self._send_request('callHierarchy/outgoingCalls', {'item': item})
+        response = self._wait_for_response(req_id)
+        return response.get('result', [])
+
+    def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> List[dict]:
+        """
+        Find positions of function/method calls within a line range.
+        A call is identified by finding '(' and working backwards to get the identifier.
+        Returns list of: {'line': int, 'char': int, 'name': str}
+        """
+        lines = content.split('\n')
+        call_positions = []
+
+        for line_idx in range(start_line + 1, min(end_line + 1, len(lines))):
+            line = lines[line_idx]
+
+            # Find all '(' in the line
+            for char_idx in range(len(line)):
+                if line[char_idx] != '(':
+                    continue
+
+                # Work backwards to find the identifier
+                # Skip whitespace before '('
+                name_end = char_idx - 1
+                while name_end >= 0 and line[name_end] in ' \t':
+                    name_end -= 1
+
+                if name_end < 0:
+                    continue
+
+                # Extract identifier (alphanumeric + underscore)
+                name_start = name_end
+                while name_start >= 0 and (line[name_start].isalnum() or line[name_start] == '_'):
+                    name_start -= 1
+                name_start += 1
+
+                if name_start > name_end:
+                    continue
+
+                identifier = line[name_start:name_end + 1]
+
+                # Skip keywords and invalid identifiers
+                if not identifier or identifier[0].isdigit():
+                    continue
+
+                keywords = {'if', 'for', 'while', 'def', 'class', 'return', 'yield',
+                            'import', 'from', 'as', 'with', 'try', 'except', 'finally',
+                            'raise', 'assert', 'lambda', 'pass', 'break', 'continue'}
+                if identifier in keywords:
+                    continue
+
+                call_positions.append({
+                    'line': line_idx,
+                    'char': name_start,
+                    'name': identifier
+                })
+
+        return call_positions
+
+    def _resolve_call_position(self, file_uri: str, file_path: Path, call_pos: dict) -> Optional[str]:
+        """
+        Resolve a call position to its qualified name using textDocument/definition.
+        Returns the qualified name or None if unresolved.
+        """
+        try:
+            definitions = self._get_definition_for_position(file_uri, call_pos['line'], call_pos['char'])
+
+            if not definitions:
+                # Unresolved - might be builtin or external
+                return None
+
+            # Handle both single definition and list of definitions
+            definition = definitions[0] if isinstance(definitions, list) else definitions
+
+            def_uri = definition.get('uri', '')
+            if not def_uri.startswith('file://'):
+                return None
+
+            def_path = Path(def_uri.replace('file://', ''))
+
+            # Check if path is within project
+            try:
+                def_path.relative_to(self.project_path)
+                # Create qualified name for project files
+                return self._create_qualified_name(def_path, call_pos['name'])
+            except ValueError:
+                # For external libraries or builtins, use simple name
+                return call_pos['name']
+
+        except Exception as e:
+            logger.debug(f"Error resolving call position '{call_pos.get('name', '')}': {e}")
+            return None
 
     def _flatten_symbols(self, symbols: list):
         """Recursively flattens a list of hierarchical symbols."""
@@ -350,7 +444,7 @@ class LSPClient:
 
         logger.info("Unified static analysis complete.")
         logger.info(f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
-                    f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes")
+                    f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges")
 
         return {
             'call_graph': call_graph,
@@ -423,28 +517,74 @@ class LSPClient:
             # 3. CALL GRAPH - Process function/method calls
             result.function_symbols = self._flatten_symbols(symbols)
 
-            # Find call relationships
+            # Find call relationships - we need BOTH incoming AND outgoing calls
             for symbol in result.function_symbols:
                 pos = symbol['selectionRange']['start']
-                callee_qualified_name = self._create_qualified_name(file_path, symbol['name'])
+                current_qualified_name = self._create_qualified_name(file_path, symbol['name'])
 
                 # Prepare the call hierarchy at the function's position
                 hierarchy_items = self._prepare_call_hierarchy(file_uri, pos['line'], pos['character'])
                 if not hierarchy_items:
                     continue
 
-                # Get incoming calls to this function
                 for item in hierarchy_items:
+                    # METHOD 1: Get OUTGOING calls (what this function calls)
+                    # This is the PRIMARY method - captures all calls made by this function
+                    outgoing_calls = self._get_outgoing_calls(item)
+                    if outgoing_calls:
+                        for call in outgoing_calls:
+                            callee_item = call['to']
+                            try:
+                                callee_uri = callee_item['uri']
+                                if callee_uri.startswith('file://'):
+                                    callee_path = Path(callee_uri.replace('file://', ''))
+                                    callee_qualified_name = self._create_qualified_name(callee_path,
+                                                                                        callee_item['name'])
+
+                                    # Add edge: current_function -> called_function
+                                    result.call_relationships.append((current_qualified_name, callee_qualified_name))
+                                    logger.debug(f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing outgoing call: {e}")
+
+                    # METHOD 2: Get INCOMING calls (who calls this function)
+                    # This is SUPPLEMENTARY - helps catch calls we might have missed
                     incoming_calls = self._get_incoming_calls(item)
-                    if not incoming_calls:
-                        continue
+                    if incoming_calls:
+                        for call in incoming_calls:
+                            caller_item = call['from']
+                            try:
+                                caller_uri = caller_item['uri']
+                                if caller_uri.startswith('file://'):
+                                    caller_path = Path(caller_uri.replace('file://', ''))
+                                    caller_qualified_name = self._create_qualified_name(caller_path,
+                                                                                        caller_item['name'])
 
-                    for call in incoming_calls:
-                        caller_item = call['from']
-                        caller_path = Path(caller_item['uri'].replace('file://', ''))
-                        caller_qualified_name = self._create_qualified_name(caller_path, caller_item['name'])
+                                    # Add edge: calling_function -> current_function
+                                    result.call_relationships.append((caller_qualified_name, current_qualified_name))
+                                    logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing incoming call: {e}")
 
-                        result.call_relationships.append((caller_qualified_name, callee_qualified_name))
+            # METHOD 3: Body-level calls by finding call positions
+            try:
+                for func_symbol in result.function_symbols:
+                    func_range = func_symbol.get('range', {})
+                    func_qualified_name = self._create_qualified_name(file_path, func_symbol['name'])
+
+                    # Find all call positions in this function's body
+                    start_line = func_range.get('start', {}).get('line', 0)
+                    end_line = func_range.get('end', {}).get('line', 0)
+                    call_positions = self._find_call_positions_in_range(content, start_line, end_line)
+
+                    # Resolve each call
+                    for call_pos in call_positions:
+                        resolved_name = self._resolve_call_position(file_uri, file_path, call_pos)
+                        if resolved_name:
+                            result.call_relationships.append((func_qualified_name, resolved_name))
+                            logger.debug(f"Body call: {func_qualified_name} -> {resolved_name}")
+            except Exception as e:
+                logger.debug(f"Error processing body calls for {file_path}: {e}")
 
             # 4. CLASS HIERARCHIES - Process class inheritance
             result.class_symbols = self._find_classes_in_symbols(symbols)

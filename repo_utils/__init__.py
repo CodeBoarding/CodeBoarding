@@ -2,13 +2,46 @@ import logging
 import os
 import shutil
 import subprocess
+from functools import wraps
 from pathlib import Path
-
-from git import Git, GitCommandError, Repo
+from typing import Optional, Any, Callable
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 
 logger = logging.getLogger(__name__)
+
+# Handle the case where git is not installed on the system
+try:
+    from git import Repo, Git, GitCommandError
+    GIT_AVAILABLE = True
+except ImportError:
+    GIT_AVAILABLE = False
+    Repo = None
+    Git = None
+    GitCommandError = None
+
+
+def require_git_import(default: Optional[Any] = None) -> Callable:
+    """
+    Decorator that ensures git module is available for a function.
+    If git import fails and a default value is provided, returns that value.
+    Otherwise, re-raises the ImportError.
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not GIT_AVAILABLE:
+                if default is not None:
+                    logger.warning(f"Git module not available for {func.__name__}, returning default: {default}")
+                    return default
+                logger.error(f"Git module required for {func.__name__} but not installed")
+                raise ImportError("GitPython is not installed. Install it with: pip install gitpython")
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def sanitize_repo_url(repo_url: str) -> str:
@@ -28,6 +61,7 @@ def sanitize_repo_url(repo_url: str) -> str:
         raise ValueError("Unsupported URL format.")
 
 
+@require_git_import(default=False)
 def remote_repo_exists(repo_url: str) -> bool:
     if repo_url is None:
         return False
@@ -39,7 +73,8 @@ def remote_repo_exists(repo_url: str) -> bool:
         if "not found" in stderr or "repository not found" in stderr:
             return False
         # something else went wrong (auth, network); re-raise so caller can decide
-        raise
+        raise e
+
 
 def get_repo_name(repo_url: str):
     repo_url = sanitize_repo_url(repo_url)
@@ -48,6 +83,7 @@ def get_repo_name(repo_url: str):
     return repo_name
 
 
+@require_git_import()
 def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     repo_url = sanitize_repo_url(repo_url)
     if not remote_repo_exists(repo_url):
@@ -67,6 +103,7 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     return repo_name
 
 
+@require_git_import()
 def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
     repo = Repo(repo_dir)
     if branch not in repo.heads:
@@ -91,6 +128,7 @@ def store_token():
     subprocess.run(["git", "credential", "approve"], input=cred)
 
 
+@require_git_import()
 def upload_onboarding_materials(project_name, output_dir, repo_dir):
     repo = Repo(repo_dir)
     origin = repo.remote(name='origin')
@@ -120,6 +158,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
     origin.push()
 
 
+@require_git_import(default="NoCommitHash")
 def get_git_commit_hash(repo_dir: str) -> str:
     """
     Get the latest commit hash of the repository.
@@ -128,6 +167,7 @@ def get_git_commit_hash(repo_dir: str) -> str:
     return repo.head.commit.hexsha
 
 
+@require_git_import(default="main")
 def get_branch(repo_dir: Path) -> str:
     """
     Get the current branch name of the repository.
