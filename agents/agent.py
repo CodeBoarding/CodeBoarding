@@ -19,7 +19,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.tools import (
+from codeboarding.agents.tools import (
     CodeReferenceReader,
     CodeStructureTool,
     PackageRelationsTool,
@@ -28,11 +28,11 @@ from agents.tools import (
     MethodInvocationsTool,
     ReadFileTool,
 )
-from agents.tools.external_deps import ExternalDepsTool
-from agents.tools.read_docs import ReadDocsTool
-from agents.monitoring import MonitoringCallback
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
+from codeboarding.agents.tools.external_deps import ExternalDepsTool
+from codeboarding.agents.tools.read_docs import ReadDocsTool
+from codeboarding.agents.monitoring import MonitoringCallback
+from codeboarding.static_analyzer.analysis_result import StaticAnalysisResults
+from codeboarding.static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
 

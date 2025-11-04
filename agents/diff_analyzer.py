@@ -5,17 +5,17 @@ from typing import List
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
-from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
-from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
-from agents.monitoring import monitoring
-from static_analyzer.analysis_result import StaticAnalysisResults
+from codeboarding.agents.agent import CodeBoardingAgent
+from codeboarding.agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
+from codeboarding.agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
+from codeboarding.agents.monitoring import monitoring
+from codeboarding.static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
-from agents.tools.read_git_diff import ReadDiffTool
-from diagram_analysis.version import Version
-from output_generators.markdown import sanitize
-from repo_utils.git_diff import FileChange, get_git_diff
+from codeboarding.agents.tools.read_git_diff import ReadDiffTool
+from codeboarding.diagram_analysis.version import Version
+from codeboarding.output_generators.markdown import sanitize
+from codeboarding.repo_utils.git_diff import FileChange, get_git_diff
 
 
 class DiffAnalyzingAgent(CodeBoardingAgent):

@@ -2,9 +2,9 @@ import os
 from pathlib import Path
 from typing import List
 
-from agents.agent_responses import AnalysisInsights
-from output_generators import sanitize
-from utils import contains_json
+from codeboarding.agents.agent_responses import AnalysisInsights
+from codeboarding.output_generators import sanitize
+from codeboarding.utils import contains_json
 
 
 def generated_mermaid_str(

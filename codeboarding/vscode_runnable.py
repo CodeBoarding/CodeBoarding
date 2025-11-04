@@ -1,3 +1,8 @@
+import sys as _sys
+from importlib import import_module as _im
+
+_sys.modules[__name__] = _im("vscode_runnable")
+
 import argparse
 import logging
 from pathlib import Path
@@ -17,18 +22,10 @@ def cli_args():
     parser.add_argument("--repo", type=str, help="Location of the local project (repository).")
     parser.add_argument("--project_name", type=str, help="Name of the project")
     parser.add_argument("--output_dir", type=str, default="./analysis", help="Output directory for the analysis files.")
-    parser.add_argument(
-        "--partial_updates_component",
-        type=str,
-        default=None,
-        help="Component to update. If specified, only this component will be updated.",
-    )
-    parser.add_argument(
-        "--partial_updates_analysis",
-        type=str,
-        default=None,
-        help="The analysis for which the component will be updated",
-    )
+    parser.add_argument("--partial_updates_component", type=str, default=None,
+                        help="Component to update. If specified, only this component will be updated.")
+    parser.add_argument("--partial_updates_analysis", type=str, default=None,
+                        help="The analysis for which the component will be updated")
 
     parser.add_argument("--binary_location", type=str, help="Path to the binary to use for language servers.")
     return parser.parse_args()
@@ -47,18 +44,16 @@ def partial_updates(component_to_update_name: str, analysis_to_update_name: str)
     if not analysis_folder.exists():
         analysis_folder.mkdir(parents=True, exist_ok=True)
 
-    generator = DiagramGenerator(
-        repo_location=repo_location,
-        temp_folder=analysis_folder,
-        repo_name=args.project_name,
-        output_dir=analysis_folder,
-        depth_level=1,
-    )
+    generator = DiagramGenerator(repo_location=repo_location,
+                                 temp_folder=analysis_folder,
+                                 repo_name=args.project_name,
+                                 output_dir=analysis_folder,
+                                 depth_level=1)
     generator.pre_analysis()
 
     # Load the analysis for which we want to extend the component
     analysis = analysis_folder / f"{analysis_to_update_name}.json"
-    with open(analysis, "r") as file:
+    with open(analysis, 'r') as file:
         analysis = AnalysisInsights.model_validate_json(file.read())
 
     component_to_update = None
@@ -78,13 +73,11 @@ def full_analysis():
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
-    generator = DiagramGenerator(
-        repo_location=repo_location,
-        temp_folder=output_dir,
-        repo_name=args.project_name,
-        output_dir=output_dir,
-        depth_level=1,
-    )
+    generator = DiagramGenerator(repo_location=repo_location,
+                                 temp_folder=output_dir,
+                                 repo_name=args.project_name,
+                                 output_dir=output_dir,
+                                 depth_level=1)
     generator.generate_analysis()  # Generate the analysis files in the specified output directory
 
 

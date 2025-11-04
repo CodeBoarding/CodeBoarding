@@ -1,6 +1,11 @@
+import sys as _sys
+from importlib import import_module as _im
+
+_sys.modules[__name__] = _im("local_app")
+
 import dotenv
 
-from main import generate_docs_remote
+from codeboarding.main import generate_docs_remote
 
 import logging
 import os
@@ -18,10 +23,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jobs
-from github_action import generate_analysis
-from repo_utils import RepoDontExistError
-from utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
+from codeboarding.duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jobs
+from codeboarding.github_action import generate_analysis
+from codeboarding.repo_utils import RepoDontExistError
+from codeboarding.utils import CFGGenerationError, create_temp_repo_folder, remove_temp_repo_folder
 
 
 dotenv.load_dotenv()
@@ -69,10 +74,10 @@ app.add_event_handler("startup", init_db)
 
 def extract_repo_name(repo_url: str) -> str:
     parsed = urlparse(repo_url)
-    parts = parsed.path.strip("/").split("/")
+    parts = parsed.path.strip('/').split('/')
     if len(parts) >= 2:
         name = parts[-1]
-        return name[:-4] if name.endswith(".git") else name
+        return name[:-4] if name.endswith('.git') else name
     raise ValueError(f"Invalid GitHub URL: {repo_url}")
 
 
@@ -117,13 +122,11 @@ async def generate_onboarding(job_id: str):
                 analysis_files_json = list(temp_repo_folder.glob("*.json"))
                 analysis_files_md = list(temp_repo_folder.glob("*.md"))
 
-                logger.info(
-                    f"Found {len(analysis_files_json)} JSON files and {len(analysis_files_md)} MD files in {temp_repo_folder}"
-                )
+                logger.info(f"Found {len(analysis_files_json)} JSON files and {len(analysis_files_md)} MD files in {temp_repo_folder}")
 
                 for file in analysis_files_json:
                     try:
-                        with open(file, "r", encoding="utf-8") as f:
+                        with open(file, 'r', encoding='utf-8') as f:
                             content = f.read().strip()
                             if content:  # Only add non-empty files
                                 docs_content[file.name] = content
@@ -133,7 +136,7 @@ async def generate_onboarding(job_id: str):
 
                 for file in analysis_files_md:
                     try:
-                        with open(file, "r", encoding="utf-8") as f:
+                        with open(file, 'r', encoding='utf-8') as f:
                             content = f.read().strip()
                             if content:  # Only add non-empty files
                                 docs_content[file.name] = content
@@ -149,9 +152,7 @@ async def generate_onboarding(job_id: str):
                 # Store result as JSON string in the result field
                 result = json.dumps({"files": docs_content})
                 update_job(job_id, result=result, status=JobStatus.COMPLETED)
-                logger.info(
-                    "Successfully generated %d doc files for %s (job: %s)", len(docs_content), job["repo_url"], job_id
-                )
+                logger.info("Successfully generated %d doc files for %s (job: %s)", len(docs_content), job["repo_url"], job_id)
 
             except RepoDontExistError:
                 url = job.get("repo_url", "unknown") if job else "unknown"
@@ -167,9 +168,14 @@ async def generate_onboarding(job_id: str):
 
 
 # -- API Endpoints --
-@app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job")
+@app.post(
+    "/generation",
+    response_class=JSONResponse,
+    summary="Create a new onboarding job"
+)
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None
+        repo_url: str = Query(..., description="GitHub repo URL"),
+        background_tasks: BackgroundTasks = None
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
@@ -182,24 +188,31 @@ async def start_generation_job(
     return {"job_id": job["id"], "status": job["status"]}
 
 
-@app.get("/heart_beat", response_class=JSONResponse, summary="Get heart beat")
+@app.get(
+        "/heart_beat",
+        response_class=JSONResponse,
+        summary="Get heart beat"
+)
 async def get_heart_beat():
     return JSONResponse({"status": "ok"}, status_code=200)
 
-
-@app.get("/generation/{job_id}", response_class=JSONResponse, summary="Get job status/result")
+@app.get(
+    "/generation/{job_id}",
+    response_class=JSONResponse,
+    summary="Get job status/result"
+)
 async def get_job(job_id: str):
     job = fetch_job(job_id)
     if not job:
         raise HTTPException(404, detail="Job not found")
-
+    
     response_data = {
         "job_id": job["id"],
         "status": job["status"],
         "created_at": job["created_at"],
         "started_at": job["started_at"],
         "finished_at": job["finished_at"],
-        "repo_url": job["repo_url"],
+        "repo_url": job["repo_url"]
     }
 
     if job["status"] == JobStatus.COMPLETED:
@@ -241,7 +254,10 @@ class DocsGenerationRequest(BaseModel):
         400: {"description": "Invalid request parameters"},
     },
 )
-async def start_docs_generation_job(background_tasks: BackgroundTasks, docs_request: DocsGenerationRequest):
+async def start_docs_generation_job(
+        background_tasks: BackgroundTasks,
+        docs_request: DocsGenerationRequest
+):
     """
     Start a background job to generate onboarding documentation.
 
@@ -275,7 +291,10 @@ async def start_docs_generation_job(background_tasks: BackgroundTasks, docs_requ
     logger.info("Created job %s for %s", job["id"], docs_request.url)
     return JSONResponse(
         status_code=202,
-        content={"job_id": job["id"], "message": "Job created successfully. Use the job_id to check status."},
+        content={
+            "job_id": job["id"],
+            "message": "Job created successfully. Use the job_id to check status."
+        }
     )
 
 
@@ -310,7 +329,7 @@ async def get_github_action_status(job_id: str):
         "created_at": job["created_at"],
         "started_at": job["started_at"],
         "finished_at": job["finished_at"],
-        "repo_url": job["repo_url"],
+        "repo_url": job["repo_url"]
     }
 
     if job["status"] == JobStatus.COMPLETED:
@@ -352,16 +371,15 @@ async def list_jobs():
             "created_at": job["created_at"],
             "started_at": job["started_at"],
             "finished_at": job["finished_at"],
-            "repo_url": job["repo_url"],
+            "repo_url": job["repo_url"]
         }
         jobs_list.append(job_summary)
 
     return JSONResponse(content={"jobs": jobs_list})
 
 
-async def process_docs_generation_job(
-    job_id: str, url: str, source_branch: str, target_branch: str, output_dir: str, extension: str
-):
+async def process_docs_generation_job(job_id: str, url: str, source_branch: str, target_branch: str, output_dir: str,
+                                      extension: str):
     """Background task to process documentation generation"""
     update_job(job_id, status=JobStatus.RUNNING, started_at=datetime.now(timezone.utc))
 
@@ -387,23 +405,19 @@ async def process_docs_generation_job(
         analysis_files_extension = list(Path(files_dir).glob(f"*{extension}"))
 
         for file in analysis_files_json:
-            with open(file, "r") as f:
+            with open(file, 'r') as f:
                 fname = file.stem
                 docs_content[f"{fname}.json"] = f.read().strip()
 
         for file in analysis_files_extension:
-            with open(file, "r") as f:
+            with open(file, 'r') as f:
                 fname = file.stem
                 docs_content[f"{fname}{extension}"] = f.read().strip()
 
         if not docs_content:
             logger.warning("No documentation files generated for: %s", url)
-            update_job(
-                job_id,
-                status=JobStatus.FAILED,
-                error="No documentation files were generated",
-                finished_at=datetime.now(timezone.utc),
-            )
+            update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated",
+                       finished_at=datetime.now(timezone.utc))
             return
 
         # Store result as JSON string in the result field
@@ -413,27 +427,17 @@ async def process_docs_generation_job(
 
     except RepoDontExistError:
         logger.warning("Repo not found or clone failed: %s (job: %s)", url, job_id)
-        update_job(
-            job_id,
-            status=JobStatus.FAILED,
-            error=f"Repository not found or failed to clone: {url}",
-            finished_at=datetime.now(timezone.utc),
-        )
+        update_job(job_id, status=JobStatus.FAILED, error=f"Repository not found or failed to clone: {url}",
+                   finished_at=datetime.now(timezone.utc))
 
     except CFGGenerationError:
         logger.warning("CFG generation error for: %s (job: %s)", url, job_id)
-        update_job(
-            job_id,
-            status=JobStatus.FAILED,
-            error="Failed to generate diagram. We will look into it 🙂",
-            finished_at=datetime.now(timezone.utc),
-        )
+        update_job(job_id, status=JobStatus.FAILED, error="Failed to generate diagram. We will look into it 🙂",
+            finished_at=datetime.now(timezone.utc))
 
     except Exception:
         logger.exception("Unexpected error processing repo %s (job: %s)", url, job_id)
-        update_job(
-            job_id, status=JobStatus.FAILED, error="Internal server error", finished_at=datetime.now(timezone.utc)
-        )
+        update_job(job_id, status=JobStatus.FAILED, error="Internal server error", finished_at=datetime.now(timezone.utc))
 
     finally:
         # cleanup temp folder for this run

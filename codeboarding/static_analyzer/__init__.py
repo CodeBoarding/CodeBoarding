@@ -1,3 +1,7 @@
+from .._redirect import mirror_package
+
+mirror_package(__name__, "static_analyzer")
+
 import logging
 from pathlib import Path
 from typing import List
@@ -19,7 +23,7 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
             continue
         try:
-            if pl.language in ["TypeScript"]:
+            if pl.language in ['TypeScript']:
                 # For TypeScript, scan for multiple project configurations (mono-repo support)
                 config_scanner = TypeScriptConfigScanner(repository_path)
                 typescript_projects = config_scanner.find_typescript_projects()
@@ -28,8 +32,7 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
                     # Create a separate client for each TypeScript project found
                     for project_path in typescript_projects:
                         logger.info(
-                            f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}"
-                        )
+                            f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}")
                         clients.append(TypeScriptClient(language=pl, project_path=project_path))
                 else:
                     # Fallback: No config files found, use repository root
@@ -57,11 +60,11 @@ class StaticAnalyzer:
 
                 analysis = client.build_static_analysis()
 
-                results.add_references(client.language.language, analysis.get("references", []))
-                results.add_cfg(client.language.language, analysis.get("call_graph", []))
-                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", []))
-                results.add_package_dependencies(client.language.language, analysis.get("package_relations", []))
-                results.add_source_files(client.language.language, analysis.get("source_files", []))
+                results.add_references(client.language.language, analysis.get('references', []))
+                results.add_cfg(client.language.language, analysis.get('call_graph', []))
+                results.add_class_hierarchy(client.language.language, analysis.get('class_hierarchies', []))
+                results.add_package_dependencies(client.language.language, analysis.get('package_relations', []))
+                results.add_source_files(client.language.language, analysis.get('source_files', []))
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
 

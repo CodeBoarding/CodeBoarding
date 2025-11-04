@@ -2,7 +2,7 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from agents.agent_responses import Component, Relation, AnalysisInsights
+from codeboarding.agents.agent_responses import Component, Relation, AnalysisInsights
 
 
 class ComponentJson(Component):

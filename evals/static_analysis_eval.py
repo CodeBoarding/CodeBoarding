@@ -19,10 +19,10 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from evals.report_generator import generate_header, generate_static_section, write_report
-from diagram_analysis import DiagramGenerator
-from repo_utils import clone_repository
-from utils import create_temp_repo_folder, remove_temp_repo_folder
+from codeboarding.evals.report_generator import generate_header, generate_static_section, write_report
+from codeboarding.diagram_analysis import DiagramGenerator
+from codeboarding.repo_utils import clone_repository
+from codeboarding.utils import create_temp_repo_folder, remove_temp_repo_folder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

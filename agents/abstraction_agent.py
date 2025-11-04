@@ -4,8 +4,8 @@ from pathlib import Path
 
 from langchain.prompts import PromptTemplate
 
-from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
+from codeboarding.agents.agent import CodeBoardingAgent
+from codeboarding.agents.agent_responses import (
     AnalysisInsights,
     CFGAnalysisInsights,
     ValidationInsights,
@@ -13,7 +13,7 @@ from agents.agent_responses import (
     ComponentFiles,
     Component,
 )
-from agents.prompts import (
+from codeboarding.agents.prompts import (
     get_cfg_message,
     get_source_message,
     get_system_message,
@@ -21,8 +21,8 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from agents.monitoring import monitoring
-from static_analyzer.analysis_result import StaticAnalysisResults
+from codeboarding.agents.monitoring import monitoring
+from codeboarding.static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 

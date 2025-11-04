@@ -8,18 +8,18 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import ValidationInsights
-from agents.details_agent import DetailsAgent
-from agents.diff_analyzer import DiffAnalyzingAgent
-from agents.meta_agent import MetaAgent
-from agents.planner_agent import PlannerAgent
-from agents.validator_agent import ValidatorAgent
-from diagram_analysis.analysis_json import from_analysis_to_json
-from diagram_analysis.version import Version
-from output_generators.markdown import sanitize
-from repo_utils import get_git_commit_hash
-from static_analyzer import StaticAnalyzer
+from codeboarding.agents.abstraction_agent import AbstractionAgent
+from codeboarding.agents.agent_responses import ValidationInsights
+from codeboarding.agents.details_agent import DetailsAgent
+from codeboarding.agents.diff_analyzer import DiffAnalyzingAgent
+from codeboarding.agents.meta_agent import MetaAgent
+from codeboarding.agents.planner_agent import PlannerAgent
+from codeboarding.agents.validator_agent import ValidatorAgent
+from codeboarding.diagram_analysis.analysis_json import from_analysis_to_json
+from codeboarding.diagram_analysis.version import Version
+from codeboarding.output_generators.markdown import sanitize
+from codeboarding.repo_utils import get_git_commit_hash
+from codeboarding.static_analyzer import StaticAnalyzer
 
 logger = logging.getLogger(__name__)
 

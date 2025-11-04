@@ -5,9 +5,9 @@ from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
 
-from agents.agent_responses import AnalysisInsights, FilePath
-from agents.prompts import get_file_classification_message
-from static_analyzer.analysis_result import StaticAnalysisResults
+from codeboarding.agents.agent_responses import AnalysisInsights, FilePath
+from codeboarding.agents.prompts import get_file_classification_message
+from codeboarding.static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 

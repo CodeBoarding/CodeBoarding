@@ -1,6 +1,6 @@
 from typing import Dict, Any
 
-from agents.agent_responses import AnalysisInsights
+from codeboarding.agents.agent_responses import AnalysisInsights
 
 
 def populate_html_template(

@@ -8,13 +8,13 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from agents.agent_responses import AnalysisInsights
-from agents.prompts import initialize_global_factory, PromptType, LLMType
-from diagram_analysis import DiagramGenerator
-from logging_config import setup_logging
-from output_generators.markdown import generate_markdown_file
-from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
-from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder
+from codeboarding.agents.agent_responses import AnalysisInsights  # type: ignore[import-not-found]
+from codeboarding.agents.prompts import initialize_global_factory, PromptType, LLMType
+from codeboarding.diagram_analysis import DiagramGenerator
+from codeboarding.logging_config import setup_logging
+from codeboarding.output_generators.markdown import generate_markdown_file  # type: ignore[import-not-found]
+from codeboarding.repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
+from codeboarding.utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 
 if __name__ == "__main__":
-    # Initialize the prompt factory for demo.py to use bidirectional prompts
+    # Initialize the prompt factory for main.py to use bidirectional prompts
     initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
 
     parser = argparse.ArgumentParser(
@@ -147,10 +147,10 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python demo.py https://github.com/user/repo1
-  python demo.py https://github.com/user/repo1 --output-dir ./docs
-  python demo.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
-  python demo.py --help
+  python main.py https://github.com/user/repo1
+  python main.py https://github.com/user/repo1 --output-dir ./docs
+  python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
+  python main.py --help
         """,
     )
     parser.add_argument("repositories", nargs="+", help="One or more Git repository URLs to generate documentation for")
@@ -173,3 +173,5 @@ Examples:
                 copy_files(temp_repo_folder, args.output_dir)
         finally:
             remove_temp_repo_folder(temp_repo_folder)
+
+

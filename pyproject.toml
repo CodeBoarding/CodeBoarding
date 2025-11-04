@@ -67,6 +67,9 @@ dependencies = [
     "wcwidth==0.2.13",
 ]
 
+[project.scripts]
+codeboarding = "codeboarding.__main__:main"
+
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"
 Documentation = "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/overview.md"

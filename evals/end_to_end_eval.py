@@ -20,7 +20,7 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from evals.report_generator import generate_header, generate_e2e_section, write_report
+from codeboarding.evals.report_generator import generate_header, generate_e2e_section, write_report
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -132,10 +132,10 @@ def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path
         env = os.environ.copy()
         env["ENABLE_MONITORING"] = "true"
         
-        # Run demo.py as subprocess
+        # Run main.py as subprocess
         cmd = [
             sys.executable,  # Use the same Python interpreter
-            "demo.py",
+            "main.py",
             repo_url,
             "--output-dir",
             str(output_dir)
@@ -149,7 +149,7 @@ def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path
             text=True,
             timeout=1800,  # 30 minute timeout
             env=env,
-            cwd=PROJECT_ROOT  # Run demo.py from project root to resolve relative paths correctly
+            cwd=PROJECT_ROOT  # Run main.py from project root to resolve relative paths correctly
         )
         
         elapsed_time = time.time() - start_time

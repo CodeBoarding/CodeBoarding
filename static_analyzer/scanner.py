@@ -4,8 +4,8 @@ import subprocess
 from pathlib import Path
 from typing import List, Set
 
-from static_analyzer.programming_language import ProgrammingLanguage
-from utils import get_config
+from codeboarding.static_analyzer.programming_language import ProgrammingLanguage
+from codeboarding.utils import get_config
 
 logger = logging.getLogger(__name__)
 

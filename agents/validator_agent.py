@@ -4,16 +4,16 @@ import os
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
-from agents.agent import CodeBoardingAgent
-from agents.agent_responses import ValidationInsights, AnalysisInsights
-from agents.prompts import (
+from codeboarding.agents.agent import CodeBoardingAgent
+from codeboarding.agents.agent_responses import ValidationInsights, AnalysisInsights
+from codeboarding.agents.prompts import (
     get_component_validation_component,
     get_relationships_validation,
     get_validator_system_message,
 )
-from agents.prompts import get_component_validation_component, get_relationships_validation, get_validator_system_message
-from agents.monitoring import monitoring
-from static_analyzer.analysis_result import StaticAnalysisResults
+from codeboarding.agents.prompts import get_component_validation_component, get_relationships_validation, get_validator_system_message
+from codeboarding.agents.monitoring import monitoring
+from codeboarding.static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 

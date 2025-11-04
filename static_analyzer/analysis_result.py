@@ -1,6 +1,6 @@
 from typing import List
 
-from static_analyzer.graph import Node, CallGraph
+from codeboarding.static_analyzer.graph import Node, CallGraph
 
 
 class StaticAnalysisResults:

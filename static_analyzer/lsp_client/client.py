@@ -12,8 +12,8 @@ from typing import Dict, List, Optional
 import pathspec
 from tqdm import tqdm
 
-from static_analyzer.graph import CallGraph, Node
-from static_analyzer.scanner import ProgrammingLanguage
+from codeboarding.static_analyzer.graph import CallGraph, Node
+from codeboarding.static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
 logger = logging.getLogger(__name__)
