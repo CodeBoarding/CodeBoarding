@@ -121,6 +121,9 @@ class CallGraph:
             src_cluster = node_to_cluster.get(src)
             dst_cluster = node_to_cluster.get(dst)
 
+            # Skip edges where either node doesn't belong to any cluster
+            if src_cluster is None or dst_cluster is None:
+                continue
             # Only process edges where both nodes are in top clusters
             if src in top_nodes and dst in top_nodes and src_cluster != dst_cluster:
                 cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} → {dst}")
