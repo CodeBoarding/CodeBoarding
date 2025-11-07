@@ -124,7 +124,6 @@ class CallGraph:
             # Skip edges where either node doesn't belong to any cluster
             if src_cluster is None or dst_cluster is None:
                 continue
-            # Only process edges where both nodes are in top clusters
             if src_cluster != dst_cluster:
                 cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} → {dst}")
 
