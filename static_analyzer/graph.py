@@ -125,7 +125,7 @@ class CallGraph:
             if src_cluster is None or dst_cluster is None:
                 continue
             # Only process edges where both nodes are in top clusters
-            if src in top_nodes and dst in top_nodes and src_cluster != dst_cluster:
+            if src_cluster != dst_cluster:
                 cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} → {dst}")
 
         inter_cluster_str = "Inter-Cluster Connections:\n\n"
