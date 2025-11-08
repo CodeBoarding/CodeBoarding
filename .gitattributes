@@ -6,6 +6,7 @@
 *.sh text eol=lf
 *.json text eol=lf
 *.yml text eol=lf
+*.yaml text eol=lf
 
 # Force Windows batch scripts to use CRLF
 *.bat text eol=crlf
