@@ -2,46 +2,94 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-    - ./static_analyzer/servers/py-lsp
-    - --stdio
+      - ./static_analyzer/servers/py-lsp
+      - --stdio
     languages:
-    - python
+      - python
     file_extensions:
-    - .py
-    - .pyi
+      - .py
+      - .pyi
     install_commands: pip install pyright
   typescript:
     name: TypeScript Language Server
     command:
-    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
-    - --stdio
-    - --log-level=2
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
+      - --stdio
+      - --log-level=2
     languages:
-    - typescript
-    - javascript
+      - typescript
+      - javascript
     file_extensions:
-    - .ts
-    - .tsx
-    - .js
-    - .jsx
+      - .ts
+      - .tsx
+      - .js
+      - .jsx
     install_commands: npm install --save-dev typescript-language-server typescript
   go:
     name: Go Language Server (gopls)
     command:
-    - ./static_analyzer/servers/gopls
-    - serve
+      - gopls
+      - serve
     languages:
-    - go
+      - go
     file_extensions:
-    - .go
+      - .go
     install_commands: go install golang.org/x/tools/gopls@latest
+  java:
+    name: Eclipse JDT Language Server
+    command:
+      - /home/linuxbrew/.linuxbrew/bin/java
+      - -Declipse.application=org.eclipse.jdt.ls.core.id1
+      - -Dosgi.bundles.defaultStartLevel=4
+      - -Declipse.product=org.eclipse.jdt.ls.core.product
+      - -Dlog.level=ALL
+      - -Xmx1G
+      - --add-modules=ALL-SYSTEM
+      - --add-opens
+      - java.base/java.util=ALL-UNNAMED
+      - --add-opens
+      - java.base/java.lang=ALL-UNNAMED
+      - -jar
+      - /home/ivan/StartUp/java-lsp/plugins/org.eclipse.equinox.launcher_1.6.400.v20210924-0641.jar
+      - -configuration
+      - /home/ivan/StartUp/java-lsp/config_linux
+      - -data
+    languages:
+      - java
+    file_extensions:
+      - .java
+    install_commands: |
+      wget https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
+      tar -xzf jdt-language-server-latest.tar.gz -C /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/jdtls
+  kotlin:
+    name: Kotlin Language Server
+    command:
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/kotlin-lsp
+      - --stdio
+    languages:
+      - kotlin
+    file_extensions:
+      - .kt
+      - .kts
+    install_commands: |
+      git clone
+  ruby:
+    name: Solargraph Language Server
+    command:
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/solargraph
+      - stdio
+    languages:
+      - ruby
+    file_extensions:
+      - .rb
+    install_commands: gem install solargraph
 tools:
   tokei:
     name: tokei
     command:
-    - ./static_analyzer/servers/tokei
-    - -o
-    - json
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/tokei
+      - -o
+      - json
     description: Analyze repository languages and file types
     install_command: conda install -c conda-forge tokei
     output_format: json

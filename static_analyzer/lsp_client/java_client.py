@@ -3,6 +3,7 @@ import os
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from static_analyzer import LSPClient
 
@@ -22,10 +23,10 @@ class JavaLSPClient(LSPClient):
                     abs_config_path = os.path.abspath(config_path)
                     self.server_start_params[i + 1] = abs_config_path
                     logger.info(f"Resolved configuration path to: {abs_config_path}")
-
+        
         self.server_start_params.append(str(self.project_path))
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
-
+        
         self._process = subprocess.Popen(
             self.server_start_params,
             stdin=subprocess.PIPE,
@@ -34,19 +35,24 @@ class JavaLSPClient(LSPClient):
             cwd=os.getcwd()  # Explicitly set working directory
         )
 
+        # Start stderr reader thread to capture any error messages
+        self._stderr_thread = threading.Thread(target=self._read_stderr)
+        self._stderr_thread.daemon = True
+        self._stderr_thread.start()
+
         self._reader_thread = threading.Thread(target=self._read_messages)
         self._reader_thread.daemon = True
         self._reader_thread.start()
-
+        
         # Give the server a moment to start up
         logger.info("Waiting for Java LSP server to initialize...")
         time.sleep(3)  # Increased from 2 to 3 seconds
-
+        
         # Check if process is still alive
         if self._process.poll() is not None:
             logger.error(f"Java LSP server process died with exit code {self._process.poll()}")
             raise RuntimeError("Java LSP server failed to start")
-
+        
         logger.info("Java LSP server process is running, attempting initialization...")
         self._initialize()
 
