@@ -138,11 +138,12 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 callback_list = callbacks or []
                 if self._monitoring_callback:
                     callback_list.append(self._monitoring_callback)
-                
-                response = self.agent.invoke(
-                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                    config={"callbacks": callback_list} if callback_list else None
-                )
+
+                if callback_list:
+                    response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]},
+                                                 config={"callbacks": callback_list})
+                else:
+                    response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]})
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):
@@ -217,7 +218,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         """Return monitoring statistics if monitoring is enabled."""
         if not self._monitoring_callback:
             return {}
-        
+
         return {
             "token_usage": {
                 "prompt_tokens": self._monitoring_callback.prompt_tokens,

@@ -58,14 +58,6 @@ def sanitize_repo_url(repo_url: str) -> str:
         if not repo_url.endswith(".git"):
             return f"{repo_url}.git"
         return repo_url
-        # Convert HTTPS to SSH format
-        parts = repo_url.rstrip("/").split("/")
-        if "github.com" in parts:
-            host_index = parts.index("github.com")
-            user_repo = "/".join(parts[host_index + 1 :])
-            return f"git@github.com:{user_repo}.git"
-        else:
-            raise ValueError("Only GitHub SSH conversion is supported.")
     else:
         raise ValueError("Unsupported URL format.")
 
