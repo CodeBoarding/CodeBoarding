@@ -1,13 +1,6 @@
-# Handle text files automatically
-* text=auto
+# Auto-detect text and ensure LF by default
+* text=auto eol=lf
 
-# Force specific file types to use LF
-*.py text eol=lf
-*.sh text eol=lf
-*.json text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-
-# Force Windows batch scripts to use CRLF
-*.bat text eol=crlf
-*.ps1 text eol=crlf
+# Force Windows scripts to use CRLF
+*.bat eol=crlf
+*.ps1 eol=crlf
