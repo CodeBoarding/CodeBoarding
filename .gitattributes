@@ -1,0 +1,6 @@
+# Auto-detect text and ensure LF by default
+* text=auto eol=lf
+
+# Force Windows scripts to use CRLF
+*.bat eol=crlf
+*.ps1 eol=crlf
