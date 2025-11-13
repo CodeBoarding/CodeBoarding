@@ -85,13 +85,13 @@ class CallGraph:
         return nx_graph
 
     def to_cluster_string(self) -> str:
-        graph_x = self.to_networkx()
-        if graph_x.number_of_nodes() == 0:
+        cfg_graph_x = self.to_networkx()
+        if cfg_graph_x.number_of_nodes() == 0:
             summary = "No nodes available for clustering."
             logger.warning(summary)
             return summary
 
-        communities = list(nx.community.greedy_modularity_communities(graph_x))
+        communities = list(nx.community.greedy_modularity_communities(cfg_graph_x))
         if not communities:
             summary = "No significant clusters found."
             logger.info(summary)
@@ -99,30 +99,32 @@ class CallGraph:
 
         top_communities = sorted(communities, key=len, reverse=True)[:10]
         # Each of the top communities has to have at least 5% of the nodes
-        min_nodes = max(2, int(0.05 * graph_x.number_of_nodes()))
+        min_nodes = max(2, int(0.05 * cfg_graph_x.number_of_nodes()))
         top_communities = [c for c in top_communities if len(c) >= min_nodes]
         top_nodes = set().union(*communities) if communities else set()
 
-        cluster_str = self.__cluster_str(top_communities, graph_x, top_nodes)
-        non_cluster_str = self.__non_cluster_str(graph_x, top_nodes)
+        cluster_str = self.__cluster_str(top_communities, cfg_graph_x)
+        non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes)
 
         return cluster_str + non_cluster_str
 
     @staticmethod
-    def __cluster_str(communities, graph_x, top_nodes) -> str:
+    def __cluster_str(top_communities: list, cfg_graph_x: nx.DiGraph) -> str:
         communities_str = "Cluster Definitions:\n\n"
-        for idx, community in enumerate(communities, start=1):
+        for idx, community in enumerate(top_communities, start=1):
             communities_str += f"Cluster {idx}: {sorted(community)}\n\n"
 
         cluster_to_cluster_calls = defaultdict(lambda: defaultdict(list))
-        node_to_cluster = {node: idx for idx, community in enumerate(communities) for node in community}
+        node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
 
-        for src, dst in graph_x.edges():
+        for src, dst in cfg_graph_x.edges():
             src_cluster = node_to_cluster.get(src)
             dst_cluster = node_to_cluster.get(dst)
 
-            # Only process edges where both nodes are in top clusters
-            if src in top_nodes and dst in top_nodes and src_cluster != dst_cluster:
+            # Skip edges where either node doesn't belong to any cluster
+            if src_cluster is None or dst_cluster is None:
+                continue
+            if src_cluster != dst_cluster:
                 cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} → {dst}")
 
         inter_cluster_str = "Inter-Cluster Connections:\n\n"
@@ -134,7 +136,7 @@ class CallGraph:
                     src_display = next(
                         (
                             i
-                            for i, c in enumerate(communities, 1)
+                            for i, c in enumerate(top_communities, 1)
                             if any(n for n in c if node_to_cluster.get(n) == src_cluster_id)
                         ),
                         src_cluster_id,
@@ -142,7 +144,7 @@ class CallGraph:
                     dst_display = next(
                         (
                             i
-                            for i, c in enumerate(communities, 1)
+                            for i, c in enumerate(top_communities, 1)
                             if any(n for n in c if node_to_cluster.get(n) == dst_cluster_id)
                         ),
                         dst_cluster_id,
