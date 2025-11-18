@@ -117,10 +117,12 @@ class DiagramGenerator:
         """
         files = []
 
-        if (self.details_agent is None
-                or self.abstraction_agent is None
-                or self.planner_agent is None
-                or self.validator_agent is None):
+        if (
+            self.details_agent is None
+            or self.abstraction_agent is None
+            or self.planner_agent is None
+            or self.validator_agent is None
+        ):
             self.pre_analysis()
 
         # Generate the initial analysis
@@ -174,7 +176,7 @@ class DiagramGenerator:
 
                 # Use tqdm for a progress bar
                 for future in tqdm(
-                        as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
+                    as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
                 ):
                     component = future_to_component[future]
                     try:

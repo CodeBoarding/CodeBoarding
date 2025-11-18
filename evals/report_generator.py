@@ -75,7 +75,6 @@ def generate_static_section(static_results: Dict[str, Any]) -> str:
             f"| {project.get('project', 'Unknown')} | {lang} | {status} | {time_taken} | {files_read} | {errors} |"
         )
 
-
     return "\n".join(lines)
 
 
@@ -113,26 +112,28 @@ def generate_e2e_section(e2e_results: Dict[str, Any]) -> str:
         )
 
     # Add Generated Diagrams section
-    lines.extend([
-        "",
-        "## Generated Top-Level Diagrams",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Generated Top-Level Diagrams",
+            "",
+        ]
+    )
 
     for project in projects:
-        project_name = project.get('project', 'Unknown')
-        mermaid_diagram = project.get('mermaid_diagram', '')
-        
+        project_name = project.get("project", "Unknown")
+        mermaid_diagram = project.get("mermaid_diagram", "")
+
         lines.append(f"### {project_name}")
         lines.append("")
-        
+
         if mermaid_diagram:
             lines.append("```mermaid")
             lines.append(mermaid_diagram)
             lines.append("```")
         else:
             lines.append("*No diagram generated for this project.*")
-        
+
         lines.append("")
 
     return "\n".join(lines)
@@ -144,31 +145,26 @@ def generate_system_specs() -> str:
         "## System Specifications",
         "",
     ]
-    
+
     # Get OS information
     os_name = platform.system()
     os_version = platform.platform()
     lines.append(f"**Operating System:** {os_name} ({os_version})")
-    
+
     # Get CPU information
     processor = platform.processor()
     if not processor or processor == "":
         processor = platform.machine()
     lines.append(f"**Processor:** {processor}")
-    
+
     # Get number of cores
     cpu_count = os.cpu_count()
     lines.append(f"**CPU Cores:** {cpu_count}")
-    
+
     # Get git user information (with graceful fallback)
     try:
-        git_name_result = subprocess.run(
-            ["git", "config", "user.name"], 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        
+        git_name_result = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True, timeout=5)
+
         if git_name_result.returncode == 0:
             git_name = git_name_result.stdout.strip()
             lines.append(f"**Git User:** {git_name}")
@@ -176,19 +172,17 @@ def generate_system_specs() -> str:
             lines.append("**Git User:** Not configured")
     except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
         lines.append("**Git User:** Not available")
-    
+
     lines.append("")
     return "\n".join(lines)
 
 
 def write_report(markdown: str, output_path: Path) -> None:
     _ensure_parent_dir(output_path)
-    
+
     # Append system specifications to the markdown
     system_specs = generate_system_specs()
     full_markdown = f"{markdown}\n{system_specs}"
-    
+
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(full_markdown)
-
-

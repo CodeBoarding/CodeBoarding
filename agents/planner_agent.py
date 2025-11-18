@@ -7,7 +7,7 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
 from agents.prompts import get_expansion_prompt, get_planner_system_message
-from agents.monitoring import monitoring
+from monitoring.agent import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 

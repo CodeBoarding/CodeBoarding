@@ -1,19 +1,19 @@
 # Static Analysis Performance Evaluation
 
-**Generated:** 2025-11-04T12:52:32.533065
+**Generated:** 2025-11-18T17:45:49.060983
 
-**Evaluation Time:** 2.83 seconds
+**Evaluation Time:** 459.50 seconds
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Files | Errors |
 |---------|----------|--------|----------|-------|--------|
-| markitdown | Python | ❌ Failed | 0.68 | 0 | 0 |
-| tsoa | TypeScript | ❌ Failed | 1.38 | 0 | 0 |
-| cobra | Go | ❌ Failed | 0.77 | 0 | 0 |
+| markitdown | Python | ✅ Success | 18.85 | 43 | 0 |
+| tsoa | TypeScript | ✅ Success | 78.00 | 8 | 0 |
+| cobra | Go | ✅ Success | 362.64 | 19 | 0 |
 ## System Specifications
 
-**Operating System:** Linux (Linux-6.11.0-1018-azure-x86_64-with-glibc2.39)
-**Processor:** x86_64
-**CPU Cores:** 4
-**Git User:** Not configured
+**Operating System:** Darwin (macOS-15.6-arm64-arm-64bit-Mach-O)
+**Processor:** arm
+**CPU Cores:** 10
+**Git User:** brovatten

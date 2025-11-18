@@ -30,65 +30,51 @@ logger = logging.getLogger(__name__)
 
 # Shared project list (DRY principle)
 PROJECTS = [
-    {
-        "name": "markitdown",
-        "url": "https://github.com/microsoft/markitdown",
-        "expected_language": "Python"
-    },
-    {
-        "name": "tsoa",
-        "url": "https://github.com/lukeautry/tsoa",
-        "expected_language": "TypeScript"
-    },
-    {
-        "name": "cobra",
-        "url": "https://github.com/spf13/cobra",
-        "expected_language": "Go"
-    }
+    {"name": "markitdown", "url": "https://github.com/microsoft/markitdown", "expected_language": "Python"},
+    {"name": "tsoa", "url": "https://github.com/lukeautry/tsoa", "expected_language": "TypeScript"},
+    {"name": "cobra", "url": "https://github.com/spf13/cobra", "expected_language": "Go"},
 ]
-
-
 
 
 def run_all_evals():
     """Run all evaluations and generate unified SECURITY.md."""
-    
+
     logger.info("Starting unified evaluation run")
     logger.info(f"Testing {len(PROJECTS)} projects: {[p['name'] for p in PROJECTS]}")
-    
+
     start_time = time.time()
-    
+
     try:
         # Run static analysis evaluation
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Running Static Analysis Evaluation")
-        logger.info("="*60)
+        logger.info("=" * 60)
         static_results = run_static_analysis_eval()
-        
+
         # Run end-to-end evaluation
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("Running End-to-End Pipeline Evaluation")
-        logger.info("="*60)
+        logger.info("=" * 60)
         e2e_results = run_end_to_end_eval()
-        
+
         # Unified markdown report intentionally not generated
         logger.info("Unified markdown report is disabled by configuration.")
-        
+
         total_time = time.time() - start_time
-        
+
         # Log summary
         logger.info("UNIFIED EVALUATION SUMMARY")
         logger.info(f"Total execution time: {total_time:.2f} seconds")
         logger.info(f"Static analysis time: {static_results.get('total_eval_time_seconds', 0):.2f} seconds")
         logger.info(f"End-to-end time: {e2e_results.get('total_eval_time_seconds', 0):.2f} seconds")
-        
+
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "total_eval_time_seconds": total_time,
             "static_results": static_results,
-            "e2e_results": e2e_results
+            "e2e_results": e2e_results,
         }
-        
+
     except Exception as e:
         logger.error(f"Unified evaluation failed: {e}")
         raise
@@ -97,16 +83,16 @@ def run_all_evals():
 def main():
     """Main evaluation function."""
     load_dotenv()
-    
+
     # Setup environment variables if not set
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
-    
+
     logger.info("CodeBoarding Unified Evaluation Runner")
     logger.info("Running all evaluation types:")
     logger.info("  - Static Analysis Performance Evaluation")
     logger.info("  - End-to-End Pipeline Evaluation")
-    
+
     try:
         run_all_evals()
     except KeyboardInterrupt:

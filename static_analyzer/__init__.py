@@ -5,6 +5,7 @@ from typing import List
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
+from monitoring.static_analysis import StaticAnalysisPerformanceTracker
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
@@ -47,7 +48,9 @@ class StaticAnalyzer:
         self.repository_path = repository_path
         programming_langs = ProjectScanner(repository_path).scan()
         self.clients = create_clients(programming_langs, repository_path)
+        self.performance_metrics = None  # Populated by decorator if enabled
 
+    @StaticAnalysisPerformanceTracker()
     def analyze(self):
         results = StaticAnalysisResults()
         for client in self.clients:
