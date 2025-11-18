@@ -140,8 +140,10 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                     callback_list.append(self._monitoring_callback)
 
                 if callback_list:
-                    response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]},
-                                                 config={"callbacks": callback_list})
+                    response = self.agent.invoke(
+                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                        config={"callbacks": callback_list},
+                    )
                 else:
                     response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]})
                 agent_response = response["messages"][-1]
@@ -223,7 +225,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
             "token_usage": {
                 "prompt_tokens": self._monitoring_callback.prompt_tokens,
                 "completion_tokens": self._monitoring_callback.completion_tokens,
-                "total_tokens": self._monitoring_callback.total_tokens
+                "total_tokens": self._monitoring_callback.total_tokens,
             },
             "tool_usage": {
                 "counts": dict(self._monitoring_callback.tool_counts),
@@ -231,6 +233,6 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 "avg_latency_ms": {
                     tool: sum(latencies) / len(latencies) if latencies else 0
                     for tool, latencies in self._monitoring_callback.tool_latency_ms.items()
-                }
-            }
+                },
+            },
         }

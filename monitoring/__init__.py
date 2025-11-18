@@ -14,4 +14,3 @@ __all__ = [
     "StaticAnalysisPerformanceTracker",
     "track_static_analysis_performance",
 ]
-
