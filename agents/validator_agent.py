@@ -11,7 +11,11 @@ from agents.prompts import (
     get_relationships_validation,
     get_validator_system_message,
 )
-from agents.prompts import get_component_validation_component, get_relationships_validation, get_validator_system_message
+from agents.prompts import (
+    get_component_validation_component,
+    get_relationships_validation,
+    get_validator_system_message,
+)
 from agents.monitoring import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 

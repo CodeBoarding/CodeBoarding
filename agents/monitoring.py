@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
+
 class MonitoringCallback(BaseCallbackHandler):
     def __init__(self):
         # token usage
@@ -16,22 +17,22 @@ class MonitoringCallback(BaseCallbackHandler):
         self.total_tokens = 0
 
         # tool accounting
-        self.tool_counts = defaultdict(int)           # times each tool was called
-        self.tool_errors = defaultdict(int)           # errors per tool
-        self.tool_latency_ms = defaultdict(list)      # latencies per tool
+        self.tool_counts = defaultdict(int)  # times each tool was called
+        self.tool_errors = defaultdict(int)  # errors per tool
+        self.tool_latency_ms = defaultdict(list)  # latencies per tool
 
         # runtime bookkeeping
-        self._tool_start_times = {}                   # run_id -> start_time
-        self._tool_names = {}                         # run_id -> tool_name
+        self._tool_start_times = {}  # run_id -> start_time
+        self._tool_names = {}  # run_id -> tool_name
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         usage: Dict[str, int] = (response.llm_output or {}).get("token_usage", {}) or {}
-        self.prompt_tokens     += int(usage.get("prompt_tokens", 0))
+        self.prompt_tokens += int(usage.get("prompt_tokens", 0))
         self.completion_tokens += int(usage.get("completion_tokens", 0))
         if usage.get("total_tokens") is not None:
-            self.total_tokens  += int(usage.get("total_tokens", 0))
+            self.total_tokens += int(usage.get("total_tokens", 0))
         else:
-            self.total_tokens  += int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
+            self.total_tokens += int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
 
     def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
         # LangChain passes a 'run_id' you can use to correlate start/end
@@ -72,17 +73,18 @@ def monitoring(func):
     Decorator that enables monitoring for agent methods.
     Checks ENABLE_MONITORING environment variable to determine if monitoring should be active.
     """
+
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         enable_monitoring = os.getenv("ENABLE_MONITORING", "").lower() in ("true", "1", "yes", "on")
         if not enable_monitoring:
             return func(self, *args, **kwargs)
-            
-        if not hasattr(self, '_monitoring_callback') or self._monitoring_callback is None:
+
+        if not hasattr(self, "_monitoring_callback") or self._monitoring_callback is None:
             self._monitoring_callback = MonitoringCallback()
-        
+
         original_func = func
-        
+
         return original_func(self, *args, **kwargs)
-    
+
     return wrapper
