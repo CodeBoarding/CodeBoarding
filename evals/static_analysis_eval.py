@@ -38,51 +38,47 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
     repo_url = project_info["url"]
     project_name = project_info["name"]
     temp_folder = create_temp_repo_folder()
-    
+
     logger.info(f"Starting static analysis for {project_name} ({repo_url})")
-    
+
     # Start timing for this project
     project_start_time = time.time()
-    
+
     try:
         # Clone the repository
         repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT")))
         repo_path = Path(os.getenv("REPO_ROOT")) / repo_name
-        
+
         logger.info(f"Repository cloned to {repo_path}")
-        
+
         # Run only static analysis (not full pipeline)
         generator = DiagramGenerator(
-            repo_location=repo_path,
-            temp_folder=temp_folder,
-            repo_name=repo_name,
-            output_dir=temp_folder,
-            depth_level=1
+            repo_location=repo_path, temp_folder=temp_folder, repo_name=repo_name, output_dir=temp_folder, depth_level=1
         )
-        
+
         # Just run static analysis, not full generation
         static_analysis = generator.generate_static_analysis()
-        
+
         # Get the metrics that were collected
-        metrics = getattr(generator, 'static_analysis_metrics', {})
-        
+        metrics = getattr(generator, "static_analysis_metrics", {})
+
         # Calculate total time for this project
         project_total_time = time.time() - project_start_time
-        
+
         logger.info(f"Static analysis completed for {project_name}")
         logger.info(f"Total time: {project_total_time:.2f}s")
         logger.info(f"Timing: {metrics.get('timing', {})}")
         logger.info(f"File counts: {metrics.get('errors', {})}")
-        
+
         return {
             "project": project_name,
             "url": repo_url,
             "expected_language": project_info.get("expected_language"),
             "total_time_seconds": project_total_time,
             "metrics": metrics,
-            "success": True
+            "success": True,
         }
-        
+
     except Exception as e:
         project_total_time = time.time() - project_start_time
         logger.error(f"Static analysis failed for {project_name}: {e}")
@@ -92,7 +88,7 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
             "expected_language": project_info.get("expected_language"),
             "total_time_seconds": project_total_time,
             "error": str(e),
-            "success": False
+            "success": False,
         }
     finally:
         remove_temp_repo_folder(temp_folder)
@@ -100,59 +96,47 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
 
 def run_static_analysis_eval(projects=None):
     """Run static analysis on multiple projects and track performance."""
-    
+
     if projects is None:
         # Default project list for backward compatibility
         projects = [
-            {
-                "name": "markitdown",
-                "url": "https://github.com/microsoft/markitdown",
-                "expected_language": "Python"
-            },
-            {
-                "name": "tsoa", 
-                "url": "https://github.com/lukeautry/tsoa",
-                "expected_language": "TypeScript"
-            },
-            {
-                "name": "cobra",
-                "url": "https://github.com/spf13/cobra",
-                "expected_language": "Go"
-            }
+            {"name": "markitdown", "url": "https://github.com/microsoft/markitdown", "expected_language": "Python"},
+            {"name": "tsoa", "url": "https://github.com/lukeautry/tsoa", "expected_language": "TypeScript"},
+            {"name": "cobra", "url": "https://github.com/spf13/cobra", "expected_language": "Go"},
         ]
-    
+
     logger.info("Starting static analysis performance evaluation")
     logger.info(f"Testing {len(projects)} projects: {[p['name'] for p in projects]}")
-    
+
     results = []
     start_time = time.time()
-    
+
     for i, project in enumerate(projects, 1):
         logger.info(f"\n{'='*60}")
         logger.info(f"Project {i}/{len(projects)}: {project['name']}")
         logger.info(f"{'='*60}")
-        
+
         result = analyze_project_static_analysis(project)
         results.append(result)
-        
+
         if result["success"]:
             logger.info(f"✅ {project['name']} completed successfully")
         else:
             logger.error(f"❌ {project['name']} failed: {result.get('error', 'Unknown error')}")
-    
+
     total_time = time.time() - start_time
-    
+
     # Create final results structure
     eval_results = {
         "timestamp": datetime.utcnow().isoformat(),
         "total_eval_time_seconds": total_time,
-        "projects": results
+        "projects": results,
     }
-    
+
     # Save results
     save_static_analysis_results(eval_results)
     print_static_analysis_summary(eval_results)
-    
+
     return eval_results
 
 
@@ -160,12 +144,12 @@ def save_static_analysis_results(results: Dict[str, Any]) -> None:
     """Save static analysis results to a JSON file."""
     output_dir = PROJECT_ROOT / "evals/artifacts/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     output_file = output_dir / "static_analysis_eval.json"
-    
-    with open(output_file, 'w') as f:
+
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
-    
+
     logger.info(f"Results saved to {output_file}")
 
 
@@ -174,46 +158,46 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
     logger.info("STATIC ANALYSIS PERFORMANCE EVALUATION SUMMARY")
     logger.info(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")
     logger.info(f"Timestamp: {results['timestamp']}")
-    
-    for project in results['projects']:
+
+    for project in results["projects"]:
         logger.info(f"Project: {project['project']} ({project['url']})")
         logger.info(f"Expected Language: {project.get('expected_language', 'Unknown')}")
         logger.info(f"Total Time: {project.get('total_time_seconds', 0):.2f}s")
-        
-        if project['success']:
-            metrics = project.get('metrics', {})
-            timing = metrics.get('timing', {})
-            errors = metrics.get('errors', {})
-            
+
+        if project["success"]:
+            metrics = project.get("metrics", {})
+            timing = metrics.get("timing", {})
+            errors = metrics.get("errors", {})
+
             logger.info("✅ SUCCESS")
             logger.info(f"  Scanner time: {timing.get('scanner', 0):.2f}s")
-            
+
             for lang, time_taken in timing.items():
-                if lang != 'scanner':
-                    file_count = errors.get(lang, {}).get('total_files', 0)
-                    error_count = errors.get(lang, {}).get('errors', 0)
+                if lang != "scanner":
+                    file_count = errors.get(lang, {}).get("total_files", 0)
+                    error_count = errors.get(lang, {}).get("errors", 0)
                     logger.info(f"  {lang} analysis: {time_taken:.2f}s ({file_count} files, {error_count} errors)")
         else:
             logger.error("❌ FAILED")
             logger.error(f"  Error: {project.get('error', 'Unknown error')}")
-    
+
     # Calculate totals
     total_files = 0
     total_errors = 0
     total_analysis_time = 0
-    
-    for project in results['projects']:
-        if project['success']:
-            metrics = project.get('metrics', {})
-            timing = metrics.get('timing', {})
-            errors = metrics.get('errors', {})
-            
+
+    for project in results["projects"]:
+        if project["success"]:
+            metrics = project.get("metrics", {})
+            timing = metrics.get("timing", {})
+            errors = metrics.get("errors", {})
+
             for lang, time_taken in timing.items():
-                if lang != 'scanner':
+                if lang != "scanner":
                     total_analysis_time += time_taken
-                    total_files += errors.get(lang, {}).get('total_files', 0)
-                    total_errors += errors.get(lang, {}).get('errors', 0)
-    
+                    total_files += errors.get(lang, {}).get("total_files", 0)
+                    total_errors += errors.get(lang, {}).get("errors", 0)
+
     logger.info("TOTALS:")
     logger.info(f"  Total analysis time: {total_analysis_time:.2f}s")
     logger.info(f"  Total files processed: {total_files}")
@@ -223,17 +207,17 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
 
 def main():
     """Main evaluation function."""
-    
+
     # Setup environment variables if not set
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
-    
+
     logger.info("CodeBoarding Static Analysis Performance Evaluation")
     logger.info("Testing static analysis performance on:")
     logger.info("  - markitdown (Python)")
     logger.info("  - tsoa (TypeScript)")
     logger.info("  - cobra (Go)")
-    
+
     try:
         results = run_static_analysis_eval()
         # Write standalone markdown report (no SECURITY.md)
