@@ -20,17 +20,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 from evals.report_generator import generate_header, generate_static_section, write_report
-from diagram_analysis import DiagramGenerator
 from repo_utils import clone_repository
+from static_analyzer import StaticAnalyzer
 from utils import create_temp_repo_folder, remove_temp_repo_folder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get project root from environment variable
+# Get project root from environment variable with fallback to repo root
 load_dotenv()
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT") or Path(__file__).parent.parent)
 
 
 def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, Any]:
@@ -51,22 +51,26 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
         
         logger.info(f"Repository cloned to {repo_path}")
         
-        # Run only static analysis (not full pipeline)
-        generator = DiagramGenerator(
-            repo_location=repo_path,
-            temp_folder=temp_folder,
-            repo_name=repo_name,
-            output_dir=temp_folder,
-            depth_level=1
-        )
+        # Run static analysis directly
+        analyzer = StaticAnalyzer(repo_path)
+        static_analysis = analyzer.analyze()
         
-        # Just run static analysis, not full generation
-        static_analysis = generator.generate_static_analysis()
+        metrics = analyzer.performance_metrics or {}
         
-        # Get the metrics that were collected
-        metrics = getattr(generator, 'static_analysis_metrics', {})
+        if not metrics or not metrics.get('errors'):
+            metrics.setdefault('timing', {})
+            metrics.setdefault('file_counts', {})
+            metrics.setdefault('errors', {})
+            
+            for language in static_analysis.get_languages():
+                source_files = static_analysis.get_source_files(language)
+                file_data = {
+                    'total_files': len(source_files),
+                    'errors': sum(1 for f in source_files if hasattr(f, 'error') and f.error) if source_files else 0
+                }
+                metrics['errors'][language] = file_data
+                metrics['file_counts'][language] = file_data
         
-        # Calculate total time for this project
         project_total_time = time.time() - project_start_time
         
         logger.info(f"Static analysis completed for {project_name}")
@@ -188,11 +192,11 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
             logger.info("✅ SUCCESS")
             logger.info(f"  Scanner time: {timing.get('scanner', 0):.2f}s")
             
-            for lang, time_taken in timing.items():
-                if lang != 'scanner':
-                    file_count = errors.get(lang, {}).get('total_files', 0)
-                    error_count = errors.get(lang, {}).get('errors', 0)
-                    logger.info(f"  {lang} analysis: {time_taken:.2f}s ({file_count} files, {error_count} errors)")
+            for lang, file_data in errors.items():
+                time_taken = timing.get(lang, 0)
+                file_count = file_data.get('total_files', 0)
+                error_count = file_data.get('errors', 0)
+                logger.info(f"  {lang} analysis: {time_taken:.2f}s ({file_count} files, {error_count} errors)")
         else:
             logger.error("❌ FAILED")
             logger.error(f"  Error: {project.get('error', 'Unknown error')}")
@@ -208,11 +212,10 @@ def print_static_analysis_summary(results: Dict[str, Any]) -> None:
             timing = metrics.get('timing', {})
             errors = metrics.get('errors', {})
             
-            for lang, time_taken in timing.items():
-                if lang != 'scanner':
-                    total_analysis_time += time_taken
-                    total_files += errors.get(lang, {}).get('total_files', 0)
-                    total_errors += errors.get(lang, {}).get('errors', 0)
+            for lang, file_data in errors.items():
+                total_analysis_time += timing.get(lang, 0)
+                total_files += file_data.get('total_files', 0)
+                total_errors += file_data.get('errors', 0)
     
     logger.info("TOTALS:")
     logger.info(f"  Total analysis time: {total_analysis_time:.2f}s")
@@ -227,6 +230,9 @@ def main():
     # Setup environment variables if not set
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
+    
+    # Enable monitoring for this eval
+    os.environ["ENABLE_MONITORING"] = "true"
     
     logger.info("CodeBoarding Static Analysis Performance Evaluation")
     logger.info("Testing static analysis performance on:")

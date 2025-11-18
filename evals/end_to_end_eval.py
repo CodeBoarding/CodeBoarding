@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# Get project root from environment variable
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+# Get project root from environment variable with fallback to repo root
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT") or Path(__file__).parent.parent)
 
 
 def read_monitoring_results(project_name: str) -> Dict[str, Any]:
