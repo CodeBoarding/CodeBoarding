@@ -30,7 +30,7 @@ from agents.tools import (
 )
 from agents.tools.external_deps import ExternalDepsTool
 from agents.tools.read_docs import ReadDocsTool
-from agents.monitoring import MonitoringCallback
+from monitoring.agent import MonitoringCallback
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 

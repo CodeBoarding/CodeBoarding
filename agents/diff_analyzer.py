@@ -8,7 +8,7 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
 from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
-from agents.monitoring import monitoring
+from monitoring.agent import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)

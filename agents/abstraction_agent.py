@@ -21,7 +21,7 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from agents.monitoring import monitoring
+from monitoring.agent import monitoring
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
