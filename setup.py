@@ -40,12 +40,12 @@ def check_npm():
 
     if npm_path:
         try:
-            result = subprocess.run(["npm", "--version"], capture_output=True, text=True, check=True)
+            result = subprocess.run([npm_path, "--version"], capture_output=True, text=True, check=True)
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
-        except Exception:
+        except Exception as e:
             print(
-                "Step: npm check finished: failure - npm command failed. Skipping TypeScript Language Server installation."
+                f"Step: npm check finished: failure - npm command failed ({e}). Skipping Language Servers installation."
             )
             return False
     else:
@@ -54,9 +54,9 @@ def check_npm():
         return False
 
 
-def install_typescript_language_server():
-    """Install TypeScript Language Server using npm in the servers directory."""
-    print("Step: TypeScript Language Server installation started")
+def install_node_servers():
+    """Install Node.js based servers (TypeScript, Pyright) using npm in the servers directory."""
+    print("Step: Node.js servers installation started")
 
     servers_dir = Path("static_analyzer/servers")
     servers_dir.mkdir(parents=True, exist_ok=True)
@@ -66,29 +66,45 @@ def install_typescript_language_server():
         # Change to the servers directory
         os.chdir(servers_dir)
 
-        # Initialize package.json if it doesn't exist
-        if not Path("package.json").exists():
-            subprocess.run(["npm", "init", "-y"], check=True, capture_output=True, text=True)
+        npm_path = shutil.which("npm")
 
-        # Install typescript-language-server and typescript
-        subprocess.run(
-            ["npm", "install", "typescript-language-server", "typescript"], check=True, capture_output=True, text=True
-        )
+        if npm_path:
+            # Initialize package.json if it doesn't exist
+            if not Path("package.json").exists():
+                subprocess.run([npm_path, "init", "-y"], check=True, capture_output=True, text=True)
+
+            # Install typescript-language-server, typescript, and pyright
+            subprocess.run(
+                [npm_path, "install", "typescript-language-server", "typescript", "pyright"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
         # Verify the installation
         ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
+        py_lsp_path = Path("./node_modules/.bin/pyright-langserver")
+
+        success = True
         if ts_lsp_path.exists():
             print("Step: TypeScript Language Server installation finished: success")
         else:
             print("Step: TypeScript Language Server installation finished: warning - Binary not found")
+            success = False
 
-        return True
+        if py_lsp_path.exists():
+            print("Step: Pyright Language Server installation finished: success")
+        else:
+            print("Step: Pyright Language Server installation finished: warning - Binary not found")
+            success = False
+
+        return success
 
     except subprocess.CalledProcessError as e:
-        print(f"Step: TypeScript Language Server installation finished: failure - {e}")
+        print(f"Step: Node.js servers installation finished: failure - {e}")
         return False
     except Exception as e:
-        print(f"Step: TypeScript Language Server installation finished: failure - {e}")
+        print(f"Step: Node.js servers installation finished: failure - {e}")
         return False
     finally:
         # Always return to original directory
@@ -99,23 +115,30 @@ def download_file_from_gdrive(file_id, destination):
     """Download a file from Google Drive with proper handling of large files."""
     import requests
 
-    # First try direct download
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
-
     session = requests.Session()
-    response = session.get(url, stream=True)
 
-    # Check if we need to handle the download confirmation
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            token = value
-            break
+    # Try the new download URL format with confirmation
+    url = "https://drive.usercontent.google.com/download"
+    params = {"id": file_id, "export": "download", "confirm": "t"}
 
-    if token:
-        # Handle large file download confirmation
-        params = {"id": file_id, "confirm": token}
-        response = session.get(url, params=params, stream=True)
+    response = session.get(url, params=params, stream=True)
+
+    # If that didn't work, try the old method
+    if response.status_code != 200:
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        response = session.get(url, stream=True)
+
+        # Check if we need to handle the download confirmation
+        token = None
+        for key, value in response.cookies.items():
+            if key.startswith("download_warning"):
+                token = value
+                break
+
+        if token:
+            # Handle large file download confirmation
+            params = {"id": file_id, "confirm": token}
+            response = session.get(url, params=params, stream=True)
 
     # Save the file
     with open(destination, "wb") as f:
@@ -132,17 +155,14 @@ def download_binary_from_gdrive():
 
     # File IDs extracted from your share links
     mac_files = {
-        "py-lsp": "1a8FaSGq27dyrN5yrKKMOWqfm3H8BK9Zf",
         "tokei": "1IKJSB7DHXAFZZQfwGOt6LypVUDlCQTLc",
         "gopls": "1gROk7g88qNDg7eGWqtzOVqitktUXA65c",
     }
     win_files = {
-        "py-lsp": "1XKRsteNhUpu2eGhkYqRhXDvJYGhBpV01",
         "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK",
         "gopls": "162AdxaSb58IPNv_vvqTWUTtZJIo8Xrf_",
     }
     linux_files = {
-        "py-lsp": "17XcohKWZKHv26DgRIdrxcPRMN0LKyt0i",
         "tokei": "1Wbx3bK0j-5c-hTJCfPcd86jqfQY0JsvF",
         "gopls": "1MYlJiT2fOb9aIQnlB7jRCE6cxQ5_71U2",
     }
@@ -219,14 +239,19 @@ def update_static_analysis_config():
 
     updates = 0
 
-    # Update Python LSP server path
-    py_lsp_path = servers_dir / "py-lsp"
-    if py_lsp_path.exists():
-        config["lsp_servers"]["python"]["command"][0] = str(py_lsp_path)
+    # Update Python LSP server path (using pyright from node_modules)
+    pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver"
+    # On Windows, use .cmd files; on Unix, use the shell scripts
+    if platform.system() == "Windows":
+        pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver.cmd"
+    if pyright_path.exists():
+        config["lsp_servers"]["python"]["command"][0] = str(pyright_path)
         updates += 1
 
     # Update TypeScript Language Server path
     ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
+    if platform.system() == "Windows":
+        ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server.cmd"
     if ts_lsp_path.exists():
         config["lsp_servers"]["typescript"]["command"][0] = str(ts_lsp_path)
         updates += 1
@@ -336,12 +361,12 @@ if __name__ == "__main__":
     # Step 1: Validate uv environment
     check_uv_environment()
 
-    # Step 2: Check for npm and install TypeScript Language Server if available
+    # Step 2: Check for npm and install Node.js based servers if available
     npm_available = check_npm()
     if npm_available:
-        install_typescript_language_server()
+        install_node_servers()
 
-    # Step 3: Download binary from Google Drive (fallback if npm installation failed)
+    # Step 3: Download binary from Google Drive
     download_binary_from_gdrive()
 
     # Step 4: Update configuration file with absolute paths
