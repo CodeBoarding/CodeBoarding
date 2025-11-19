@@ -35,7 +35,7 @@ class ReferenceResolverMixin(abc.ABC):
 
     def _resolve_single_reference(self, reference, assigned_files):
         """Orchestrates different resolution strategies for a single reference."""
-        qname = reference.qualified_name.replace("/", ".")
+        qname = reference.qualified_name.replace(os.sep, ".")
 
         for lang in self.static_analysis.get_languages():
             # Try exact match first
@@ -97,7 +97,7 @@ class ReferenceResolverMixin(abc.ABC):
 
     def _try_existing_reference_file(self, reference, lang):
         """Tries to resolve using existing reference file path."""
-        if (reference.reference_file is not None) and (not reference.reference_file.startswith("/")):
+        if (reference.reference_file is not None) and (not Path(reference.reference_file).is_absolute()):
             joined_path = os.path.join(self.repo_dir, reference.reference_file)
             if os.path.exists(joined_path):
                 reference.reference_file = joined_path
@@ -111,9 +111,9 @@ class ReferenceResolverMixin(abc.ABC):
 
     def _try_qualified_name_as_path(self, reference, qname, lang):
         """Tries to resolve qualified name as various file path patterns."""
-        file_path = qname.replace(".", "/")  # Get file path
+        file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
-        file_ref = ".".join(full_path.rsplit("/", 1))
+        file_ref = ".".join(full_path.rsplit(os.sep, 1))
         paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
 
         for path in paths:
