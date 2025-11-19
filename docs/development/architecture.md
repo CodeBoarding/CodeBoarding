@@ -185,6 +185,7 @@ graph LR
     Orchestration_Engine_Agent_Core_ -- "updates" --> Job_Management_Persistence
     Job_Management_Persistence -- "stores/retrieves" --> Analysis_Data
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
+    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
@@ -213,7 +214,7 @@ Manages the lifecycle and state of analysis jobs, including their initiation, pr
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.DuckDBCRUD`</a>
 
 
-### Static Analysis Engine
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
 Performs in-depth static code analysis on the provided codebase, extracting structural, syntactical, and semantic information without executing the code. It provides raw findings to the Orchestration Engine.
 
 
@@ -310,42 +311,66 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 ```mermaid
 graph LR
-    Orchestration_Engine["Orchestration Engine"]
-    Repository_Manager["Repository Manager"]
-    Static_Analysis_Engine["Static Analysis Engine"]
+    Setup_and_Configuration_Manager["Setup and Configuration Manager"]
     Unclassified["Unclassified"]
-    Orchestration_Engine -- "instructs to clone or fetch repositories" --> Repository_Manager
-    Repository_Manager -- "provides access to source code" --> Static_Analysis_Engine
-    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+    Orchestration_Engine -- "initiates" --> Setup_and_Configuration_Manager
+    Setup_and_Configuration_Manager -- "installs/configures dependencies for" --> Static_Analysis_Engine
+    Orchestration_Engine -- "instructs" --> Repository_Manager
+    Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "returns analysis results to" --> Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around three core components: the Orchestration Engine, the Repository Manager, and the Static Analysis Engine. The Orchestration Engine acts as the central coordinator, initiating and managing the overall analysis workflow. It instructs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates, and managing temporary repository folders. Once the source code is available, the Repository Manager provides access to it for the Static Analysis Engine. The Static Analysis Engine then performs a detailed examination of the code, generating analysis results that can be used for various downstream tasks. This clear separation of concerns ensures a modular and maintainable system, with each component focusing on its specialized functionality.
+The system is orchestrated by the Orchestration Engine, which manages the entire analysis workflow. Before any code analysis begins, the Orchestration Engine delegates to the Setup and Configuration Manager to prepare the environment by installing essential language servers (e.g., Pyright, TypeScript Language Server) and static analysis tools (e.g., Tokei, Gopls), and configuring their paths. Once the environment is ready, the Orchestration Engine directs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates. The Repository Manager then provides the retrieved source code to the Static Analysis Engine, which performs in-depth code analysis using the pre-configured tools and language servers. This modular architecture ensures a clear separation of concerns, enabling efficient setup, repository management, and static code analysis.
 
-### Orchestration Engine
-The Orchestration Engine serves as the central control unit, managing the overall workflow of the analysis process. It initiates tasks such as cloning repositories, triggering static analysis, and coordinating the activities of other components. Its primary responsibility is to ensure the smooth and efficient execution of the entire system, from input to output.
-
-
-**Related Classes/Methods**: _None_
-
-### Repository Manager [[Expand]](./Repository_Manager.md)
-The Repository Manager is a crucial component responsible for all interactions with code repositories. Its primary functions include cloning repositories, fetching updates, and providing a standardized interface for other components to access the source code. It also manages the lifecycle of temporary repository folders, ensuring they are created and removed as needed during the analysis process. This component isolates the complexities of version control systems and file system operations from the core analysis logic.
+### Setup and Configuration Manager
+responsible for preparing the environment and configuring external tools and language servers that are essential for the Static Analysis Engine.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L17-L21" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`:17-21</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L24-L28" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`:24-28</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_uv_environment`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_npm`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`install_node_servers`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`download_binary_from_gdrive`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`update_static_analysis_config`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`init_dot_env_file`</a>
 
 
-### Static Analysis Engine
-The Static Analysis Engine is responsible for performing in-depth analysis of the source code provided by the Repository Manager. It processes the code to identify patterns, dependencies, and potential issues without executing the code. This component generates structured analysis results that can be used for various purposes, such as documentation generation or code quality assessment.
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
 
 
 **Related Classes/Methods**: _None_
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    Scanner["Scanner"]
+    Unclassified["Unclassified"]
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+The static analysis subsystem is designed around two core components: the `Static Analysis Engine (Orchestrator)` and the `Scanner`. The `Static Analysis Engine` acts as the central coordinator, managing the overall flow of static analysis tasks. It initiates the process by utilizing the `Scanner` component. The `Scanner`, implemented by the `ProjectScanner` class in `static_analyzer/scanner.py`, is responsible for the initial codebase assessment, identifying programming languages and their key metrics. The results from the `Scanner` are then provided back to the `Static Analysis Engine`, which uses this information to guide subsequent, more detailed analysis phases. This clear separation of concerns ensures that the initial code discovery is distinct from the overarching orchestration of the analysis process.
+
+### Scanner
+The Scanner is a core internal component responsible for the initial parsing of source code. It extracts fundamental structural elements, tokenizes the input, and prepares the code for deeper analysis, serving as the first step in generating ASTs and CFGs.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`</a>
+
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
@@ -364,18 +389,23 @@ graph LR
     Job_Management["Job Management"]
     Documentation_Generation["Documentation Generation"]
     Temporary_Repository_Manager["Temporary Repository Manager"]
+    Static_Analysis_Tools["Static Analysis Tools"]
+    Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Job_Management
     API_Service -- "dispatches tasks to" --> Documentation_Generation
     Job_Management -- "provides job status and results to" --> API_Service
     Documentation_Generation -- "interacts with" --> Temporary_Repository_Manager
+    Documentation_Generation -- "leverages" --> Static_Analysis_Tools
+    Documentation_Generation -- "reads configuration from" --> Configuration_Manager
+    Static_Analysis_Tools -- "are configured by" --> Configuration_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The CodeBoarding system is structured around an `API Service` that acts as the primary interface for users to generate architectural documentation and diagrams from GitHub repositories. This service, built with FastAPI, handles job creation and status retrieval, offloading the computationally intensive `Documentation Generation` process to asynchronous background tasks. A `Job Management` component is responsible for persisting job states and results, ensuring reliable tracking of each documentation request. During the `Documentation Generation` phase, a `Temporary Repository Manager` is utilized to handle the cloning and cleanup of repository data, isolating the generation process and maintaining system cleanliness. This architecture ensures a responsive user experience while efficiently managing resource-intensive analysis tasks.
+The system is centered around an API Service that handles user requests and orchestrates Job Management for documentation generation tasks. The Documentation Generation component, a core processing unit, performs code analysis and documentation creation. It relies on a Temporary Repository Manager for handling temporary files and repositories. Crucially, the Documentation Generation component now leverages a suite of Static Analysis Tools (including TypeScript Language Server, Pyright, tokei, and gopls) and is configured through a Configuration Manager that manages static_analysis_config.yml and .env files, ensuring the correct setup and operation of the analysis tools and LLM integrations.
 
 ### API Service
 Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
@@ -398,7 +428,7 @@ Manages the persistence and state transitions of documentation generation jobs (
 
 
 ### Documentation Generation
-Executes the core logic of cloning repositories, analyzing code, and generating documentation files.
+Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.
 
 
 **Related Classes/Methods**:
@@ -413,7 +443,28 @@ Handles the creation and cleanup of temporary directories used for cloning repos
 
 **Related Classes/Methods**:
 
-- `manage_temp_repo`
+- `manage_temp_repo`:1-10
+
+
+### Static Analysis Tools
+Provides language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analysis_config.yml" target="_blank" rel="noopener noreferrer">`static_analysis_config.yml`</a>
+
+
+### Configuration Manager
+Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through static_analysis_config.yml and .env files.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analysis_config.yml" target="_blank" rel="noopener noreferrer">`static_analysis_config.yml`</a>
+- `.env`
 
 
 ### Unclassified
@@ -438,6 +489,7 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
+    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
     Orchestration_Engine_Agent_Core_ -- "Requests Codebase" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
@@ -453,6 +505,7 @@ graph LR
     click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
@@ -493,7 +546,7 @@ Handles all interactions with code repositories, including cloning, fetching, an
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`</a>
 
 
-### Static Analysis Engine
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
 Performs in-depth static analysis on the source code to extract structural information such as Control Flow Graphs (CFGs) and Abstract Syntax Trees (ASTs).
 
 
@@ -539,6 +592,12 @@ Refines the structured output into a diagram-specific format (e.g., Mermaid.js s
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

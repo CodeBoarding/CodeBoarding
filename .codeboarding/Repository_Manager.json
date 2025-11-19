@@ -1,43 +1,52 @@
 {
-  "description": "The system's architecture is centered around three core components: the Orchestration Engine, the Repository Manager, and the Static Analysis Engine. The Orchestration Engine acts as the central coordinator, initiating and managing the overall analysis workflow. It instructs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates, and managing temporary repository folders. Once the source code is available, the Repository Manager provides access to it for the Static Analysis Engine. The Static Analysis Engine then performs a detailed examination of the code, generating analysis results that can be used for various downstream tasks. This clear separation of concerns ensures a modular and maintainable system, with each component focusing on its specialized functionality.",
+  "description": "The system is orchestrated by the Orchestration Engine, which manages the entire analysis workflow. Before any code analysis begins, the Orchestration Engine delegates to the Setup and Configuration Manager to prepare the environment by installing essential language servers (e.g., Pyright, TypeScript Language Server) and static analysis tools (e.g., Tokei, Gopls), and configuring their paths. Once the environment is ready, the Orchestration Engine directs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates. The Repository Manager then provides the retrieved source code to the Static Analysis Engine, which performs in-depth code analysis using the pre-configured tools and language servers. This modular architecture ensures a clear separation of concerns, enabling efficient setup, repository management, and static code analysis.",
   "components": [
     {
-      "name": "Orchestration Engine",
-      "description": "The Orchestration Engine serves as the central control unit, managing the overall workflow of the analysis process. It initiates tasks such as cloning repositories, triggering static analysis, and coordinating the activities of other components. Its primary responsibility is to ensure the smooth and efficient execution of the entire system, from input to output.",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Repository Manager",
-      "description": "The Repository Manager is a crucial component responsible for all interactions with code repositories. Its primary functions include cloning repositories, fetching updates, and providing a standardized interface for other components to access the source code. It also manages the lifecycle of temporary repository folders, ensuring they are created and removed as needed during the analysis process. This component isolates the complexities of version control systems and file system operations from the core analysis logic.",
+      "name": "Setup and Configuration Manager",
+      "description": "responsible for preparing the environment and configuring external tools and language servers that are essential for the Static Analysis Engine.",
       "referenced_source_code": [
         {
-          "qualified_name": "utils.create_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 17,
-          "reference_end_line": 21
+          "qualified_name": "check_uv_environment",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         },
         {
-          "qualified_name": "utils.remove_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 24,
-          "reference_end_line": 28
+          "qualified_name": "check_npm",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "install_node_servers",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "download_binary_from_gdrive",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "update_static_analysis_config",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "init_dot_env_file",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../utils.py",
-        "../../utils.py",
-        "../../repo_utils/git_diff.py"
+        "../../setup.py",
+        "../../utils.py"
       ],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "The Static Analysis Engine is responsible for performing in-depth analysis of the source code provided by the Repository Manager. It processes the code to identify patterns, dependencies, and potential issues without executing the code. This component generates structured analysis results that can be used for various purposes, such as documentation generation or code quality assessment.",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Unclassified",
@@ -45,6 +54,7 @@
       "referenced_source_code": [],
       "assigned_files": [
         "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py",
         "../../repo_utils/errors.py"
       ],
       "can_expand": false
@@ -52,14 +62,29 @@
   ],
   "components_relations": [
     {
-      "relation": "instructs to clone or fetch repositories",
+      "relation": "initiates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Setup and Configuration Manager"
+    },
+    {
+      "relation": "installs/configures dependencies for",
+      "src_name": "Setup and Configuration Manager",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "instructs",
       "src_name": "Orchestration Engine",
       "dst_name": "Repository Manager"
     },
     {
-      "relation": "provides access to source code",
+      "relation": "provides source code to",
       "src_name": "Repository Manager",
       "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "returns analysis results to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Orchestration Engine"
     }
   ]
 }

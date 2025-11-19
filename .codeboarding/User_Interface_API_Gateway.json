@@ -1,5 +1,5 @@
 {
-  "description": "The CodeBoarding system is structured around an `API Service` that acts as the primary interface for users to generate architectural documentation and diagrams from GitHub repositories. This service, built with FastAPI, handles job creation and status retrieval, offloading the computationally intensive `Documentation Generation` process to asynchronous background tasks. A `Job Management` component is responsible for persisting job states and results, ensuring reliable tracking of each documentation request. During the `Documentation Generation` phase, a `Temporary Repository Manager` is utilized to handle the cloning and cleanup of repository data, isolating the generation process and maintaining system cleanliness. This architecture ensures a responsive user experience while efficiently managing resource-intensive analysis tasks.",
+  "description": "The system is centered around an API Service that handles user requests and orchestrates Job Management for documentation generation tasks. The Documentation Generation component, a core processing unit, performs code analysis and documentation creation. It relies on a Temporary Repository Manager for handling temporary files and repositories. Crucially, the Documentation Generation component now leverages a suite of Static Analysis Tools (including TypeScript Language Server, Pyright, tokei, and gopls) and is configured through a Configuration Manager that manages static_analysis_config.yml and .env files, ensuring the correct setup and operation of the analysis tools and LLM integrations.",
   "components": [
     {
       "name": "API Service",
@@ -8,8 +8,8 @@
         {
           "qualified_name": "local_app.app",
           "reference_file": "local_app.py",
-          "reference_start_line": 46,
-          "reference_end_line": 46
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
@@ -41,11 +41,11 @@
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Documentation Generation",
-      "description": "Executes the core logic of cloning repositories, analyzing code, and generating documentation files.",
+      "description": "Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.",
       "referenced_source_code": [
         {
           "qualified_name": "generate_onboarding",
@@ -70,6 +70,52 @@
         {
           "qualified_name": "manage_temp_repo",
           "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Static Analysis Tools",
+      "description": "Provides language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "setup.py",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analysis_config.yml",
+          "reference_file": "static_analysis_config.yml",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Configuration Manager",
+      "description": "Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through static_analysis_config.yml and .env files.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "setup.py",
+          "reference_file": "setup.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analysis_config.yml",
+          "reference_file": "static_analysis_config.yml",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": ".env",
+          "reference_file": ".env",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -105,6 +151,21 @@
       "relation": "interacts with",
       "src_name": "Documentation Generation",
       "dst_name": "Temporary Repository Manager"
+    },
+    {
+      "relation": "leverages",
+      "src_name": "Documentation Generation",
+      "dst_name": "Static Analysis Tools"
+    },
+    {
+      "relation": "reads configuration from",
+      "src_name": "Documentation Generation",
+      "dst_name": "Configuration Manager"
+    },
+    {
+      "relation": "are configured by",
+      "src_name": "Static Analysis Tools",
+      "dst_name": "Configuration Manager"
     }
   ]
 }

@@ -33,6 +33,7 @@
         "agents/planner_agent.py",
         "agents/meta_agent.py",
         "agents/monitoring.py",
+        "agents/agent_responses.py",
         "agents/agent.py"
       ],
       "can_expand": true
@@ -55,6 +56,7 @@
         }
       ],
       "assigned_files": [
+        "utils.py",
         "repo_utils/__init__.py",
         "repo_utils/git_diff.py",
         "repo_utils/errors.py"
@@ -84,7 +86,7 @@
         "static_analyzer/lsp_client/typescript_client.py",
         "static_analyzer/lsp_client/client.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "LLM Prompt Factory",
@@ -132,7 +134,6 @@
         "agents/details_agent.py",
         "agents/validator_agent.py",
         "agents/abstraction_agent.py",
-        "agents/agent_responses.py",
         "agents/tools/read_source.py",
         "agents/tools/read_file_structure.py",
         "agents/tools/__init__.py",
@@ -201,7 +202,6 @@
       "assigned_files": [
         "vscode_constants.py",
         "vscode_runnable.py",
-        "utils.py",
         "setup.py",
         "github_action.py",
         "demo.py",
@@ -212,6 +212,13 @@
         "evals/run_all_evals.py",
         "evals/report_generator.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
       "can_expand": false
     }
   ],

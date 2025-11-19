@@ -4,18 +4,23 @@ graph LR
     Job_Management["Job Management"]
     Documentation_Generation["Documentation Generation"]
     Temporary_Repository_Manager["Temporary Repository Manager"]
+    Static_Analysis_Tools["Static Analysis Tools"]
+    Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Job_Management
     API_Service -- "dispatches tasks to" --> Documentation_Generation
     Job_Management -- "provides job status and results to" --> API_Service
     Documentation_Generation -- "interacts with" --> Temporary_Repository_Manager
+    Documentation_Generation -- "leverages" --> Static_Analysis_Tools
+    Documentation_Generation -- "reads configuration from" --> Configuration_Manager
+    Static_Analysis_Tools -- "are configured by" --> Configuration_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The CodeBoarding system is structured around an `API Service` that acts as the primary interface for users to generate architectural documentation and diagrams from GitHub repositories. This service, built with FastAPI, handles job creation and status retrieval, offloading the computationally intensive `Documentation Generation` process to asynchronous background tasks. A `Job Management` component is responsible for persisting job states and results, ensuring reliable tracking of each documentation request. During the `Documentation Generation` phase, a `Temporary Repository Manager` is utilized to handle the cloning and cleanup of repository data, isolating the generation process and maintaining system cleanliness. This architecture ensures a responsive user experience while efficiently managing resource-intensive analysis tasks.
+The system is centered around an API Service that handles user requests and orchestrates Job Management for documentation generation tasks. The Documentation Generation component, a core processing unit, performs code analysis and documentation creation. It relies on a Temporary Repository Manager for handling temporary files and repositories. Crucially, the Documentation Generation component now leverages a suite of Static Analysis Tools (including TypeScript Language Server, Pyright, tokei, and gopls) and is configured through a Configuration Manager that manages static_analysis_config.yml and .env files, ensuring the correct setup and operation of the analysis tools and LLM integrations.
 
 ### API Service
 Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
@@ -38,7 +43,7 @@ Manages the persistence and state transitions of documentation generation jobs (
 
 
 ### Documentation Generation
-Executes the core logic of cloning repositories, analyzing code, and generating documentation files.
+Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.
 
 
 **Related Classes/Methods**:
@@ -53,7 +58,28 @@ Handles the creation and cleanup of temporary directories used for cloning repos
 
 **Related Classes/Methods**:
 
-- `manage_temp_repo`
+- `manage_temp_repo`:1-10
+
+
+### Static Analysis Tools
+Provides language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analysis_config.yml" target="_blank" rel="noopener noreferrer">`static_analysis_config.yml`</a>
+
+
+### Configuration Manager
+Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through static_analysis_config.yml and .env files.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analysis_config.yml" target="_blank" rel="noopener noreferrer">`static_analysis_config.yml`</a>
+- `.env`
 
 
 ### Unclassified

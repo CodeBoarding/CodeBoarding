@@ -1,41 +1,33 @@
 ```mermaid
 graph LR
-    Orchestration_Engine["Orchestration Engine"]
-    Repository_Manager["Repository Manager"]
-    Static_Analysis_Engine["Static Analysis Engine"]
+    Setup_and_Configuration_Manager["Setup and Configuration Manager"]
     Unclassified["Unclassified"]
-    Orchestration_Engine -- "instructs to clone or fetch repositories" --> Repository_Manager
-    Repository_Manager -- "provides access to source code" --> Static_Analysis_Engine
-    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+    Orchestration_Engine -- "initiates" --> Setup_and_Configuration_Manager
+    Setup_and_Configuration_Manager -- "installs/configures dependencies for" --> Static_Analysis_Engine
+    Orchestration_Engine -- "instructs" --> Repository_Manager
+    Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "returns analysis results to" --> Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around three core components: the Orchestration Engine, the Repository Manager, and the Static Analysis Engine. The Orchestration Engine acts as the central coordinator, initiating and managing the overall analysis workflow. It instructs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates, and managing temporary repository folders. Once the source code is available, the Repository Manager provides access to it for the Static Analysis Engine. The Static Analysis Engine then performs a detailed examination of the code, generating analysis results that can be used for various downstream tasks. This clear separation of concerns ensures a modular and maintainable system, with each component focusing on its specialized functionality.
+The system is orchestrated by the Orchestration Engine, which manages the entire analysis workflow. Before any code analysis begins, the Orchestration Engine delegates to the Setup and Configuration Manager to prepare the environment by installing essential language servers (e.g., Pyright, TypeScript Language Server) and static analysis tools (e.g., Tokei, Gopls), and configuring their paths. Once the environment is ready, the Orchestration Engine directs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates. The Repository Manager then provides the retrieved source code to the Static Analysis Engine, which performs in-depth code analysis using the pre-configured tools and language servers. This modular architecture ensures a clear separation of concerns, enabling efficient setup, repository management, and static code analysis.
 
-### Orchestration Engine
-The Orchestration Engine serves as the central control unit, managing the overall workflow of the analysis process. It initiates tasks such as cloning repositories, triggering static analysis, and coordinating the activities of other components. Its primary responsibility is to ensure the smooth and efficient execution of the entire system, from input to output.
-
-
-**Related Classes/Methods**: _None_
-
-### Repository Manager [[Expand]](./Repository_Manager.md)
-The Repository Manager is a crucial component responsible for all interactions with code repositories. Its primary functions include cloning repositories, fetching updates, and providing a standardized interface for other components to access the source code. It also manages the lifecycle of temporary repository folders, ensuring they are created and removed as needed during the analysis process. This component isolates the complexities of version control systems and file system operations from the core analysis logic.
+### Setup and Configuration Manager
+responsible for preparing the environment and configuring external tools and language servers that are essential for the Static Analysis Engine.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L17-L21" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`:17-21</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L24-L28" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`:24-28</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_uv_environment`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_npm`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`install_node_servers`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`download_binary_from_gdrive`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`update_static_analysis_config`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`init_dot_env_file`</a>
 
-
-### Static Analysis Engine
-The Static Analysis Engine is responsible for performing in-depth analysis of the source code provided by the Repository Manager. It processes the code to identify patterns, dependencies, and potential issues without executing the code. This component generates structured analysis results that can be used for various purposes, such as documentation generation or code quality assessment.
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
