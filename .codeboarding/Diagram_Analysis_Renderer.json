@@ -1,0 +1,101 @@
+{
+  "description": "The diagram_analysis subsystem is centered around the DiagramGenerator, which acts as the primary orchestrator for generating architectural insights. It initiates and manages a suite of Analysis Agents, each specialized in a particular aspect of code analysis, such as metadata extraction, detailed component examination, abstraction, and validation. These agents rely on the StaticAnalyzer to obtain fundamental structural information about the codebase. The DiagramGenerator coordinates the parallel execution of these agents across different levels of architectural depth, iteratively refining the analysis based on feedback. The final output of this orchestrated process is a set of structured Analysis Files, which serve as a persistent record of the derived architectural components and their relationships, ready for consumption by documentation or visualization tools.",
+  "components": [
+    {
+      "name": "DiagramGenerator",
+      "description": "This is the core orchestrator of the architectural analysis process. It initializes, configures, and coordinates various specialized Analysis Agents to perform a multi-stage analysis of the codebase. It manages the parallel execution of component analysis, applies feedback for iterative refinement, and ultimately persists the generated architectural insights into structured Analysis Files.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py",
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Agents",
+      "description": "This component represents a collection of intelligent agents (MetaAgent, DetailsAgent, AbstractionAgent, PlannerAgent, ValidatorAgent, DiffAnalyzingAgent) that perform specific tasks within the analysis pipeline. They are responsible for gathering project metadata, conducting detailed code analysis, abstracting architectural components, planning subsequent analysis steps, validating the accuracy of the analysis, and managing incremental updates based on code changes.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "StaticAnalyzer",
+      "description": "Provides foundational static code analysis capabilities. It extracts structural and semantic information from the codebase without executing it, which is then consumed by the Analysis Agents to inform their analytical tasks.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.StaticAnalyzer",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "DiagramGenerator",
+      "dst_name": "Analysis Agents"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Analysis Agents",
+      "dst_name": "StaticAnalyzer"
+    }
+  ]
+}

@@ -1,98 +1,110 @@
 {
-  "description": "The system's architecture is centered around the `local_app` component, which acts as the primary API Gateway, managing all external client interactions. It orchestrates analysis workflows by initiating tasks with the `Orchestration Engine` and monitors their progress by querying the `Job Database`. For operational parameters and common functionalities, `local_app` leverages shared services from `Configuration & Utilities`. The system also incorporates an `Unclassified` component, which has recently evolved to include an expanded `repo_utils` package with enhanced utilities, particularly for git diff functionalities, and updated GPT prompt definitions within `agents/prompts`, significantly influencing agent behavior. This `Unclassified` component provides essential underlying functionalities utilized by `local_app` and potentially other parts of the system.",
+  "description": "The CodeBoarding system is structured around an `API Service` that acts as the primary interface for users to generate architectural documentation and diagrams from GitHub repositories. This service, built with FastAPI, handles job creation and status retrieval, offloading the computationally intensive `Documentation Generation` process to asynchronous background tasks. A `Job Management` component is responsible for persisting job states and results, ensuring reliable tracking of each documentation request. During the `Documentation Generation` phase, a `Temporary Repository Manager` is utilized to handle the cloning and cleanup of repository data, isolating the generation process and maintaining system cleanliness. This architecture ensures a responsive user experience while efficiently managing resource-intensive analysis tasks.",
   "components": [
     {
-      "name": "local_app",
-      "description": "This component serves as the concrete implementation of the API Gateway, handling all external interactions. It is responsible for processing requests from various clients, initiating analysis workflows, querying job statuses, and utilizing shared services for operational parameters and common functions.",
+      "name": "API Service",
+      "description": "Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.",
       "referenced_source_code": [
         {
-          "qualified_name": "local_app",
+          "qualified_name": "local_app.app",
           "reference_file": "local_app.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 46,
+          "reference_end_line": 46
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Orchestration Engine",
-      "description": "Responsible for initiating and managing analysis workflows as requested by the `local_app` component.",
+      "name": "Job Management",
+      "description": "Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED).",
       "referenced_source_code": [
         {
-          "qualified_name": "OrchestrationEngine",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Job Database",
-      "description": "Stores and provides persistent storage for job statuses and related data, which can be queried by the `local_app` component.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "JobDatabase",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
-    },
-    {
-      "name": "Configuration & Utilities",
-      "description": "Provides shared services, operational parameters, and common utility functions utilized across various components, including `local_app`.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ConfigurationAndUtilities",
-          "reference_file": "ConfigurationAndUtilities",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Unclassified",
-      "description": "This component encompasses various utility functions, external libraries, and dependencies. It now includes an expanded and reorganized `repo_utils` package, offering enhanced and more accessible utilities, particularly with refactored git diff functionalities. Additionally, it contains updated and refactored GPT prompt definitions within the `agents/prompts` module, which significantly impacts the behavior and intelligence of agents utilizing these prompts.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "repo_utils",
-          "reference_file": "repo_utils",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "make_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": 80,
+          "reference_end_line": 92
         },
         {
-          "qualified_name": "agents.prompts",
-          "reference_file": "agents/prompts.py",
+          "qualified_name": "insert_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 49,
+          "reference_end_line": 65
+        },
+        {
+          "qualified_name": "fetch_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 80,
+          "reference_end_line": 99
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Documentation Generation",
+      "description": "Executes the core logic of cloning repositories, analyzing code, and generating documentation files.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "generate_onboarding",
+          "reference_file": "local_app.py",
+          "reference_start_line": 95,
+          "reference_end_line": 166
+        },
+        {
+          "qualified_name": "process_docs_generation_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": 362,
+          "reference_end_line": 440
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Temporary Repository Manager",
+      "description": "Handles the creation and cleanup of temporary directories used for cloning repositories and storing intermediate analysis results.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "manage_temp_repo",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
       "relation": "initiates",
-      "src_name": "local_app",
-      "dst_name": "Orchestration Engine"
+      "src_name": "API Service",
+      "dst_name": "Job Management"
     },
     {
-      "relation": "queries",
-      "src_name": "local_app",
-      "dst_name": "Job Database"
+      "relation": "dispatches tasks to",
+      "src_name": "API Service",
+      "dst_name": "Documentation Generation"
     },
     {
-      "relation": "utilizes",
-      "src_name": "local_app",
-      "dst_name": "Configuration & Utilities"
+      "relation": "provides job status and results to",
+      "src_name": "Job Management",
+      "dst_name": "API Service"
     },
     {
-      "relation": "utilizes",
-      "src_name": "local_app",
-      "dst_name": "Unclassified"
+      "relation": "interacts with",
+      "src_name": "Documentation Generation",
+      "dst_name": "Temporary Repository Manager"
     }
   ]
 }

@@ -1,59 +1,47 @@
 ```mermaid
 graph LR
-    DocumentationGenerator["DocumentationGenerator"]
-    DiagramGenerator["DiagramGenerator"]
-    TemplateProcessor["TemplateProcessor"]
-    OutputFormatter["OutputFormatter"]
+    Output_Format_Dispatcher["Output Format Dispatcher"]
+    Markdown_Generator["Markdown Generator"]
+    HTML_Generator["HTML Generator"]
     Unclassified["Unclassified"]
-    DocumentationGenerator -- "utilizes" --> TemplateProcessor
-    DocumentationGenerator -- "sends output to" --> OutputFormatter
-    DiagramGenerator -- "utilizes" --> TemplateProcessor
-    DiagramGenerator -- "sends output to" --> OutputFormatter
-    TemplateProcessor -- "provides templates to" --> DocumentationGenerator
-    TemplateProcessor -- "provides templates to" --> DiagramGenerator
-    OutputFormatter -- "receives content from" --> DocumentationGenerator
-    OutputFormatter -- "receives content from" --> DiagramGenerator
+    Output_Format_Dispatcher -- "Delegates generation to" --> Markdown_Generator
+    Output_Format_Dispatcher -- "Delegates generation to" --> HTML_Generator
+    Markdown_Generator -- "Receives insights from" --> Output_Format_Dispatcher
+    HTML_Generator -- "Receives insights from" --> Output_Format_Dispatcher
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The core of this subsystem revolves around transforming structured architectural data into human-readable documentation and machine-readable diagram definitions. The DocumentationGenerator and DiagramGenerator components act as the primary orchestrators, leveraging a TemplateProcessor to ensure consistent formatting and a dedicated OutputFormatter to finalize the generated content. This structured approach ensures that both textual explanations and visual representations of the codebase are accurate, consistent, and adhere to defined standards.
+The Output Generation Engine is orchestrated by the Output Format Dispatcher, a conceptual component responsible for directing AI-interpreted insights to the appropriate specialized output generators based on the desired format. This dispatcher ensures a clear separation of concerns, adhering to a pipeline architectural pattern. Key specialized generators include the Markdown Generator, which produces human-readable documentation, and the HTML Generator, which creates rich, web-based reports. These components collectively transform raw insights into various structured documentation formats, enabling flexible integration and presentation.
 
-### DocumentationGenerator
-Responsible for generating human-readable documentation in formats like Markdown. It takes structured data and applies templates to produce coherent textual explanations of the codebase and architecture.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainoutput_generators/markdown.py#L42-L89" target="_blank" rel="noopener noreferrer">`output_generators.markdown.MarkdownGenerator`:42-89</a>
-
-
-### DiagramGenerator
-Creates machine-readable diagram definitions, likely in a format suitable for rendering by tools like Mermaid.js. It translates architectural relationships and structures into a visual representation.
+### Output Format Dispatcher
+This component serves as the central orchestrator within the Output Generation Engine. It receives AI-interpreted insights along with the desired output format and dispatches the data to the appropriate specialized generator (e.g., Markdown, HTML). This component is crucial for maintaining a clear separation of concerns and supporting the "Pipeline/Workflow" architectural pattern by managing the flow to specific formatters.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.MarkdownGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html.HTMLGenerator`</a>
 
 
-### TemplateProcessor
-A utility component that manages and applies various templates to ensure consistency in the generated documentation and diagrams.
-
-
-**Related Classes/Methods**:
-
-- `template_processor.TemplateProcessor`
-
-
-### OutputFormatter
-Ensures that the final generated output (Markdown and JSON) adheres to specified quality standards, syntax, and formatting rules before persistence.
+### Markdown Generator
+Specializes in converting AI-interpreted insights into a well-structured Markdown format. This output is ideal for human-readable documentation, README files, and integration with Markdown-based rendering tools. It is a fundamental component for generating textual documentation, a primary output of a "Code Analysis and Documentation Generation Tool."
 
 
 **Related Classes/Methods**:
 
-- `output_formatter.OutputFormatter`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.MarkdownGenerator`</a>
+
+
+### HTML Generator
+Focuses on transforming AI-interpreted insights into HTML format. This enables rich, web-based documentation, interactive reports, and seamless integration with web platforms or tools. This component provides an alternative, often more visually rich, documentation output, supporting diverse presentation needs.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html.HTMLGenerator`</a>
 
 
 ### Unclassified

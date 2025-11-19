@@ -1,66 +1,34 @@
 ```mermaid
 graph LR
-    AIInterpreter["AIInterpreter"]
-    LLMAgentManager["LLMAgentManager"]
-    PromptGenerator["PromptGenerator"]
-    ResponseParser["ResponseParser"]
-    KnowledgeBase["KnowledgeBase"]
+    AbstractionAgent["AbstractionAgent"]
+    DetailsAgent["DetailsAgent"]
     Unclassified["Unclassified"]
-    AIInterpreter -- "sends LLM requests to" --> LLMAgentManager
-    LLMAgentManager -- "returns LLM responses to" --> AIInterpreter
-    AIInterpreter -- "requests prompt generation from" --> PromptGenerator
-    PromptGenerator -- "generates and provides prompts to" --> AIInterpreter
-    AIInterpreter -- "sends LLM outputs for parsing to" --> ResponseParser
-    ResponseParser -- "returns structured insights to" --> AIInterpreter
-    AIInterpreter -- "queries and updates" --> KnowledgeBase
-    KnowledgeBase -- "provides stored insights to" --> AIInterpreter
+    AbstractionAgent -- "informs" --> DetailsAgent
+    DetailsAgent -- "refines insights of" --> AbstractionAgent
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The AI Interpretation Layer serves as the intelligent core of the system, responsible for processing various inputs to generate architectural insights. The `AIInterpreter` acts as the central orchestrator, coordinating the flow of information and tasks. It leverages the `PromptGenerator` to craft context-rich prompts based on static analysis data and code diffs. These prompts are then sent to the `LLMAgentManager`, which handles the complexities of interacting with diverse LLM providers, ensuring efficient and reliable communication. Upon receiving responses from the LLMs, the `AIInterpreter` forwards them to the `ResponseParser` for validation, extraction, and transformation into structured architectural insights. Finally, the `KnowledgeBase` is utilized by the `AIInterpreter` to store and retrieve past insights, enhancing the accuracy and consistency of future analyses. This layered approach ensures a modular, scalable, and maintainable architecture for AI-driven architectural analysis.
+The AI Interpretation Layer is responsible for interfacing with various Large Language Model (LLM) providers to process static analysis results and user prompts. Its primary function is to interpret code context and generate architectural insights, encompassing both high-level abstraction and detailed analysis. The core components defining this layer are AbstractionAgent and DetailsAgent. The layer operates as a two-stage process where the AbstractionAgent first establishes a foundational, high-level understanding of the codebase. This abstract view then serves as input and context for the DetailsAgent, which performs a more granular analysis on specific parts. The detailed insights from the DetailsAgent can then feedback to refine or validate the initial abstractions, creating a complementary and iterative analytical workflow.
 
-### AIInterpreter
-The core intelligence component, orchestrating the entire AI interpretation process. It receives input data (static analysis, code diffs), selects and invokes LLM agents, manages prompt generation, parses LLM responses, and ultimately generates architectural insights.
-
-
-**Related Classes/Methods**:
-
-- `AIInterpreter`
-
-
-### LLMAgentManager
-Manages interactions with various LLM providers (e.g., OpenAI, Anthropic, Google Gemini, AWS Bedrock, Ollama). It handles configuration loading, request routing, API key management, authentication, retry mechanisms, and rate limiting, abstracting these complexities from the `AIInterpreter`.
+### AbstractionAgent
+This agent focuses on generating high-level architectural views from the detailed static analysis data. It identifies major system components, their primary responsibilities, and their interconnections, distilling complex codebases into understandable, abstract architectural representations. This component is crucial for establishing the initial architectural blueprint.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`abstraction_agent`</a>
 
 
-### PromptGenerator
-Responsible for dynamically constructing effective and context-rich prompts for the LLMs. It integrates static analysis data, code diffs, and specific task instructions to formulate queries that yield relevant architectural insights.
-
-
-**Related Classes/Methods**:
-
-
-
-### ResponseParser
-Parses, validates, and extracts structured information from the raw outputs received from the LLMs. It handles potential errors, malformed responses, and transforms the LLM's natural language output into a usable format for architectural insights.
+### DetailsAgent
+This agent provides granular insights and detailed analysis within specific architectural components or code sections, often identified or guided by the AbstractionAgent. It delves into implementation details, identifies specific design patterns, explains the rationale behind code structures, and highlights areas of interest or concern. This component adds depth and specificity to the architectural understanding.
 
 
 **Related Classes/Methods**:
 
-
-
-### KnowledgeBase
-Stores and retrieves previously generated insights, architectural patterns, or domain-specific knowledge. This component helps improve the consistency, accuracy, and efficiency of future interpretations by leveraging past analyses.
-
-
-**Related Classes/Methods**:
-
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`details_agent`</a>
 
 
 ### Unclassified

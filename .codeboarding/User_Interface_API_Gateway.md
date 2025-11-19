@@ -1,66 +1,59 @@
 ```mermaid
 graph LR
-    local_app["local_app"]
-    Orchestration_Engine["Orchestration Engine"]
-    Job_Database["Job Database"]
-    Configuration_Utilities["Configuration & Utilities"]
+    API_Service["API Service"]
+    Job_Management["Job Management"]
+    Documentation_Generation["Documentation Generation"]
+    Temporary_Repository_Manager["Temporary Repository Manager"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    local_app -- "initiates" --> Orchestration_Engine
-    local_app -- "queries" --> Job_Database
-    local_app -- "utilizes" --> Configuration_Utilities
-    local_app -- "utilizes" --> Unclassified
+    API_Service -- "initiates" --> Job_Management
+    API_Service -- "dispatches tasks to" --> Documentation_Generation
+    Job_Management -- "provides job status and results to" --> API_Service
+    Documentation_Generation -- "interacts with" --> Temporary_Repository_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around the `local_app` component, which acts as the primary API Gateway, managing all external client interactions. It orchestrates analysis workflows by initiating tasks with the `Orchestration Engine` and monitors their progress by querying the `Job Database`. For operational parameters and common functionalities, `local_app` leverages shared services from `Configuration & Utilities`. The system also incorporates an `Unclassified` component, which has recently evolved to include an expanded `repo_utils` package with enhanced utilities, particularly for git diff functionalities, and updated GPT prompt definitions within `agents/prompts`, significantly influencing agent behavior. This `Unclassified` component provides essential underlying functionalities utilized by `local_app` and potentially other parts of the system.
+The CodeBoarding system is structured around an `API Service` that acts as the primary interface for users to generate architectural documentation and diagrams from GitHub repositories. This service, built with FastAPI, handles job creation and status retrieval, offloading the computationally intensive `Documentation Generation` process to asynchronous background tasks. A `Job Management` component is responsible for persisting job states and results, ensuring reliable tracking of each documentation request. During the `Documentation Generation` phase, a `Temporary Repository Manager` is utilized to handle the cloning and cleanup of repository data, isolating the generation process and maintaining system cleanliness. This architecture ensures a responsive user experience while efficiently managing resource-intensive analysis tasks.
 
-### local_app
-This component serves as the concrete implementation of the API Gateway, handling all external interactions. It is responsible for processing requests from various clients, initiating analysis workflows, querying job statuses, and utilizing shared services for operational parameters and common functions.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainlocal_app.py" target="_blank" rel="noopener noreferrer">`local_app`</a>
-
-
-### Orchestration Engine
-Responsible for initiating and managing analysis workflows as requested by the `local_app` component.
+### API Service
+Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py" target="_blank" rel="noopener noreferrer">`local_app.app`</a>
 
 
-### Job Database
-Stores and provides persistent storage for job statuses and related data, which can be queried by the `local_app` component.
-
-
-**Related Classes/Methods**:
-
-- `JobDatabase`:1-10
-
-
-### Configuration & Utilities
-Provides shared services, operational parameters, and common utility functions utilized across various components, including `local_app`.
+### Job Management
+Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED).
 
 
 **Related Classes/Methods**:
 
-- `ConfigurationAndUtilities`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py#L80-L92" target="_blank" rel="noopener noreferrer">`make_job`:80-92</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L49-L65" target="_blank" rel="noopener noreferrer">`insert_job`:49-65</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L80-L99" target="_blank" rel="noopener noreferrer">`fetch_job`:80-99</a>
 
 
-### Unclassified
-This component encompasses various utility functions, external libraries, and dependencies. It now includes an expanded and reorganized `repo_utils` package, offering enhanced and more accessible utilities, particularly with refactored git diff functionalities. Additionally, it contains updated and refactored GPT prompt definitions within the `agents/prompts` module, which significantly impacts the behavior and intelligence of agents utilizing these prompts.
+### Documentation Generation
+Executes the core logic of cloning repositories, analyzing code, and generating documentation files.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/mainrepo_utils" target="_blank" rel="noopener noreferrer">`repo_utils`</a>
-- `agents.prompts`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py#L95-L166" target="_blank" rel="noopener noreferrer">`generate_onboarding`:95-166</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py#L362-L440" target="_blank" rel="noopener noreferrer">`process_docs_generation_job`:362-440</a>
+
+
+### Temporary Repository Manager
+Handles the creation and cleanup of temporary directories used for cloning repositories and storing intermediate analysis results.
+
+
+**Related Classes/Methods**:
+
+- `manage_temp_repo`
 
 
 ### Unclassified
