@@ -57,7 +57,7 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
 
     detail_lines = ["\n## Details\n", f"{insights.description}\n"]
 
-    root_dir = os.getenv("REPO_ROOT") + "/" + project
+    root_dir = str(Path(os.getenv("REPO_ROOT")) / project)
 
     for comp in insights.components:
         detail_lines.append(component_header(comp.name, linked_files))
@@ -68,7 +68,7 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
                 print(reference.reference_file, root_dir)
                 if not reference.reference_file:
                     continue
-                if not os.path.exists(root_dir + "/" + reference.reference_file):
+                if not os.path.exists(Path(root_dir) / reference.reference_file):
                     qn_list.append(f"{reference}")
                     continue
                 ref_url = repo_ref + reference.reference_file
