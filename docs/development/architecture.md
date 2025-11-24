@@ -185,7 +185,6 @@ graph LR
     Orchestration_Engine_Agent_Core_ -- "updates" --> Job_Management_Persistence
     Job_Management_Persistence -- "stores/retrieves" --> Analysis_Data
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
-    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
@@ -214,7 +213,7 @@ Manages the lifecycle and state of analysis jobs, including their initiation, pr
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.DuckDBCRUD`</a>
 
 
-### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+### Static Analysis Engine
 Performs in-depth static code analysis on the provided codebase, extracting structural, syntactical, and semantic information without executing the code. It provides raw findings to the Orchestration Engine.
 
 
@@ -353,38 +352,6 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 ```mermaid
 graph LR
-    Scanner["Scanner"]
-    Unclassified["Unclassified"]
-```
-
-[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
-
-## Details
-
-The static analysis subsystem is designed around two core components: the `Static Analysis Engine (Orchestrator)` and the `Scanner`. The `Static Analysis Engine` acts as the central coordinator, managing the overall flow of static analysis tasks. It initiates the process by utilizing the `Scanner` component. The `Scanner`, implemented by the `ProjectScanner` class in `static_analyzer/scanner.py`, is responsible for the initial codebase assessment, identifying programming languages and their key metrics. The results from the `Scanner` are then provided back to the `Static Analysis Engine`, which uses this information to guide subsequent, more detailed analysis phases. This clear separation of concerns ensures that the initial code discovery is distinct from the overarching orchestration of the analysis process.
-
-### Scanner
-The Scanner is a core internal component responsible for the initial parsing of source code. It extracts fundamental structural elements, tokenizes the input, and prepares the code for deeper analysis, serving as the first step in generating ASTs and CFGs.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`</a>
-
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-
-
-### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
-
-
-```mermaid
-graph LR
     API_Service["API Service"]
     Job_Management["Job Management"]
     Documentation_Generation["Documentation Generation"]
@@ -490,6 +457,7 @@ graph LR
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
     Unclassified["Unclassified"]
+    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
     Orchestration_Engine_Agent_Core_ -- "Requests Codebase" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
@@ -505,7 +473,6 @@ graph LR
     click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
-    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
@@ -546,7 +513,7 @@ Handles all interactions with code repositories, including cloning, fetching, an
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`</a>
 
 
-### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+### Static Analysis Engine
 Performs in-depth static analysis on the source code to extract structural information such as Control Flow Graphs (CFGs) and Abstract Syntax Trees (ASTs).
 
 
@@ -592,6 +559,12 @@ Refines the structured output into a diagram-specific format (e.g., Mermaid.js s
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

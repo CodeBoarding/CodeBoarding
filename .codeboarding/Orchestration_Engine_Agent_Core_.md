@@ -15,7 +15,6 @@ graph LR
     Orchestration_Engine_Agent_Core_ -- "updates" --> Job_Management_Persistence
     Job_Management_Persistence -- "stores/retrieves" --> Analysis_Data
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
-    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
@@ -44,7 +43,7 @@ Manages the lifecycle and state of analysis jobs, including their initiation, pr
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.DuckDBCRUD`</a>
 
 
-### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+### Static Analysis Engine
 Performs in-depth static code analysis on the provided codebase, extracting structural, syntactical, and semantic information without executing the code. It provides raw findings to the Orchestration Engine.
 
 
