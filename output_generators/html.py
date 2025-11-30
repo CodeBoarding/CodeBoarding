@@ -66,9 +66,10 @@ def generate_html(
     """
 
     cytoscape_data = generate_cytoscape_data(insights, linked_files, project, demo)
-    cytoscape_json = json.dumps(cytoscape_data, indent=2)
+    cytoscape_json_str = json.dumps(cytoscape_data, indent=2)
 
-    root_dir = str(Path(os.getenv("REPO_ROOT")) / project)
+    repo_root = os.getenv("REPO_ROOT")
+    root_dir = (repo_root + "/" + project) if repo_root else project
 
     # Build component details HTML
     components_html = ""
@@ -114,7 +115,7 @@ def generate_html(
         """
 
     return populate_html_template(
-        components_html=components_html, cytoscape_json=cytoscape_json, insights=insights, project=project
+        components_html=components_html, cytoscape_json=cytoscape_data, insights=insights, project=project
     )
 
 

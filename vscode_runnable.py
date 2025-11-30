@@ -57,8 +57,8 @@ def partial_updates(component_to_update_name: str, analysis_to_update_name: str)
     generator.pre_analysis()
 
     # Load the analysis for which we want to extend the component
-    analysis = analysis_folder / f"{analysis_to_update_name}.json"
-    with open(analysis, "r") as file:
+    analysis_file = analysis_folder / f"{analysis_to_update_name}.json"
+    with open(analysis_file, "r") as file:
         analysis = AnalysisInsights.model_validate_json(file.read())
 
     component_to_update = None

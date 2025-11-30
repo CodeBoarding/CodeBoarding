@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Optional
 
 from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
@@ -169,7 +170,7 @@ async def generate_onboarding(job_id: str):
 # -- API Endpoints --
 @app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job")
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks = None
+    repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: Optional[BackgroundTasks] = None
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")

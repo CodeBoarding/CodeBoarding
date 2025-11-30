@@ -1,6 +1,7 @@
 import logging
 import logging.config
 from pathlib import Path
+from typing import Optional
 
 
 def setup_logging(
@@ -8,7 +9,7 @@ def setup_logging(
     log_filename: str = "app.log",
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
-    log_dir: Path = None,
+    log_dir: Optional[Path] = None,
 ):
     """
     Configure:

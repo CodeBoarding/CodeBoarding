@@ -1,5 +1,6 @@
 import os
 import platform
+from typing import List
 
 
 def get_bin_path(bin_dir):
@@ -21,33 +22,33 @@ def update_command_paths(bin_dir):
 
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
+            cmd: list[str] = value["command"]  # type: ignore[assignment]
             if key == "typescript":
                 # Scan the bin dir to find the cli.mjs path
-                value["command"][0] = (
+                cmd[0] = (
                     find_runnable(bin_dir, "cli.mjs", "typescript-language-server")
                     or find_runnable(bin_dir, "typescript-language-server", "node_modules")
-                    or value["command"][0]
+                    or cmd[0]
                 )
             elif key == "python":
-                value["command"][0] = (
+                cmd[0] = (
                     find_runnable(bin_dir, "langserver.index.js", "pyright")
                     or find_runnable(bin_dir, "pyright", "node_modules")
-                    or value["command"][0]
+                    or cmd[0]
                 )
             elif key == "php":
-                value["command"][0] = (
+                cmd[0] = (
                     find_runnable(bin_dir, "intelephense.js", "intelephense")
                     or find_runnable(bin_dir, "intelephense", "node_modules")
-                    or value["command"][0]
+                    or cmd[0]
                 )
             elif "command" in value:
-                cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
-                    value["command"][0] = os.path.join(bin_path, cmd[0])
+                    cmd[0] = os.path.join(bin_path, cmd[0])
 
             # Apply Windows-specific node prefix for specified languages
             if is_windows and key in node_languages:
-                value["command"].insert(0, "node")
+                cmd.insert(0, "node")
 
 
 def find_runnable(bin_dir, search_file, part_of_dir):

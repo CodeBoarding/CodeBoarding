@@ -14,7 +14,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # Add the parent directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Get project root from environment variable
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT") or ".")
 
 
 def read_monitoring_results(project_name: str) -> Dict[str, Any]:
@@ -50,8 +50,8 @@ def read_monitoring_results(project_name: str) -> Dict[str, Any]:
         total_completion_tokens = 0
 
         # Aggregate tool usage across all agents
-        tool_counts = {}
-        tool_errors = {}
+        tool_counts: Dict[str, int] = {}
+        tool_errors: Dict[str, int] = {}
 
         agents = data.get("agents", {})
         for agent_name, agent_data in agents.items():
