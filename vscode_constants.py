@@ -23,10 +23,10 @@ def update_command_paths(bin_dir):
                     # Use node to run the .mjs file on Windows
                     value["command"].insert(0, "node")
             elif key == "php":
-                 # Handle intelephense separately as it might be in node_modules/.bin
+                # Handle intelephense separately as it might be in node_modules/.bin
                 intelephense_path = os.path.join(bin_dir, "node_modules", ".bin", "intelephense")
                 if os.path.exists(intelephense_path):
-                     value["command"][0] = intelephense_path
+                    value["command"][0] = intelephense_path
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
