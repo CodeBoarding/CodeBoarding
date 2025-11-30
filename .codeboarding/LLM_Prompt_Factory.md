@@ -1,56 +1,113 @@
 ```mermaid
 graph LR
-    LLM_Prompt_Factory["LLM Prompt Factory"]
-    LLM_Orchestrator["LLM Orchestrator"]
-    Response_Parser["Response Parser"]
-    Context_Manager["Context Manager"]
+    PromptFactory["PromptFactory"]
+    AbstractPromptFactory["AbstractPromptFactory"]
+    LLMType["LLMType"]
+    PromptType["PromptType"]
+    GeminiFlashBidirectionalPromptFactory["GeminiFlashBidirectionalPromptFactory"]
+    GeminiFlashUnidirectionalPromptFactory["GeminiFlashUnidirectionalPromptFactory"]
+    ClaudeBidirectionalPromptFactory["ClaudeBidirectionalPromptFactory"]
+    GPTBidirectionalPromptFactory["GPTBidirectionalPromptFactory"]
     Unclassified["Unclassified"]
-    Context_Manager -- "supplies contextual information to" --> LLM_Prompt_Factory
-    LLM_Prompt_Factory -- "provides prepared prompts to" --> LLM_Orchestrator
-    LLM_Orchestrator -- "sends LLM responses to" --> Response_Parser
-    Response_Parser -- "processes LLM responses from" --> LLM_Orchestrator
-    click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
+    PromptFactory -- "uses" --> LLMType
+    PromptFactory -- "uses" --> PromptType
+    PromptFactory -- "instantiates" --> GeminiFlashBidirectionalPromptFactory
+    PromptFactory -- "instantiates" --> GeminiFlashUnidirectionalPromptFactory
+    PromptFactory -- "instantiates" --> ClaudeBidirectionalPromptFactory
+    PromptFactory -- "instantiates" --> GPTBidirectionalPromptFactory
+    GeminiFlashBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
+    GeminiFlashUnidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
+    ClaudeBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
+    GPTBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This system describes a workflow for interacting with Large Language Models (LLMs) for code analysis. The main flow involves a Context Manager preparing relevant information, which is then used by an LLM Prompt Factory to generate tailored prompts. These prompts are passed to an LLM Orchestrator, responsible for managing interactions with various LLM providers and sending the prompts. Finally, a Response Parser processes the raw LLM responses, extracting and structuring the necessary information for further use.
+The LLM Prompt Factory subsystem is a critical part of the AI Interpretation Layer within the project's Code analysis and documentation generation tool architecture. It adheres to the Factory Method and Strategy patterns, enabling dynamic prompt generation tailored for various LLMs and interaction styles.
 
-### LLM Prompt Factory [[Expand]](./LLM_Prompt_Factory.md)
-Dynamically generates and manages prompts specifically tailored for various Large Language Models (LLMs) and different code analysis tasks. It creates tailored prompts based on specific code analysis tasks, integrates relevant static analysis data and contextual information, adapts prompt structure for different LLM providers, and manages prompt templates.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-
-
-### LLM Orchestrator
-Manages the interaction with different LLM providers (e.g., OpenAI, Anthropic, Google Gemini, AWS Bedrock, Ollama), handling API calls, model selection, and response routing.
+### PromptFactory
+The primary orchestrator for creating and managing LLM prompts. It acts as the central entry point, dynamically selecting and instantiating the appropriate concrete prompt factory based on the desired `LLMType` and `PromptType`. It provides methods to retrieve specific prompts by name or all available prompts from the selected factory.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`PromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L26-L32" target="_blank" rel="noopener noreferrer">`LLMType`:26-32</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L19-L23" target="_blank" rel="noopener noreferrer">`PromptType`:19-23</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_bidirectional.py#L369-L433" target="_blank" rel="noopener noreferrer">`GeminiFlashBidirectionalPromptFactory`:369-433</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_unidirectional.py#L369-L434" target="_blank" rel="noopener noreferrer">`GeminiFlashUnidirectionalPromptFactory`:369-434</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py#L382-L446" target="_blank" rel="noopener noreferrer">`ClaudeBidirectionalPromptFactory`:382-446</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gpt_prompts_bidirectional.py#L571-L635" target="_blank" rel="noopener noreferrer">`GPTBidirectionalPromptFactory`:571-635</a>
 
 
-### Response Parser
-Extracts and structures relevant information from the raw text responses generated by LLMs. This component is vital for transforming unstructured LLM output into a format usable by subsequent components, such as the Output Generation Engine.
+### AbstractPromptFactory
+An abstract base class that defines the contract for all concrete prompt factories. It establishes the interface for retrieving prompts, ensuring a consistent API across different LLM and prompt interaction type implementations. This promotes modularity and extensibility.
 
 
 **Related Classes/Methods**:
 
-- `Response Parser`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
 
 
-### Context Manager
-Prepares and manages the contextual information (e.g., code snippets, static analysis results, architectural patterns) that is fed into the prompts. It aggregates and organizes data from various sources to enrich the LLM's understanding.
+### LLMType
+An enumeration that defines the various Large Language Model types supported by the system (e.g., `GEMINI_FLASH`, `CLAUDE`, `GPT4`). It provides a clear, enumerated set of options for LLM models, used by `PromptFactory` for dynamic factory selection.
 
 
 **Related Classes/Methods**:
 
-- `Context Manager`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L26-L32" target="_blank" rel="noopener noreferrer">`LLMType`:26-32</a>
+
+
+### PromptType
+An enumeration that defines the interaction patterns for prompts (e.g., `BIDIRECTIONAL`, `UNIDIRECTIONAL`). It provides a clear, enumerated set of options for prompt interaction styles, used by `PromptFactory` for dynamic factory selection.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L19-L23" target="_blank" rel="noopener noreferrer">`PromptType`:19-23</a>
+
+
+### GeminiFlashBidirectionalPromptFactory
+A concrete implementation of `AbstractPromptFactory` specifically designed for generating bidirectional prompts for Gemini Flash LLMs. This class encapsulates the actual string templates and logic for its designated LLM and prompt style.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_bidirectional.py#L369-L433" target="_blank" rel="noopener noreferrer">`GeminiFlashBidirectionalPromptFactory`:369-433</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+
+
+### GeminiFlashUnidirectionalPromptFactory
+A concrete implementation of `AbstractPromptFactory` for generating unidirectional prompts specifically for Gemini Flash LLMs. It holds the specific prompt templates for this LLM and interaction style.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_unidirectional.py#L369-L434" target="_blank" rel="noopener noreferrer">`GeminiFlashUnidirectionalPromptFactory`:369-434</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+
+
+### ClaudeBidirectionalPromptFactory
+A concrete implementation of `AbstractPromptFactory` for generating bidirectional prompts for Claude LLMs. This class contains the specific prompt templates for Claude's bidirectional interactions.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py#L382-L446" target="_blank" rel="noopener noreferrer">`ClaudeBidirectionalPromptFactory`:382-446</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+
+
+### GPTBidirectionalPromptFactory
+A concrete implementation of `AbstractPromptFactory` for generating bidirectional prompts for GPT LLMs. It manages the prompt templates tailored for GPT's bidirectional communication.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gpt_prompts_bidirectional.py#L571-L635" target="_blank" rel="noopener noreferrer">`GPTBidirectionalPromptFactory`:571-635</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
 
 
 ### Unclassified

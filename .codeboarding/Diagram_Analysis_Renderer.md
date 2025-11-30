@@ -4,15 +4,19 @@ graph LR
     Analysis_Agents["Analysis Agents"]
     StaticAnalyzer["StaticAnalyzer"]
     Unclassified["Unclassified"]
-    DiagramGenerator -- "orchestrates" --> Analysis_Agents
-    Analysis_Agents -- "uses" --> StaticAnalyzer
+    DiagramGenerator -- "Orchestrates" --> Analysis_Agents
+    DiagramGenerator -- "Coordinates" --> Analysis_Agents
+    Analysis_Agents -- "Consumes" --> StaticAnalyzer
+    Analysis_Agents -- "Utilizes" --> StaticAnalyzer
+    StaticAnalyzer -- "Provides" --> Analysis_Agents
+    StaticAnalyzer -- "Informs" --> Analysis_Agents
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The diagram_analysis subsystem is centered around the DiagramGenerator, which acts as the primary orchestrator for generating architectural insights. It initiates and manages a suite of Analysis Agents, each specialized in a particular aspect of code analysis, such as metadata extraction, detailed component examination, abstraction, and validation. These agents rely on the StaticAnalyzer to obtain fundamental structural information about the codebase. The DiagramGenerator coordinates the parallel execution of these agents across different levels of architectural depth, iteratively refining the analysis based on feedback. The final output of this orchestrated process is a set of structured Analysis Files, which serve as a persistent record of the derived architectural components and their relationships, ready for consumption by documentation or visualization tools.
+The system's architecture is centered around the DiagramGenerator, which acts as the primary orchestrator, initiating and managing the architectural analysis workflow. It coordinates a suite of Analysis Agents, each specialized for different aspects of code analysis, from metadata gathering to detailed structural examination. These Analysis Agents critically depend on the StaticAnalyzer component, which provides foundational static code analysis capabilities by extracting structural and semantic information from the codebase. Recent enhancements to the StaticAnalyzer's Language Server Protocol (LSP) client have further improved its ability to deliver comprehensive code insights, thereby empowering the Analysis Agents to perform more robust and accurate analyses. The DiagramGenerator then consolidates and persists the architectural insights generated through this collaborative process.
 
 ### DiagramGenerator
 This is the core orchestrator of the architectural analysis process. It initializes, configures, and coordinates various specialized Analysis Agents to perform a multi-stage analysis of the codebase. It manages the parallel execution of component analysis, applies feedback for iterative refinement, and ultimately persists the generated architectural insights into structured Analysis Files.
@@ -38,11 +42,12 @@ This component represents a collection of intelligent agents (MetaAgent, Details
 
 
 ### StaticAnalyzer
-Provides foundational static code analysis capabilities. It extracts structural and semantic information from the codebase without executing it, which is then consumed by the Analysis Agents to inform their analytical tasks.
+Provides foundational static code analysis capabilities. It extracts structural and semantic information from the codebase without executing it, which is then consumed by the Analysis Agents to inform their analytical tasks. Recent enhancements to its internal LSP client have improved its ability to gather comprehensive code information.
 
 
 **Related Classes/Methods**:
 
+- `static_analyzer.StaticAnalyzer`
 
 
 ### Unclassified

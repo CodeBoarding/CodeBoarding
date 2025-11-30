@@ -1,55 +1,133 @@
 {
-  "description": "The Output Generation Engine is orchestrated by the Output Format Dispatcher, a conceptual component responsible for directing AI-interpreted insights to the appropriate specialized output generators based on the desired format. This dispatcher ensures a clear separation of concerns, adhering to a pipeline architectural pattern. Key specialized generators include the Markdown Generator, which produces human-readable documentation, and the HTML Generator, which creates rich, web-based reports. These components collectively transform raw insights into various structured documentation formats, enabling flexible integration and presentation.",
+  "description": "The system's architecture is centered around an Output Generation Engine that transforms AI-interpreted insights into various documentation formats. This process begins with the Static Analysis Component, which is responsible for generating the core \"AI-interpreted insights\" from code analysis. These insights are then passed to the Output Format Dispatcher, the central orchestrator of the engine. The Dispatcher, based on the requested output format, delegates the task to specialized generators: the Markdown Generator, HTML Generator, Mdx Generator, and Sphinx Generator. Each generator is responsible for producing high-quality documentation in its specific format, ensuring a flexible and extensible output pipeline. This design promotes a clear separation of concerns, allowing for independent development and enhancement of both the analysis and output generation capabilities.",
   "components": [
     {
-      "name": "Output Format Dispatcher",
-      "description": "This component serves as the central orchestrator within the Output Generation Engine. It receives AI-interpreted insights along with the desired output format and dispatches the data to the appropriate specialized generator (e.g., Markdown, HTML). This component is crucial for maintaining a clear separation of concerns and supporting the \"Pipeline/Workflow\" architectural pattern by managing the flow to specific formatters.",
+      "name": "Static Analysis Component",
+      "description": "This component is responsible for performing static analysis on the codebase and generating \"AI-interpreted insights.\" It acts as a crucial upstream dependency, providing the raw, processed data that the Output Generation Engine transforms into various documentation formats. The significant updates in its LSP client highlight its active development and importance in the overall system.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.markdown.MarkdownGenerator",
+          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Format Dispatcher",
+      "description": "This component serves as the central orchestrator within the Output Generation Engine. It receives AI-interpreted insights along with the desired output format and dispatches the data to the appropriate specialized generator (e.g., Markdown, HTML, MDX, Sphinx). This component is crucial for maintaining a clear separation of concerns and supporting the \"Pipeline/Workflow\" architectural pattern by managing the flow to specific formatters.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators/markdown.py",
           "reference_file": "output_generators/markdown.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "output_generators.html.HTMLGenerator",
+          "qualified_name": "output_generators/html.py",
           "reference_file": "output_generators/html.py",
           "reference_start_line": null,
           "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators/mdx.py",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators/sphinx.py",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/__init__.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Markdown Generator",
       "description": "Specializes in converting AI-interpreted insights into a well-structured Markdown format. This output is ideal for human-readable documentation, README files, and integration with Markdown-based rendering tools. It is a fundamental component for generating textual documentation, a primary output of a \"Code Analysis and Documentation Generation Tool.\"",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.markdown.MarkdownGenerator",
+          "qualified_name": "output_generators/markdown.py",
           "reference_file": "output_generators/markdown.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/markdown.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "HTML Generator",
       "description": "Focuses on transforming AI-interpreted insights into HTML format. This enables rich, web-based documentation, interactive reports, and seamless integration with web platforms or tools. This component provides an alternative, often more visually rich, documentation output, supporting diverse presentation needs.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html.HTMLGenerator",
+          "qualified_name": "output_generators/html.py",
           "reference_file": "output_generators/html.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Mdx Generator",
+      "description": "Specializes in converting AI-interpreted insights into MDX (Markdown with JSX) format. This enables the creation of interactive and dynamic documentation, leveraging the power of React components within Markdown.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators/mdx.py",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../output_generators/mdx.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Sphinx Generator",
+      "description": "Focuses on transforming AI-interpreted insights into a format compatible with Sphinx, a popular documentation generator. This allows for the creation of comprehensive and structured documentation, often used for large software projects.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators/sphinx.py",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../output_generators/sphinx.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
+    {
+      "relation": "Provides AI-interpreted insights to",
+      "src_name": "Static Analysis Component",
+      "dst_name": "Output Format Dispatcher"
+    },
     {
       "relation": "Delegates generation to",
       "src_name": "Output Format Dispatcher",
@@ -61,14 +139,14 @@
       "dst_name": "HTML Generator"
     },
     {
-      "relation": "Receives insights from",
-      "src_name": "Markdown Generator",
-      "dst_name": "Output Format Dispatcher"
+      "relation": "Delegates generation to",
+      "src_name": "Output Format Dispatcher",
+      "dst_name": "Mdx Generator"
     },
     {
-      "relation": "Receives insights from",
-      "src_name": "HTML Generator",
-      "dst_name": "Output Format Dispatcher"
+      "relation": "Delegates generation to",
+      "src_name": "Output Format Dispatcher",
+      "dst_name": "Sphinx Generator"
     }
   ]
 }

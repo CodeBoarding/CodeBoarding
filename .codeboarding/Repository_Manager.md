@@ -1,32 +1,71 @@
 ```mermaid
 graph LR
+    Orchestration_Engine["Orchestration Engine"]
+    Repository_Manager["Repository Manager"]
+    Static_Analysis_Engine["Static Analysis Engine"]
     Setup_and_Configuration_Manager["Setup and Configuration Manager"]
+    Language_Server_External_["Language Server (External)"]
     Unclassified["Unclassified"]
-    Orchestration_Engine -- "initiates" --> Setup_and_Configuration_Manager
-    Setup_and_Configuration_Manager -- "installs/configures dependencies for" --> Static_Analysis_Engine
+    Orchestration_Engine -- "initiates analysis in" --> Static_Analysis_Engine
+    Orchestration_Engine -- "receives results from" --> Static_Analysis_Engine
     Orchestration_Engine -- "instructs" --> Repository_Manager
     Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "returns analysis results to" --> Orchestration_Engine
+    Static_Analysis_Engine -- "communicates with" --> Language_Server_External_
+    Language_Server_External_ -- "provides code intelligence to" --> Static_Analysis_Engine
+    Setup_and_Configuration_Manager -- "configures dependencies for" --> Static_Analysis_Engine
+    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is orchestrated by the Orchestration Engine, which manages the entire analysis workflow. Before any code analysis begins, the Orchestration Engine delegates to the Setup and Configuration Manager to prepare the environment by installing essential language servers (e.g., Pyright, TypeScript Language Server) and static analysis tools (e.g., Tokei, Gopls), and configuring their paths. Once the environment is ready, the Orchestration Engine directs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates. The Repository Manager then provides the retrieved source code to the Static Analysis Engine, which performs in-depth code analysis using the pre-configured tools and language servers. This modular architecture ensures a clear separation of concerns, enabling efficient setup, repository management, and static code analysis.
+The system's architecture is driven by the Orchestration Engine, which coordinates the entire static analysis workflow. It directs the Repository Manager to provide project source code and then instructs the Static Analysis Engine to perform the analysis. The Static Analysis Engine is the central component for code intelligence, leveraging an internal LspClient to interact with external Language Servers via the Language Server Protocol. These Language Servers supply language-specific details, enabling the Static Analysis Engine to construct comprehensive call graphs, class hierarchies, and package relationships. Prior to analysis, the Setup and Configuration Manager ensures that the environment is prepared and all necessary external Language Servers are correctly installed and configured. Finally, the Static Analysis Engine delivers its detailed analysis results back to the Orchestration Engine for further processing or reporting.
 
-### Setup and Configuration Manager
-responsible for preparing the environment and configuring external tools and language servers that are essential for the Static Analysis Engine.
+### Orchestration Engine
+Coordinates the entire static analysis workflow, directing other components and receiving final results.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_uv_environment`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`check_npm`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`install_node_servers`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`download_binary_from_gdrive`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`update_static_analysis_config`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`init_dot_env_file`</a>
+- `OrchestrationEngine`
+
+
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Provides project source files and context to the Static Analysis Engine.
+
+
+**Related Classes/Methods**:
+
+- `RepositoryManager`:10-20
+
+
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+The Static Analysis Engine's core functionality for gathering code intelligence is encapsulated within the LspClient class. This client acts as an intermediary, establishing and managing communication with external Language Servers (e.g., for Python, TypeScript) using the Language Server Protocol (LSP). The LspClient initiates a language server process, sends JSON-RPC requests for various code analysis tasks (such as retrieving document symbols, preparing call hierarchies, finding incoming/outgoing calls, and resolving definitions/references), and processes the responses. It orchestrates the building of a comprehensive static analysis by concurrently analyzing source files, extracting package relations, identifying symbol references, constructing call graphs, and determining class hierarchies. This involves a continuous exchange of messages with the external Language Server to gather detailed, language-specific code information.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`LspClient`</a>
+
+
+### Setup and Configuration Manager
+Ensures that necessary external Language Server dependencies are installed and configured for the Static Analysis Engine.
+
+
+**Related Classes/Methods**:
+
+- `SetupAndConfigurationManager`:1-10
+
+
+### Language Server (External)
+An external component that provides language-specific code intelligence via the Language Server Protocol.
+
+
+**Related Classes/Methods**:
+
+- `LanguageServer`:1-10
 
 
 ### Unclassified

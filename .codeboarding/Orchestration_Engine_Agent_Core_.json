@@ -1,112 +1,115 @@
 {
-  "description": "The system operates around a central Orchestration Engine (Agent Core), embodied by `agents.meta_agent.MetaAgent`, which directs the entire code analysis and documentation generation process. This engine initiates the Static Analysis Engine (`static_analyzer.scanner.Scanner`) to extract raw code findings. These findings are then passed back to the Orchestration Engine, which subsequently dispatches them to the AI Interpretation Layer (`agents.abstraction_agent.AbstractionAgent`). This layer leverages AI to transform raw data into meaningful architectural insights. The interpreted insights are returned to the Orchestration Engine, which then feeds them into the Output Generation Engine (`output_generators.markdown.MarkdownOutputGenerator`) to produce various documentation and diagram formats. Throughout this workflow, the Job Management & Persistence component (`duckdb_crud.DuckDBCRUD`) is responsible for maintaining the state of analysis jobs and persisting all relevant data, ensuring continuity and retrievability of results.",
+  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and interacts with external tools. The main flow involves receiving a query, parsing it, invoking a language model to determine the appropriate action, executing that action (which might involve using a tool), and finally formatting and returning the response to the user. Its purpose is to provide a flexible and extensible framework for building AI-powered applications that can understand and act upon user requests.",
   "components": [
     {
-      "name": "Orchestration Engine (Agent Core)",
-      "description": "The central control unit that manages the entire analysis workflow. It initiates, sequences, and manages the end-to-end code analysis and documentation generation workflow, orchestrating the execution of distinct analysis stages, maintaining the current state and progress of each analysis job, and managing data transfer between components.",
+      "name": "Query Processor",
+      "description": "Handles incoming user queries, including parsing and initial validation.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.meta_agent.MetaAgent",
-          "reference_file": "agents/meta_agent.py",
+          "qualified_name": "QueryParser:parse",
+          "reference_file": "query_processor.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "Job Management & Persistence",
-      "description": "Manages the lifecycle and state of analysis jobs, including their initiation, progress tracking, and the storage of results. It acts as the system's memory for ongoing and completed analysis tasks.",
+      "name": "Language Model Interface",
+      "description": "Manages interactions with the underlying language model, sending prompts and receiving generated text.",
       "referenced_source_code": [
         {
-          "qualified_name": "duckdb_crud.DuckDBCRUD",
-          "reference_file": "duckdb_crud.py",
+          "qualified_name": "LLMClient:send_prompt",
+          "reference_file": "llm_interface.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "LLMClient:receive_response",
+          "reference_file": "llm_interface.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "Static Analysis Engine",
-      "description": "Performs in-depth static code analysis on the provided codebase, extracting structural, syntactical, and semantic information without executing the code. It provides raw findings to the Orchestration Engine.",
+      "name": "Tool Executor",
+      "description": "Executes specific tools based on the language model's output, handling tool invocation and result retrieval.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner.Scanner",
-          "reference_file": "static_analyzer/scanner.py",
+          "qualified_name": "ToolRegistry:get_tool",
+          "reference_file": "tool_executor.py",
           "reference_start_line": null,
           "reference_end_line": null
+        },
+        {
+          "qualified_name": "Tool:execute",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 60,
+          "reference_end_line": 148
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/planner_agent.py",
+        "../../agents/meta_agent.py",
+        "../../agents/agent.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "AI Interpretation Layer",
-      "description": "Utilizes AI/LLMs to process and interpret the raw findings from the Static Analysis Engine, transforming them into higher-level architectural insights, relationships, and contextual understanding.",
+      "name": "Response Formatter",
+      "description": "Formats the final response to be sent back to the user, potentially combining information from the language model and tool outputs.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
-          "reference_file": "agents/abstraction_agent.py",
+          "qualified_name": "ResponseBuilder:build",
+          "reference_file": "response_formatter.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "Output Generation Engine",
-      "description": "Responsible for transforming the architectural insights into various consumable output formats, such as architectural diagrams (e.g., Mermaid.js), documentation, or reports.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.markdown.MarkdownOutputGenerator",
-          "reference_file": "output_generators/markdown.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../agents/__init__.py",
+        "../../agents/monitoring.py",
+        "../../agents/agent_responses.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
-      "src_name": "Orchestration Engine (Agent Core)",
-      "dst_name": "Static Analysis Engine"
+      "relation": "sends queries to",
+      "src_name": "Query Processor",
+      "dst_name": "Language Model Interface"
     },
     {
-      "relation": "provides findings to",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "Orchestration Engine (Agent Core)"
+      "relation": "receives output from",
+      "src_name": "Language Model Interface",
+      "dst_name": "Tool Executor"
     },
     {
-      "relation": "sends findings to",
-      "src_name": "Orchestration Engine (Agent Core)",
-      "dst_name": "AI Interpretation Layer"
+      "relation": "invokes",
+      "src_name": "Tool Executor",
+      "dst_name": "Tool"
     },
     {
-      "relation": "generates insights for",
-      "src_name": "AI Interpretation Layer",
-      "dst_name": "Orchestration Engine (Agent Core)"
+      "relation": "sends results to",
+      "src_name": "Tool Executor",
+      "dst_name": "Response Formatter"
     },
     {
-      "relation": "sends insights to",
-      "src_name": "Orchestration Engine (Agent Core)",
-      "dst_name": "Output Generation Engine"
-    },
-    {
-      "relation": "produces",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Documentation/Diagrams"
-    },
-    {
-      "relation": "updates",
-      "src_name": "Orchestration Engine (Agent Core)",
-      "dst_name": "Job Management & Persistence"
-    },
-    {
-      "relation": "stores/retrieves",
-      "src_name": "Job Management & Persistence",
-      "dst_name": "Analysis Data"
+      "relation": "returns formatted response from",
+      "src_name": "Response Formatter",
+      "dst_name": "Query Processor"
     }
   ]
 }
