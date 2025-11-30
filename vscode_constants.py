@@ -4,38 +4,52 @@ import platform
 
 def get_bin_path(bin_dir):
     system = platform.system().lower()
-    subdirs = {"windows": "win", "darwin": "macos", "linux": "linux"}
+    subdirs = {
+        'windows': 'win',
+        'darwin': 'macos',
+        'linux': 'linux'
+    }
     if system not in subdirs:
         raise RuntimeError(
-            f"Unsupported platform: {system}. The extension currently supports Windows, macOS, and Linux."
-        )
-    return os.path.join(bin_dir, "bin", subdirs[system])
+            f"Unsupported platform: {system}. The extension currently supports Windows, macOS, and Linux.")
+    return os.path.join(bin_dir, 'bin', subdirs[system])
 
 
 def update_command_paths(bin_dir):
     bin_path = get_bin_path(bin_dir)
+    is_windows = platform.system().lower() == 'windows'
+
+    # Languages that need 'node' prefix on Windows
+    node_languages = {'typescript', 'python', 'php'}
+
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
-            if key == "typescript":
-                # Scan the bin dir to fine the cli.mjs path
-                value["command"][0] = find_cli_js(bin_dir) or value["command"][0]
-                if platform.system().lower() == "windows":
-                    # Use node to run the .mjs file on Windows
-                    value["command"].insert(0, "node")
-            elif key == "php":
-                # Handle intelephense separately as it might be in node_modules/.bin
-                intelephense_path = os.path.join(bin_dir, "node_modules", ".bin", "intelephense")
-                if os.path.exists(intelephense_path):
-                    value["command"][0] = intelephense_path
+            if key == 'typescript':
+                # Scan the bin dir to find the cli.mjs path
+                value['command'][0] = find_runnable(bin_dir, 'cli.mjs', 'typescript-language-server') or \
+                                      find_runnable(bin_dir, 'typescript-language-server', 'node_modules') or \
+                                      value['command'][0]
+            elif key == 'python':
+                value['command'][0] = find_runnable(bin_dir, "langserver.index.js", "pyright") or \
+                                      find_runnable(bin_dir, "pyright", "node_modules") or \
+                                      value['command'][0]
+            elif key == 'php':
+                value['command'][0] = find_runnable(bin_dir, 'intelephense.js', 'intelephense') or \
+                                      find_runnable(bin_dir, 'intelephense', 'node_modules') or \
+                                      value['command'][0]
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
                     value["command"][0] = os.path.join(bin_path, cmd[0])
 
+            # Apply Windows-specific node prefix for specified languages
+            if is_windows and key in node_languages:
+                value['command'].insert(0, 'node')
 
-def find_cli_js(bin_dir, search_file="cli.mjs"):
+
+def find_runnable(bin_dir, search_file, part_of_dir):
     for root, dirs, files in os.walk(bin_dir):
-        if search_file in files and "typescript-language-server" in root:
+        if search_file in files and part_of_dir in root:
             return os.path.join(root, search_file)
     return None
 
