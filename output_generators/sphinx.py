@@ -91,7 +91,7 @@ def generate_rst(
     lines.append("")
 
     # Add component details
-    root_dir = os.getenv("REPO_ROOT") + "/" + project
+    root_dir = str(Path(os.getenv("REPO_ROOT")) / project)
 
     for comp in insights.components:
         lines.append(component_header(comp.name, linked_files))

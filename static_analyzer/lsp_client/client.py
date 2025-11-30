@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
+from urllib.parse import unquote, urlparse
+from urllib.request import url2pathname
 
 import pathspec
 from tqdm import tqdm
@@ -17,6 +19,24 @@ from static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def uri_to_path(file_uri: str) -> Path:
+    """
+    Convert a file:// URI to a Path object, handling cross-platform differences.
+
+    On Unix: file:///path/to/file -> /path/to/file
+    On Windows: file:///C:/path/to/file -> C:/path/to/file
+
+    Args:
+        file_uri: A file:// URI string
+
+    Returns:
+        Path object representing the file path
+    """
+    parsed = urlparse(file_uri)
+    path_str = url2pathname(unquote(parsed.path))
+    return Path(path_str)
 
 
 @dataclass
@@ -290,7 +310,7 @@ class LSPClient:
             if not def_uri.startswith("file://"):
                 return None
 
-            def_path = Path(def_uri.replace("file://", ""))
+            def_path = uri_to_path(def_uri)
 
             # Check if path is within project
             try:
@@ -326,7 +346,7 @@ class LSPClient:
         """Create a fully qualified name for a symbol."""
         try:
             rel_path = file_path.relative_to(self.project_path)
-            module_path = str(rel_path.with_suffix("")).replace("/", ".")
+            module_path = str(rel_path.with_suffix("")).replace(os.sep, ".")
             return f"{module_path}.{symbol_name}"
         except ValueError:
             # File is outside project root
@@ -542,7 +562,7 @@ class LSPClient:
                             try:
                                 callee_uri = callee_item["uri"]
                                 if callee_uri.startswith("file://"):
-                                    callee_path = Path(callee_uri.replace("file://", ""))
+                                    callee_path = uri_to_path(callee_uri)
                                     callee_qualified_name = self._create_qualified_name(
                                         callee_path, callee_item["name"]
                                     )
@@ -562,7 +582,7 @@ class LSPClient:
                             try:
                                 caller_uri = caller_item["uri"]
                                 if caller_uri.startswith("file://"):
-                                    caller_path = Path(caller_uri.replace("file://", ""))
+                                    caller_path = uri_to_path(caller_uri)
                                     caller_qualified_name = self._create_qualified_name(
                                         caller_path, caller_item["name"]
                                     )
@@ -743,7 +763,7 @@ class LSPClient:
                             for def_item in definition:
                                 def_uri = def_item.get("uri", "")
                                 if def_uri.startswith("file://"):
-                                    def_path = Path(def_uri.replace("file://", ""))
+                                    def_path = uri_to_path(def_uri)
                                     # Get the symbol at the definition location
                                     def_range = def_item.get("range", {})
                                     def_line = def_range.get("start", {}).get("line", 0)
@@ -837,7 +857,7 @@ class LSPClient:
                 ref_line = ref_range.get("start", {}).get("line", 0)
 
                 if ref_uri.startswith("file://"):
-                    ref_path = Path(ref_uri.replace("file://", ""))
+                    ref_path = uri_to_path(ref_uri)
 
                     try:
                         # Read the file and check if this reference is in a class inheritance
@@ -874,7 +894,7 @@ class LSPClient:
 
         # Get file path for context
         if isinstance(file_reference, str) and file_reference.startswith("file://"):
-            file_path = Path(file_reference.replace("file://", ""))
+            file_path = uri_to_path(file_reference)
         elif isinstance(file_reference, Path):
             file_path = file_reference
         else:
@@ -1030,7 +1050,7 @@ class LSPClient:
         try:
             uri = reference.get("uri", "")
             if uri.startswith("file://"):
-                file_path = Path(uri.replace("file://", ""))
+                file_path = uri_to_path(uri)
                 return self._get_package_name(file_path)
         except Exception:
             pass
