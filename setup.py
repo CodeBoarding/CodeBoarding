@@ -316,6 +316,9 @@ ENABLE_MONITORING=false
 # AWS Bedrock Configuration
 # AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here
 
+# Cerebras Configuration
+# CEREBRAS_API_KEY=your_cerebras_api_key_here
+
 # ============================================================================
 # OPTIONAL SERVICES
 # ============================================================================
