@@ -22,6 +22,11 @@ def update_command_paths(bin_dir):
                 if platform.system().lower() == "windows":
                     # Use node to run the .mjs file on Windows
                     value["command"].insert(0, "node")
+            elif key == "php":
+                 # Handle intelephense separately as it might be in node_modules/.bin
+                intelephense_path = os.path.join(bin_dir, "node_modules", ".bin", "intelephense")
+                if os.path.exists(intelephense_path):
+                     value["command"][0] = intelephense_path
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
@@ -62,6 +67,13 @@ VSCODE_CONFIG = {
             "languages": ["go"],
             "file_extensions": [".go"],
             "install_commands": "go install golang.org/x/tools/gopls@latest",
+        },
+        "php": {
+            "name": "Intelephense",
+            "command": ["intelephense", "--stdio"],
+            "languages": ["php"],
+            "file_extensions": [".php"],
+            "install_commands": "npm install intelephense",
         },
     },
     "tools": {
