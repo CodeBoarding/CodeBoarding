@@ -11,12 +11,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [
-        "file_path",
-        "../../local_app.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Management",
@@ -28,9 +23,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Documentation Generation",
@@ -42,9 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Temporary Repository Manager",
@@ -56,9 +47,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Tools",
@@ -70,9 +59,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Configuration Manager",
@@ -84,16 +71,12 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

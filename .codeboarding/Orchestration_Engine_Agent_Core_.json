@@ -11,9 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Language Model Interface",
@@ -31,9 +29,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Tool Executor",
@@ -51,13 +47,7 @@
           "reference_start_line": 60,
           "reference_end_line": 148
         }
-      ],
-      "assigned_files": [
-        "../../agents/planner_agent.py",
-        "../../agents/meta_agent.py",
-        "../../agents/agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Response Formatter",
@@ -69,20 +59,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/monitoring.py",
-        "../../agents/agent_responses.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

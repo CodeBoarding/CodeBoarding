@@ -32,8 +32,6 @@
         "agents/__init__.py",
         "agents/planner_agent.py",
         "agents/meta_agent.py",
-        "agents/monitoring.py",
-        "agents/agent_responses.py",
         "agents/agent.py"
       ],
       "can_expand": true
@@ -207,11 +205,20 @@
         "demo.py",
         "duckdb_crud.py",
         "logging_config.py",
+        "agents/monitoring.py",
+        "agents/agent_responses.py",
         "evals/static_analysis_eval.py",
         "evals/end_to_end_eval.py",
         "evals/run_all_evals.py",
         "evals/report_generator.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
       "can_expand": false
     },
     {

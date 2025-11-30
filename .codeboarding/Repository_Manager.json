@@ -11,9 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Repository Manager",
@@ -25,13 +23,7 @@
           "reference_start_line": 10,
           "reference_end_line": 20
         }
-      ],
-      "assigned_files": [
-        "../../repo_utils/__init__.py",
-        "../../repo_utils/git_diff.py",
-        "../../repo_utils/errors.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -43,9 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Setup and Configuration Manager",
@@ -57,9 +47,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Language Server (External)",
@@ -71,18 +59,12 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../utils.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
