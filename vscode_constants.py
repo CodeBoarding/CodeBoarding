@@ -18,9 +18,14 @@ def update_command_paths(bin_dir):
         for key, value in section.items():
             if key == "typescript":
                 # Scan the bin dir to fine the cli.mjs path
-                value["command"][0] = find_cli_js(bin_dir) or value["command"][0]
+                value["command"][0] = find_runnable(bin_dir) or value["command"][0]
                 if platform.system().lower() == "windows":
                     # Use node to run the .mjs file on Windows
+                    value["command"].insert(0, "node")
+            elif key == "python":
+                value["command"][0] = find_runnable(bin_dir, "langserver.index.js", "pyright") or value["command"][0]
+                if platform.system().lower() == "windows":
+                    # Use python to run the .mjs file on Windows
                     value["command"].insert(0, "node")
             elif "command" in value:
                 cmd = value["command"]
@@ -28,9 +33,9 @@ def update_command_paths(bin_dir):
                     value["command"][0] = os.path.join(bin_path, cmd[0])
 
 
-def find_cli_js(bin_dir, search_file="cli.mjs"):
+def find_runnable(bin_dir, search_file="cli.mjs", part_of_dir="typescript-language-server"):
     for root, dirs, files in os.walk(bin_dir):
-        if search_file in files and "typescript-language-server" in root:
+        if search_file in files and part_of_dir in root:
             return os.path.join(root, search_file)
     return None
 
