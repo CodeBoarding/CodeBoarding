@@ -52,32 +52,6 @@ class ProgrammingLanguage:
             return False
         return self.lsp_key == other.lsp_key
 
-    def merge(self, other: "ProgrammingLanguage") -> "ProgrammingLanguage":
-        """
-        Merge another ProgrammingLanguage into this one, combining stats.
-        
-        Args:
-            other: Another ProgrammingLanguage with the same lsp_key
-            
-        Returns:
-            New merged ProgrammingLanguage instance
-        """
-        if self.lsp_key != other.lsp_key:
-            raise ValueError(f"Cannot merge languages with different lsp_keys: {self.lsp_key} vs {other.lsp_key}")
-
-        # Combine suffixes
-        merged_suffixes = list(set(self.suffixes) | set(other.suffixes))
-
-        # Use the lsp_key as the canonical language name
-        return ProgrammingLanguage(
-            language=self.lsp_key,
-            size=self.size + other.size,
-            percentage=self.percentage + other.percentage,
-            suffixes=merged_suffixes,
-            server_commands=self.server_commands or other.server_commands,
-            lsp_key=self.lsp_key,
-        )
-
     def __str__(self):
         return f"ProgrammingLanguage(language={self.language}, lsp_key={self.lsp_key}, size={self.size}, percentage={self.percentage:.2f}%, suffixes={self.suffixes})"
 

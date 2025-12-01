@@ -40,6 +40,7 @@ class ProjectScanner:
         # Use dict to accumulate and merge by lsp_key
         merged_languages: Dict[str, ProgrammingLanguage] = {}
 
+        programming_languages: List[ProgrammingLanguage] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
@@ -63,22 +64,8 @@ class ProjectScanner:
             )
 
             logger.debug(f"Found: {pl}")
-
-            # Merge by lsp_key (or language if no lsp_key)
-            key = pl.language.lower()
-            if key in merged_languages:
-                merged_languages[key] = merged_languages[key].merge(pl)
-                logger.debug(f"Merged into: {merged_languages[key]}")
-            else:
-                merged_languages[key] = pl
-
-        # Filter and return
-        programming_languages = []
-        for pl in merged_languages.values():
-            logger.info(f"Found: {pl}")
-            if pl.percentage >= 1:  # filter PL with less than 1% of code
+            if pl.percentage >= 1:
                 programming_languages.append(pl)
-                logger.info(f"Added {pl}")
 
         return programming_languages
 
