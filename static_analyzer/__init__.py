@@ -19,7 +19,7 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
             continue
         try:
-            if pl.language in ["TypeScript"]:
+            if pl.language.lower() in ["typescript"]:
                 # For TypeScript, scan for multiple project configurations (mono-repo support)
                 config_scanner = TypeScriptConfigScanner(repository_path)
                 typescript_projects = config_scanner.find_typescript_projects()

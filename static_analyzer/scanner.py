@@ -39,7 +39,7 @@ class ProjectScanner:
 
         # Use dict to accumulate and merge by lsp_key
         merged_languages: Dict[str, ProgrammingLanguage] = {}
-        
+
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
@@ -63,7 +63,7 @@ class ProjectScanner:
             )
 
             logger.debug(f"Found: {pl}")
-            
+
             # Merge by lsp_key (or language if no lsp_key)
             key = pl.lsp_key or pl.language.lower()
             if key in merged_languages:
