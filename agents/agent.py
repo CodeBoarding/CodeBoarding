@@ -128,7 +128,10 @@ class CodeBoardingAgent(ReferenceResolverMixin):
             return ChatCerebras(
                 model="gpt-oss-120b",
                 temperature=0,
-                api_key=self.cerebras_api_key
+                max_tokens=None,
+                timeout=None,
+                max_retries=0,
+                api_key=self.cerebras_api_key,
             )
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
