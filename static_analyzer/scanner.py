@@ -2,9 +2,9 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Dict
 
-from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from utils import get_config
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ class ProjectScanner:
         result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
 
         server_config = get_config("lsp_servers")
+        builder = ProgrammingLanguageBuilder(server_config)
 
         # Parse Tokei JSON output
         tokei_data = json.loads(result.stdout)
@@ -36,7 +37,9 @@ class ProjectScanner:
             logger.warning("No total code count found in Tokei output")
             return []
 
-        programming_languages = []
+        # Use dict to accumulate and merge by lsp_key
+        merged_languages: Dict[str, ProgrammingLanguage] = {}
+        
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
@@ -52,16 +55,26 @@ class ProjectScanner:
             for report in stats.get("reports", []):
                 suffixes |= self._extract_suffixes([report["name"]])
 
-            command = server_config.get(technology.lower(), {"command": None})["command"]
-            suffixes |= set(server_config.get(technology.lower(), {"file_extensions": []})["file_extensions"])
-            pl = ProgrammingLanguage(
-                language=technology,
-                size=code_count,
+            pl = builder.build(
+                tokei_language=technology,
+                code_count=code_count,
                 percentage=percentage,
-                suffixes=list(suffixes),
-                server_commands=command,
+                file_suffixes=suffixes,
             )
 
+            logger.debug(f"Found: {pl}")
+            
+            # Merge by lsp_key (or language if no lsp_key)
+            key = pl.lsp_key or pl.language.lower()
+            if key in merged_languages:
+                merged_languages[key] = merged_languages[key].merge(pl)
+                logger.debug(f"Merged into: {merged_languages[key]}")
+            else:
+                merged_languages[key] = pl
+
+        # Filter and return
+        programming_languages = []
+        for pl in merged_languages.values():
             logger.info(f"Found: {pl}")
             if pl.percentage >= 1:  # filter PL with less than 1% of code
                 programming_languages.append(pl)
