@@ -255,9 +255,22 @@ def update_static_analysis_config():
     if ts_lsp_path.exists():
         config["lsp_servers"]["typescript"]["command"][0] = str(ts_lsp_path)
         updates += 1
+        # Also update JavaScript LSP server (uses same typescript-language-server)
+        config["lsp_servers"]["javascript"]["command"][0] = str(ts_lsp_path)
+        updates += 1
+
+    # Update Go Language Server path
+    gopls_path = servers_dir / "gopls"
+    if platform.system() == "Windows":
+        gopls_path = servers_dir / "gopls.exe"
+    if gopls_path.exists():
+        config["lsp_servers"]["go"]["command"][0] = str(gopls_path)
+        updates += 1
 
     # Update tokei tool path
     tokei_path = servers_dir / "tokei"
+    if platform.system() == "Windows":
+        tokei_path = servers_dir / "tokei.exe"
     if tokei_path.exists():
         config["tools"]["tokei"]["command"][0] = str(tokei_path)
         updates += 1

@@ -65,7 +65,7 @@ class ProjectScanner:
             logger.debug(f"Found: {pl}")
 
             # Merge by lsp_key (or language if no lsp_key)
-            key = pl.lsp_key or pl.language.lower()
+            key = pl.language.lower()
             if key in merged_languages:
                 merged_languages[key] = merged_languages[key].merge(pl)
                 logger.debug(f"Merged into: {merged_languages[key]}")

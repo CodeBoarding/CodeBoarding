@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class ProgrammingLanguage:
     def __init__(
-            self, language: str, size: int, percentage: float, suffixes: List[str], 
+            self, language: str, size: int, percentage: float, suffixes: List[str],
             server_commands: List[str] = None, lsp_key: Optional[str] = None
     ):
         self.language = language
@@ -64,10 +64,10 @@ class ProgrammingLanguage:
         """
         if self.lsp_key != other.lsp_key:
             raise ValueError(f"Cannot merge languages with different lsp_keys: {self.lsp_key} vs {other.lsp_key}")
-        
+
         # Combine suffixes
         merged_suffixes = list(set(self.suffixes) | set(other.suffixes))
-        
+
         # Use the lsp_key as the canonical language name
         return ProgrammingLanguage(
             language=self.lsp_key,
@@ -117,7 +117,7 @@ class ProgrammingLanguageBuilder:
         normalized = tokei_language.lower()
         if normalized in self.lsp_configs:
             return normalized
-        
+
         # Fallback: try matching by file extensions first
         for suffix in file_suffixes:
             normalized_suffix = suffix if suffix.startswith('.') else f'.{suffix}'
@@ -170,4 +170,3 @@ class ProgrammingLanguageBuilder:
     def get_supported_extensions(self) -> Set[str]:
         """Return set of all supported file extensions."""
         return set(self._extension_to_lsp.keys())
-

@@ -2,46 +2,65 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-    - ./static_analyzer/servers/node_modules/.bin/pyright-langserver
-    - --stdio
+      - ./static_analyzer/servers/py-lsp
+      - --stdio
     languages:
-    - python
+      - python
     file_extensions:
-    - .py
-    - .pyi
-    install_commands: npm install pyright
+      - .py
+      - .pyi
+    install_commands: pip install pyright
   typescript:
     name: TypeScript Language Server
     command:
-    - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
-    - --stdio
-    - --log-level=2
+      - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+      - --stdio
+      - --log-level=2
     languages:
-    - typescript
-    - javascript
+      - typescript
     file_extensions:
-    - .ts
-    - .tsx
-    - .js
-    - .jsx
+      - .ts
+      - .tsx
+    install_commands: npm install --save-dev typescript-language-server typescript
+  javascript:
+    name: TypeScript Language Server
+    command:
+      - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+      - --stdio
+      - --log-level=2
+    languages:
+      - javascript
+    file_extensions:
+      - .js
+      - .jsx
     install_commands: npm install --save-dev typescript-language-server typescript
   go:
     name: Go Language Server (gopls)
     command:
-    - ./static_analyzer/servers/gopls
-    - serve
+      - ./static_analyzer/servers/gopls
+      - serve
     languages:
-    - go
+      - go
     file_extensions:
-    - .go
+      - .go
     install_commands: go install golang.org/x/tools/gopls@latest
+  php:
+    name: Intelephense
+    command:
+      - ./static_analyzer/servers/node_modules/.bin/intelephense
+      - --stdio
+    languages:
+      - php
+    file_extensions:
+      - .php
+    install_commands: npm install intelephense
 tools:
   tokei:
     name: tokei
     command:
-    - ./static_analyzer/servers/tokei
-    - -o
-    - json
+      - ./static_analyzer/servers/tokei
+      - -o
+      - json
     description: Analyze repository languages and file types
     install_command: conda install -c conda-forge tokei
     output_format: json
