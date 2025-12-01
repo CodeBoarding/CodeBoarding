@@ -92,7 +92,7 @@ class ProgrammingLanguageBuilder:
         if normalized in self.lsp_configs:
             return normalized
 
-        # Fallback: try matching by file extensions first
+        # Fallback: try matching by file extensions
         for suffix in file_suffixes:
             normalized_suffix = suffix if suffix.startswith('.') else f'.{suffix}'
             if normalized_suffix in self._extension_to_lsp:
