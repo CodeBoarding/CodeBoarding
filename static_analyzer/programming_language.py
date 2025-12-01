@@ -6,8 +6,13 @@ logger = logging.getLogger(__name__)
 
 class ProgrammingLanguage:
     def __init__(
-            self, language: str, size: int, percentage: float, suffixes: List[str],
-            server_commands: List[str] = None, lsp_key: Optional[str] = None
+        self,
+        language: str,
+        size: int,
+        percentage: float,
+        suffixes: List[str],
+        server_commands: List[str] = None,
+        lsp_key: Optional[str] = None,
     ):
         self.language = language
         self.size = size
@@ -72,7 +77,7 @@ class ProgrammingLanguageBuilder:
         for lsp_key, config in lsp_configs.items():
             for ext in config.get("file_extensions", []):
                 # Normalize extension (ensure it starts with '.')
-                normalized_ext = ext if ext.startswith('.') else f'.{ext}'
+                normalized_ext = ext if ext.startswith(".") else f".{ext}"
                 self._extension_to_lsp[normalized_ext] = lsp_key
 
     def _find_lsp_config_key(self, tokei_language: str, file_suffixes: Set[str]) -> Optional[str]:
@@ -94,18 +99,14 @@ class ProgrammingLanguageBuilder:
 
         # Fallback: try matching by file extensions
         for suffix in file_suffixes:
-            normalized_suffix = suffix if suffix.startswith('.') else f'.{suffix}'
+            normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
             if normalized_suffix in self._extension_to_lsp:
                 return self._extension_to_lsp[normalized_suffix]
 
         return None
 
     def build(
-            self,
-            tokei_language: str,
-            code_count: int,
-            percentage: float,
-            file_suffixes: Set[str]
+        self, tokei_language: str, code_count: int, percentage: float, file_suffixes: Set[str]
     ) -> ProgrammingLanguage:
         """
         Build a ProgrammingLanguage instance from tokei output.
