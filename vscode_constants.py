@@ -14,26 +14,43 @@ def get_bin_path(bin_dir):
 
 def update_command_paths(bin_dir):
     bin_path = get_bin_path(bin_dir)
+    is_windows = platform.system().lower() == "windows"
+
+    # Languages that need 'node' prefix on Windows
+    node_languages = {"typescript", "python", "php"}
+
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
             if key == "typescript":
-                # Scan the bin dir to fine the cli.mjs path
-                value["command"][0] = find_runnable(bin_dir) or value["command"][0]
-                if platform.system().lower() == "windows":
-                    # Use node to run the .mjs file on Windows
-                    value["command"].insert(0, "node")
+                # Scan the bin dir to find the cli.mjs path
+                value["command"][0] = (
+                    find_runnable(bin_dir, "cli.mjs", "typescript-language-server")
+                    or find_runnable(bin_dir, "typescript-language-server", "node_modules")
+                    or value["command"][0]
+                )
             elif key == "python":
-                value["command"][0] = find_runnable(bin_dir, "langserver.index.js", "pyright") or value["command"][0]
-                if platform.system().lower() == "windows":
-                    # Use python to run the .mjs file on Windows
-                    value["command"].insert(0, "node")
+                value["command"][0] = (
+                    find_runnable(bin_dir, "langserver.index.js", "pyright")
+                    or find_runnable(bin_dir, "pyright", "node_modules")
+                    or value["command"][0]
+                )
+            elif key == "php":
+                value["command"][0] = (
+                    find_runnable(bin_dir, "intelephense.js", "intelephense")
+                    or find_runnable(bin_dir, "intelephense", "node_modules")
+                    or value["command"][0]
+                )
             elif "command" in value:
                 cmd = value["command"]
                 if isinstance(cmd, list) and cmd:
                     value["command"][0] = os.path.join(bin_path, cmd[0])
 
+            # Apply Windows-specific node prefix for specified languages
+            if is_windows and key in node_languages:
+                value["command"].insert(0, "node")
 
-def find_runnable(bin_dir, search_file="cli.mjs", part_of_dir="typescript-language-server"):
+
+def find_runnable(bin_dir, search_file, part_of_dir):
     for root, dirs, files in os.walk(bin_dir):
         if search_file in files and part_of_dir in root:
             return os.path.join(root, search_file)
@@ -67,6 +84,13 @@ VSCODE_CONFIG = {
             "languages": ["go"],
             "file_extensions": [".go"],
             "install_commands": "go install golang.org/x/tools/gopls@latest",
+        },
+        "php": {
+            "name": "Intelephense",
+            "command": ["intelephense", "--stdio"],
+            "languages": ["php"],
+            "file_extensions": [".php"],
+            "install_commands": "npm install intelephense",
         },
     },
     "tools": {

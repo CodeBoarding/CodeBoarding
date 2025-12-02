@@ -35,6 +35,16 @@ lsp_servers:
     file_extensions:
     - .go
     install_commands: go install golang.org/x/tools/gopls@latest
+  php:
+    name: Intelephense
+    command:
+    - ./static_analyzer/servers/node_modules/.bin/intelephense
+    - --stdio
+    languages:
+    - php
+    file_extensions:
+    - .php
+    install_commands: npm install intelephense
 tools:
   tokei:
     name: tokei
