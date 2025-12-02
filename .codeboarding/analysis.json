@@ -1,5 +1,5 @@
 {
-  "description": "The system employs a modular, agent-based architecture designed for automated code analysis and architectural diagram generation. The `User Interface / API Gateway` serves as the primary entry point, handling user requests and displaying results, including expanded integration with VS Code. The `Orchestration Engine` acts as the central coordinator, managing the workflow from code acquisition via the `Repository Manager` to static analysis by the `Static Analysis Engine`. It dynamically generates LLM prompts through the `LLM Prompt Factory` and leverages the `AI Interpretation Layer` for deriving architectural insights. These insights are then transformed into structured outputs by the `Output Generation Engine` and visualized by the `Diagram Analysis & Renderer`, completing the analysis cycle.",
+  "description": "The system provides a comprehensive code analysis platform, initiated via the `User Interface / API Gateway`. The `Orchestration Engine (Agent Core)` centrally manages the analysis workflow, coordinating interactions with other components. It leverages the `Repository Manager` for seamless access to codebases. A critical component, the `Static Analysis Engine`, performs in-depth code analysis, now featuring significantly enhanced programming language support and more robust scanning mechanisms to extract detailed structural information. This data, combined with dynamic prompts from the `LLM Prompt Factory`, is fed to the `AI Interpretation Layer` for advanced contextual understanding and insight generation. Finally, the `Output Generation Engine` processes these insights into structured formats, which the `Diagram Analysis & Renderer` transforms into visual architectural diagrams for display back to the user.",
   "components": [
     {
       "name": "User Interface / API Gateway",
@@ -15,8 +15,7 @@
       "assigned_files": [
         "vscode_constants.py",
         "vscode_runnable.py",
-        "local_app.py",
-        "github_action.py"
+        "local_app.py"
       ],
       "can_expand": true
     },
@@ -33,14 +32,24 @@
       ],
       "assigned_files": [
         "agents/__init__.py",
-        "agents/diff_analyzer.py",
+        "agents/validator_agent.py",
         "agents/planner_agent.py",
         "agents/meta_agent.py",
         "agents/monitoring.py",
         "agents/agent_responses.py",
         "agents/agent.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
         "agents/tools/__init__.py",
-        "agents/tools/utils.py"
+        "agents/tools/external_deps.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/utils.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py"
       ],
       "can_expand": true
     },
@@ -63,11 +72,6 @@
       ],
       "assigned_files": [
         "utils.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_file.py",
-        "agents/tools/read_docs.py",
         "repo_utils/__init__.py",
         "repo_utils/git_diff.py",
         "repo_utils/errors.py"
@@ -76,7 +80,7 @@
     },
     {
       "name": "Static Analysis Engine",
-      "description": "Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs.",
+      "description": "Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs, now with significantly enhanced programming language support and more robust scanning mechanisms.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.scanner.Scanner",
@@ -86,11 +90,6 @@
         }
       ],
       "assigned_files": [
-        "agents/tools/external_deps.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_structure.py",
         "static_analyzer/programming_language.py",
         "static_analyzer/__init__.py",
         "static_analyzer/reference_resolve_mixin.py",
@@ -146,8 +145,8 @@
         }
       ],
       "assigned_files": [
+        "agents/diff_analyzer.py",
         "agents/details_agent.py",
-        "agents/validator_agent.py",
         "agents/abstraction_agent.py"
       ],
       "can_expand": true
@@ -204,6 +203,7 @@
       "referenced_source_code": [],
       "assigned_files": [
         "setup.py",
+        "github_action.py",
         "demo.py",
         "duckdb_crud.py",
         "logging_config.py",

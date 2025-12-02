@@ -7,19 +7,22 @@ graph LR
     Unclassified["Unclassified"]
     Unclassified["Unclassified"]
     LSPClient -- "initiates communication with" --> Language_Servers_External_
-    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
     LSPClient -- "provides high-level static analysis data to" --> AbstractionAgent
     LSPClient -- "provides detailed static analysis data to" --> DetailsAgent
+    AbstractionAgent -- "consumes data from" --> LSPClient
+    DetailsAgent -- "consumes data from" --> LSPClient
+    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
+    Unclassified -- "manages dependencies for" --> LSPClient
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's primary function is to acquire and process static analysis data from codebases. The LSPClient acts as the central data acquisition hub, establishing and managing communication with external Language Servers via the Language Server Protocol. These Language Servers provide raw code intelligence, which the LSPClient then processes and makes available. This processed data is consumed by two specialized agents: the AbstractionAgent, which focuses on generating high-level architectural representations, and the DetailsAgent, which performs in-depth, granular analysis of specific code sections. The LSPClient also incorporates enhanced integration capabilities for environments like VSCode, optimizing its operation within development workflows. Project-wide external dependencies and packaging configurations are managed by the Unclassified component, supporting the overall system's operational integrity.
+The system's core revolves around the LSPClient, which establishes and manages communication with external Language Servers to gather comprehensive static analysis data. This client now incorporates enhanced mechanisms for defining, detecting, and configuring programming languages, making it a more sophisticated and flexible data acquisition layer. The collected data is then channeled to two specialized agents: the AbstractionAgent, which distills high-level architectural views, and the DetailsAgent, which performs granular analysis of specific code sections. External Language Servers provide the raw code intelligence, while the Unclassified component manages project dependencies and packaging, ensuring the operational integrity of the entire system.
 
 ### LSPClient
-Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It filters source files and handles language-specific configurations, acting as a robust data acquisition layer. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.
+Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It now features enhanced and more flexible mechanisms for defining, detecting, and configuring programming languages, acting as a robust data acquisition layer with sophisticated language-specific configuration handling. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.
 
 
 **Related Classes/Methods**:
@@ -51,11 +54,10 @@ External processes that provide static analysis capabilities for specific progra
 
 **Related Classes/Methods**:
 
-- `LSP_Protocol`:1-10
 
 
 ### Unclassified
-Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`.
+Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`, which may introduce new external libraries or alter project build and deployment characteristics.
 
 
 **Related Classes/Methods**:

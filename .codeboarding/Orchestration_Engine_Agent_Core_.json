@@ -1,70 +1,133 @@
 {
-  "description": "The system is structured around a core agentic loop, starting with the `Query Processor` which handles user input and orchestrates the overall flow. It passes the query to the `Language Model Interface`, responsible for interacting with the underlying LLM. The LLM's output, which may include a decision to use external capabilities, is then directed to the `Tool Executor`. This component is central to the system's extensibility, managing the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled. After tool execution, results are fed back to the `Language Model Interface` for further reasoning or to generate a conclusive response. Finally, the `Response Formatter` synthesizes and formats the LLM's output into a user-friendly message, which is then returned via the `Query Processor`. This architecture ensures a clear separation of concerns, enabling flexible interaction with LLMs and external tools.",
+  "description": "The system's architecture is centered around a `Query Processor` that manages user interactions and orchestrates the overall workflow. It communicates with a `Language Model Interface` to leverage the capabilities of an underlying Large Language Model. For specialized tasks, the `Language Model Interface` directs the `Tool Executor` to invoke various `Tools`, including a newly enhanced `Static Analyzer` for in-depth code analysis. After processing, the `Tool Executor` returns results to the `Language Model Interface`. Finally, the `Response Formatter` takes the LLM's output and formats it into a user-friendly message, which is then delivered back to the `Query Processor`. This design ensures a clear separation of concerns, allowing for flexible integration of new tools and output formats.",
   "components": [
     {
       "name": "Query Processor",
-      "description": "Handles user input and orchestrates the overall flow.",
+      "description": "Manages user interactions and orchestrates the overall workflow, initiating communication with the language model and receiving formatted responses.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryProcessor",
+          "qualified_name": "query_processor.QueryProcessor",
           "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Language Model Interface",
-      "description": "Responsible for interacting with the underlying LLM.",
+      "description": "Facilitates communication with the underlying Large Language Model, providing output/actions to the Tool Executor and receiving results.",
       "referenced_source_code": [
         {
-          "qualified_name": "LanguageModelInterface",
+          "qualified_name": "language_model_interface.LanguageModelInterface",
           "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/agent.py",
+        "../../agents/__init__.py",
+        "../../agents/validator_agent.py",
+        "../../agents/planner_agent.py",
+        "../../agents/meta_agent.py",
+        "../../agents/monitoring.py",
+        "../../agents/agent_responses.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Tool Executor",
-      "description": "Manages the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled.",
+      "description": "Directs the invocation of various tools, processes their outcomes, and feeds results back to the Language Model Interface.",
       "referenced_source_code": [
         {
-          "qualified_name": "ToolExecutor",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "tool_executor.ToolExecutor",
+          "reference_file": "tool_executor.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Tools",
-      "description": "External functionalities invoked by the Tool Executor.",
+      "description": "A collection of specialized functionalities that perform tasks for the Tool Executor, including static code analysis.",
       "referenced_source_code": [
         {
-          "qualified_name": "Tool",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 27,
-          "reference_end_line": 27
-        }
-      ]
-    },
-    {
-      "name": "Response Formatter",
-      "description": "Synthesizes and formats the LLM's output into a user-friendly message.",
-      "referenced_source_code": [
+          "qualified_name": "static_analyzer.programming_language",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
-          "qualified_name": "ResponseFormatter",
-          "reference_file": "",
+          "qualified_name": "static_analyzer.scanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client",
+          "reference_file": "static_analyzer/lsp_client",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/tools/read_source.py",
+        "../../agents/tools/read_file_structure.py",
+        "../../agents/tools/__init__.py",
+        "../../agents/tools/external_deps.py",
+        "../../agents/tools/read_packages.py",
+        "../../agents/tools/read_cfg.py",
+        "../../agents/tools/get_method_invocations.py",
+        "../../agents/tools/read_git_diff.py",
+        "../../agents/tools/read_file.py",
+        "../../agents/tools/utils.py",
+        "../../agents/tools/read_structure.py",
+        "../../agents/tools/read_docs.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Response Formatter",
+      "description": "Takes the LLM's output and formats it into a user-friendly message in various formats.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.markdown",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.mdx",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.sphinx",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
@@ -74,12 +137,32 @@
       "dst_name": "Language Model Interface"
     },
     {
+      "relation": "receives formatted response from",
+      "src_name": "Query Processor",
+      "dst_name": "Response Formatter"
+    },
+    {
       "relation": "provides output/action to",
       "src_name": "Language Model Interface",
       "dst_name": "Tool Executor"
     },
     {
-      "relation": "invokes/processes",
+      "relation": "receives results from",
+      "src_name": "Language Model Interface",
+      "dst_name": "Tool Executor"
+    },
+    {
+      "relation": "sends final response to",
+      "src_name": "Language Model Interface",
+      "dst_name": "Response Formatter"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "Tool Executor",
+      "dst_name": "Tools"
+    },
+    {
+      "relation": "processes outcomes from",
       "src_name": "Tool Executor",
       "dst_name": "Tools"
     },
@@ -89,9 +172,19 @@
       "dst_name": "Language Model Interface"
     },
     {
-      "relation": "sends final response to",
-      "src_name": "Language Model Interface",
-      "dst_name": "Response Formatter"
+      "relation": "perform specialized tasks for",
+      "src_name": "Tools",
+      "dst_name": "Tool Executor"
+    },
+    {
+      "relation": "return results to",
+      "src_name": "Tools",
+      "dst_name": "Tool Executor"
+    },
+    {
+      "relation": "formats LLM output from",
+      "src_name": "Response Formatter",
+      "dst_name": "Language Model Interface"
     },
     {
       "relation": "returns formatted response to",

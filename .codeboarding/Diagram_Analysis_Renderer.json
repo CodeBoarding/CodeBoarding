@@ -1,20 +1,52 @@
 {
-  "description": "The Output Generation Engine serves as the central orchestrator for transforming raw code analysis into structured, human-readable outputs, primarily in JSON format for subsequent diagram generation. It leverages a suite of specialized agents to perform detailed analysis, abstraction, planning, and validation. The engine's primary responsibility is to manage the workflow of these agents, process components in a multi-level, parallel fashion, and persist the generated analysis in a structured format that can be consumed by external rendering tools to visualize architectural diagrams.",
+  "description": "The system's architecture is composed of four key components: the `Output Generation Engine`, `Agent Orchestration`, `Static Analyzer`, and `Analysis Data Formatter`. The `Output Generation Engine` acts as the central control, orchestrating the entire analysis workflow from initial code processing to final output generation. It delegates the complex task of code interpretation and insight generation to the `Agent Orchestration` component, which in turn leverages the `Static Analyzer` for fundamental, language-specific source code analysis. Once the `Agent Orchestration` completes its tasks, the `Output Generation Engine` directs the results to the `Analysis Data Formatter`, ensuring that all generated architectural insights are consistently structured into a standardized JSON format, ready for seamless integration with diagramming tools and comprehensive documentation.",
   "components": [
     {
       "name": "Output Generation Engine",
-      "description": "Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates various agents to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams.",
+      "description": "Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates `Agent Orchestration` to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams. It also utilizes the `Analysis Data Formatter`.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": 23,
-          "reference_end_line": 196
+          "qualified_name": "OutputGenerationEngine",
+          "reference_file": "OutputGenerationEngine",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../diagram_analysis/diagram_generator.py"
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent Orchestration",
+      "description": "Manages and coordinates various specialized agents responsible for interpreting code, performing detailed analysis, abstraction, planning, and validation. These agents rely on the `Static Analyzer` for foundational code understanding.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "AgentOrchestration",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
       ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analyzer",
+      "description": "Provides foundational capabilities for understanding and processing source code across different programming languages. It extracts structural and semantic information, which is then consumed by `Agent Orchestration` for deeper analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.scanner.Scanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
@@ -22,8 +54,8 @@
       "description": "Responsible for converting the internal analysis objects into a standardized JSON format. This component ensures that the output is structured consistently, making it suitable for consumption by external diagram rendering tools.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.analysis_json.from_analysis_to_json",
-          "reference_file": "diagram_analysis/analysis_json.py",
+          "qualified_name": "AnalysisDataFormatter",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -39,6 +71,7 @@
       "referenced_source_code": [],
       "assigned_files": [
         "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/diagram_generator.py",
         "../../diagram_analysis/version.py"
       ],
       "can_expand": false
@@ -46,9 +79,34 @@
   ],
   "components_relations": [
     {
+      "relation": "orchestrates",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Agent Orchestration"
+    },
+    {
       "relation": "utilizes",
+      "src_name": "Agent Orchestration",
+      "dst_name": "Static Analyzer"
+    },
+    {
+      "relation": "formats output via",
       "src_name": "Output Generation Engine",
       "dst_name": "Analysis Data Formatter"
+    },
+    {
+      "relation": "orchestrated by",
+      "src_name": "Agent Orchestration",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "provides analysis to",
+      "src_name": "Static Analyzer",
+      "dst_name": "Agent Orchestration"
+    },
+    {
+      "relation": "receives data from",
+      "src_name": "Analysis Data Formatter",
+      "dst_name": "Output Generation Engine"
     }
   ]
 }

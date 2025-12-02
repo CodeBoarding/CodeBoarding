@@ -1,9 +1,9 @@
 {
-  "description": "The system's primary function is to acquire and process static analysis data from codebases. The LSPClient acts as the central data acquisition hub, establishing and managing communication with external Language Servers via the Language Server Protocol. These Language Servers provide raw code intelligence, which the LSPClient then processes and makes available. This processed data is consumed by two specialized agents: the AbstractionAgent, which focuses on generating high-level architectural representations, and the DetailsAgent, which performs in-depth, granular analysis of specific code sections. The LSPClient also incorporates enhanced integration capabilities for environments like VSCode, optimizing its operation within development workflows. Project-wide external dependencies and packaging configurations are managed by the Unclassified component, supporting the overall system's operational integrity.",
+  "description": "The system's core revolves around the LSPClient, which establishes and manages communication with external Language Servers to gather comprehensive static analysis data. This client now incorporates enhanced mechanisms for defining, detecting, and configuring programming languages, making it a more sophisticated and flexible data acquisition layer. The collected data is then channeled to two specialized agents: the AbstractionAgent, which distills high-level architectural views, and the DetailsAgent, which performs granular analysis of specific code sections. External Language Servers provide the raw code intelligence, while the Unclassified component manages project dependencies and packaging, ensuring the operational integrity of the entire system.",
   "components": [
     {
       "name": "LSPClient",
-      "description": "Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It filters source files and handles language-specific configurations, acting as a robust data acquisition layer. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.",
+      "description": "Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It now features enhanced and more flexible mechanisms for defining, detecting, and configuring programming languages, acting as a robust data acquisition layer with sophisticated language-specific configuration handling. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.",
       "referenced_source_code": [
         {
           "qualified_name": "LSPClient",
@@ -53,9 +53,9 @@
       "referenced_source_code": [
         {
           "qualified_name": "LSP_Protocol",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [],
@@ -63,7 +63,7 @@
     },
     {
       "name": "Unclassified",
-      "description": "Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`.",
+      "description": "Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`, which may introduce new external libraries or alter project build and deployment characteristics.",
       "referenced_source_code": [
         {
           "qualified_name": "setup.py",
@@ -72,15 +72,17 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../agents/diff_analyzer.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     }
   ],
   "components_relations": [
@@ -88,11 +90,6 @@
       "relation": "initiates communication with",
       "src_name": "LSPClient",
       "dst_name": "Language Servers (External)"
-    },
-    {
-      "relation": "provides static analysis data to",
-      "src_name": "Language Servers (External)",
-      "dst_name": "LSPClient"
     },
     {
       "relation": "provides high-level static analysis data to",
@@ -103,6 +100,26 @@
       "relation": "provides detailed static analysis data to",
       "src_name": "LSPClient",
       "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "consumes data from",
+      "src_name": "AbstractionAgent",
+      "dst_name": "LSPClient"
+    },
+    {
+      "relation": "consumes data from",
+      "src_name": "DetailsAgent",
+      "dst_name": "LSPClient"
+    },
+    {
+      "relation": "provides static analysis data to",
+      "src_name": "Language Servers (External)",
+      "dst_name": "LSPClient"
+    },
+    {
+      "relation": "manages dependencies for",
+      "src_name": "Unclassified",
+      "dst_name": "LSPClient"
     }
   ]
 }

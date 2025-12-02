@@ -1,5 +1,5 @@
 {
-  "description": "The system is designed around a core `Agent Component` that orchestrates the static analysis and documentation generation workflow. It leverages the `Static Analysis Component` to acquire AI-interpreted insights from the codebase, which are then channeled to the `Output Format Dispatcher`. This dispatcher intelligently routes the insights to specialized generators, such as `Markdown Generator`, `HTML Generator`, `Mdx Generator`, and `Sphinx Generator`, to produce documentation in various formats. The `Static Analysis Component` has been significantly enhanced with robust IDE integration, particularly for VS Code, improving the delivery of insights directly within the development environment. Supporting infrastructure and utilities are managed under the `Unclassified` component.",
+  "description": "The system's architecture is centered around a pipeline-driven approach, with the Agent Component serving as the primary orchestrator. It initiates the static analysis process by engaging the Static Analysis Component, which has been significantly enhanced to provide sophisticated AI-interpreted insights across various programming languages. Once these insights are generated, the Agent Component directs them to the Output Format Dispatcher. This dispatcher then intelligently delegates the task of transforming these insights into diverse documentation formats, such as Markdown, HTML, MDX, or Sphinx, to specialized generator components. This design ensures a modular, extensible, and efficient workflow for code analysis and documentation generation.",
   "components": [
     {
       "name": "Agent Component",
@@ -17,7 +17,7 @@
     },
     {
       "name": "Static Analysis Component",
-      "description": "This component is responsible for performing static analysis on the codebase and generating \"AI-interpreted insights.\" It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Significantly, it now features enhanced IDE integration, particularly with VS Code, allowing for more robust interaction and delivery of insights within the development environment. The updates in its LSP client highlight its active development and importance in the overall system.",
+      "description": "This component is responsible for performing static analysis on the codebase and generating \"AI-interpreted insights.\" It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Due to significant architectural changes in `static_analyzer/programming_language.py`, this component now features a deeper and more sophisticated understanding of various programming languages, enhancing its ability to identify, parse, and process code. It also features enhanced IDE integration, particularly with VS Code, allowing for more robust interaction and delivery of insights within the development environment. The updates in its LSP client and scanning logic (`static_analyzer/scanner.py`) highlight its active development and importance in the overall system.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer/lsp_client/client.py",
@@ -130,26 +130,6 @@
     },
     {
       "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions, including project setup (`setup.py`) and IDE-specific constants (`vscode_constants.py`) that support the enhanced integration capabilities of other components, particularly the `Static Analysis Component`.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "setup.py",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "vscode_constants.py",
-          "reference_file": "vscode_constants.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [],
@@ -158,37 +138,37 @@
   ],
   "components_relations": [
     {
-      "relation": "Orchestrates",
+      "relation": "orchestrates",
       "src_name": "Agent Component",
       "dst_name": "Static Analysis Component"
     },
     {
-      "relation": "Dispatches insights to",
+      "relation": "dispatches insights to",
       "src_name": "Agent Component",
       "dst_name": "Output Format Dispatcher"
     },
     {
-      "relation": "Provides AI-interpreted insights to",
+      "relation": "provides AI-interpreted insights to",
       "src_name": "Static Analysis Component",
       "dst_name": "Agent Component"
     },
     {
-      "relation": "Delegates generation to",
+      "relation": "delegates generation to",
       "src_name": "Output Format Dispatcher",
       "dst_name": "Markdown Generator"
     },
     {
-      "relation": "Delegates generation to",
+      "relation": "delegates generation to",
       "src_name": "Output Format Dispatcher",
       "dst_name": "HTML Generator"
     },
     {
-      "relation": "Delegates generation to",
+      "relation": "delegates generation to",
       "src_name": "Output Format Dispatcher",
       "dst_name": "Mdx Generator"
     },
     {
-      "relation": "Delegates generation to",
+      "relation": "delegates generation to",
       "src_name": "Output Format Dispatcher",
       "dst_name": "Sphinx Generator"
     }

@@ -1,12 +1,12 @@
 {
-  "description": "The system's architecture is centered around the `CodeBoardingAgent`, an intelligent orchestrator for documentation generation. User requests are initially handled by the `API Service`, which then passes them to `Job Management` for lifecycle tracking. `Job Management` subsequently triggers `Documentation Generation`, which delegates the core analysis and content creation to the `CodeBoardingAgent`. The `CodeBoardingAgent` performs its tasks by utilizing `Static Analysis Tools` for code understanding, managing temporary repositories via the `Temporary Repository Manager`, and retrieving all necessary operational and VS Code-specific configurations from the `Configuration Manager`. This refined architecture highlights the expanded integration with the VS Code environment, making the `CodeBoardingAgent` a more deeply embedded component within the developer's IDE workflow.",
+  "description": "The system is designed around a robust documentation generation pipeline. The `API Service` acts as the entry point, initiating and monitoring documentation jobs managed by the `Job Management` component. The `Documentation Generation` orchestrates the overall process, delegating the core analysis and content creation to the `CodeBoardingAgent`. This intelligent agent leverages enhanced `Static Analysis Tools` for in-depth code understanding, now with expanded capabilities for handling various programming languages. It also utilizes the `Temporary Repository Manager` for managing code repositories and relies on the `Configuration Manager` for all system settings, including those for static analysis and agent behavior. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.",
   "components": [
     {
       "name": "API Service",
-      "description": "Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.",
+      "description": "Acts as the entry point for the system, initiating and monitoring documentation jobs.",
       "referenced_source_code": [
         {
-          "qualified_name": "api_service.APIService:handle_request",
+          "qualified_name": "api_service.APIService",
           "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
@@ -19,13 +19,13 @@
     },
     {
       "name": "Job Management",
-      "description": "Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED) using a database.",
+      "description": "Manages the lifecycle of documentation jobs, tracking their progress and status.",
       "referenced_source_code": [
         {
-          "qualified_name": "job_management.JobManager:create_job",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "qualified_name": "job_management.JobManager",
+          "reference_file": "<full file path>",
+          "reference_start_line": 0,
+          "reference_end_line": 0
         }
       ],
       "assigned_files": [],
@@ -33,43 +33,40 @@
     },
     {
       "name": "Documentation Generation",
-      "description": "Orchestrates the overall documentation generation process, delegating the core analysis and content creation to the `CodeBoardingAgent`.",
+      "description": "Orchestrates the overall process of generating documentation, delegating tasks to other components.",
       "referenced_source_code": [
         {
-          "qualified_name": "doc_generation.DocGenerator:generate",
-          "reference_file": "doc_generation.DocGenerator:generate",
+          "qualified_name": "doc_generation.DocumentationGenerator",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../github_action.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "CodeBoardingAgent",
-      "description": "An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It now includes enhanced integration with VS Code, utilizing `vscode_constants.py` for new commands, configuration options, and interaction patterns within the IDE environment. It interacts with static analysis tools, reads code references, and manages file structures, with its capabilities potentially expanded by new external dependencies.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../vscode_constants.py",
         "../../vscode_runnable.py"
       ],
       "can_expand": true
     },
     {
-      "name": "Temporary Repository Manager",
-      "description": "Handles the creation and cleanup of temporary directories used for cloning repositories and storing intermediate analysis results.",
+      "name": "CodeBoardingAgent",
+      "description": "The central intelligence responsible for understanding the codebase, retrieving information, and generating documentation content.",
       "referenced_source_code": [
         {
-          "qualified_name": "temp_repo_manager.TempRepoManager:clone_repository",
+          "qualified_name": "codeboarding_agent.CodeBoardingAgent",
+          "reference_file": "I cannot fulfill your request as the list of files to choose from is empty. The instructions state: \"You MUST select exactly one file path from the list above. Do not invent or modify paths.\" Since no paths are provided, I am unable to select one.",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Temporary Repository Manager",
+      "description": "Assists the CodeBoardingAgent by handling repository cloning and temporary file storage.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "temp_repo_manager.TemporaryRepositoryManager",
           "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
@@ -80,31 +77,33 @@
     },
     {
       "name": "Static Analysis Tools",
-      "description": "Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the `CodeBoardingAgent` for in-depth code understanding.",
+      "description": "Provides in-depth code understanding to the CodeBoardingAgent, with enhanced capabilities for defining and processing various programming languages.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analysis.Analyzer:run_analysis",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": 17,
-          "reference_end_line": 70
+          "qualified_name": "static_analyzer.programming_language",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "can_expand": true
+      "assigned_files": [
+        "../../vscode_constants.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Configuration Manager",
-      "description": "Manages system configuration, including paths to static analysis tools, LLM provider settings, repository roots, and new VS Code-related configurations, primarily through `static_analysis_config.yml` and `.env` files.",
+      "description": "Provides all system settings and configurations to other components.",
       "referenced_source_code": [
         {
-          "qualified_name": "config_manager.ConfigManager:load_config",
-          "reference_file": "config_manager.py",
+          "qualified_name": "config_manager.ConfigurationManager",
+          "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
@@ -121,14 +120,29 @@
       "dst_name": "Job Management"
     },
     {
+      "relation": "provides status to",
+      "src_name": "API Service",
+      "dst_name": "Job Management"
+    },
+    {
       "relation": "orchestrates",
       "src_name": "Job Management",
       "dst_name": "Documentation Generation"
     },
     {
+      "relation": "receives requests from",
+      "src_name": "Job Management",
+      "dst_name": "API Service"
+    },
+    {
       "relation": "delegates tasks to",
       "src_name": "Documentation Generation",
       "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "orchestrated by",
+      "src_name": "Documentation Generation",
+      "dst_name": "Job Management"
     },
     {
       "relation": "utilizes",
@@ -146,19 +160,34 @@
       "dst_name": "Configuration Manager"
     },
     {
+      "relation": "generates content for",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Documentation Generation"
+    },
+    {
+      "relation": "manages repositories for",
+      "src_name": "Temporary Repository Manager",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "provides code understanding to",
+      "src_name": "Static Analysis Tools",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
       "relation": "retrieves settings from",
       "src_name": "Static Analysis Tools",
       "dst_name": "Configuration Manager"
     },
     {
-      "relation": "provides status to",
-      "src_name": "Job Management",
-      "dst_name": "API Service"
+      "relation": "provides settings to",
+      "src_name": "Configuration Manager",
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "integrates with",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "VS Code Environment"
+      "relation": "provides settings to",
+      "src_name": "Configuration Manager",
+      "dst_name": "Static Analysis Tools"
     }
   ]
 }

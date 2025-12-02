@@ -1,20 +1,19 @@
 {
-  "description": "The system's architecture is centered around a `Static Analysis Engine Core` that orchestrates in-depth code analysis, building upon the initial parsing performed by the `Scanner`. An `Agent` component leverages these analytical capabilities to execute higher-level tasks. A dedicated `VSCode Integration` component facilitates seamless interaction with the VSCode environment, providing a specialized interface for the `Agent`. The entire system's functionality is supported by `External Dependencies`, which are managed through project packaging.",
+  "description": "The system's architecture is centered around a robust static analysis pipeline. The Scanner initiates the process by parsing source code, leveraging enhanced language definitions to generate fundamental data. This data is then consumed by the Static Analysis Engine Core, which performs deeper analysis and produces structured outputs. An Agent component utilizes these analytical services to execute higher-level tasks and seamlessly integrates with the VSCode environment through the VSCode Integration component, managing IDE-specific interactions and configurations. All these core components rely on a set of External Dependencies for their functionality, ensuring a modular and extensible design. The main flow involves the Scanner feeding parsed data to the Static Analysis Engine Core, which then processes it and provides insights to the Agent. The Agent, in turn, coordinates with the VSCode Integration for IDE interactions, with all components underpinned by External Dependencies.",
   "components": [
     {
       "name": "Static Analysis Engine Core",
-      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs.",
+      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities.",
       "referenced_source_code": [
         {
-          "qualified_name": "AnalysisEngine.analyze",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "qualified_name": "StaticAnalysisEngineCore",
+          "reference_file": "StaticAnalysisEngineCore",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
         "../../static_analyzer/programming_language.py",
-        "../../static_analyzer/__init__.py",
         "../../static_analyzer/reference_resolve_mixin.py",
         "../../static_analyzer/graph.py",
         "../../static_analyzer/analysis_result.py",
@@ -26,16 +25,17 @@
     },
     {
       "name": "Scanner",
-      "description": "Responsible for the initial parsing of source code, generating fundamental data.",
+      "description": "Responsible for the initial parsing of source code, generating fundamental data. Its scanning logic has been adapted to accommodate new or modified language definitions.",
       "referenced_source_code": [
         {
-          "qualified_name": "SourceScanner.scan",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "Scanner",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": 24,
+          "reference_end_line": 24
         }
       ],
       "assigned_files": [
+        "../../static_analyzer/__init__.py",
         "../../static_analyzer/scanner.py",
         "../../static_analyzer/typescript_config_scanner.py"
       ],
@@ -46,18 +46,13 @@
       "description": "Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks, and coordinates with the VSCode Integration for IDE-specific operations.",
       "referenced_source_code": [
         {
-          "qualified_name": "AnalysisAgent.execute",
-          "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": 183,
-          "reference_end_line": 187
+          "qualified_name": "Agent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 149
         }
       ],
-      "assigned_files": [
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_cfg.py",
-        "../../agents/tools/get_method_invocations.py",
-        "../../agents/tools/read_structure.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
@@ -66,7 +61,7 @@
       "referenced_source_code": [
         {
           "qualified_name": "VSCodeIntegration",
-          "reference_file": "example.txt",
+          "reference_file": "YOUR_FILE_PATH",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
@@ -85,9 +80,7 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../agents/tools/external_deps.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -100,19 +93,29 @@
   ],
   "components_relations": [
     {
+      "relation": "utilizes data from",
+      "src_name": "Static Analysis Engine Core",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "provides analysis results to",
+      "src_name": "Static Analysis Engine Core",
+      "dst_name": "Agent"
+    },
+    {
+      "relation": "depends on",
+      "src_name": "Static Analysis Engine Core",
+      "dst_name": "External Dependencies"
+    },
+    {
       "relation": "generates data for",
       "src_name": "Scanner",
       "dst_name": "Static Analysis Engine Core"
     },
     {
-      "relation": "utilizes",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "Scanner"
-    },
-    {
-      "relation": "provides analysis to",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "Agent"
+      "relation": "depends on",
+      "src_name": "Scanner",
+      "dst_name": "External Dependencies"
     },
     {
       "relation": "consumes analysis from",
@@ -125,29 +128,39 @@
       "dst_name": "VSCode Integration"
     },
     {
-      "relation": "manages interface for",
-      "src_name": "VSCode Integration",
-      "dst_name": "Agent"
-    },
-    {
-      "relation": "depend on",
-      "src_name": "Scanner",
-      "dst_name": "External Dependencies"
-    },
-    {
-      "relation": "depend on",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "External Dependencies"
-    },
-    {
-      "relation": "depend on",
+      "relation": "depends on",
       "src_name": "Agent",
       "dst_name": "External Dependencies"
     },
     {
-      "relation": "depend on",
+      "relation": "manages the interface for",
+      "src_name": "VSCode Integration",
+      "dst_name": "Agent"
+    },
+    {
+      "relation": "depends on",
       "src_name": "VSCode Integration",
       "dst_name": "External Dependencies"
+    },
+    {
+      "relation": "supports",
+      "src_name": "External Dependencies",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "supports",
+      "src_name": "External Dependencies",
+      "dst_name": "Static Analysis Engine Core"
+    },
+    {
+      "relation": "supports",
+      "src_name": "External Dependencies",
+      "dst_name": "Agent"
+    },
+    {
+      "relation": "supports",
+      "src_name": "External Dependencies",
+      "dst_name": "VSCode Integration"
     }
   ]
 }

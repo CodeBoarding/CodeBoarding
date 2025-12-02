@@ -9,19 +9,22 @@ graph LR
     Unclassified["Unclassified"]
     Unclassified["Unclassified"]
     LSPClient -- "initiates communication with" --> Language_Servers_External_
-    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
     LSPClient -- "provides high-level static analysis data to" --> AbstractionAgent
     LSPClient -- "provides detailed static analysis data to" --> DetailsAgent
+    AbstractionAgent -- "consumes data from" --> LSPClient
+    DetailsAgent -- "consumes data from" --> LSPClient
+    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
+    Unclassified -- "manages dependencies for" --> LSPClient
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's primary function is to acquire and process static analysis data from codebases. The LSPClient acts as the central data acquisition hub, establishing and managing communication with external Language Servers via the Language Server Protocol. These Language Servers provide raw code intelligence, which the LSPClient then processes and makes available. This processed data is consumed by two specialized agents: the AbstractionAgent, which focuses on generating high-level architectural representations, and the DetailsAgent, which performs in-depth, granular analysis of specific code sections. The LSPClient also incorporates enhanced integration capabilities for environments like VSCode, optimizing its operation within development workflows. Project-wide external dependencies and packaging configurations are managed by the Unclassified component, supporting the overall system's operational integrity.
+The system's core revolves around the LSPClient, which establishes and manages communication with external Language Servers to gather comprehensive static analysis data. This client now incorporates enhanced mechanisms for defining, detecting, and configuring programming languages, making it a more sophisticated and flexible data acquisition layer. The collected data is then channeled to two specialized agents: the AbstractionAgent, which distills high-level architectural views, and the DetailsAgent, which performs granular analysis of specific code sections. External Language Servers provide the raw code intelligence, while the Unclassified component manages project dependencies and packaging, ensuring the operational integrity of the entire system.
 
 ### LSPClient
-Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It filters source files and handles language-specific configurations, acting as a robust data acquisition layer. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.
+Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It now features enhanced and more flexible mechanisms for defining, detecting, and configuring programming languages, acting as a robust data acquisition layer with sophisticated language-specific configuration handling. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.
 
 
 **Related Classes/Methods**:
@@ -53,11 +56,10 @@ External processes that provide static analysis capabilities for specific progra
 
 **Related Classes/Methods**:
 
-- `LSP_Protocol`:1-10
 
 
 ### Unclassified
-Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`.
+Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`, which may introduce new external libraries or alter project build and deployment characteristics.
 
 
 **Related Classes/Methods**:
@@ -79,9 +81,16 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 ```mermaid
 graph LR
     Output_Generation_Engine["Output Generation Engine"]
+    Agent_Orchestration["Agent Orchestration"]
+    Static_Analyzer["Static Analyzer"]
     Analysis_Data_Formatter["Analysis Data Formatter"]
     Unclassified["Unclassified"]
-    Output_Generation_Engine -- "utilizes" --> Analysis_Data_Formatter
+    Output_Generation_Engine -- "orchestrates" --> Agent_Orchestration
+    Agent_Orchestration -- "utilizes" --> Static_Analyzer
+    Output_Generation_Engine -- "formats output via" --> Analysis_Data_Formatter
+    Agent_Orchestration -- "orchestrated by" --> Output_Generation_Engine
+    Static_Analyzer -- "provides analysis to" --> Agent_Orchestration
+    Analysis_Data_Formatter -- "receives data from" --> Output_Generation_Engine
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
 
@@ -89,15 +98,34 @@ graph LR
 
 ## Details
 
-The Output Generation Engine serves as the central orchestrator for transforming raw code analysis into structured, human-readable outputs, primarily in JSON format for subsequent diagram generation. It leverages a suite of specialized agents to perform detailed analysis, abstraction, planning, and validation. The engine's primary responsibility is to manage the workflow of these agents, process components in a multi-level, parallel fashion, and persist the generated analysis in a structured format that can be consumed by external rendering tools to visualize architectural diagrams.
+The system's architecture is composed of four key components: the `Output Generation Engine`, `Agent Orchestration`, `Static Analyzer`, and `Analysis Data Formatter`. The `Output Generation Engine` acts as the central control, orchestrating the entire analysis workflow from initial code processing to final output generation. It delegates the complex task of code interpretation and insight generation to the `Agent Orchestration` component, which in turn leverages the `Static Analyzer` for fundamental, language-specific source code analysis. Once the `Agent Orchestration` completes its tasks, the `Output Generation Engine` directs the results to the `Analysis Data Formatter`, ensuring that all generated architectural insights are consistently structured into a standardized JSON format, ready for seamless integration with diagramming tools and comprehensive documentation.
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates various agents to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams.
+Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates `Agent Orchestration` to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams. It also utilizes the `Analysis Data Formatter`.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L23-L196" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`:23-196</a>
+- `OutputGenerationEngine`
+
+
+### Agent Orchestration
+Manages and coordinates various specialized agents responsible for interpreting code, performing detailed analysis, abstraction, planning, and validation. These agents rely on the `Static Analyzer` for foundational code understanding.
+
+
+**Related Classes/Methods**:
+
+- `AgentOrchestration`:1-10
+
+
+### Static Analyzer
+Provides foundational capabilities for understanding and processing source code across different programming languages. It extracts structural and semantic information, which is then consumed by `Agent Orchestration` for deeper analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguage`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
 
 
 ### Analysis Data Formatter
@@ -106,7 +134,6 @@ Responsible for converting the internal analysis objects into a standardized JSO
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.analysis_json.from_analysis_to_json`</a>
 
 
 ### Unclassified
@@ -125,48 +152,95 @@ graph LR
     PromptFactory["PromptFactory"]
     AbstractPromptFactory["AbstractPromptFactory"]
     Concrete_Prompt_Factories["Concrete Prompt Factories"]
+    Scanner["Scanner"]
+    ProgrammingLanguage["ProgrammingLanguage"]
+    LSP_Client["LSP Client"]
+    AnalysisResult["AnalysisResult"]
+    Graph["Graph"]
     Unclassified["Unclassified"]
     PromptFactory -- "selects and instantiates" --> Concrete_Prompt_Factories
     Concrete_Prompt_Factories -- "implements" --> AbstractPromptFactory
+    Scanner -- "uses" --> ProgrammingLanguage
+    Scanner -- "interacts with" --> LSP_Client
+    Scanner -- "produces" --> AnalysisResult
+    AnalysisResult -- "may contain" --> Graph
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The prompt management subsystem provides a clear separation of concerns, with PromptFactory acting as a facade for prompt retrieval. An external agent initiates the process by requesting a prompt from PromptFactory, specifying the desired LLMType and PromptType. PromptFactory then uses this information to dynamically select and instantiate the appropriate Concrete Prompt Factory. This concrete factory, which adheres to the AbstractPromptFactory interface, then generates and returns the specific prompt. This design allows for easy addition of new LLM types or prompt interaction patterns by simply creating new concrete factory implementations without altering the core PromptFactory logic.
+The project's architecture now encompasses two primary subsystems: the `PromptFactory` and the `Static Analyzer`. The `PromptFactory` subsystem is responsible for dynamically generating LLM prompts based on specified types and models, utilizing an abstract factory pattern to manage concrete prompt implementations. The newly introduced `Static Analyzer` subsystem focuses on source code analysis, employing a `Scanner` to parse code, leveraging `ProgrammingLanguage` abstractions for language-specific handling, and potentially interacting with an `LSP Client` for enhanced analysis capabilities. The output of this analysis is encapsulated in an `AnalysisResult`, which may include `Graph` representations of the code. These two subsystems operate independently but contribute to the overall functionality of the project, with the `Static Analyzer` providing insights into code structure and behavior that could potentially inform or be utilized by other parts of the system.
 
 ### PromptFactory
-The central orchestrator for creating and managing LLM prompts. It acts as the primary entry point, dynamically selecting and instantiating the appropriate concrete prompt factory based on the desired LLMType (e.g., GEMINI_FLASH, CLAUDE, GPT4) and PromptType (e.g., BIDIRECTIONAL, UNIDIRECTIONAL).
+Responsible for dynamically generating LLM prompts based on specified types and models.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L26-L32" target="_blank" rel="noopener noreferrer">`LLMType`:26-32</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L19-L23" target="_blank" rel="noopener noreferrer">`PromptType`:19-23</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_bidirectional.py#L369-L433" target="_blank" rel="noopener noreferrer">`GeminiFlashBidirectionalPromptFactory`:369-433</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py#L382-L446" target="_blank" rel="noopener noreferrer">`PromptFactory`:382-446</a>
 
 
 ### AbstractPromptFactory
-An abstract base class that defines the contract for all concrete prompt factories. It establishes the interface for retrieving prompts, ensuring a consistent API across different LLM and prompt interaction type implementations.
+Defines the interface for prompt factories.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py#L10-L95" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`:10-95</a>
 
 
 ### Concrete Prompt Factories
-A group of specialized implementations of AbstractPromptFactory. Each concrete factory is responsible for encapsulating the specific prompt templates and logic for a particular LLMType and PromptType combination.
+Implementations of the AbstractPromptFactory for specific prompt types and models.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts_bidirectional.py#L369-L433" target="_blank" rel="noopener noreferrer">`GeminiFlashBidirectionalPromptFactory`:369-433</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py#L382-L446" target="_blank" rel="noopener noreferrer">`ClaudeBidirectionalPromptFactory`:382-446</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gpt_prompts_bidirectional.py#L571-L635" target="_blank" rel="noopener noreferrer">`GPTBidirectionalPromptFactory`:571-635</a>
+- `ConcretePromptFactory`:1-10
+
+
+### Scanner
+Responsible for parsing source code and extracting relevant information, acting as the entry point for static analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
+
+
+### ProgrammingLanguage
+Defines the interfaces or base classes for handling different programming languages, allowing the Scanner to be extensible.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguage`</a>
+
+
+### LSP Client
+Integrates with Language Server Protocol (LSP) for interacting with language servers to obtain analysis data.
+
+
+**Related Classes/Methods**:
+
+
+
+### AnalysisResult
+Encapsulates the output of the static analysis, providing a structured representation of the findings.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_result.AnalysisResult`</a>
+
+
+### Graph
+Used to represent the relationships within the analyzed code, such as control flow graphs or dependency graphs.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.Graph`</a>
 
 
 ### Unclassified
@@ -189,10 +263,16 @@ graph LR
     Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
     Query_Processor -- "initiates" --> Language_Model_Interface
+    Query_Processor -- "receives formatted response from" --> Response_Formatter
     Language_Model_Interface -- "provides output/action to" --> Tool_Executor
-    Tool_Executor -- "invokes/processes" --> Tools
-    Tool_Executor -- "feeds results to" --> Language_Model_Interface
+    Language_Model_Interface -- "receives results from" --> Tool_Executor
     Language_Model_Interface -- "sends final response to" --> Response_Formatter
+    Tool_Executor -- "invokes" --> Tools
+    Tool_Executor -- "processes outcomes from" --> Tools
+    Tool_Executor -- "feeds results to" --> Language_Model_Interface
+    Tools -- "perform specialized tasks for" --> Tool_Executor
+    Tools -- "return results to" --> Tool_Executor
+    Response_Formatter -- "formats LLM output from" --> Language_Model_Interface
     Response_Formatter -- "returns formatted response to" --> Query_Processor
 ```
 
@@ -200,50 +280,56 @@ graph LR
 
 ## Details
 
-The system is structured around a core agentic loop, starting with the `Query Processor` which handles user input and orchestrates the overall flow. It passes the query to the `Language Model Interface`, responsible for interacting with the underlying LLM. The LLM's output, which may include a decision to use external capabilities, is then directed to the `Tool Executor`. This component is central to the system's extensibility, managing the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled. After tool execution, results are fed back to the `Language Model Interface` for further reasoning or to generate a conclusive response. Finally, the `Response Formatter` synthesizes and formats the LLM's output into a user-friendly message, which is then returned via the `Query Processor`. This architecture ensures a clear separation of concerns, enabling flexible interaction with LLMs and external tools.
+The system's architecture is centered around a `Query Processor` that manages user interactions and orchestrates the overall workflow. It communicates with a `Language Model Interface` to leverage the capabilities of an underlying Large Language Model. For specialized tasks, the `Language Model Interface` directs the `Tool Executor` to invoke various `Tools`, including a newly enhanced `Static Analyzer` for in-depth code analysis. After processing, the `Tool Executor` returns results to the `Language Model Interface`. Finally, the `Response Formatter` takes the LLM's output and formats it into a user-friendly message, which is then delivered back to the `Query Processor`. This design ensures a clear separation of concerns, allowing for flexible integration of new tools and output formats.
 
 ### Query Processor
-Handles user input and orchestrates the overall flow.
+Manages user interactions and orchestrates the overall workflow, initiating communication with the language model and receiving formatted responses.
 
 
 **Related Classes/Methods**:
 
-- `QueryProcessor`:1-10
+- `query_processor.QueryProcessor`:1-10
 
 
 ### Language Model Interface
-Responsible for interacting with the underlying LLM.
+Facilitates communication with the underlying Large Language Model, providing output/actions to the Tool Executor and receiving results.
 
 
 **Related Classes/Methods**:
 
-- `LanguageModelInterface`:1-10
+- `language_model_interface.LanguageModelInterface`:1-10
 
 
 ### Tool Executor
-Manages the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled.
+Directs the invocation of various tools, processes their outcomes, and feeds results back to the Language Model Interface.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`ToolExecutor`</a>
+- `tool_executor.ToolExecutor`:1-10
 
 
 ### Tools
-External functionalities invoked by the Tool Executor.
+A collection of specialized functionalities that perform tasks for the Tool Executor, including static code analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py" target="_blank" rel="noopener noreferrer">`Tool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client`</a>
 
 
 ### Response Formatter
-Synthesizes and formats the LLM's output into a user-friendly message.
+Takes the LLM's output and formats it into a user-friendly message in various formats.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
 
 
 ### Unclassified
@@ -267,21 +353,20 @@ graph LR
     Mdx_Generator["Mdx Generator"]
     Sphinx_Generator["Sphinx Generator"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Agent_Component -- "Orchestrates" --> Static_Analysis_Component
-    Agent_Component -- "Dispatches insights to" --> Output_Format_Dispatcher
-    Static_Analysis_Component -- "Provides AI-interpreted insights to" --> Agent_Component
-    Output_Format_Dispatcher -- "Delegates generation to" --> Markdown_Generator
-    Output_Format_Dispatcher -- "Delegates generation to" --> HTML_Generator
-    Output_Format_Dispatcher -- "Delegates generation to" --> Mdx_Generator
-    Output_Format_Dispatcher -- "Delegates generation to" --> Sphinx_Generator
+    Agent_Component -- "orchestrates" --> Static_Analysis_Component
+    Agent_Component -- "dispatches insights to" --> Output_Format_Dispatcher
+    Static_Analysis_Component -- "provides AI-interpreted insights to" --> Agent_Component
+    Output_Format_Dispatcher -- "delegates generation to" --> Markdown_Generator
+    Output_Format_Dispatcher -- "delegates generation to" --> HTML_Generator
+    Output_Format_Dispatcher -- "delegates generation to" --> Mdx_Generator
+    Output_Format_Dispatcher -- "delegates generation to" --> Sphinx_Generator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is designed around a core `Agent Component` that orchestrates the static analysis and documentation generation workflow. It leverages the `Static Analysis Component` to acquire AI-interpreted insights from the codebase, which are then channeled to the `Output Format Dispatcher`. This dispatcher intelligently routes the insights to specialized generators, such as `Markdown Generator`, `HTML Generator`, `Mdx Generator`, and `Sphinx Generator`, to produce documentation in various formats. The `Static Analysis Component` has been significantly enhanced with robust IDE integration, particularly for VS Code, improving the delivery of insights directly within the development environment. Supporting infrastructure and utilities are managed under the `Unclassified` component.
+The system's architecture is centered around a pipeline-driven approach, with the Agent Component serving as the primary orchestrator. It initiates the static analysis process by engaging the Static Analysis Component, which has been significantly enhanced to provide sophisticated AI-interpreted insights across various programming languages. Once these insights are generated, the Agent Component directs them to the Output Format Dispatcher. This dispatcher then intelligently delegates the task of transforming these insights into diverse documentation formats, such as Markdown, HTML, MDX, or Sphinx, to specialized generator components. This design ensures a modular, extensible, and efficient workflow for code analysis and documentation generation.
 
 ### Agent Component
 This component acts as the primary orchestrator, driving the overall process of static analysis and documentation generation. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline.
@@ -293,7 +378,7 @@ This component acts as the primary orchestrator, driving the overall process of 
 
 
 ### Static Analysis Component
-This component is responsible for performing static analysis on the codebase and generating "AI-interpreted insights." It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Significantly, it now features enhanced IDE integration, particularly with VS Code, allowing for more robust interaction and delivery of insights within the development environment. The updates in its LSP client highlight its active development and importance in the overall system.
+This component is responsible for performing static analysis on the codebase and generating "AI-interpreted insights." It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Due to significant architectural changes in `static_analyzer/programming_language.py`, this component now features a deeper and more sophisticated understanding of various programming languages, enhancing its ability to identify, parse, and process code. It also features enhanced IDE integration, particularly with VS Code, allowing for more robust interaction and delivery of insights within the development environment. The updates in its LSP client and scanning logic (`static_analyzer/scanner.py`) highlight its active development and importance in the overall system.
 
 
 **Related Classes/Methods**:
@@ -350,16 +435,6 @@ Focuses on transforming AI-interpreted insights into a format compatible with Sp
 
 
 ### Unclassified
-Component for all unclassified files and utility functions, including project setup (`setup.py`) and IDE-specific constants (`vscode_constants.py`) that support the enhanced integration capabilities of other components, particularly the `Static Analysis Component`.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingsetup.py" target="_blank" rel="noopener noreferrer">`setup.py`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingvscode_constants.py" target="_blank" rel="noopener noreferrer">`vscode_constants.py`</a>
-
-
-### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
 
 
@@ -378,40 +453,44 @@ graph LR
     VSCode_Integration["VSCode Integration"]
     External_Dependencies["External Dependencies"]
     Unclassified["Unclassified"]
+    Static_Analysis_Engine_Core -- "utilizes data from" --> Scanner
+    Static_Analysis_Engine_Core -- "provides analysis results to" --> Agent
+    Static_Analysis_Engine_Core -- "depends on" --> External_Dependencies
     Scanner -- "generates data for" --> Static_Analysis_Engine_Core
-    Static_Analysis_Engine_Core -- "utilizes" --> Scanner
-    Static_Analysis_Engine_Core -- "provides analysis to" --> Agent
+    Scanner -- "depends on" --> External_Dependencies
     Agent -- "consumes analysis from" --> Static_Analysis_Engine_Core
     Agent -- "interacts with" --> VSCode_Integration
-    VSCode_Integration -- "manages interface for" --> Agent
-    Scanner -- "depend on" --> External_Dependencies
-    Static_Analysis_Engine_Core -- "depend on" --> External_Dependencies
-    Agent -- "depend on" --> External_Dependencies
-    VSCode_Integration -- "depend on" --> External_Dependencies
+    Agent -- "depends on" --> External_Dependencies
+    VSCode_Integration -- "manages the interface for" --> Agent
+    VSCode_Integration -- "depends on" --> External_Dependencies
+    External_Dependencies -- "supports" --> Scanner
+    External_Dependencies -- "supports" --> Static_Analysis_Engine_Core
+    External_Dependencies -- "supports" --> Agent
+    External_Dependencies -- "supports" --> VSCode_Integration
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around a `Static Analysis Engine Core` that orchestrates in-depth code analysis, building upon the initial parsing performed by the `Scanner`. An `Agent` component leverages these analytical capabilities to execute higher-level tasks. A dedicated `VSCode Integration` component facilitates seamless interaction with the VSCode environment, providing a specialized interface for the `Agent`. The entire system's functionality is supported by `External Dependencies`, which are managed through project packaging.
+The system's architecture is centered around a robust static analysis pipeline. The Scanner initiates the process by parsing source code, leveraging enhanced language definitions to generate fundamental data. This data is then consumed by the Static Analysis Engine Core, which performs deeper analysis and produces structured outputs. An Agent component utilizes these analytical services to execute higher-level tasks and seamlessly integrates with the VSCode environment through the VSCode Integration component, managing IDE-specific interactions and configurations. All these core components rely on a set of External Dependencies for their functionality, ensuring a modular and extensible design. The main flow involves the Scanner feeding parsed data to the Static Analysis Engine Core, which then processes it and provides insights to the Agent. The Agent, in turn, coordinates with the VSCode Integration for IDE interactions, with all components underpinned by External Dependencies.
 
 ### Static Analysis Engine Core
-Orchestrates the static analysis process, performing deeper analysis and providing structured outputs.
+Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities.
 
 
 **Related Classes/Methods**:
 
-- `AnalysisEngine.analyze`:1-10
+- `StaticAnalysisEngineCore`
 
 
 ### Scanner
-Responsible for the initial parsing of source code, generating fundamental data.
+Responsible for the initial parsing of source code, generating fundamental data. Its scanning logic has been adapted to accommodate new or modified language definitions.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`SourceScanner.scan`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`Scanner`</a>
 
 
 ### Agent
@@ -420,7 +499,7 @@ Interacts with the Static Analysis Engine Core, utilizing its analytical service
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L183-L187" target="_blank" rel="noopener noreferrer">`AnalysisAgent.execute`:183-187</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py#L21-L149" target="_blank" rel="noopener noreferrer">`Agent`:21-149</a>
 
 
 ### VSCode Integration
@@ -463,24 +542,30 @@ graph LR
     Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Job_Management
+    API_Service -- "provides status to" --> Job_Management
     Job_Management -- "orchestrates" --> Documentation_Generation
+    Job_Management -- "receives requests from" --> API_Service
     Documentation_Generation -- "delegates tasks to" --> CodeBoardingAgent
+    Documentation_Generation -- "orchestrated by" --> Job_Management
     CodeBoardingAgent -- "utilizes" --> Static_Analysis_Tools
     CodeBoardingAgent -- "accesses" --> Temporary_Repository_Manager
     CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
+    CodeBoardingAgent -- "generates content for" --> Documentation_Generation
+    Temporary_Repository_Manager -- "manages repositories for" --> CodeBoardingAgent
+    Static_Analysis_Tools -- "provides code understanding to" --> CodeBoardingAgent
     Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
-    Job_Management -- "provides status to" --> API_Service
-    CodeBoardingAgent -- "integrates with" --> VS_Code_Environment
+    Configuration_Manager -- "provides settings to" --> CodeBoardingAgent
+    Configuration_Manager -- "provides settings to" --> Static_Analysis_Tools
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around the `CodeBoardingAgent`, an intelligent orchestrator for documentation generation. User requests are initially handled by the `API Service`, which then passes them to `Job Management` for lifecycle tracking. `Job Management` subsequently triggers `Documentation Generation`, which delegates the core analysis and content creation to the `CodeBoardingAgent`. The `CodeBoardingAgent` performs its tasks by utilizing `Static Analysis Tools` for code understanding, managing temporary repositories via the `Temporary Repository Manager`, and retrieving all necessary operational and VS Code-specific configurations from the `Configuration Manager`. This refined architecture highlights the expanded integration with the VS Code environment, making the `CodeBoardingAgent` a more deeply embedded component within the developer's IDE workflow.
+The system is designed around a robust documentation generation pipeline. The `API Service` acts as the entry point, initiating and monitoring documentation jobs managed by the `Job Management` component. The `Documentation Generation` orchestrates the overall process, delegating the core analysis and content creation to the `CodeBoardingAgent`. This intelligent agent leverages enhanced `Static Analysis Tools` for in-depth code understanding, now with expanded capabilities for handling various programming languages. It also utilizes the `Temporary Repository Manager` for managing code repositories and relies on the `Configuration Manager` for all system settings, including those for static analysis and agent behavior. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.
 
 ### API Service
-Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
+Acts as the entry point for the system, initiating and monitoring documentation jobs.
 
 
 **Related Classes/Methods**:
@@ -488,57 +573,57 @@ Handles all incoming API requests, validates inputs, initiates background jobs, 
 
 
 ### Job Management
-Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED) using a database.
+Manages the lifecycle of documentation jobs, tracking their progress and status.
 
 
 **Related Classes/Methods**:
 
-- `job_management.JobManager:create_job`:1-10
+- `job_management.JobManager`
 
 
 ### Documentation Generation
-Orchestrates the overall documentation generation process, delegating the core analysis and content creation to the `CodeBoardingAgent`.
+Orchestrates the overall process of generating documentation, delegating tasks to other components.
 
 
 **Related Classes/Methods**:
 
-- `doc_generation.DocGenerator:generate`
+- `doc_generation.DocumentationGenerator`
 
 
 ### CodeBoardingAgent
-An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It now includes enhanced integration with VS Code, utilizing `vscode_constants.py` for new commands, configuration options, and interaction patterns within the IDE environment. It interacts with static analysis tools, reads code references, and manages file structures, with its capabilities potentially expanded by new external dependencies.
+The central intelligence responsible for understanding the codebase, retrieving information, and generating documentation content.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
+- `codeboarding_agent.CodeBoardingAgent`
 
 
 ### Temporary Repository Manager
-Handles the creation and cleanup of temporary directories used for cloning repositories and storing intermediate analysis results.
+Assists the CodeBoardingAgent by handling repository cloning and temporary file storage.
 
 
 **Related Classes/Methods**:
 
-- `temp_repo_manager.TempRepoManager:clone_repository`:1-10
+- `temp_repo_manager.TemporaryRepositoryManager`:1-10
 
 
 ### Static Analysis Tools
-Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the `CodeBoardingAgent` for in-depth code understanding.
+Provides in-depth code understanding to the CodeBoardingAgent, with enhanced capabilities for defining and processing various programming languages.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L17-L70" target="_blank" rel="noopener noreferrer">`static_analysis.Analyzer:run_analysis`:17-70</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language`</a>
 
 
 ### Configuration Manager
-Manages system configuration, including paths to static analysis tools, LLM provider settings, repository roots, and new VS Code-related configurations, primarily through `static_analysis_config.yml` and `.env` files.
+Provides all system settings and configurations to other components.
 
 
 **Related Classes/Methods**:
 
-- `config_manager.ConfigManager:load_config`:1-10
+- `config_manager.ConfigurationManager`:1-10
 
 
 ### Unclassified
@@ -588,7 +673,7 @@ graph LR
 
 ## Details
 
-The system employs a modular, agent-based architecture designed for automated code analysis and architectural diagram generation. The `User Interface / API Gateway` serves as the primary entry point, handling user requests and displaying results, including expanded integration with VS Code. The `Orchestration Engine` acts as the central coordinator, managing the workflow from code acquisition via the `Repository Manager` to static analysis by the `Static Analysis Engine`. It dynamically generates LLM prompts through the `LLM Prompt Factory` and leverages the `AI Interpretation Layer` for deriving architectural insights. These insights are then transformed into structured outputs by the `Output Generation Engine` and visualized by the `Diagram Analysis & Renderer`, completing the analysis cycle.
+The system provides a comprehensive code analysis platform, initiated via the `User Interface / API Gateway`. The `Orchestration Engine (Agent Core)` centrally manages the analysis workflow, coordinating interactions with other components. It leverages the `Repository Manager` for seamless access to codebases. A critical component, the `Static Analysis Engine`, performs in-depth code analysis, now featuring significantly enhanced programming language support and more robust scanning mechanisms to extract detailed structural information. This data, combined with dynamic prompts from the `LLM Prompt Factory`, is fed to the `AI Interpretation Layer` for advanced contextual understanding and insight generation. Finally, the `Output Generation Engine` processes these insights into structured formats, which the `Diagram Analysis & Renderer` transforms into visual architectural diagrams for display back to the user.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
 The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
@@ -619,7 +704,7 @@ Manages all interactions with code repositories, providing a standardized interf
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs.
+Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs, now with significantly enhanced programming language support and more robust scanning mechanisms.
 
 
 **Related Classes/Methods**:
