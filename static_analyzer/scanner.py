@@ -2,7 +2,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Set
+from typing import Set
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from utils import get_config
@@ -14,12 +14,12 @@ class ProjectScanner:
     def __init__(self, repo_location: Path):
         self.repo_location = repo_location
 
-    def scan(self) -> List[ProgrammingLanguage]:
+    def scan(self) -> list[ProgrammingLanguage]:
         """
         Scan the repository using Tokei and return parsed results.
 
         Returns:
-            List[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
+            list[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
         """
 
         commands = get_config("tools")["tokei"]["command"]
@@ -37,7 +37,7 @@ class ProjectScanner:
             logger.warning("No total code count found in Tokei output")
             return []
 
-        programming_languages: List[ProgrammingLanguage] = []
+        programming_languages: list[ProgrammingLanguage] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
@@ -67,12 +67,12 @@ class ProjectScanner:
         return programming_languages
 
     @staticmethod
-    def _extract_suffixes(files: List[str]) -> Set[str]:
+    def _extract_suffixes(files: list[str]) -> Set[str]:
         """
         Extract unique file suffixes from a list of files.
 
         Args:
-            files (List[str]): List of file paths
+            files (list[str]): list of file paths
 
         Returns:
             Set[str]: Unique file extensions/suffixes
