@@ -33,7 +33,7 @@ class ProgrammingLanguage:
         # id for the language, used in LSP server
         return self.language.lower().replace(" ", "_")
 
-    def get_server_parameters(self) -> List[str]:
+    def get_server_parameters(self) -> list[str]:
         if not self.server_commands:
             raise ValueError(
                 f"No server commands defined for {self.language}. "
