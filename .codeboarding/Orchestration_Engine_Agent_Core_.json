@@ -11,9 +11,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Language Model Interface",
@@ -25,9 +23,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Tool Executor",
@@ -39,16 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/planner_agent.py",
-        "../../agents/meta_agent.py",
-        "../../agents/monitoring.py",
-        "../../agents/agent_responses.py",
-        "../../agents/agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Tools",
@@ -60,22 +47,7 @@
           "reference_start_line": 27,
           "reference_end_line": 27
         }
-      ],
-      "assigned_files": [
-        "../../agents/tools/read_source.py",
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/__init__.py",
-        "../../agents/tools/external_deps.py",
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_cfg.py",
-        "../../agents/tools/get_method_invocations.py",
-        "../../agents/tools/read_git_diff.py",
-        "../../agents/tools/read_file.py",
-        "../../agents/tools/utils.py",
-        "../../agents/tools/read_structure.py",
-        "../../agents/tools/read_docs.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Response Formatter",
@@ -87,16 +59,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

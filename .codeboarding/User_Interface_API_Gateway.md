@@ -8,7 +8,7 @@ graph LR
     Static_Analysis_Tools["Static Analysis Tools"]
     Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
-    API_Service -- "initiates jobs with" --> Job_Management
+    API_Service -- "initiates" --> Job_Management
     Job_Management -- "orchestrates" --> Documentation_Generation
     Documentation_Generation -- "delegates tasks to" --> CodeBoardingAgent
     CodeBoardingAgent -- "utilizes" --> Static_Analysis_Tools
@@ -16,13 +16,14 @@ graph LR
     CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
     Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
     Job_Management -- "provides status to" --> API_Service
+    CodeBoardingAgent -- "integrates with" --> VS_Code_Environment
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is structured around an `API Service` that manages incoming requests and initiates documentation generation workflows. These workflows are handled by `Job Management`, which orchestrates the `Documentation Generation` component. The core of the documentation process is driven by the `CodeBoardingAgent`, an intelligent component that leverages various `Static Analysis Tools` for deep code understanding, interacts with the `Temporary Repository Manager` for repository handling, and retrieves essential settings from the `Configuration Manager`. This agent-centric approach allows for dynamic and comprehensive documentation generation, with job statuses and results reported back through `Job Management` to the `API Service`.
+The system's architecture is centered around the `CodeBoardingAgent`, an intelligent orchestrator for documentation generation. User requests are initially handled by the `API Service`, which then passes them to `Job Management` for lifecycle tracking. `Job Management` subsequently triggers `Documentation Generation`, which delegates the core analysis and content creation to the `CodeBoardingAgent`. The `CodeBoardingAgent` performs its tasks by utilizing `Static Analysis Tools` for code understanding, managing temporary repositories via the `Temporary Repository Manager`, and retrieving all necessary operational and VS Code-specific configurations from the `Configuration Manager`. This refined architecture highlights the expanded integration with the VS Code environment, making the `CodeBoardingAgent` a more deeply embedded component within the developer's IDE workflow.
 
 ### API Service
 Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
@@ -30,7 +31,6 @@ Handles all incoming API requests, validates inputs, initiates background jobs, 
 
 **Related Classes/Methods**:
 
-- `api_service.APIService:handle_request`:1-10
 
 
 ### Job Management
@@ -48,11 +48,11 @@ Orchestrates the overall documentation generation process, delegating the core a
 
 **Related Classes/Methods**:
 
-- `doc_generation.DocGenerator:generate`:1-10
+- `doc_generation.DocGenerator:generate`
 
 
 ### CodeBoardingAgent
-An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It interacts with static analysis tools, reads code references, and manages file structures.
+An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It now includes enhanced integration with VS Code, utilizing `vscode_constants.py` for new commands, configuration options, and interaction patterns within the IDE environment. It interacts with static analysis tools, reads code references, and manages file structures, with its capabilities potentially expanded by new external dependencies.
 
 
 **Related Classes/Methods**:
@@ -79,7 +79,7 @@ Provides enhanced language server functionalities (TypeScript, Pyright) and code
 
 
 ### Configuration Manager
-Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through `static_analysis_config.yml` and `.env` files.
+Manages system configuration, including paths to static analysis tools, LLM provider settings, repository roots, and new VS Code-related configurations, primarily through `static_analysis_config.yml` and `.env` files.
 
 
 **Related Classes/Methods**:
