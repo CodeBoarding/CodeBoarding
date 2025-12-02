@@ -154,7 +154,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 if callback_list:
                     response = self.agent.invoke(
                         {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"callbacks": callback_list, "recursion_limit": 100000},
+                        config={"callbacks": callback_list, "recursion_limit": 40},
                     )
                 else:
                     response = self.agent.invoke(
