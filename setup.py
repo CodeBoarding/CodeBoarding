@@ -245,32 +245,44 @@ def update_static_analysis_config():
     servers_dir = project_root / "static_analyzer" / "servers"
 
     updates = 0
+    is_win = platform.system() == "Windows"
 
-    # Update Node.js based LSP servers
-    lsp_servers = {
-        "Pyright Language Server": "pyright-langserver",
-        "TypeScript Language Server": "typescript-language-server",
-        "Intelephense Language Server": "intelephense",
-    }
+    # The Plan: (Binary Name, Is_Node_App, List of Config Targets)
+    # "True" means it lives in node_modules/.bin and needs .cmd on Windows
+    # "False" means it lives in the root and needs .exe on Windows
+    server_definitions = [
+        ("pyright-langserver", True, [("lsp_servers", "python")]),
+        ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
+        ("intelephense", True, [("lsp_servers", "php")]),
+        ("gopls", False, [("lsp_servers", "go")]),
+        ("tokei", False, [("tools", "tokei")]),
+    ]
 
-    node_bin_dir = servers_dir / "node_modules" / ".bin"
-    is_windows = platform.system() == "Windows"
+    for binary, is_node, targets in server_definitions:
+        # 1. Determine the extension and folder based on the type
+        ext = (".cmd" if is_node else ".exe") if is_win else ""
+        folder = (servers_dir / "node_modules" / ".bin") if is_node else servers_dir
 
-    for lang, binary in lsp_servers.items():
-        binary_path = node_bin_dir / binary
-        if is_windows:
-            binary_path = node_bin_dir / f"{binary}.cmd"
+        # 2. Build the full path once
+        full_path = folder / (binary + ext)
 
-        if binary_path.exists():
-            config["lsp_servers"][lang]["command"][0] = str(binary_path)
-            updates += 1
+        # 3. Apply to all relevant targets in config
+        if full_path.exists():
+            for section, key in targets:
+                # Handle language server key for Intelephense, which is "php" not "Intelephense Language Server"
+                if binary == "intelephense":
+                    key = "php"
+                elif binary == "pyright-langserver":
+                    key = "python"
 
-    # Update tokei tool path
-    tokei_path = servers_dir / "tokei"
-    if tokei_path.exists():
-        config["tools"]["tokei"]["command"][0] = str(tokei_path)
-        updates += 1
+                config[section][key]["command"][0] = str(full_path)
+                updates += 1
 
+    # Write the updated configuration back to file
+    with open(config_path, "w") as f:
+        yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+
+    print(f"Step: Configuration update finished: success ({updates} paths updated)")
     # Write the updated configuration back to file
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)

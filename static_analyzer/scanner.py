@@ -2,9 +2,9 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Set
+from typing import Set
 
-from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from utils import get_config
 
 logger = logging.getLogger(__name__)
@@ -14,18 +14,19 @@ class ProjectScanner:
     def __init__(self, repo_location: Path):
         self.repo_location = repo_location
 
-    def scan(self) -> List[ProgrammingLanguage]:
+    def scan(self) -> list[ProgrammingLanguage]:
         """
         Scan the repository using Tokei and return parsed results.
 
         Returns:
-            List[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
+            list[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
         """
 
         commands = get_config("tools")["tokei"]["command"]
         result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
 
         server_config = get_config("lsp_servers")
+        builder = ProgrammingLanguageBuilder(server_config)
 
         # Parse Tokei JSON output
         tokei_data = json.loads(result.stdout)
@@ -36,7 +37,7 @@ class ProjectScanner:
             logger.warning("No total code count found in Tokei output")
             return []
 
-        programming_languages = []
+        programming_languages: list[ProgrammingLanguage] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
@@ -52,30 +53,26 @@ class ProjectScanner:
             for report in stats.get("reports", []):
                 suffixes |= self._extract_suffixes([report["name"]])
 
-            command = server_config.get(technology.lower(), {"command": None})["command"]
-            suffixes |= set(server_config.get(technology.lower(), {"file_extensions": []})["file_extensions"])
-            pl = ProgrammingLanguage(
-                language=technology,
-                size=code_count,
+            pl = builder.build(
+                tokei_language=technology,
+                code_count=code_count,
                 percentage=percentage,
-                suffixes=list(suffixes),
-                server_commands=command,
+                file_suffixes=suffixes,
             )
 
-            logger.info(f"Found: {pl}")
-            if pl.percentage >= 1:  # filter PL with less than 1% of code
+            logger.debug(f"Found: {pl}")
+            if pl.percentage >= 1:
                 programming_languages.append(pl)
-                logger.info(f"Added {pl}")
 
         return programming_languages
 
     @staticmethod
-    def _extract_suffixes(files: List[str]) -> Set[str]:
+    def _extract_suffixes(files: list[str]) -> Set[str]:
         """
         Extract unique file suffixes from a list of files.
 
         Args:
-            files (List[str]): List of file paths
+            files (list[str]): list of file paths
 
         Returns:
             Set[str]: Unique file extensions/suffixes
