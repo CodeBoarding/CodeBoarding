@@ -1,16 +1,10 @@
 {
-  "description": "The LLM Prompt Factory subsystem is a critical part of the AI Interpretation Layer within the project's Code analysis and documentation generation tool architecture. It adheres to the Factory Method and Strategy patterns, enabling dynamic prompt generation tailored for various LLMs and interaction styles.",
+  "description": "The prompt management subsystem provides a clear separation of concerns, with PromptFactory acting as a facade for prompt retrieval. An external agent initiates the process by requesting a prompt from PromptFactory, specifying the desired LLMType and PromptType. PromptFactory then uses this information to dynamically select and instantiate the appropriate Concrete Prompt Factory. This concrete factory, which adheres to the AbstractPromptFactory interface, then generates and returns the specific prompt. This design allows for easy addition of new LLM types or prompt interaction patterns by simply creating new concrete factory implementations without altering the core PromptFactory logic.",
   "components": [
     {
       "name": "PromptFactory",
-      "description": "The primary orchestrator for creating and managing LLM prompts. It acts as the central entry point, dynamically selecting and instantiating the appropriate concrete prompt factory based on the desired `LLMType` and `PromptType`. It provides methods to retrieve specific prompts by name or all available prompts from the selected factory.",
+      "description": "The central orchestrator for creating and managing LLM prompts. It acts as the primary entry point, dynamically selecting and instantiating the appropriate concrete prompt factory based on the desired LLMType (e.g., GEMINI_FLASH, CLAUDE, GPT4) and PromptType (e.g., BIDIRECTIONAL, UNIDIRECTIONAL).",
       "referenced_source_code": [
-        {
-          "qualified_name": "PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
         {
           "qualified_name": "LLMType",
           "reference_file": "agents/prompts/prompt_factory.py",
@@ -34,30 +28,16 @@
           "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
           "reference_start_line": 369,
           "reference_end_line": 433
-        },
-        {
-          "qualified_name": "GeminiFlashUnidirectionalPromptFactory",
-          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
-          "reference_start_line": 369,
-          "reference_end_line": 434
-        },
-        {
-          "qualified_name": "ClaudeBidirectionalPromptFactory",
-          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
-          "reference_start_line": 382,
-          "reference_end_line": 446
-        },
-        {
-          "qualified_name": "GPTBidirectionalPromptFactory",
-          "reference_file": "agents/prompts/gpt_prompts_bidirectional.py",
-          "reference_start_line": 571,
-          "reference_end_line": 635
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/prompts/prompt_factory.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "AbstractPromptFactory",
-      "description": "An abstract base class that defines the contract for all concrete prompt factories. It establishes the interface for retrieving prompts, ensuring a consistent API across different LLM and prompt interaction type implementations. This promotes modularity and extensibility.",
+      "description": "An abstract base class that defines the contract for all concrete prompt factories. It establishes the interface for retrieving prompts, ensuring a consistent API across different LLM and prompt interaction type implementations.",
       "referenced_source_code": [
         {
           "qualified_name": "AbstractPromptFactory",
@@ -65,36 +45,22 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/prompts/abstract_prompt_factory.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "LLMType",
-      "description": "An enumeration that defines the various Large Language Model types supported by the system (e.g., `GEMINI_FLASH`, `CLAUDE`, `GPT4`). It provides a clear, enumerated set of options for LLM models, used by `PromptFactory` for dynamic factory selection.",
+      "name": "Concrete Prompt Factories",
+      "description": "A group of specialized implementations of AbstractPromptFactory. Each concrete factory is responsible for encapsulating the specific prompt templates and logic for a particular LLMType and PromptType combination.",
       "referenced_source_code": [
         {
-          "qualified_name": "LLMType",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 26,
-          "reference_end_line": 32
-        }
-      ]
-    },
-    {
-      "name": "PromptType",
-      "description": "An enumeration that defines the interaction patterns for prompts (e.g., `BIDIRECTIONAL`, `UNIDIRECTIONAL`). It provides a clear, enumerated set of options for prompt interaction styles, used by `PromptFactory` for dynamic factory selection.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "PromptType",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 19,
-          "reference_end_line": 23
-        }
-      ]
-    },
-    {
-      "name": "GeminiFlashBidirectionalPromptFactory",
-      "description": "A concrete implementation of `AbstractPromptFactory` specifically designed for generating bidirectional prompts for Gemini Flash LLMs. This class encapsulates the actual string templates and logic for its designated LLM and prompt style.",
-      "referenced_source_code": [
+          "qualified_name": "AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
           "qualified_name": "GeminiFlashBidirectionalPromptFactory",
           "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
@@ -102,122 +68,47 @@
           "reference_end_line": 433
         },
         {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "GeminiFlashUnidirectionalPromptFactory",
-      "description": "A concrete implementation of `AbstractPromptFactory` for generating unidirectional prompts specifically for Gemini Flash LLMs. It holds the specific prompt templates for this LLM and interaction style.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "GeminiFlashUnidirectionalPromptFactory",
-          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
-          "reference_start_line": 369,
-          "reference_end_line": 434
-        },
-        {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "ClaudeBidirectionalPromptFactory",
-      "description": "A concrete implementation of `AbstractPromptFactory` for generating bidirectional prompts for Claude LLMs. This class contains the specific prompt templates for Claude's bidirectional interactions.",
-      "referenced_source_code": [
-        {
           "qualified_name": "ClaudeBidirectionalPromptFactory",
           "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
           "reference_start_line": 382,
           "reference_end_line": 446
         },
         {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "GPTBidirectionalPromptFactory",
-      "description": "A concrete implementation of `AbstractPromptFactory` for generating bidirectional prompts for GPT LLMs. It manages the prompt templates tailored for GPT's bidirectional communication.",
-      "referenced_source_code": [
-        {
           "qualified_name": "GPTBidirectionalPromptFactory",
           "reference_file": "agents/prompts/gpt_prompts_bidirectional.py",
           "reference_start_line": 571,
           "reference_end_line": 635
-        },
-        {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/prompts/claude_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_unidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "../../agents/prompts/claude_prompts_unidirectional.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../agents/prompts/__init__.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "uses",
+      "relation": "selects and instantiates",
       "src_name": "PromptFactory",
-      "dst_name": "LLMType"
-    },
-    {
-      "relation": "uses",
-      "src_name": "PromptFactory",
-      "dst_name": "PromptType"
-    },
-    {
-      "relation": "instantiates",
-      "src_name": "PromptFactory",
-      "dst_name": "GeminiFlashBidirectionalPromptFactory"
-    },
-    {
-      "relation": "instantiates",
-      "src_name": "PromptFactory",
-      "dst_name": "GeminiFlashUnidirectionalPromptFactory"
-    },
-    {
-      "relation": "instantiates",
-      "src_name": "PromptFactory",
-      "dst_name": "ClaudeBidirectionalPromptFactory"
-    },
-    {
-      "relation": "instantiates",
-      "src_name": "PromptFactory",
-      "dst_name": "GPTBidirectionalPromptFactory"
+      "dst_name": "Concrete Prompt Factories"
     },
     {
       "relation": "implements",
-      "src_name": "GeminiFlashBidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "implements",
-      "src_name": "GeminiFlashUnidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "implements",
-      "src_name": "ClaudeBidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "implements",
-      "src_name": "GPTBidirectionalPromptFactory",
+      "src_name": "Concrete Prompt Factories",
       "dst_name": "AbstractPromptFactory"
     }
   ]

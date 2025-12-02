@@ -21,10 +21,10 @@ graph LR
 
 ## Details
 
-The system's architecture is driven by the Orchestration Engine, which coordinates the entire static analysis workflow. It directs the Repository Manager to provide project source code and then instructs the Static Analysis Engine to perform the analysis. The Static Analysis Engine is the central component for code intelligence, leveraging an internal LspClient to interact with external Language Servers via the Language Server Protocol. These Language Servers supply language-specific details, enabling the Static Analysis Engine to construct comprehensive call graphs, class hierarchies, and package relationships. Prior to analysis, the Setup and Configuration Manager ensures that the environment is prepared and all necessary external Language Servers are correctly installed and configured. Finally, the Static Analysis Engine delivers its detailed analysis results back to the Orchestration Engine for further processing or reporting.
+The system is designed around a core `Orchestration Engine` that manages the entire static analysis workflow. This engine directs the `Repository Manager` to access project source files, which are then provided to the `Static Analysis Engine`. The `Static Analysis Engine` is responsible for performing detailed code analysis by interacting with an external `Language Server` through the Language Server Protocol. The `Setup and Configuration Manager` plays a crucial role in ensuring all necessary external dependencies for the analysis process are correctly installed and configured. Ultimately, the `Orchestration Engine` aggregates and processes the results from the `Static Analysis Engine`, completing the analysis cycle. Recent internal updates to agents managed by the `Orchestration Engine` and dependency configurations handled by the `Setup and Configuration Manager` have enhanced the system's capabilities without altering its fundamental high-level architecture.
 
 ### Orchestration Engine
-Coordinates the entire static analysis workflow, directing other components and receiving final results.
+Coordinates the entire static analysis workflow, directing and managing various internal agents to perform specific tasks, and receiving final results.
 
 
 **Related Classes/Methods**:
@@ -33,16 +33,16 @@ Coordinates the entire static analysis workflow, directing other components and 
 
 
 ### Repository Manager [[Expand]](./Repository_Manager.md)
-Provides project source files and context to the Static Analysis Engine.
+Manages and provides project source files and context to the Static Analysis Engine.
 
 
 **Related Classes/Methods**:
 
-- `RepositoryManager`:10-20
+- `RepositoryManager`:1-10
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-The Static Analysis Engine's core functionality for gathering code intelligence is encapsulated within the LspClient class. This client acts as an intermediary, establishing and managing communication with external Language Servers (e.g., for Python, TypeScript) using the Language Server Protocol (LSP). The LspClient initiates a language server process, sends JSON-RPC requests for various code analysis tasks (such as retrieving document symbols, preparing call hierarchies, finding incoming/outgoing calls, and resolving definitions/references), and processes the responses. It orchestrates the building of a comprehensive static analysis by concurrently analyzing source files, extracting package relations, identifying symbol references, constructing call graphs, and determining class hierarchies. This involves a continuous exchange of messages with the external Language Server to gather detailed, language-specific code information.
+The core component for gathering code intelligence, primarily through its `LspClient` which communicates with external Language Servers using the Language Server Protocol (LSP) to perform detailed code analysis.
 
 
 **Related Classes/Methods**:
@@ -51,16 +51,15 @@ The Static Analysis Engine's core functionality for gathering code intelligence 
 
 
 ### Setup and Configuration Manager
-Ensures that necessary external Language Server dependencies are installed and configured for the Static Analysis Engine.
+Responsible for ensuring that all necessary external Language Server dependencies and project configurations are correctly installed and maintained for the Static Analysis Engine.
 
 
 **Related Classes/Methods**:
 
-- `SetupAndConfigurationManager`:1-10
 
 
 ### Language Server (External)
-An external component that provides language-specific code intelligence via the Language Server Protocol.
+An external component that provides language-specific code intelligence and analysis capabilities via the Language Server Protocol.
 
 
 **Related Classes/Methods**:

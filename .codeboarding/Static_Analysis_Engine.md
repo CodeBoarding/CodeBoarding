@@ -2,33 +2,44 @@
 graph LR
     Static_Analysis_Engine_Core["Static Analysis Engine Core"]
     Scanner["Scanner"]
+    Agent["Agent"]
     Unclassified["Unclassified"]
     Static_Analysis_Engine_Core -- "utilizes" --> Scanner
+    Static_Analysis_Engine_Core -- "provides analysis to" --> Agent
     Scanner -- "generates data for" --> Static_Analysis_Engine_Core
+    Agent -- "consumes analysis from" --> Static_Analysis_Engine_Core
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This system describes the core functionality of a Static Analysis Engine, a distinct subsystem responsible for in-depth static analysis of source code. Its main purpose is to process raw source code, parse it into foundational structural data, and prepare this data for further interpretation. The central flow involves an orchestrating core component that delegates initial parsing to a scanner, which then provides the processed data back to the core.
+The system is structured around a Static Analysis Engine Core that orchestrates the static analysis process. The Scanner component is responsible for the initial parsing of source code, generating fundamental data that feeds into the Static Analysis Engine Core. The Static Analysis Engine Core then processes this data, performing deeper analysis and providing structured outputs. A newly identified Agent component interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks. This architecture allows for a modular approach where the core analysis engine can be leveraged by various agents for different purposes.
 
 ### Static Analysis Engine Core
-This component acts as the orchestrator for the entire static analysis process within the subsystem. It manages the input of source code, coordinates the execution of internal analysis modules, and prepares the extracted structural information (CFGs, ASTs) for downstream components. It ensures the coherent flow of data from raw code to structured analysis output.
+Orchestrates the static analysis process, performing deeper analysis and providing structured outputs.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer`</a>
+- `AnalysisEngine.analyze`:1-10
 
 
 ### Scanner
-The `Scanner` is a fundamental component within the `Static Analysis Engine` responsible for the initial pass over the source code. Its primary function is to read and parse the raw code, identifying language constructs, tokens, and basic syntactic elements. This process forms the foundation upon which more complex structures like Abstract Syntax Trees (ASTs) and Control Flow Graphs (CFGs) are built.
+Responsible for the initial parsing of source code, generating fundamental data.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
+
+
+### Agent
+Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L183-L187" target="_blank" rel="noopener noreferrer">`AnalysisAgent.execute`:183-187</a>
 
 
 ### Unclassified

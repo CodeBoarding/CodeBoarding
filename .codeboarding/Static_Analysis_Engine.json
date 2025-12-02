@@ -1,34 +1,56 @@
 {
-  "description": "This system describes the core functionality of a Static Analysis Engine, a distinct subsystem responsible for in-depth static analysis of source code. Its main purpose is to process raw source code, parse it into foundational structural data, and prepare this data for further interpretation. The central flow involves an orchestrating core component that delegates initial parsing to a scanner, which then provides the processed data back to the core.",
+  "description": "The system is structured around a Static Analysis Engine Core that orchestrates the static analysis process. The Scanner component is responsible for the initial parsing of source code, generating fundamental data that feeds into the Static Analysis Engine Core. The Static Analysis Engine Core then processes this data, performing deeper analysis and providing structured outputs. A newly identified Agent component interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks. This architecture allows for a modular approach where the core analysis engine can be leveraged by various agents for different purposes.",
   "components": [
     {
       "name": "Static Analysis Engine Core",
-      "description": "This component acts as the orchestrator for the entire static analysis process within the subsystem. It manages the input of source code, coordinates the execution of internal analysis modules, and prepares the extracted structural information (CFGs, ASTs) for downstream components. It ensures the coherent flow of data from raw code to structured analysis output.",
+      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer",
-          "reference_file": "static_analyzer/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "AnalysisEngine.analyze",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Scanner",
-      "description": "The `Scanner` is a fundamental component within the `Static Analysis Engine` responsible for the initial pass over the source code. Its primary function is to read and parse the raw code, identifying language constructs, tokens, and basic syntactic elements. This process forms the foundation upon which more complex structures like Abstract Syntax Trees (ASTs) and Control Flow Graphs (CFGs) are built.",
+      "description": "Responsible for the initial parsing of source code, generating fundamental data.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner.Scanner",
-          "reference_file": "static_analyzer/scanner.py",
+          "qualified_name": "SourceScanner.scan",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent",
+      "description": "Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "AnalysisAgent.execute",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 183,
+          "reference_end_line": 187
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
@@ -38,8 +60,18 @@
       "dst_name": "Scanner"
     },
     {
+      "relation": "provides analysis to",
+      "src_name": "Static Analysis Engine Core",
+      "dst_name": "Agent"
+    },
+    {
       "relation": "generates data for",
       "src_name": "Scanner",
+      "dst_name": "Static Analysis Engine Core"
+    },
+    {
+      "relation": "consumes analysis from",
+      "src_name": "Agent",
       "dst_name": "Static Analysis Engine Core"
     }
   ]

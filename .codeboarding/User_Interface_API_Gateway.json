@@ -1,5 +1,5 @@
 {
-  "description": "The system is designed to generate documentation from code repositories. It operates through an API Service that handles user requests and initiates documentation generation jobs. These jobs are managed by the Job Management component, which tracks their lifecycle and state. The core Documentation Generation component executes the actual process, involving cloning repositories via the Temporary Repository Manager, performing in-depth code analysis using the Static Analysis Tools (which include an enhanced Language Server Protocol client), and applying system settings provided by the Configuration Manager. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.",
+  "description": "The system is structured around an `API Service` that manages incoming requests and initiates documentation generation workflows. These workflows are handled by `Job Management`, which orchestrates the `Documentation Generation` component. The core of the documentation process is driven by the `CodeBoardingAgent`, an intelligent component that leverages various `Static Analysis Tools` for deep code understanding, interacts with the `Temporary Repository Manager` for repository handling, and retrieves essential settings from the `Configuration Manager`. This agent-centric approach allows for dynamic and comprehensive documentation generation, with job statuses and results reported back through `Job Management` to the `API Service`.",
   "components": [
     {
       "name": "API Service",
@@ -7,11 +7,15 @@
       "referenced_source_code": [
         {
           "qualified_name": "api_service.APIService:handle_request",
-          "reference_file": "file_path",
+          "reference_file": "api_service.py",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Job Management",
@@ -23,19 +27,37 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Documentation Generation",
-      "description": "Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.",
+      "description": "Orchestrates the overall documentation generation process, delegating the core analysis and content creation to the `CodeBoardingAgent`.",
       "referenced_source_code": [
         {
           "qualified_name": "doc_generation.DocGenerator:generate",
-          "reference_file": "doc_generation.DocGenerator:generate",
+          "reference_file": "doc_generation.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingAgent",
+      "description": "An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It interacts with static analysis tools, reads code references, and manages file structures.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Temporary Repository Manager",
@@ -47,19 +69,23 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Static Analysis Tools",
-      "description": "Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component. Recent updates have significantly improved its internal LSP client's capabilities and robustness.",
+      "description": "Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the `CodeBoardingAgent` for in-depth code understanding.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analysis.Analyzer:run_analysis",
-          "reference_file": "static_analysis/analyzer.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 17,
+          "reference_end_line": 70
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Configuration Manager",
@@ -71,12 +97,16 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
@@ -91,18 +121,23 @@
       "dst_name": "Documentation Generation"
     },
     {
-      "relation": "utilizes",
+      "relation": "delegates tasks to",
       "src_name": "Documentation Generation",
-      "dst_name": "Temporary Repository Manager"
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "leverages",
-      "src_name": "Documentation Generation",
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Static Analysis Tools"
     },
     {
+      "relation": "accesses",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Temporary Repository Manager"
+    },
+    {
       "relation": "retrieves settings from",
-      "src_name": "Documentation Generation",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Configuration Manager"
     },
     {

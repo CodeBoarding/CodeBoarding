@@ -9,20 +9,16 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Requests Codebase" --> Repository_Manager
+    Orchestration_Engine_Agent_Core_ -- "Manages Repository Access" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Submits Codebase for Analysis" --> Static_Analysis_Engine
+    Orchestration_Engine_Agent_Core_ -- "Submits Codebase for Static Analysis" --> Static_Analysis_Engine
     Static_Analysis_Engine -- "Returns Static Analysis Results" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Requests Tailored Prompt" --> LLM_Prompt_Factory
-    LLM_Prompt_Factory -- "Provides Generated Prompt" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Sends Prompt & Context" --> AI_Interpretation_Layer
+    Orchestration_Engine_Agent_Core_ -- "Requests Prompt Generation" --> LLM_Prompt_Factory
+    LLM_Prompt_Factory -- "Provides Tailored Prompt" --> Orchestration_Engine_Agent_Core_
+    Orchestration_Engine_Agent_Core_ -- "Sends Prompt & Context to LLM" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "Returns LLM Interpreted Insights" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Processes Insights for Formatting" --> Output_Generation_Engine
+    Orchestration_Engine_Agent_Core_ -- "Processes Insights for Output" --> Output_Generation_Engine
     Output_Generation_Engine -- "Provides Structured Diagram Data" --> Diagram_Analysis_Renderer
     Diagram_Analysis_Renderer -- "Renders & Displays Diagram" --> User_Interface_API_Gateway
     click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
@@ -39,7 +35,7 @@ graph LR
 
 ## Details
 
-The system is designed around a central `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. User requests are initiated through the `User Interface / API Gateway`, which then delegates the processing to the `Orchestration Engine`. This engine interacts with the `Repository Manager` to access code, the `Static Analysis Engine` to extract structural information, and the `LLM Prompt Factory` to prepare prompts for AI. The `AI Interpretation Layer` processes these prompts and analysis results to generate architectural insights. Finally, the `Output Generation Engine` formats these insights, and the `Diagram Analysis & Renderer` visualizes them, with the results being delivered back through the `User Interface / API Gateway`.
+The system is designed around a central Orchestration Engine (Agent Core), embodied by the `CodeBoardingAgent`, which manages the entire code analysis workflow. User requests originate from the User Interface / API Gateway, triggering the orchestration process. The `CodeBoardingAgent` interacts with the Repository Manager to access the codebase and then dispatches the code to the Static Analysis Engine for structural analysis. The results from static analysis, along with dynamically generated prompts from the LLM Prompt Factory, are fed to the AI Interpretation Layer for deep code understanding and insight generation using various Large Language Models. Finally, the interpreted insights are processed by the Output Generation Engine and transformed into visual architectural diagrams by the Diagram Analysis & Renderer, which are then presented back through the User Interface / API Gateway.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
 The primary interface for users to initiate code analysis and view the generated architectural diagrams. It acts as the system's entry and exit point, handling API requests and responses.
@@ -51,12 +47,12 @@ The primary interface for users to initiate code analysis and view the generated
 
 
 ### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks.
+The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks, initializes LLMs and various code analysis tools.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
 
 
 ### Repository Manager [[Expand]](./Repository_Manager.md)
@@ -115,30 +111,6 @@ Refines the structured output into a diagram-specific format (e.g., Mermaid.js s
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

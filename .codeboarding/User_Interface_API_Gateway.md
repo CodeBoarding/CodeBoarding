@@ -3,15 +3,17 @@ graph LR
     API_Service["API Service"]
     Job_Management["Job Management"]
     Documentation_Generation["Documentation Generation"]
+    CodeBoardingAgent["CodeBoardingAgent"]
     Temporary_Repository_Manager["Temporary Repository Manager"]
     Static_Analysis_Tools["Static Analysis Tools"]
     Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates jobs with" --> Job_Management
     Job_Management -- "orchestrates" --> Documentation_Generation
-    Documentation_Generation -- "utilizes" --> Temporary_Repository_Manager
-    Documentation_Generation -- "leverages" --> Static_Analysis_Tools
-    Documentation_Generation -- "retrieves settings from" --> Configuration_Manager
+    Documentation_Generation -- "delegates tasks to" --> CodeBoardingAgent
+    CodeBoardingAgent -- "utilizes" --> Static_Analysis_Tools
+    CodeBoardingAgent -- "accesses" --> Temporary_Repository_Manager
+    CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
     Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
     Job_Management -- "provides status to" --> API_Service
 ```
@@ -20,7 +22,7 @@ graph LR
 
 ## Details
 
-The system is designed to generate documentation from code repositories. It operates through an API Service that handles user requests and initiates documentation generation jobs. These jobs are managed by the Job Management component, which tracks their lifecycle and state. The core Documentation Generation component executes the actual process, involving cloning repositories via the Temporary Repository Manager, performing in-depth code analysis using the Static Analysis Tools (which include an enhanced Language Server Protocol client), and applying system settings provided by the Configuration Manager. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.
+The system is structured around an `API Service` that manages incoming requests and initiates documentation generation workflows. These workflows are handled by `Job Management`, which orchestrates the `Documentation Generation` component. The core of the documentation process is driven by the `CodeBoardingAgent`, an intelligent component that leverages various `Static Analysis Tools` for deep code understanding, interacts with the `Temporary Repository Manager` for repository handling, and retrieves essential settings from the `Configuration Manager`. This agent-centric approach allows for dynamic and comprehensive documentation generation, with job statuses and results reported back through `Job Management` to the `API Service`.
 
 ### API Service
 Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.
@@ -41,12 +43,21 @@ Manages the persistence and state transitions of documentation generation jobs (
 
 
 ### Documentation Generation
-Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.
+Orchestrates the overall documentation generation process, delegating the core analysis and content creation to the `CodeBoardingAgent`.
 
 
 **Related Classes/Methods**:
 
-- `doc_generation.DocGenerator:generate`
+- `doc_generation.DocGenerator:generate`:1-10
+
+
+### CodeBoardingAgent
+An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It interacts with static analysis tools, reads code references, and manages file structures.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
 
 
 ### Temporary Repository Manager
@@ -59,12 +70,12 @@ Handles the creation and cleanup of temporary directories used for cloning repos
 
 
 ### Static Analysis Tools
-Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component. Recent updates have significantly improved its internal LSP client's capabilities and robustness.
+Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the `CodeBoardingAgent` for in-depth code understanding.
 
 
 **Related Classes/Methods**:
 
-- `static_analysis.Analyzer:run_analysis`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L17-L70" target="_blank" rel="noopener noreferrer">`static_analysis.Analyzer:run_analysis`:17-70</a>
 
 
 ### Configuration Manager
