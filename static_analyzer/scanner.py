@@ -2,7 +2,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Set, Dict
+from typing import List, Set
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from utils import get_config
@@ -36,9 +36,6 @@ class ProjectScanner:
         if not total_code:
             logger.warning("No total code count found in Tokei output")
             return []
-
-        # Use dict to accumulate and merge by lsp_key
-        merged_languages: Dict[str, ProgrammingLanguage] = {}
 
         programming_languages: List[ProgrammingLanguage] = []
         for technology, stats in tokei_data.items():

@@ -238,42 +238,31 @@ def update_static_analysis_config():
     servers_dir = project_root / "static_analyzer" / "servers"
 
     updates = 0
+    is_win = platform.system() == "Windows"
 
-    # Update Python LSP server path (using pyright from node_modules)
-    pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver"
-    # On Windows, use .cmd files; on Unix, use the shell scripts
-    if platform.system() == "Windows":
-        pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver.cmd"
-    if pyright_path.exists():
-        config["lsp_servers"]["python"]["command"][0] = str(pyright_path)
-        updates += 1
+    # The Plan: (Binary Name, Is_Node_App, List of Config Targets)
+    # "True" means it lives in node_modules/.bin and needs .cmd on Windows
+    # "False" means it lives in the root and needs .exe on Windows
+    server_definitions = [
+        ("pyright-langserver", True, [("lsp_servers", "python")]),
+        ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
+        ("gopls", False, [("lsp_servers", "go")]),
+        ("tokei", False, [("tools", "tokei")]),
+    ]
 
-    # Update TypeScript Language Server path
-    ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
-    if platform.system() == "Windows":
-        ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server.cmd"
-    if ts_lsp_path.exists():
-        config["lsp_servers"]["typescript"]["command"][0] = str(ts_lsp_path)
-        updates += 1
-        # Also update JavaScript LSP server (uses same typescript-language-server)
-        config["lsp_servers"]["javascript"]["command"][0] = str(ts_lsp_path)
-        updates += 1
+    for binary, is_node, targets in server_definitions:
+        # 1. Determine the extension and folder based on the type
+        ext = (".cmd" if is_node else ".exe") if is_win else ""
+        folder = (servers_dir / "node_modules" / ".bin") if is_node else servers_dir
 
-    # Update Go Language Server path
-    gopls_path = servers_dir / "gopls"
-    if platform.system() == "Windows":
-        gopls_path = servers_dir / "gopls.exe"
-    if gopls_path.exists():
-        config["lsp_servers"]["go"]["command"][0] = str(gopls_path)
-        updates += 1
+        # 2. Build the full path once
+        full_path = folder / (binary + ext)
 
-    # Update tokei tool path
-    tokei_path = servers_dir / "tokei"
-    if platform.system() == "Windows":
-        tokei_path = servers_dir / "tokei.exe"
-    if tokei_path.exists():
-        config["tools"]["tokei"]["command"][0] = str(tokei_path)
-        updates += 1
+        # 3. Apply to all relevant targets in config
+        if full_path.exists():
+            for section, key in targets:
+                config[section][key]["command"][0] = str(full_path)
+                updates += 1
 
     # Write the updated configuration back to file
     with open(config_path, "w") as f:

@@ -10,9 +10,9 @@ class ProgrammingLanguage:
         language: str,
         size: int,
         percentage: float,
-        suffixes: List[str],
-        server_commands: List[str] = None,
-        lsp_key: Optional[str] = None,
+        suffixes: list[str],
+        server_commands: list[str] = None,
+        lsp_server_key: str | None = None,
     ):
         self.language = language
         self.size = size
@@ -20,7 +20,7 @@ class ProgrammingLanguage:
         self.suffixes = suffixes
         self.server_commands = server_commands
         # lsp_key is used for grouping related languages (e.g., JS, TSX, JSX -> typescript)
-        self.lsp_key = lsp_key or language.lower()
+        self.lsp_server_key = lsp_server_key or language.lower()
 
     def get_suffix_pattern(self) -> list[str]:
         """Generate and return pattern for the file suffixes, to use in .rglob(pattern)"""
@@ -42,35 +42,24 @@ class ProgrammingLanguage:
         return self.server_commands
 
     def is_supported_lang(self) -> bool:
-        """
-        Check if the language is supported by the static analyzer.
-        """
         return self.server_commands is not None
 
     def __hash__(self):
-        """Hash based on lsp_key for deduplication."""
-        return hash(self.lsp_key)
+        return hash(self.lsp_server_key)
 
     def __eq__(self, other):
-        """Equality based on lsp_key."""
         if not isinstance(other, ProgrammingLanguage):
             return False
-        return self.lsp_key == other.lsp_key
+        return self.lsp_server_key == other.lsp_server_key
 
     def __str__(self):
-        return f"ProgrammingLanguage(language={self.language}, lsp_key={self.lsp_key}, size={self.size}, percentage={self.percentage:.2f}%, suffixes={self.suffixes})"
+        return f"ProgrammingLanguage(language={self.language}, lsp_server_key={self.lsp_server_key}, size={self.size}, percentage={self.percentage:.2f}%, suffixes={self.suffixes})"
 
 
 class ProgrammingLanguageBuilder:
     """Builder to create ProgrammingLanguage instances from tokei output with greedy LSP matching."""
 
     def __init__(self, lsp_configs: dict):
-        """
-        Initialize builder with LSP server configurations.
-
-        Args:
-            lsp_configs: Dictionary of LSP server configurations from config file
-        """
         self.lsp_configs = lsp_configs
         # Build reverse index: extension -> lsp_config_key
         self._extension_to_lsp: Dict[str, str] = {}
@@ -80,7 +69,7 @@ class ProgrammingLanguageBuilder:
                 normalized_ext = ext if ext.startswith(".") else f".{ext}"
                 self._extension_to_lsp[normalized_ext] = lsp_key
 
-    def _find_lsp_config_key(self, tokei_language: str, file_suffixes: Set[str]) -> Optional[str]:
+    def _find_lsp_server_key(self, tokei_language: str, file_suffixes: Set[str]) -> Optional[str]:
         """
         Find the LSP config key for a tokei language by matching file extensions.
 
@@ -108,25 +97,13 @@ class ProgrammingLanguageBuilder:
     def build(
         self, tokei_language: str, code_count: int, percentage: float, file_suffixes: Set[str]
     ) -> ProgrammingLanguage:
-        """
-        Build a ProgrammingLanguage instance from tokei output.
-
-        Args:
-            tokei_language: Language name from tokei (e.g., "JavaScript", "TSX")
-            code_count: Lines of code count
-            percentage: Percentage of total codebase
-            file_suffixes: Set of file suffixes extracted from tokei reports
-
-        Returns:
-            ProgrammingLanguage instance with LSP config if available
-        """
-        lsp_key = self._find_lsp_config_key(tokei_language, file_suffixes)
+        lsp_server_key = self._find_lsp_server_key(tokei_language, file_suffixes)
 
         server_commands = None
         config_suffixes: Set[str] = set()
 
-        if lsp_key and lsp_key in self.lsp_configs:
-            config = self.lsp_configs[lsp_key]
+        if lsp_server_key and lsp_server_key in self.lsp_configs:
+            config = self.lsp_configs[lsp_server_key]
             server_commands = config.get("command")
             config_suffixes = set(config.get("file_extensions", []))
 
@@ -139,9 +116,8 @@ class ProgrammingLanguageBuilder:
             percentage=percentage,
             suffixes=list(all_suffixes),
             server_commands=server_commands,
-            lsp_key=lsp_key,
+            lsp_server_key=lsp_server_key,
         )
 
     def get_supported_extensions(self) -> Set[str]:
-        """Return set of all supported file extensions."""
         return set(self._extension_to_lsp.keys())
