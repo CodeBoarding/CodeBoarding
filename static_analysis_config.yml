@@ -9,7 +9,7 @@ lsp_servers:
     file_extensions:
       - .py
       - .pyi
-    install_commands: pip install pyright
+    install_commands: npm install pyright
   typescript:
     name: TypeScript Language Server
     command:
