@@ -3,57 +3,65 @@ graph LR
     Query_Processor["Query Processor"]
     Language_Model_Interface["Language Model Interface"]
     Tool_Executor["Tool Executor"]
+    Tools["Tools"]
     Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
-    Query_Processor -- "sends queries to" --> Language_Model_Interface
-    Language_Model_Interface -- "receives output from" --> Tool_Executor
-    Tool_Executor -- "invokes" --> Tool
-    Tool_Executor -- "sends results to" --> Response_Formatter
-    Response_Formatter -- "returns formatted response from" --> Query_Processor
+    Query_Processor -- "initiates" --> Language_Model_Interface
+    Language_Model_Interface -- "provides output/action to" --> Tool_Executor
+    Tool_Executor -- "invokes/processes" --> Tools
+    Tool_Executor -- "feeds results to" --> Language_Model_Interface
+    Language_Model_Interface -- "sends final response to" --> Response_Formatter
+    Response_Formatter -- "returns formatted response to" --> Query_Processor
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and interacts with external tools. The main flow involves receiving a query, parsing it, invoking a language model to determine the appropriate action, executing that action (which might involve using a tool), and finally formatting and returning the response to the user. Its purpose is to provide a flexible and extensible framework for building AI-powered applications that can understand and act upon user requests.
+The system is structured around a core agentic loop, starting with the `Query Processor` which handles user input and orchestrates the overall flow. It passes the query to the `Language Model Interface`, responsible for interacting with the underlying LLM. The LLM's output, which may include a decision to use external capabilities, is then directed to the `Tool Executor`. This component is central to the system's extensibility, managing the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled. After tool execution, results are fed back to the `Language Model Interface` for further reasoning or to generate a conclusive response. Finally, the `Response Formatter` synthesizes and formats the LLM's output into a user-friendly message, which is then returned via the `Query Processor`. This architecture ensures a clear separation of concerns, enabling flexible interaction with LLMs and external tools.
 
 ### Query Processor
-Handles incoming user queries, including parsing and initial validation.
+Handles user input and orchestrates the overall flow.
 
 
 **Related Classes/Methods**:
 
-- `QueryParser:parse`
+- `QueryProcessor`:1-10
 
 
 ### Language Model Interface
-Manages interactions with the underlying language model, sending prompts and receiving generated text.
+Responsible for interacting with the underlying LLM.
 
 
 **Related Classes/Methods**:
 
-- `LLMClient:send_prompt`
-- `LLMClient:receive_response`
+- `LanguageModelInterface`:1-10
 
 
 ### Tool Executor
-Executes specific tools based on the language model's output, handling tool invocation and result retrieval.
+Manages the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled.
 
 
 **Related Classes/Methods**:
 
-- `ToolRegistry:get_tool`
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L60-L148" target="_blank" rel="noopener noreferrer">`Tool:execute`:60-148</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`ToolExecutor`</a>
+
+
+### Tools
+External functionalities invoked by the Tool Executor.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py" target="_blank" rel="noopener noreferrer">`Tool`</a>
 
 
 ### Response Formatter
-Formats the final response to be sent back to the user, potentially combining information from the language model and tool outputs.
+Synthesizes and formats the LLM's output into a user-friendly message.
 
 
 **Related Classes/Methods**:
 
-- `ResponseBuilder:build`
 
 
 ### Unclassified

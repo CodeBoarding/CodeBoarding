@@ -73,9 +73,9 @@ def install_node_servers():
             if not Path("package.json").exists():
                 subprocess.run([npm_path, "init", "-y"], check=True, capture_output=True, text=True)
 
-            # Install typescript-language-server, typescript, and pyright
+            # Install typescript-language-server, typescript, pyright, and intelephense
             subprocess.run(
-                [npm_path, "install", "typescript-language-server", "typescript", "pyright"],
+                [npm_path, "install", "typescript-language-server", "typescript", "pyright", "intelephense"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -84,6 +84,7 @@ def install_node_servers():
         # Verify the installation
         ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
         py_lsp_path = Path("./node_modules/.bin/pyright-langserver")
+        php_lsp_path = Path("./node_modules/.bin/intelephense")
 
         success = True
         if ts_lsp_path.exists():
@@ -96,6 +97,12 @@ def install_node_servers():
             print("Step: Pyright Language Server installation finished: success")
         else:
             print("Step: Pyright Language Server installation finished: warning - Binary not found")
+            success = False
+
+        if php_lsp_path.exists():
+            print("Step: Intelephense installation finished: success")
+        else:
+            print("Step: Intelephense installation finished: warning - Binary not found")
             success = False
 
         return success
@@ -246,6 +253,7 @@ def update_static_analysis_config():
     server_definitions = [
         ("pyright-langserver", True, [("lsp_servers", "python")]),
         ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
+        ("intelephense", True, [("lsp_servers", "php")]),
         ("gopls", False, [("lsp_servers", "go")]),
         ("tokei", False, [("tools", "tokei")]),
     ]
@@ -261,9 +269,20 @@ def update_static_analysis_config():
         # 3. Apply to all relevant targets in config
         if full_path.exists():
             for section, key in targets:
+                # Handle language server key for Intelephense, which is "php" not "Intelephense Language Server"
+                if binary == "intelephense":
+                    key = "php"
+                elif binary == "pyright-langserver":
+                    key = "python"
+                
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
+                
+    # Write the updated configuration back to file
+    with open(config_path, "w") as f:
+        yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 
+    print(f"Step: Configuration update finished: success ({updates} paths updated)")
     # Write the updated configuration back to file
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
@@ -317,6 +336,9 @@ ENABLE_MONITORING=false
 
 # AWS Bedrock Configuration
 # AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here
+
+# Cerebras Configuration
+# CEREBRAS_API_KEY=your_cerebras_api_key_here
 
 # ============================================================================
 # OPTIONAL SERVICES

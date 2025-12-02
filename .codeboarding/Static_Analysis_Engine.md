@@ -2,33 +2,71 @@
 graph LR
     Static_Analysis_Engine_Core["Static Analysis Engine Core"]
     Scanner["Scanner"]
+    Agent["Agent"]
+    VSCode_Integration["VSCode Integration"]
+    External_Dependencies["External Dependencies"]
     Unclassified["Unclassified"]
-    Static_Analysis_Engine_Core -- "utilizes" --> Scanner
     Scanner -- "generates data for" --> Static_Analysis_Engine_Core
+    Static_Analysis_Engine_Core -- "utilizes" --> Scanner
+    Static_Analysis_Engine_Core -- "provides analysis to" --> Agent
+    Agent -- "consumes analysis from" --> Static_Analysis_Engine_Core
+    Agent -- "interacts with" --> VSCode_Integration
+    VSCode_Integration -- "manages interface for" --> Agent
+    Scanner -- "depend on" --> External_Dependencies
+    Static_Analysis_Engine_Core -- "depend on" --> External_Dependencies
+    Agent -- "depend on" --> External_Dependencies
+    VSCode_Integration -- "depend on" --> External_Dependencies
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This system describes the core functionality of a Static Analysis Engine, a distinct subsystem responsible for in-depth static analysis of source code. Its main purpose is to process raw source code, parse it into foundational structural data, and prepare this data for further interpretation. The central flow involves an orchestrating core component that delegates initial parsing to a scanner, which then provides the processed data back to the core.
+The system's architecture is centered around a `Static Analysis Engine Core` that orchestrates in-depth code analysis, building upon the initial parsing performed by the `Scanner`. An `Agent` component leverages these analytical capabilities to execute higher-level tasks. A dedicated `VSCode Integration` component facilitates seamless interaction with the VSCode environment, providing a specialized interface for the `Agent`. The entire system's functionality is supported by `External Dependencies`, which are managed through project packaging.
 
 ### Static Analysis Engine Core
-This component acts as the orchestrator for the entire static analysis process within the subsystem. It manages the input of source code, coordinates the execution of internal analysis modules, and prepares the extracted structural information (CFGs, ASTs) for downstream components. It ensures the coherent flow of data from raw code to structured analysis output.
+Orchestrates the static analysis process, performing deeper analysis and providing structured outputs.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer`</a>
+- `AnalysisEngine.analyze`:1-10
 
 
 ### Scanner
-The `Scanner` is a fundamental component within the `Static Analysis Engine` responsible for the initial pass over the source code. Its primary function is to read and parse the raw code, identifying language constructs, tokens, and basic syntactic elements. This process forms the foundation upon which more complex structures like Abstract Syntax Trees (ASTs) and Control Flow Graphs (CFGs) are built.
+Responsible for the initial parsing of source code, generating fundamental data.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`SourceScanner.scan`</a>
+
+
+### Agent
+Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks, and coordinates with the VSCode Integration for IDE-specific operations.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L183-L187" target="_blank" rel="noopener noreferrer">`AnalysisAgent.execute`:183-187</a>
+
+
+### VSCode Integration
+Manages all interactions, configurations, and communication specific to the VSCode environment, acting as an interface between the core system and the IDE.
+
+
+**Related Classes/Methods**:
+
+- `VSCodeIntegration`:1-10
+
+
+### External Dependencies
+Encompasses all external libraries, frameworks, and third-party packages that the project relies on, managed through packaging configurations.
+
+
+**Related Classes/Methods**:
+
+- `ExternalDependencies`
 
 
 ### Unclassified

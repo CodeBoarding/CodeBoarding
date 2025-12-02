@@ -9,25 +9,20 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Requests Codebase" --> Repository_Manager
+    Orchestration_Engine_Agent_Core_ -- "Manages Repository Access" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Submits Codebase for Analysis" --> Static_Analysis_Engine
+    Orchestration_Engine_Agent_Core_ -- "Submits Codebase for Static Analysis" --> Static_Analysis_Engine
     Static_Analysis_Engine -- "Returns Static Analysis Results" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Requests Tailored Prompt" --> LLM_Prompt_Factory
-    LLM_Prompt_Factory -- "Provides Generated Prompt" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Sends Prompt & Context" --> AI_Interpretation_Layer
+    Orchestration_Engine_Agent_Core_ -- "Requests Prompt Generation" --> LLM_Prompt_Factory
+    LLM_Prompt_Factory -- "Provides Tailored Prompt" --> Orchestration_Engine_Agent_Core_
+    Orchestration_Engine_Agent_Core_ -- "Sends Prompt & Context to LLM" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "Returns LLM Interpreted Insights" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Processes Insights for Formatting" --> Output_Generation_Engine
+    Orchestration_Engine_Agent_Core_ -- "Processes Insights for Output" --> Output_Generation_Engine
     Output_Generation_Engine -- "Provides Structured Diagram Data" --> Diagram_Analysis_Renderer
     Diagram_Analysis_Renderer -- "Renders & Displays Diagram" --> User_Interface_API_Gateway
     click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
-    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
@@ -39,10 +34,10 @@ graph LR
 
 ## Details
 
-The system is designed around a central `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. User requests are initiated through the `User Interface / API Gateway`, which then delegates the processing to the `Orchestration Engine`. This engine interacts with the `Repository Manager` to access code, the `Static Analysis Engine` to extract structural information, and the `LLM Prompt Factory` to prepare prompts for AI. The `AI Interpretation Layer` processes these prompts and analysis results to generate architectural insights. Finally, the `Output Generation Engine` formats these insights, and the `Diagram Analysis & Renderer` visualizes them, with the results being delivered back through the `User Interface / API Gateway`.
+The system employs a modular, agent-based architecture designed for automated code analysis and architectural diagram generation. The `User Interface / API Gateway` serves as the primary entry point, handling user requests and displaying results, including expanded integration with VS Code. The `Orchestration Engine` acts as the central coordinator, managing the workflow from code acquisition via the `Repository Manager` to static analysis by the `Static Analysis Engine`. It dynamically generates LLM prompts through the `LLM Prompt Factory` and leverages the `AI Interpretation Layer` for deriving architectural insights. These insights are then transformed into structured outputs by the `Output Generation Engine` and visualized by the `Diagram Analysis & Renderer`, completing the analysis cycle.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
-The primary interface for users to initiate code analysis and view the generated architectural diagrams. It acts as the system's entry and exit point, handling API requests and responses.
+The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
 
 
 **Related Classes/Methods**:
@@ -51,16 +46,16 @@ The primary interface for users to initiate code analysis and view the generated
 
 
 ### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks.
+The central control unit managing the entire analysis workflow, coordinating all components and maintaining analysis state.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
 
 
-### Repository Manager [[Expand]](./Repository_Manager.md)
-Handles all interactions with code repositories, including cloning, fetching, and providing a standardized interface for accessing the source code. It also manages temporary repository folders.
+### Repository Manager
+Manages all interactions with code repositories, providing a standardized interface for source code access and temporary folder management.
 
 
 **Related Classes/Methods**:
@@ -70,7 +65,7 @@ Handles all interactions with code repositories, including cloning, fetching, an
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static analysis on the source code to extract structural information such as Control Flow Graphs (CFGs) and Abstract Syntax Trees (ASTs).
+Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs.
 
 
 **Related Classes/Methods**:
@@ -79,7 +74,7 @@ Performs in-depth static analysis on the source code to extract structural infor
 
 
 ### LLM Prompt Factory [[Expand]](./LLM_Prompt_Factory.md)
-Dynamically generates and manages prompts specifically tailored for various Large Language Models (LLMs) and different code analysis tasks.
+Dynamically generates and manages prompts tailored for various LLMs and code analysis tasks.
 
 
 **Related Classes/Methods**:
@@ -88,7 +83,7 @@ Dynamically generates and manages prompts specifically tailored for various Larg
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Interfaces with diverse LLM providers to process static analysis results and prompts, interpreting code context and generating architectural insights. This layer includes agents responsible for abstraction and detailed analysis.
+Interfaces with LLM providers to process analysis results and prompts, interpreting code context and generating architectural insights.
 
 
 **Related Classes/Methods**:
@@ -98,7 +93,7 @@ Interfaces with diverse LLM providers to process static analysis results and pro
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Transforms the AI-interpreted insights into structured output formats, preparing the data for diagram generation and other documentation purposes (e.g., Markdown, HTML).
+Transforms AI-interpreted insights into structured output formats for diagram generation and documentation.
 
 
 **Related Classes/Methods**:
@@ -108,37 +103,13 @@ Transforms the AI-interpreted insights into structured output formats, preparing
 
 
 ### Diagram Analysis & Renderer [[Expand]](./Diagram_Analysis_Renderer.md)
-Refines the structured output into a diagram-specific format (e.g., Mermaid.js syntax) and renders it into visual architectural diagrams.
+Refines structured output into diagram-specific formats and renders visual architectural diagrams.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

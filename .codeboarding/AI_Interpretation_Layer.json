@@ -1,78 +1,106 @@
 {
-  "description": "The static analysis subsystem is anchored by the LSPClient, a pivotal component responsible for interfacing with external Language Servers to gather comprehensive code intelligence. The LSPClient establishes and maintains LSP connections, orchestrating the collection of critical static analysis data such as call graphs, class hierarchies, package dependencies, and symbol references. This data forms the foundational input for the system's analytical capabilities. The AbstractionAgent then processes this information to generate high-level architectural overviews, identifying core components and their interrelationships. Simultaneously, the DetailsAgent delves into the granular static analysis data to provide in-depth insights into specific code structures and design patterns. The recent significant refinements to the LSPClient, including enhanced Windows compatibility, underscore its role as a robust and reliable data acquisition layer, directly impacting the quality and breadth of analysis performed by both the AbstractionAgent and DetailsAgent.",
+  "description": "The system's primary function is to acquire and process static analysis data from codebases. The LSPClient acts as the central data acquisition hub, establishing and managing communication with external Language Servers via the Language Server Protocol. These Language Servers provide raw code intelligence, which the LSPClient then processes and makes available. This processed data is consumed by two specialized agents: the AbstractionAgent, which focuses on generating high-level architectural representations, and the DetailsAgent, which performs in-depth, granular analysis of specific code sections. The LSPClient also incorporates enhanced integration capabilities for environments like VSCode, optimizing its operation within development workflows. Project-wide external dependencies and packaging configurations are managed by the Unclassified component, supporting the overall system's operational integrity.",
   "components": [
     {
       "name": "LSPClient",
-      "description": "Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). Orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. Filters source files and handles language-specific configurations. The recent changes indicate an expansion and refinement of its capabilities, including improved Windows compatibility, making it a more robust data acquisition layer.",
+      "description": "Establishes and manages communication with external Language Servers using the Language Server Protocol (LSP). It orchestrates the collection of comprehensive static analysis data, including call graphs, class hierarchies, package relations, and symbol references. It filters source files and handles language-specific configurations, acting as a robust data acquisition layer. It also features enhanced integration with the VSCode environment, leveraging specific configurations and data structures for refined interaction within a VSCode context.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "qualified_name": "LSPClient",
           "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 58,
+          "reference_end_line": 1097
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "AbstractionAgent",
-      "description": "Consumes the static analysis data provided by the LSPClient to identify major system components, their primary responsibilities, and interconnections, forming an abstract architectural representation. It distills complex codebases into understandable, high-level architectural views.",
+      "description": "Consumes high-level static analysis data provided by the LSPClient to identify major system components, their primary responsibilities, and interconnections, forming an abstract architectural representation. It distills complex codebases into understandable, high-level architectural views.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents/abstraction_agent.py",
-          "reference_file": "agents/abstraction_agent.py",
+          "qualified_name": "AbstractionAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/abstraction_agent.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "DetailsAgent",
-      "description": "Utilizes the detailed static analysis data from the LSPClient to perform granular analysis within specific architectural components or code sections. It delves into implementation details, identifies specific design patterns, explains the rationale behind code structures, and highlights areas of interest or concern.",
+      "description": "Utilizes detailed static analysis data from the LSPClient to perform granular analysis within specific architectural components or code sections. It delves into implementation details, identifies specific design patterns, explains the rationale behind code structures, and highlights areas of interest or concern.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents/details_agent.py",
-          "reference_file": "agents/details_agent.py",
+          "qualified_name": "DetailsAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/details_agent.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Language Servers (External)",
       "description": "External processes that provide static analysis capabilities for specific programming languages. They respond to LSP requests from the LSPClient with code intelligence data such as symbol definitions, references, call hierarchies, and type information.",
       "referenced_source_code": [
         {
-          "qualified_name": "External.LanguageServers",
-          "reference_file": "External.LanguageServers",
+          "qualified_name": "LSP_Protocol",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files, utility functions, and external libraries/dependencies. This includes managing project dependencies and packaging configurations as defined in `setup.py`.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "setup.py",
+          "reference_file": "setup.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates and manages LSP Communication with",
+      "relation": "initiates communication with",
       "src_name": "LSPClient",
       "dst_name": "Language Servers (External)"
     },
     {
-      "relation": "provides Static Analysis Data to",
+      "relation": "provides static analysis data to",
       "src_name": "Language Servers (External)",
       "dst_name": "LSPClient"
     },
     {
-      "relation": "provides High-Level Static Analysis Data to",
+      "relation": "provides high-level static analysis data to",
       "src_name": "LSPClient",
       "dst_name": "AbstractionAgent"
     },
     {
-      "relation": "provides Detailed Static Analysis Data to",
+      "relation": "provides detailed static analysis data to",
       "src_name": "LSPClient",
       "dst_name": "DetailsAgent"
     }

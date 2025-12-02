@@ -1,9 +1,9 @@
 {
-  "description": "The system is designed around a central `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. User requests are initiated through the `User Interface / API Gateway`, which then delegates the processing to the `Orchestration Engine`. This engine interacts with the `Repository Manager` to access code, the `Static Analysis Engine` to extract structural information, and the `LLM Prompt Factory` to prepare prompts for AI. The `AI Interpretation Layer` processes these prompts and analysis results to generate architectural insights. Finally, the `Output Generation Engine` formats these insights, and the `Diagram Analysis & Renderer` visualizes them, with the results being delivered back through the `User Interface / API Gateway`.",
+  "description": "The system employs a modular, agent-based architecture designed for automated code analysis and architectural diagram generation. The `User Interface / API Gateway` serves as the primary entry point, handling user requests and displaying results, including expanded integration with VS Code. The `Orchestration Engine` acts as the central coordinator, managing the workflow from code acquisition via the `Repository Manager` to static analysis by the `Static Analysis Engine`. It dynamically generates LLM prompts through the `LLM Prompt Factory` and leverages the `AI Interpretation Layer` for deriving architectural insights. These insights are then transformed into structured outputs by the `Output Generation Engine` and visualized by the `Diagram Analysis & Renderer`, completing the analysis cycle.",
   "components": [
     {
       "name": "User Interface / API Gateway",
-      "description": "The primary interface for users to initiate code analysis and view the generated architectural diagrams. It acts as the system's entry and exit point, handling API requests and responses.",
+      "description": "The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.",
       "referenced_source_code": [
         {
           "qualified_name": "local_app.app",
@@ -13,32 +13,40 @@
         }
       ],
       "assigned_files": [
-        "local_app.py"
+        "vscode_constants.py",
+        "vscode_runnable.py",
+        "local_app.py",
+        "github_action.py"
       ],
       "can_expand": true
     },
     {
       "name": "Orchestration Engine (Agent Core)",
-      "description": "The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks.",
+      "description": "The central control unit managing the entire analysis workflow, coordinating all components and maintaining analysis state.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.meta_agent.MetaAgent",
-          "reference_file": "agents/meta_agent.py",
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
         "agents/__init__.py",
+        "agents/diff_analyzer.py",
         "agents/planner_agent.py",
         "agents/meta_agent.py",
-        "agents/agent.py"
+        "agents/monitoring.py",
+        "agents/agent_responses.py",
+        "agents/agent.py",
+        "agents/tools/__init__.py",
+        "agents/tools/utils.py"
       ],
       "can_expand": true
     },
     {
       "name": "Repository Manager",
-      "description": "Handles all interactions with code repositories, including cloning, fetching, and providing a standardized interface for accessing the source code. It also manages temporary repository folders.",
+      "description": "Manages all interactions with code repositories, providing a standardized interface for source code access and temporary folder management.",
       "referenced_source_code": [
         {
           "qualified_name": "utils.create_temp_repo_folder",
@@ -55,15 +63,20 @@
       ],
       "assigned_files": [
         "utils.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_docs.py",
         "repo_utils/__init__.py",
         "repo_utils/git_diff.py",
         "repo_utils/errors.py"
       ],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Static Analysis Engine",
-      "description": "Performs in-depth static analysis on the source code to extract structural information such as Control Flow Graphs (CFGs) and Abstract Syntax Trees (ASTs).",
+      "description": "Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.scanner.Scanner",
@@ -73,6 +86,11 @@
         }
       ],
       "assigned_files": [
+        "agents/tools/external_deps.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_structure.py",
         "static_analyzer/programming_language.py",
         "static_analyzer/__init__.py",
         "static_analyzer/reference_resolve_mixin.py",
@@ -88,7 +106,7 @@
     },
     {
       "name": "LLM Prompt Factory",
-      "description": "Dynamically generates and manages prompts specifically tailored for various Large Language Models (LLMs) and different code analysis tasks.",
+      "description": "Dynamically generates and manages prompts tailored for various LLMs and code analysis tasks.",
       "referenced_source_code": [
         {
           "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
@@ -112,7 +130,7 @@
     },
     {
       "name": "AI Interpretation Layer",
-      "description": "Interfaces with diverse LLM providers to process static analysis results and prompts, interpreting code context and generating architectural insights. This layer includes agents responsible for abstraction and detailed analysis.",
+      "description": "Interfaces with LLM providers to process analysis results and prompts, interpreting code context and generating architectural insights.",
       "referenced_source_code": [
         {
           "qualified_name": "agents.abstraction_agent.AbstractionAgent",
@@ -128,28 +146,15 @@
         }
       ],
       "assigned_files": [
-        "agents/diff_analyzer.py",
         "agents/details_agent.py",
         "agents/validator_agent.py",
-        "agents/abstraction_agent.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/__init__.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_file.py",
-        "agents/tools/utils.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py"
+        "agents/abstraction_agent.py"
       ],
       "can_expand": true
     },
     {
       "name": "Output Generation Engine",
-      "description": "Transforms the AI-interpreted insights into structured output formats, preparing the data for diagram generation and other documentation purposes (e.g., Markdown, HTML).",
+      "description": "Transforms AI-interpreted insights into structured output formats for diagram generation and documentation.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.markdown.MarkdownGenerator",
@@ -176,7 +181,7 @@
     },
     {
       "name": "Diagram Analysis & Renderer",
-      "description": "Refines the structured output into a diagram-specific format (e.g., Mermaid.js syntax) and renders it into visual architectural diagrams.",
+      "description": "Refines structured output into diagram-specific formats and renders visual architectural diagrams.",
       "referenced_source_code": [
         {
           "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
@@ -198,48 +203,15 @@
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "vscode_constants.py",
-        "vscode_runnable.py",
         "setup.py",
-        "github_action.py",
         "demo.py",
         "duckdb_crud.py",
         "logging_config.py",
-        "agents/monitoring.py",
-        "agents/agent_responses.py",
         "evals/static_analysis_eval.py",
         "evals/end_to_end_eval.py",
         "evals/run_all_evals.py",
         "evals/report_generator.py"
       ],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
       "can_expand": false
     }
   ],
@@ -250,7 +222,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Requests Codebase",
+      "relation": "Manages Repository Access",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Repository Manager"
     },
@@ -260,7 +232,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Submits Codebase for Analysis",
+      "relation": "Submits Codebase for Static Analysis",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Static Analysis Engine"
     },
@@ -270,17 +242,17 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Requests Tailored Prompt",
+      "relation": "Requests Prompt Generation",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "LLM Prompt Factory"
     },
     {
-      "relation": "Provides Generated Prompt",
+      "relation": "Provides Tailored Prompt",
       "src_name": "LLM Prompt Factory",
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Sends Prompt & Context",
+      "relation": "Sends Prompt & Context to LLM",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "AI Interpretation Layer"
     },
@@ -290,7 +262,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Processes Insights for Formatting",
+      "relation": "Processes Insights for Output",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Output Generation Engine"
     },
