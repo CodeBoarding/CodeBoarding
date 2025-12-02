@@ -40,7 +40,9 @@ class AbstractionAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
 
-        self.context = {"structure_insight": []}  # Store evolving insights here
+        self.context: dict[str, AnalysisInsights | list[AnalysisInsights]] = {
+            "structure_insight": []
+        }  # Store evolving insights here
 
         self.prompts = {
             "cfg": PromptTemplate(
@@ -91,10 +93,15 @@ class AbstractionAgent(CodeBoardingAgent):
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if type(analysis_insight) is list:
+            if isinstance(analysis_insight, list):
                 insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            else:
+            elif isinstance(analysis_insight, AnalysisInsights):
                 insight_str += analysis_insight.llm_str() + "\n\n"
+            else:
+                raise TypeError(
+                    f"Expected analysis_insight to be either list or AnalysisInsights, "
+                    f"but got {type(analysis_insight).__name__} for insight_type '{insight_type}'"
+                )
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
@@ -112,10 +119,19 @@ class AbstractionAgent(CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        cfg_insight = self.context.get("cfg_insight")
+        cfg_insight_str = (
+            cfg_insight.llm_str() if isinstance(cfg_insight, AnalysisInsights) else "No CFG insight available."
+        )
+        source_insight = self.context.get("source")
+        source_insight_str = (
+            source_insight.llm_str() if isinstance(source_insight, AnalysisInsights) else "No source insight available."
+        )
+
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
-            cfg_insight=self.context.get("cfg_insight").llm_str(),
-            source_insight=self.context.get("source").llm_str(),
+            cfg_insight=cfg_insight_str,
+            source_insight=source_insight_str,
             meta_context=meta_context_str,
             project_type=project_type,
         )
@@ -163,11 +179,13 @@ class AbstractionAgent(CodeBoardingAgent):
             classification = self._parse_invoke(prompt, ComponentFiles)
             files.extend(classification.file_paths)
         for file in files:
-            comp = next((c for c in analysis.components if c.name == file.component_name), None)
-            if comp is None:
+            component_match: Component | None = next(
+                (c for c in analysis.components if c.name == file.component_name), None
+            )
+            if component_match is None:
                 logger.warning(f"[AbstractionAgent] File {file.component_name} not found in analysis")
                 continue
-            comp.assigned_files.append(file.file_path)
+            component_match.assigned_files.append(file.file_path)
 
         for comp in analysis.components:
             files = []

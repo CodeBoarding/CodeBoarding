@@ -1,15 +1,17 @@
 import unittest
+from pathlib import Path
 
 from agents.tools import GetCFGTool, MethodInvocationsTool
-from agents.tools.utils import read_dot_file
+from static_analyzer import StaticAnalyzer
 
 
 class TestCFGTools(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        cfg = read_dot_file("./temp/test/call_graph.dot")
-        self.read_cfg = GetCFGTool(cfg)
-        self.method_tool = MethodInvocationsTool(cfg)
+        analyzer = StaticAnalyzer(Path("./temp/test"))
+        static_analysis = analyzer.analyze()
+        self.read_cfg = GetCFGTool(static_analysis)
+        self.method_tool = MethodInvocationsTool(static_analysis)
 
     def test_get_cfg(self):
         # Test the _run method with a valid function

@@ -1,6 +1,6 @@
 import abc
 from abc import abstractmethod
-from typing import List, Optional, get_origin
+from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,11 +20,12 @@ class LLMBaseModel(BaseModel, abc.ABC):
             # Check if the type is a typing.List (e.g., typing.List[SomeType])
             if get_origin(ftype) is list:
                 # get the type of the list:
-                ftype = ftype.__args__[0]
+                if ftype is not None and hasattr(ftype, "__args__"):
+                    ftype = ftype.__args__[0]
                 result_str += f"{fname} which is a list ("
             if ftype is Optional:
                 result_str += f"{fname} ({fvalue.description}), "
-            elif issubclass(ftype, LLMBaseModel):
+            elif ftype is not None and isinstance(ftype, type) and issubclass(ftype, LLMBaseModel):
                 # Now I need to call the extractor_str method of the field
                 result_str += ftype.extractor_str()
             else:
@@ -41,14 +42,14 @@ class SourceCodeReference(LLMBaseModel):
         description="Qualified name of the source code, e.g., `langchain.tools.tool` or `langchain_core.output_parsers.JsonOutputParser` or `langchain_core.output_parsers.JsonOutputParser:parse`."
     )
 
-    reference_file: Optional[str] = Field(
+    reference_file: str | None = Field(
         description="File path where the source code is located, e.g., `langchain/tools/tool.py` or `langchain_core/output_parsers/json_output_parser.py`."
     )
 
-    reference_start_line: Optional[int] = Field(
+    reference_start_line: int | None = Field(
         description="The line number in the source code where the reference starts. Only if you are absolutely sure add this, otherwise None."
     )
-    reference_end_line: Optional[int] = Field(
+    reference_end_line: int | None = Field(
         description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None."
     )
 
@@ -89,10 +90,10 @@ class Component(LLMBaseModel):
 
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
-    referenced_source_code: List[SourceCodeReference] = Field(
+    referenced_source_code: list[SourceCodeReference] = Field(
         description="A list of source code names of referenced methods and classes to the component. THIS CANNOT BE EMPTY."
     )
-    assigned_files: List[str] = Field(
+    assigned_files: list[str] = Field(
         description="A list of source code names of files assigned to the component.",
         default_factory=list,
         exclude=True,
@@ -114,8 +115,8 @@ class AnalysisInsights(LLMBaseModel):
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
     )
-    components: List[Component] = Field(description="List of the components identified in the project.")
-    components_relations: List[Relation] = Field(description="List of relations among the components.")
+    components: list[Component] = Field(description="List of the components identified in the project.")
+    components_relations: list[Relation] = Field(description="List of relations among the components.")
 
     def llm_str(self):
         if not self.components:
@@ -131,7 +132,7 @@ class CFGComponent(LLMBaseModel):
 
     name: str = Field(description="Name of the abstract component")
     description: str = Field(description="One paragraph explaining the component.")
-    referenced_source: List[str] = Field(
+    referenced_source: list[str] = Field(
         description="List of the qualified names of the methods and classes that are within this component."
     )
 
@@ -148,8 +149,8 @@ class CFGComponent(LLMBaseModel):
 class CFGAnalysisInsights(LLMBaseModel):
     """Structured representation of insights derived from the CFG analysis"""
 
-    components: List[CFGComponent] = Field(description="List of components identified in the CFG.")
-    components_relations: List[Relation] = Field(description="List of relations among the components in the CFG.")
+    components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
+    components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
 
     def llm_str(self):
         if not self.components:
@@ -174,7 +175,7 @@ class ValidationInsights(LLMBaseModel):
     """Structured representation of feedback on the analysis"""
 
     is_valid: bool = Field(description="Indicates whether the validation results in valid or not.")
-    additional_info: Optional[str] = Field(
+    additional_info: str | None = Field(
         default=None, description="Any additional information or context related to the validation."
     )
 
@@ -191,7 +192,7 @@ class UpdateAnalysis(LLMBaseModel):
     feedback: str = Field(description="Feedback provided on the analysis.")
 
     def llm_str(self):
-        return f"**Updated Analysis:**\n{self.analysis.llm_str()}\n\n**Feedback:**\n{self.feedback}"
+        return f"**Feedback:**\n{self.feedback}"
 
 
 class MetaAnalysisInsights(LLMBaseModel):
@@ -203,9 +204,9 @@ class MetaAnalysisInsights(LLMBaseModel):
     domain: str = Field(
         description="Domain or field the project belongs to (e.g., web development, data science, DevOps, etc.)"
     )
-    architectural_patterns: List[str] = Field(description="Main architectural patterns typically used in such projects")
-    expected_components: List[str] = Field(description="Expected high-level components/modules based on project type")
-    technology_stack: List[str] = Field(description="Main technologies, frameworks, and libraries used")
+    architectural_patterns: list[str] = Field(description="Main architectural patterns typically used in such projects")
+    expected_components: list[str] = Field(description="Expected high-level components/modules based on project type")
+    technology_stack: list[str] = Field(description="Main technologies, frameworks, and libraries used")
     architectural_bias: str = Field(
         description="Guidance on how to interpret and organize components for this project type"
     )
@@ -236,7 +237,7 @@ class FileClassification(LLMBaseModel):
 class ComponentFiles(LLMBaseModel):
     """Files classified to components."""
 
-    file_paths: List[FileClassification] = Field(
+    file_paths: list[FileClassification] = Field(
         description="All files with their classifications for each of the files assigned to a component."
     )
 
@@ -252,10 +253,10 @@ class FilePath(LLMBaseModel):
     """Reference to a specific file and optionally line numbers within that file."""
 
     file_path: str = Field(description="Full file path for the reference")
-    start_line: Optional[int] = Field(
+    start_line: int | None = Field(
         default=None, description="Starting line number in the file for the reference (if applicable)."
     )
-    end_line: Optional[int] = Field(
+    end_line: int | None = Field(
         default=None, description="Ending line number in the file for the reference (if applicable)."
     )
 

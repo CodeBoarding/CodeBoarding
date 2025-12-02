@@ -6,7 +6,6 @@ It supports both bidirectional and unidirectional prompt variations.
 """
 
 from enum import Enum
-from typing import Dict, Optional
 from .abstract_prompt_factory import AbstractPromptFactory
 from .gemini_flash_prompts_bidirectional import GeminiFlashBidirectionalPromptFactory
 from .gemini_flash_prompts_unidirectional import GeminiFlashUnidirectionalPromptFactory
@@ -70,7 +69,7 @@ class PromptFactory:
         else:
             raise AttributeError(f"Prompt method '{method_name}' not found in factory")
 
-    def get_all_prompts(self) -> Dict[str, str]:
+    def get_all_prompts(self) -> dict[str, str]:
         """Get all prompts from the current factory."""
         prompts = {}
         # Get all methods that start with 'get_' and don't start with '_'
@@ -112,7 +111,7 @@ class PromptFactory:
 
 
 # Global factory instance - will be initialized by configuration
-_global_factory: Optional[PromptFactory] = None
+_global_factory: PromptFactory | None = None
 
 
 def initialize_global_factory(
@@ -125,9 +124,11 @@ def initialize_global_factory(
 
 def get_global_factory() -> PromptFactory:
     """Get the global prompt factory instance."""
+    global _global_factory
     if _global_factory is None:
         # Default initialization if not set
         initialize_global_factory()
+    assert _global_factory is not None  # After initialization, it should not be None
     return _global_factory
 
 

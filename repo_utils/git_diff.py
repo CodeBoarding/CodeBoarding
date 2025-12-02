@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 
 
 @dataclass
@@ -13,8 +12,8 @@ class FileChange:
     filename: str
     additions: int
     deletions: int
-    added_lines: List[str] = field(default_factory=list)
-    removed_lines: List[str] = field(default_factory=list)
+    added_lines: list[str] = field(default_factory=list)
+    removed_lines: list[str] = field(default_factory=list)
 
     def llm_str(self):
         """
@@ -23,7 +22,7 @@ class FileChange:
         return f"File: {self.filename}, Added lines: +{self.additions}, Removed lines: -{self.deletions}"
 
 
-def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
+def get_git_diff(repo_dir: Path, version: str) -> list[FileChange]:
     """
     Get the git diff between a specific version and the current working tree (uncommitted changes included).
 
@@ -31,7 +30,7 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
     :param version: The commit hash or tag to compare against.
     :return: A list of FileChange objects describing the differences.
     """
-    changes: List[FileChange] = []
+    changes: list[FileChange] = []
 
     try:
         from git import Repo
@@ -43,7 +42,8 @@ def get_git_diff(repo_dir: Path, version: str) -> List[FileChange]:
 
         # Group diff by file using parsing logic
         current_file = None
-        added, removed = [], []
+        added: list[str] = []
+        removed: list[str] = []
         for line in diff_index.splitlines():
             if line.startswith("diff --git"):
                 # Save previous file change, if any

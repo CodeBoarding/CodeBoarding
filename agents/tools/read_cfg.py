@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from langchain_core.tools import BaseTool
 
@@ -18,7 +17,7 @@ class GetCFGTool(BaseTool):
         "Essential data - analyze this output thoroughly before using other tools. "
         "No input arguments required."
     )
-    static_analysis: Optional[StaticAnalysisResults] = None
+    static_analysis: StaticAnalysisResults | None = None
 
     def __init__(self, static_analysis: StaticAnalysisResults):
         super().__init__()
@@ -28,6 +27,8 @@ class GetCFGTool(BaseTool):
         """
         Executes the tool to read and return the project's control flow graph.
         """
+        if not self.static_analysis:
+            return "No static analysis data available."
         result_str = ""
         for lang in self.static_analysis.get_languages():
             cfg = self.static_analysis.get_cfg(lang)
@@ -43,10 +44,12 @@ class GetCFGTool(BaseTool):
             return "No control flow graph data available. Ensure static analysis was performed correctly."
         return result_str
 
-    def component_cfg(self, component: Component):
+    def component_cfg(self, component: Component) -> str:
+        if not self.static_analysis:
+            return "No static analysis data available."
         items = 0
         result = f"Control flow graph for {component.name}:\n"
-        skip_nodes = []
+        skip_nodes: list = []
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)

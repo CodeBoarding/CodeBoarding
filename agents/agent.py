@@ -87,21 +87,21 @@ class CodeBoardingAgent(ReferenceResolverMixin):
             return ChatOpenAI(
                 model="gpt-4o",
                 temperature=0,
-                max_tokens=None,
+                max_tokens=None,  # type: ignore[call-arg]
                 timeout=None,
                 max_retries=0,
-                api_key=self.openai_api_key,
+                api_key=self.openai_api_key,  # type: ignore[arg-type]
                 base_url=self.openai_base_url,
             )
         elif self.anthropic_api_key:
             logger.info("Using Anthropic LLM")
             return ChatAnthropic(
-                model="claude-3-7-sonnet-20250219",
+                model="claude-3-7-sonnet-20250219",  # type: ignore[call-arg]
                 temperature=0,
-                max_tokens=8192,
+                max_tokens=8192,  # type: ignore[call-arg]
                 timeout=None,
                 max_retries=0,
-                api_key=self.anthropic_api_key,
+                api_key=self.anthropic_api_key,  # type: ignore[arg-type]
             )
         elif self.google_api_key:
             logger.info("Using Google Gemini LLM")
@@ -130,7 +130,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 max_tokens=None,
                 timeout=None,
                 max_retries=0,
-                api_key=self.cerebras_api_key,
+                api_key=self.cerebras_api_key,  # type: ignore[arg-type]
             )
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
@@ -141,7 +141,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
             )
 
-    def _invoke(self, prompt, callbacks: list = None) -> str:
+    def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method."""
         max_retries = 5
         for _ in range(max_retries):
@@ -165,7 +165,12 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 if isinstance(agent_response.content, str):
                     return agent_response.content
                 if isinstance(agent_response.content, list):
-                    return "".join([message for message in agent_response.content])
+                    return "".join(
+                        [
+                            str(message) if not isinstance(message, str) else message
+                            for message in agent_response.content
+                        ]
+                    )
 
             except (ResourceExhausted, Exception) as e:
                 logger.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")

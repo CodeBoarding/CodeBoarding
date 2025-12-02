@@ -1,7 +1,6 @@
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 from tqdm import tqdm
 
@@ -27,12 +26,12 @@ class DiagramGenerator:
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
-        self.details_agent = None
-        self.abstraction_agent = None
-        self.planner_agent = None
-        self.validator_agent = None
-        self.diff_analyzer_agent = None
-        self.meta_agent = None
+        self.details_agent: DetailsAgent | None = None
+        self.abstraction_agent: AbstractionAgent | None = None
+        self.planner_agent: PlannerAgent | None = None
+        self.validator_agent: ValidatorAgent | None = None
+        self.diff_analyzer_agent: DiffAnalyzingAgent | None = None
+        self.meta_agent: MetaAgent | None = None
         self.meta_context = None
         self.depth_level = depth_level
 
@@ -40,6 +39,11 @@ class DiagramGenerator:
         """Process a single component and return its output path and any new components to analyze"""
         try:
             # Now before we try doing anything, we need to check if the component already exists:
+            assert self.diff_analyzer_agent is not None
+            assert self.details_agent is not None
+            assert self.validator_agent is not None
+            assert self.planner_agent is not None
+
             update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
             if update_analysis.update_degree < 4:  # No need to update
                 logging.info(f"Component {component.name} does not require update, skipping analysis.")
@@ -127,6 +131,11 @@ class DiagramGenerator:
 
         # Generate the initial analysis
         logger.info("Generating initial analysis")
+
+        assert self.diff_analyzer_agent is not None
+        assert self.abstraction_agent is not None
+        assert self.validator_agent is not None
+        assert self.planner_agent is not None
 
         update_analysis = self.diff_analyzer_agent.check_for_updates()
 

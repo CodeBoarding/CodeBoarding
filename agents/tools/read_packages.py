@@ -48,6 +48,10 @@ class PackageRelationsTool(BaseTool):
         """
         Run the tool with the given input.
         """
+        if self.static_analyzer is None:
+            logger.error("[Package Tool] static_analyzer is not set")
+            return "Error: Static analyzer is not set."
+
         languages = self.static_analyzer.get_languages()
         packages = []
         for lang in languages:

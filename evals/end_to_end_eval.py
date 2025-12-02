@@ -14,6 +14,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 # Add the parent directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -34,7 +35,7 @@ if not project_root_env:
 PROJECT_ROOT = Path(project_root_env)
 
 
-def read_monitoring_results(project_name: str) -> dict[str, any]:
+def read_monitoring_results(project_name: str) -> dict[str, Any]:
     """Read monitoring results from the generated JSON file."""
     monitoring_file = PROJECT_ROOT / "evals/artifacts/monitoring_results" / f"{project_name}_monitoring.json"
 
@@ -115,7 +116,7 @@ def extract_mermaid_from_overview(project_name: str, output_dir: Path) -> str:
         return ""
 
 
-def run_pipeline_for_project(project_info: dict[str, str], output_base_dir: Path) -> dict[str, any]:
+def run_pipeline_for_project(project_info: dict[str, str], output_base_dir: Path) -> dict[str, Any]:
     """Run the full CodeBoarding pipeline for a single project using subprocess."""
     repo_url = project_info["url"]
     project_name = project_info["name"]
@@ -261,7 +262,7 @@ def run_end_to_end_eval(projects=None):
     return eval_results
 
 
-def save_results(results: dict[str, any]) -> None:
+def save_results(results: dict[str, Any]) -> None:
     """Save evaluation results to a JSON file."""
     output_dir = PROJECT_ROOT / "evals/artifacts/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -274,7 +275,7 @@ def save_results(results: dict[str, any]) -> None:
     logger.info(f"Results saved to {output_file}")
 
 
-def print_summary(results: dict[str, any]) -> None:
+def print_summary(results: dict[str, Any]) -> None:
     """Log evaluation summary."""
     logger.info("END-TO-END PIPELINE EVALUATION SUMMARY")
     logger.info(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")

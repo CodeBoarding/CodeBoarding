@@ -114,7 +114,7 @@ class CallGraph:
         for idx, community in enumerate(top_communities, start=1):
             communities_str += f"Cluster {idx}: {sorted(community)}\n\n"
 
-        cluster_to_cluster_calls = defaultdict(lambda: defaultdict(list))
+        cluster_to_cluster_calls: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
         node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
 
         for src, dst in cfg_graph_x.edges():
@@ -197,8 +197,8 @@ class CallGraph:
             return default_str
 
         # Group method nodes by class for type 6 (methods)
-        class_calls = {}
-        function_calls = []
+        class_calls: dict[str, dict[str, int]] = {}
+        function_calls: list[str] = []
 
         logger.info(
             f"[CallGraph] Control flow graph is too large, grouping method calls by class. ({len(default_str)} characters)"
