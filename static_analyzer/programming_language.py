@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict, Set
+from typing import Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class ProgrammingLanguageBuilder:
     def __init__(self, lsp_configs: dict):
         self.lsp_configs = lsp_configs
         # Build reverse index: extension -> lsp_config_key
-        self._extension_to_lsp: Dict[str, str] = {}
+        self._extension_to_lsp: dict[str, str] = {}
         for lsp_server_key, config in lsp_configs.items():
             for ext in config.get("file_extensions", []):
                 # Normalize extension (ensure it starts with '.')

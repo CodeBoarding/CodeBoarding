@@ -274,10 +274,10 @@ def update_static_analysis_config():
                     key = "php"
                 elif binary == "pyright-langserver":
                     key = "python"
-                
+
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
-                
+
     # Write the updated configuration back to file
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
