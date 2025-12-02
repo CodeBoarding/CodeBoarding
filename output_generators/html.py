@@ -68,7 +68,7 @@ def generate_html(
     cytoscape_data = generate_cytoscape_data(insights, linked_files, project, demo)
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
-    root_dir = os.getenv("REPO_ROOT") + "/" + project
+    root_dir = str(Path(os.getenv("REPO_ROOT")) / project)
 
     # Build component details HTML
     components_html = ""

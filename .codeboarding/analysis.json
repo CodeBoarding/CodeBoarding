@@ -1,5 +1,5 @@
 {
-  "description": "The system is designed around a central `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. User requests are initiated through the `User Interface / API Gateway`, which then delegates the processing to the `Orchestration Engine`. This engine interacts with the `Repository Manager` to access code, the `Static Analysis Engine` to extract structural information, and the `LLM Prompt Factory` to prepare prompts for AI. The `AI Interpretation Layer` processes these prompts and analysis results to generate architectural insights. Finally, the `Output Generation Engine` formats these insights, and the `Diagram Analysis & Renderer` visualizes them, with the results being delivered back through the `User Interface / API Gateway`.",
+  "description": "The system is designed around a central Orchestration Engine (Agent Core), embodied by the `CodeBoardingAgent`, which manages the entire code analysis workflow. User requests originate from the User Interface / API Gateway, triggering the orchestration process. The `CodeBoardingAgent` interacts with the Repository Manager to access the codebase and then dispatches the code to the Static Analysis Engine for structural analysis. The results from static analysis, along with dynamically generated prompts from the LLM Prompt Factory, are fed to the AI Interpretation Layer for deep code understanding and insight generation using various Large Language Models. Finally, the interpreted insights are processed by the Output Generation Engine and transformed into visual architectural diagrams by the Diagram Analysis & Renderer, which are then presented back through the User Interface / API Gateway.",
   "components": [
     {
       "name": "User Interface / API Gateway",
@@ -19,11 +19,11 @@
     },
     {
       "name": "Orchestration Engine (Agent Core)",
-      "description": "The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks.",
+      "description": "The central control unit that manages the entire analysis workflow, coordinating interactions between all other components and maintaining the state of the analysis. It orchestrates the various agents to perform their tasks, initializes LLMs and various code analysis tools.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.meta_agent.MetaAgent",
-          "reference_file": "agents/meta_agent.py",
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -33,7 +33,20 @@
         "agents/planner_agent.py",
         "agents/meta_agent.py",
         "agents/monitoring.py",
-        "agents/agent.py"
+        "agents/agent_responses.py",
+        "agents/agent.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/utils.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py"
       ],
       "can_expand": true
     },
@@ -85,7 +98,7 @@
         "static_analyzer/lsp_client/typescript_client.py",
         "static_analyzer/lsp_client/client.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "LLM Prompt Factory",
@@ -132,20 +145,7 @@
         "agents/diff_analyzer.py",
         "agents/details_agent.py",
         "agents/validator_agent.py",
-        "agents/abstraction_agent.py",
-        "agents/agent_responses.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/__init__.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_file.py",
-        "agents/tools/utils.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py"
+        "agents/abstraction_agent.py"
       ],
       "can_expand": true
     },
@@ -213,20 +213,6 @@
         "evals/report_generator.py"
       ],
       "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
     }
   ],
   "components_relations": [
@@ -236,7 +222,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Requests Codebase",
+      "relation": "Manages Repository Access",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Repository Manager"
     },
@@ -246,7 +232,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Submits Codebase for Analysis",
+      "relation": "Submits Codebase for Static Analysis",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Static Analysis Engine"
     },
@@ -256,17 +242,17 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Requests Tailored Prompt",
+      "relation": "Requests Prompt Generation",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "LLM Prompt Factory"
     },
     {
-      "relation": "Provides Generated Prompt",
+      "relation": "Provides Tailored Prompt",
       "src_name": "LLM Prompt Factory",
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Sends Prompt & Context",
+      "relation": "Sends Prompt & Context to LLM",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "AI Interpretation Layer"
     },
@@ -276,7 +262,7 @@
       "dst_name": "Orchestration Engine (Agent Core)"
     },
     {
-      "relation": "Processes Insights for Formatting",
+      "relation": "Processes Insights for Output",
       "src_name": "Orchestration Engine (Agent Core)",
       "dst_name": "Output Generation Engine"
     },

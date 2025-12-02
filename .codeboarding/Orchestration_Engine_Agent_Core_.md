@@ -1,73 +1,67 @@
 ```mermaid
 graph LR
-    Orchestration_Engine_Agent_Core_["Orchestration Engine (Agent Core)"]
-    Job_Management_Persistence["Job Management & Persistence"]
-    Static_Analysis_Engine["Static Analysis Engine"]
-    AI_Interpretation_Layer["AI Interpretation Layer"]
-    Output_Generation_Engine["Output Generation Engine"]
+    Query_Processor["Query Processor"]
+    Language_Model_Interface["Language Model Interface"]
+    Tool_Executor["Tool Executor"]
+    Tools["Tools"]
+    Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
-    Orchestration_Engine_Agent_Core_ -- "initiates" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "provides findings to" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "sends findings to" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "generates insights for" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "sends insights to" --> Output_Generation_Engine
-    Output_Generation_Engine -- "produces" --> Documentation_Diagrams
-    Orchestration_Engine_Agent_Core_ -- "updates" --> Job_Management_Persistence
-    Job_Management_Persistence -- "stores/retrieves" --> Analysis_Data
-    click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
-    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    Query_Processor -- "initiates" --> Language_Model_Interface
+    Language_Model_Interface -- "provides output/action to" --> Tool_Executor
+    Tool_Executor -- "invokes/processes" --> Tools
+    Tool_Executor -- "feeds results to" --> Language_Model_Interface
+    Language_Model_Interface -- "sends final response to" --> Response_Formatter
+    Response_Formatter -- "returns formatted response to" --> Query_Processor
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system operates around a central Orchestration Engine (Agent Core), embodied by `agents.meta_agent.MetaAgent`, which directs the entire code analysis and documentation generation process. This engine initiates the Static Analysis Engine (`static_analyzer.scanner.Scanner`) to extract raw code findings. These findings are then passed back to the Orchestration Engine, which subsequently dispatches them to the AI Interpretation Layer (`agents.abstraction_agent.AbstractionAgent`). This layer leverages AI to transform raw data into meaningful architectural insights. The interpreted insights are returned to the Orchestration Engine, which then feeds them into the Output Generation Engine (`output_generators.markdown.MarkdownOutputGenerator`) to produce various documentation and diagram formats. Throughout this workflow, the Job Management & Persistence component (`duckdb_crud.DuckDBCRUD`) is responsible for maintaining the state of analysis jobs and persisting all relevant data, ensuring continuity and retrievability of results.
+The system is structured around a core agentic loop, starting with the `Query Processor` which handles user input and orchestrates the overall flow. It passes the query to the `Language Model Interface`, responsible for interacting with the underlying LLM. The LLM's output, which may include a decision to use external capabilities, is then directed to the `Tool Executor`. This component is central to the system's extensibility, managing the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled. After tool execution, results are fed back to the `Language Model Interface` for further reasoning or to generate a conclusive response. Finally, the `Response Formatter` synthesizes and formats the LLM's output into a user-friendly message, which is then returned via the `Query Processor`. This architecture ensures a clear separation of concerns, enabling flexible interaction with LLMs and external tools.
 
-### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit that manages the entire analysis workflow. It initiates, sequences, and manages the end-to-end code analysis and documentation generation workflow, orchestrating the execution of distinct analysis stages, maintaining the current state and progress of each analysis job, and managing data transfer between components.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
-
-
-### Job Management & Persistence
-Manages the lifecycle and state of analysis jobs, including their initiation, progress tracking, and the storage of results. It acts as the system's memory for ongoing and completed analysis tasks.
+### Query Processor
+Handles user input and orchestrates the overall flow.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.DuckDBCRUD`</a>
+- `QueryProcessor`:1-10
 
 
-### Static Analysis Engine
-Performs in-depth static code analysis on the provided codebase, extracting structural, syntactical, and semantic information without executing the code. It provides raw findings to the Orchestration Engine.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
-
-
-### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Utilizes AI/LLMs to process and interpret the raw findings from the Static Analysis Engine, transforming them into higher-level architectural insights, relationships, and contextual understanding.
+### Language Model Interface
+Responsible for interacting with the underlying LLM.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
+- `LanguageModelInterface`:1-10
 
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Responsible for transforming the architectural insights into various consumable output formats, such as architectural diagrams (e.g., Mermaid.js), documentation, or reports.
+### Tool Executor
+Manages the invocation of various `Tools` and processing their outcomes. Recent modifications in `agents/agent.py` highlight ongoing enhancements to the `Tool Executor`'s logic, improving how tools are executed and their results handled.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.MarkdownOutputGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`ToolExecutor`</a>
+
+
+### Tools
+External functionalities invoked by the Tool Executor.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py" target="_blank" rel="noopener noreferrer">`Tool`</a>
+
+
+### Response Formatter
+Synthesizes and formats the LLM's output into a user-friendly message.
+
+
+**Related Classes/Methods**:
+
 
 
 ### Unclassified

@@ -99,10 +99,10 @@ class ValidatorAgent(CodeBoardingAgent):
                             no_code_reference = False
                             break
                 if no_code_reference:  # check if it is a file reference
-                    file_path = ref.qualified_name.replace(".", "/")  # Get file path
+                    file_path = ref.qualified_name.replace(".", os.sep)  # Get file path
                     full_path = os.path.join(self.repo_dir, file_path)
                     # This is the case when the reference is a file path but wrong:
-                    file_ref = ".".join(full_path.rsplit("/", 1))
+                    file_ref = ".".join(full_path.rsplit(os.sep, 1))
                     paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
                     for path in paths:
                         if os.path.exists(path):

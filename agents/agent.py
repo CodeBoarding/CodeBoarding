@@ -14,6 +14,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+from langchain_cerebras import ChatCerebras
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
@@ -76,6 +77,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
         self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
 
     def _initialize_llm(self):
@@ -120,6 +122,16 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 region_name=self.aws_region,
                 credentials_profile_name=None,
             )
+        elif self.cerebras_api_key:
+            logger.info("Using Cerebras LLM")
+            return ChatCerebras(
+                model="gpt-oss-120b",
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=0,
+                api_key=self.cerebras_api_key,
+            )
         elif self.ollama_base_url:
             logging.info("Using Ollama LLM")
             return ChatOllama(model="qwen3:30b", base_url=self.ollama_base_url, temperature=0.6)
@@ -141,10 +153,13 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 if callback_list:
                     response = self.agent.invoke(
                         {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"callbacks": callback_list},
+                        config={"callbacks": callback_list, "recursion_limit": 40},
                     )
                 else:
-                    response = self.agent.invoke({"messages": [self.system_message, HumanMessage(content=prompt)]})
+                    response = self.agent.invoke(
+                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                        config={"recursion_limit": 200},
+                    )
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):

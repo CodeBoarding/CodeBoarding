@@ -1,63 +1,99 @@
 {
-  "description": "The system is orchestrated by the Orchestration Engine, which manages the entire analysis workflow. Before any code analysis begins, the Orchestration Engine delegates to the Setup and Configuration Manager to prepare the environment by installing essential language servers (e.g., Pyright, TypeScript Language Server) and static analysis tools (e.g., Tokei, Gopls), and configuring their paths. Once the environment is ready, the Orchestration Engine directs the Repository Manager to handle all interactions with code repositories, including cloning and fetching updates. The Repository Manager then provides the retrieved source code to the Static Analysis Engine, which performs in-depth code analysis using the pre-configured tools and language servers. This modular architecture ensures a clear separation of concerns, enabling efficient setup, repository management, and static code analysis.",
+  "description": "The system is designed around a core `Orchestration Engine` that manages the entire static analysis workflow. This engine directs the `Repository Manager` to access project source files, which are then provided to the `Static Analysis Engine`. The `Static Analysis Engine` is responsible for performing detailed code analysis by interacting with an external `Language Server` through the Language Server Protocol. The `Setup and Configuration Manager` plays a crucial role in ensuring all necessary external dependencies for the analysis process are correctly installed and configured. Ultimately, the `Orchestration Engine` aggregates and processes the results from the `Static Analysis Engine`, completing the analysis cycle. Recent internal updates to agents managed by the `Orchestration Engine` and dependency configurations handled by the `Setup and Configuration Manager` have enhanced the system's capabilities without altering its fundamental high-level architecture.",
   "components": [
     {
-      "name": "Setup and Configuration Manager",
-      "description": "responsible for preparing the environment and configuring external tools and language servers that are essential for the Static Analysis Engine.",
+      "name": "Orchestration Engine",
+      "description": "Coordinates the entire static analysis workflow, directing and managing various internal agents to perform specific tasks, and receiving final results.",
       "referenced_source_code": [
         {
-          "qualified_name": "check_uv_environment",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "check_npm",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "install_node_servers",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "download_binary_from_gdrive",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "update_static_analysis_config",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "init_dot_env_file",
-          "reference_file": "setup.py",
+          "qualified_name": "OrchestrationEngine",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Manages and provides project source files and context to the Static Analysis Engine.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "RepositoryManager",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [
+        "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py",
+        "../../repo_utils/errors.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "The core component for gathering code intelligence, primarily through its `LspClient` which communicates with external Language Servers using the Language Server Protocol (LSP) to perform detailed code analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LspClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Setup and Configuration Manager",
+      "description": "Responsible for ensuring that all necessary external Language Server dependencies and project configurations are correctly installed and maintained for the Static Analysis Engine.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "SetupAndConfigurationManager",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Server (External)",
+      "description": "An external component that provides language-specific code intelligence and analysis capabilities via the Language Server Protocol.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LanguageServer",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../utils.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
+      "relation": "initiates analysis in",
       "src_name": "Orchestration Engine",
-      "dst_name": "Setup and Configuration Manager"
+      "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "installs/configures dependencies for",
-      "src_name": "Setup and Configuration Manager",
+      "relation": "receives results from",
+      "src_name": "Orchestration Engine",
       "dst_name": "Static Analysis Engine"
     },
     {
@@ -71,9 +107,19 @@
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "returns analysis results to",
+      "relation": "communicates with",
       "src_name": "Static Analysis Engine",
-      "dst_name": "Orchestration Engine"
+      "dst_name": "Language Server (External)"
+    },
+    {
+      "relation": "provides code intelligence to",
+      "src_name": "Language Server (External)",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "configures dependencies for",
+      "src_name": "Setup and Configuration Manager",
+      "dst_name": "Static Analysis Engine"
     }
   ]
 }

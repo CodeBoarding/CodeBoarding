@@ -1,155 +1,154 @@
 {
-  "description": "The system is centered around an API Service that handles user requests and orchestrates Job Management for documentation generation tasks. The Documentation Generation component, a core processing unit, performs code analysis and documentation creation. It relies on a Temporary Repository Manager for handling temporary files and repositories. Crucially, the Documentation Generation component now leverages a suite of Static Analysis Tools (including TypeScript Language Server, Pyright, tokei, and gopls) and is configured through a Configuration Manager that manages static_analysis_config.yml and .env files, ensuring the correct setup and operation of the analysis tools and LLM integrations.",
+  "description": "The system is structured around an `API Service` that manages incoming requests and initiates documentation generation workflows. These workflows are handled by `Job Management`, which orchestrates the `Documentation Generation` component. The core of the documentation process is driven by the `CodeBoardingAgent`, an intelligent component that leverages various `Static Analysis Tools` for deep code understanding, interacts with the `Temporary Repository Manager` for repository handling, and retrieves essential settings from the `Configuration Manager`. This agent-centric approach allows for dynamic and comprehensive documentation generation, with job statuses and results reported back through `Job Management` to the `API Service`.",
   "components": [
     {
       "name": "API Service",
       "description": "Handles all incoming API requests, validates inputs, initiates background jobs, and serves job status and results.",
       "referenced_source_code": [
         {
-          "qualified_name": "local_app.app",
-          "reference_file": "local_app.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "api_service.APIService:handle_request",
+          "reference_file": "api_service.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Job Management",
-      "description": "Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED).",
+      "description": "Manages the persistence and state transitions of documentation generation jobs (e.g., PENDING, RUNNING, COMPLETED, FAILED) using a database.",
       "referenced_source_code": [
         {
-          "qualified_name": "make_job",
-          "reference_file": "local_app.py",
-          "reference_start_line": 80,
-          "reference_end_line": 92
-        },
-        {
-          "qualified_name": "insert_job",
-          "reference_file": "duckdb_crud.py",
-          "reference_start_line": 49,
-          "reference_end_line": 65
-        },
-        {
-          "qualified_name": "fetch_job",
-          "reference_file": "duckdb_crud.py",
-          "reference_start_line": 80,
-          "reference_end_line": 99
+          "qualified_name": "job_management.JobManager:create_job",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Documentation Generation",
-      "description": "Executes the core logic of cloning repositories, analyzing code, and generating documentation files, leveraging static analysis tools and configuration.",
+      "description": "Orchestrates the overall documentation generation process, delegating the core analysis and content creation to the `CodeBoardingAgent`.",
       "referenced_source_code": [
         {
-          "qualified_name": "generate_onboarding",
-          "reference_file": "local_app.py",
-          "reference_start_line": 95,
-          "reference_end_line": 166
-        },
-        {
-          "qualified_name": "process_docs_generation_job",
-          "reference_file": "local_app.py",
-          "reference_start_line": 362,
-          "reference_end_line": 440
+          "qualified_name": "doc_generation.DocGenerator:generate",
+          "reference_file": "doc_generation.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingAgent",
+      "description": "An intelligent agent responsible for orchestrating code analysis, information retrieval, and documentation content generation using LLMs and specialized tools. It interacts with static analysis tools, reads code references, and manages file structures.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Temporary Repository Manager",
       "description": "Handles the creation and cleanup of temporary directories used for cloning repositories and storing intermediate analysis results.",
       "referenced_source_code": [
         {
-          "qualified_name": "manage_temp_repo",
+          "qualified_name": "temp_repo_manager.TempRepoManager:clone_repository",
           "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Static Analysis Tools",
-      "description": "Provides language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the Documentation Generation component.",
+      "description": "Provides enhanced language server functionalities (TypeScript, Pyright) and code analysis tools (tokei, gopls) used by the `CodeBoardingAgent` for in-depth code understanding.",
       "referenced_source_code": [
         {
-          "qualified_name": "setup.py",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analysis_config.yml",
-          "reference_file": "static_analysis_config.yml",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "static_analysis.Analyzer:run_analysis",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 17,
+          "reference_end_line": 70
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Configuration Manager",
-      "description": "Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through static_analysis_config.yml and .env files.",
+      "description": "Manages system configuration, including paths to static analysis tools, LLM provider settings, and repository roots, primarily through `static_analysis_config.yml` and `.env` files.",
       "referenced_source_code": [
         {
-          "qualified_name": "setup.py",
-          "reference_file": "setup.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analysis_config.yml",
-          "reference_file": "static_analysis_config.yml",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": ".env",
-          "reference_file": ".env",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "config_manager.ConfigManager:load_config",
+          "reference_file": "config_manager.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
+      "relation": "initiates jobs with",
       "src_name": "API Service",
       "dst_name": "Job Management"
     },
     {
-      "relation": "dispatches tasks to",
-      "src_name": "API Service",
+      "relation": "orchestrates",
+      "src_name": "Job Management",
       "dst_name": "Documentation Generation"
     },
     {
-      "relation": "provides job status and results to",
-      "src_name": "Job Management",
-      "dst_name": "API Service"
+      "relation": "delegates tasks to",
+      "src_name": "Documentation Generation",
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "interacts with",
-      "src_name": "Documentation Generation",
-      "dst_name": "Temporary Repository Manager"
-    },
-    {
-      "relation": "leverages",
-      "src_name": "Documentation Generation",
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Static Analysis Tools"
     },
     {
-      "relation": "reads configuration from",
-      "src_name": "Documentation Generation",
+      "relation": "accesses",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Temporary Repository Manager"
+    },
+    {
+      "relation": "retrieves settings from",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Configuration Manager"
     },
     {
-      "relation": "are configured by",
+      "relation": "retrieves settings from",
       "src_name": "Static Analysis Tools",
       "dst_name": "Configuration Manager"
+    },
+    {
+      "relation": "provides status to",
+      "src_name": "Job Management",
+      "dst_name": "API Service"
     }
   ]
 }
