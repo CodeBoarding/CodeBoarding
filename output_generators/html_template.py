@@ -3,9 +3,7 @@ from typing import Dict, Any
 from agents.agent_responses import AnalysisInsights
 
 
-def populate_html_template(
-    project: str, insights: AnalysisInsights, components_html: str, cytoscape_json: Dict[str, Any]
-) -> str:
+def populate_html_template(project: str, insights: AnalysisInsights, components_html: str, cytoscape_json: str) -> str:
     """
     Populate an HTML template with data.
 

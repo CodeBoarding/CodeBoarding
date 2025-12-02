@@ -14,7 +14,6 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List
 
 # Add the parent directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,10 +28,13 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Get project root from environment variable
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+project_root_env = os.getenv("PROJECT_ROOT")
+if not project_root_env:
+    raise ValueError("PROJECT_ROOT environment variable is not set")
+PROJECT_ROOT = Path(project_root_env)
 
 
-def read_monitoring_results(project_name: str) -> Dict[str, Any]:
+def read_monitoring_results(project_name: str) -> dict[str, any]:
     """Read monitoring results from the generated JSON file."""
     monitoring_file = PROJECT_ROOT / "evals/artifacts/monitoring_results" / f"{project_name}_monitoring.json"
 
@@ -50,8 +52,8 @@ def read_monitoring_results(project_name: str) -> Dict[str, Any]:
         total_completion_tokens = 0
 
         # Aggregate tool usage across all agents
-        tool_counts = {}
-        tool_errors = {}
+        tool_counts: dict[str, int] = {}
+        tool_errors: dict[str, int] = {}
 
         agents = data.get("agents", {})
         for agent_name, agent_data in agents.items():
@@ -113,7 +115,7 @@ def extract_mermaid_from_overview(project_name: str, output_dir: Path) -> str:
         return ""
 
 
-def run_pipeline_for_project(project_info: Dict[str, str], output_base_dir: Path) -> Dict[str, Any]:
+def run_pipeline_for_project(project_info: dict[str, str], output_base_dir: Path) -> dict[str, any]:
     """Run the full CodeBoarding pipeline for a single project using subprocess."""
     repo_url = project_info["url"]
     project_name = project_info["name"]
@@ -259,7 +261,7 @@ def run_end_to_end_eval(projects=None):
     return eval_results
 
 
-def save_results(results: Dict[str, Any]) -> None:
+def save_results(results: dict[str, any]) -> None:
     """Save evaluation results to a JSON file."""
     output_dir = PROJECT_ROOT / "evals/artifacts/monitoring_results"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -272,7 +274,7 @@ def save_results(results: Dict[str, Any]) -> None:
     logger.info(f"Results saved to {output_file}")
 
 
-def print_summary(results: Dict[str, Any]) -> None:
+def print_summary(results: dict[str, any]) -> None:
     """Log evaluation summary."""
     logger.info("END-TO-END PIPELINE EVALUATION SUMMARY")
     logger.info(f"Total evaluation time: {results['total_eval_time_seconds']:.2f} seconds")

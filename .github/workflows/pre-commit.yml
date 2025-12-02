@@ -23,4 +23,9 @@ jobs:
       - name: Run pre-commit on all files
         run: pre-commit run --all-files
 
-        
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run mypy type checker
+        run: uv run mypy .
+
