@@ -1,6 +1,5 @@
 import os
 import platform
-from typing import List, Dict
 
 
 def get_bin_path(bin_dir):

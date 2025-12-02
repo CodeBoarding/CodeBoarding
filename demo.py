@@ -3,7 +3,6 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional
 
 import requests
 from dotenv import load_dotenv
@@ -59,9 +58,12 @@ def onboarding_materials_exist(project_name: str, source_dir: str):
         return False
 
 
-def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: Optional[str] = None):
+def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str | None = None):
     # Create directories if they don't exist
-    repos_dir = Path(os.getenv("REPO_ROOT") or ".")
+    repo_root = os.getenv("REPO_ROOT")
+    if not repo_root:
+        raise ValueError("REPO_ROOT environment variable is not set")
+    repos_dir = Path(repo_root)
     repos_dir.mkdir(parents=True, exist_ok=True)
 
     repo_path = repos_dir / repo_name
@@ -99,16 +101,23 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
     """
-    ROOT_RESULT = os.getenv("ROOT_RESULT")  # Default path if not set
+    ROOT_RESULT = os.getenv("ROOT_RESULT")
+    if not ROOT_RESULT:
+        raise ValueError("ROOT_RESULT environment variable is not set")
+
+    REPO_ROOT = os.getenv("REPO_ROOT")
+    if not REPO_ROOT:
+        raise ValueError("REPO_ROOT environment variable is not set")
+
     repo_name = get_repo_name(repo_url)
     if not local_dev:
         store_token()
-    if ROOT_RESULT and caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
+    if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return repo_name
-    repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT") or "repos"))
+    repo_name = clone_repository(repo_url, Path(REPO_ROOT))
     generate_docs(repo_name, temp_repo_folder, repo_url)
-    if ROOT_RESULT and os.path.exists(ROOT_RESULT):
+    if os.path.exists(ROOT_RESULT):
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
     else:
         logger.warning(

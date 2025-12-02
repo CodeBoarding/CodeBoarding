@@ -69,7 +69,7 @@ def generate_html(
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
     repo_root = os.getenv("REPO_ROOT")
-    root_dir = (repo_root + "/" + project) if repo_root else project
+    root_dir = os.path.join(repo_root, project) if repo_root else project
 
     # Build component details HTML
     components_html = ""

@@ -92,7 +92,7 @@ def generate_rst(
 
     # Add component details
     repo_root = os.getenv("REPO_ROOT")
-    root_dir = (repo_root + "/" + project) if repo_root else project
+    root_dir = os.path.join(repo_root, project) if repo_root else project
 
     for comp in insights.components:
         lines.append(component_header(comp.name, linked_files))
