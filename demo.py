@@ -96,7 +96,7 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str | None =
             )
 
 
-def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False) -> str:
+def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False):
     """
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
@@ -114,7 +114,8 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
         store_token()
     if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
-        return repo_name
+        return
+
     repo_name = clone_repository(repo_url, Path(REPO_ROOT))
     generate_docs(repo_name, temp_repo_folder, repo_url)
     if os.path.exists(ROOT_RESULT):
@@ -123,7 +124,6 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
         logger.warning(
             f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials."
         )
-    return repo_name
 
 
 def copy_files(temp_folder: Path, output_dir: Path):
