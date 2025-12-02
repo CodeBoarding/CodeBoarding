@@ -19,7 +19,7 @@ class ProgrammingLanguage:
         self.percentage = percentage
         self.suffixes = suffixes
         self.server_commands = server_commands
-        # lsp_key is used for grouping related languages (e.g., JS, TSX, JSX -> typescript)
+        # group related languages (e.g., JS, TSX, JSX -> typescript) to the same language server
         self.lsp_server_key = lsp_server_key or language.lower()
 
     def get_suffix_pattern(self) -> list[str]:
@@ -63,11 +63,11 @@ class ProgrammingLanguageBuilder:
         self.lsp_configs = lsp_configs
         # Build reverse index: extension -> lsp_config_key
         self._extension_to_lsp: Dict[str, str] = {}
-        for lsp_key, config in lsp_configs.items():
+        for lsp_server_key, config in lsp_configs.items():
             for ext in config.get("file_extensions", []):
                 # Normalize extension (ensure it starts with '.')
                 normalized_ext = ext if ext.startswith(".") else f".{ext}"
-                self._extension_to_lsp[normalized_ext] = lsp_key
+                self._extension_to_lsp[normalized_ext] = lsp_server_key
 
     def _find_lsp_server_key(self, tokei_language: str, file_suffixes: Set[str]) -> Optional[str]:
         """
