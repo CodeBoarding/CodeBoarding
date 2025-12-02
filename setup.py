@@ -246,30 +246,24 @@ def update_static_analysis_config():
 
     updates = 0
 
-    # Update Python LSP server path (using pyright from node_modules)
-    pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver"
-    # On Windows, use .cmd files; on Unix, use the shell scripts
-    if platform.system() == "Windows":
-        pyright_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver.cmd"
-    if pyright_path.exists():
-        config["lsp_servers"]["python"]["command"][0] = str(pyright_path)
-        updates += 1
+    # Update Node.js based LSP servers
+    lsp_servers = {
+        "Pyright Language Server": "pyright-langserver",
+        "TypeScript Language Server": "typescript-language-server",
+        "Intelephense Language Server": "intelephense",
+    }
 
-    # Update TypeScript Language Server path
-    ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
-    if platform.system() == "Windows":
-        ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server.cmd"
-    if ts_lsp_path.exists():
-        config["lsp_servers"]["typescript"]["command"][0] = str(ts_lsp_path)
-        updates += 1
+    node_bin_dir = servers_dir / "node_modules" / ".bin"
+    is_windows = platform.system() == "Windows"
 
-    # Update Intelephense path
-    php_lsp_path = servers_dir / "node_modules" / ".bin" / "intelephense"
-    if platform.system() == "Windows":
-        php_lsp_path = servers_dir / "node_modules" / ".bin" / "intelephense.cmd"
-    if php_lsp_path.exists():
-        config["lsp_servers"]["php"]["command"][0] = str(php_lsp_path)
-        updates += 1
+    for lang, binary in lsp_servers.items():
+        binary_path = node_bin_dir / binary
+        if is_windows:
+            binary_path = node_bin_dir / f"{binary}.cmd"
+
+        if binary_path.exists():
+            config["lsp_servers"][lang]["command"][0] = str(binary_path)
+            updates += 1
 
     # Update tokei tool path
     tokei_path = servers_dir / "tokei"
