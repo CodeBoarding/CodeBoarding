@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Handle the case where git is not installed on the system
 try:
-    from git import Repo, Git, GitCommandError, InvalidGitRepositoryError, GitError
+    from git import Repo, Git, GitCommandError, GitError
 
     GIT_AVAILABLE = True
 except ImportError:
