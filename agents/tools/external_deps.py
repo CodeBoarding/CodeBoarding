@@ -52,8 +52,8 @@ class ExternalDepsTool(BaseTool):
     ]
 
     def __init__(self, repo_dir: Path):
-        super().__init__()
-        self.repo_dir = repo_dir
+        super().__init__(repo_dir=repo_dir)
+
 
     def _run(self) -> str:
         """
