@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
 
@@ -28,11 +27,11 @@ class ReadDiffTool(BaseTool):
         "For large diffs, it shows up to 100 lines around the specified line_number. "
         "If the diff is truncated, you can call this tool again with a different line_number to see other sections."
     )
-    args_schema: Optional[ArgsSchema] = ReadDiffInput
+    args_schema: ArgsSchema | None = ReadDiffInput
     return_direct: bool = False
-    diffs: List[FileChange] = None
+    diffs: list[FileChange] | None = None
 
-    def __init__(self, diffs: List[FileChange]):
+    def __init__(self, diffs: list[FileChange]):
         super().__init__()
         self.diffs = diffs
 
@@ -41,6 +40,9 @@ class ReadDiffTool(BaseTool):
         Run the tool with the given input.
         """
         logger.info(f"[ReadDiff Tool] Reading diff for file {file_path} around line {line_number}")
+
+        if not self.diffs:
+            return "Error: No diff information available."
 
         # Find the matching file change
         matching_change = None

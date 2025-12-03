@@ -36,6 +36,10 @@ class CodeStructureTool(BaseTool):
         """
         Run the tool with the given input.
         """
+        if self.static_analysis is None:
+            logger.error("[CodeStructureTool] static_analysis is not set")
+            return "Error: Static analysis is not set."
+
         languages = self.static_analysis.get_languages()
         for lang in languages:
             try:

@@ -7,7 +7,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
@@ -45,14 +44,14 @@ class FileAnalysisResult:
 
     file_path: Path
     package_name: str
-    imports: List[str]
-    symbols: List[Node]
-    function_symbols: List[dict]
-    class_symbols: List[dict]
-    call_relationships: List[tuple]  # (caller_qualified_name, callee_qualified_name)
-    class_hierarchies: Dict[str, dict]
-    external_references: List[dict]
-    error: str = None
+    imports: list[str]
+    symbols: list[Node]
+    function_symbols: list[dict]
+    class_symbols: list[dict]
+    call_relationships: list[tuple]  # (caller_qualified_name, callee_qualified_name)
+    class_hierarchies: dict[str, dict]
+    external_references: list[dict]
+    error: str | None = None
 
 
 class LSPClient:
@@ -70,15 +69,15 @@ class LSPClient:
 
         self.language = language
         self.server_start_params = language.get_server_parameters()
-        self._process = None
-        self._reader_thread = None
+        self._process: subprocess.Popen | None = None
+        self._reader_thread: threading.Thread | None = None
         self._shutdown_flag = threading.Event()
         self.language_suffix_pattern = language.get_suffix_pattern()
-        self.language_id = language.get_language_id()
+        self.language_id: str = language.get_language_id()
 
         self._message_id = 1
-        self._responses = {}
-        self._notifications = []
+        self._responses: dict[int, dict] = {}
+        self._notifications: list[dict] = []
         self._lock = threading.Lock()
 
         # Initialize CallGraph
@@ -113,8 +112,9 @@ class LSPClient:
         body = json.dumps(request)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        self._process.stdin.write(message.encode("utf-8"))
-        self._process.stdin.flush()
+        if self._process and self._process.stdin:
+            self._process.stdin.write(message.encode("utf-8"))
+            self._process.stdin.flush()
         return message_id
 
     def _send_notification(self, method: str, params: dict):
@@ -127,8 +127,9 @@ class LSPClient:
         body = json.dumps(notification)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        self._process.stdin.write(message.encode("utf-8"))
-        self._process.stdin.flush()
+        if self._process and self._process.stdin:
+            self._process.stdin.write(message.encode("utf-8"))
+            self._process.stdin.flush()
 
     def _read_messages(self):
         """
@@ -136,6 +137,8 @@ class LSPClient:
         """
         while not self._shutdown_flag.is_set():
             try:
+                if not self._process or not self._process.stdout:
+                    break
                 line = self._process.stdout.readline().decode("utf-8")
                 if not line or not line.startswith("Content-Length"):
                     continue
@@ -221,7 +224,7 @@ class LSPClient:
         response = self._wait_for_response(req_id)
         return response.get("result", [])
 
-    def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> List[dict]:
+    def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> list[dict]:
         """
         Find positions of function/method calls within a line range.
         A call is identified by finding '(' and working backwards to get the identifier.
@@ -291,7 +294,7 @@ class LSPClient:
 
         return call_positions
 
-    def _resolve_call_position(self, file_uri: str, file_path: Path, call_pos: dict) -> Optional[str]:
+    def _resolve_call_position(self, file_uri: str, file_path: Path, call_pos: dict) -> str | None:
         """
         Resolve a call position to its qualified name using textDocument/definition.
         Returns the qualified name or None if unresolved.
@@ -367,9 +370,9 @@ class LSPClient:
 
         # Initialize data structures with thread-safe locks
         call_graph = CallGraph()
-        class_hierarchies = {}
-        package_relations = {}
-        reference_nodes = []
+        class_hierarchies: dict[str, dict] = {}
+        package_relations: dict[str, dict] = {}
+        reference_nodes: list[Node] = []
 
         # Get source files and apply filters
         src_files = self._get_source_files()
@@ -395,7 +398,8 @@ class LSPClient:
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
-        max_workers = max(1, os.cpu_count() - 1)  # Use the number of cores but reserve one
+        cpu_count = os.cpu_count()
+        max_workers = max(1, cpu_count - 1) if cpu_count else 1  # Use the number of cores but reserve one
         successful_results = []
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -478,7 +482,7 @@ class LSPClient:
             "source_files": src_files,
         }
 
-    def _analyze_single_file(self, file_path: Path, all_classes: List[dict]) -> FileAnalysisResult:
+    def _analyze_single_file(self, file_path: Path, all_classes: list[dict]) -> FileAnalysisResult:
         """
         Analyze a single file and return all analysis results.
         Thread-safe method that doesn't modify shared state.
@@ -674,7 +678,8 @@ class LSPClient:
             except subprocess.TimeoutExpired:
                 logger.warning("Server did not terminate gracefully. Forcing kill.")
                 self._process.kill()
-            self._reader_thread.join(timeout=2)
+            if self._reader_thread:
+                self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
 
     def _prepare_for_analysis(self):
@@ -719,7 +724,7 @@ class LSPClient:
 
     def _find_superclasses_via_definition(self, file_uri: str, class_symbol: dict, content: str) -> list:
         """Use textDocument/definition to find parent classes."""
-        superclasses = []
+        superclasses: list[str] = []
 
         try:
             # Get the class definition line from content
@@ -1013,7 +1018,7 @@ class LSPClient:
 
         # Get the top-level package
         parts = module_name.split(".")
-        return parts[0] if parts else None
+        return parts[0] if parts else ""
 
     def _find_external_references(self, file_uri: str, symbols: list) -> list:
         """Find references to external symbols using LSP."""

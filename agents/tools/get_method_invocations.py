@@ -29,10 +29,12 @@ class MethodInvocationsTool(BaseTool):
         super().__init__()
         self.static_analysis = static_analysis
 
-    def _run(self, method) -> str:
+    def _run(self, method: str) -> str:
         """
         Executes the tool to read and return the project's control flow graph.
         """
+        if not self.static_analysis:
+            return "No static analysis data available."
 
         results = ""
         for lang in self.static_analysis.get_languages():

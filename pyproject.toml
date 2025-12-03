@@ -86,12 +86,9 @@ warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
 check_untyped_defs = true
-exclude = "(?x)(^repos/|^build/|^dist/|^temp/|^my_test/|^tests/|^evals/|^diagram_analysis/|^agents/|^repo_utils/|^static_analyzer/)"
+exclude = "(?x)(^repos/|^build/|^dist/|^temp/)"
+explicit_package_bases = true
 disable_error_code = ["import-untyped", "no-any-return"]
-
-[[tool.mypy.overrides]]
-module = ["agents.*", "diagram_analysis.*", "repo_utils.*", "static_analyzer.*"]
-ignore_errors = true
 
 [tool.uv]
 dev-dependencies = [

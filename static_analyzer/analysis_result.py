@@ -1,5 +1,3 @@
-from typing import List
-
 from static_analyzer.graph import Node, CallGraph
 
 
@@ -40,7 +38,7 @@ class StaticAnalysisResults:
             self.results[language] = {}
         self.results[language]["dependencies"] = dependencies
 
-    def add_references(self, language: str, references: List[Node]):
+    def add_references(self, language: str, references: list[Node]):
         """
         Adds source code references to the results.
 
@@ -119,7 +117,7 @@ class StaticAnalysisResults:
                     )
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
-    def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str, Node]:
+    def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str | None, Node | None]:
         lower_qn = qualified_name.lower()
         if language in self.results and "references" in self.results[language]:
             # Check if the qualified name is a subset of any reference:
@@ -155,7 +153,7 @@ class StaticAnalysisResults:
             self.results[language] = {}
         self.results[language]["source_files"] = source_files
 
-    def get_source_files(self, language: str) -> List[str]:
+    def get_source_files(self, language: str) -> list[str]:
         """
         Retrieves the list of source files for a given language.
 
@@ -166,7 +164,7 @@ class StaticAnalysisResults:
             return []
         return self.results[language].get("source_files", [])
 
-    def get_all_source_files(self) -> List[str]:
+    def get_all_source_files(self) -> list[str]:
         """
         Retrieves the list of all source files across all languages.
 

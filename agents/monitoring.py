@@ -3,7 +3,8 @@ import os
 import functools
 from pathlib import Path
 from collections import defaultdict
-from typing import Any, Dict, Optional
+from typing import Any
+from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -26,7 +27,7 @@ class MonitoringCallback(BaseCallbackHandler):
         self._tool_names = {}  # run_id -> tool_name
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        usage: Dict[str, int] = (response.llm_output or {}).get("token_usage", {}) or {}
+        usage: dict[str, int] = (response.llm_output or {}).get("token_usage", {}) or {}
         self.prompt_tokens += int(usage.get("prompt_tokens", 0))
         self.completion_tokens += int(usage.get("completion_tokens", 0))
         if usage.get("total_tokens") is not None:
@@ -34,9 +35,9 @@ class MonitoringCallback(BaseCallbackHandler):
         else:
             self.total_tokens += int(usage.get("prompt_tokens", 0)) + int(usage.get("completion_tokens", 0))
 
-    def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
+    def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         # LangChain passes a 'run_id' you can use to correlate start/end
-        run_id: Optional[str] = kwargs.get("run_id")
+        run_id: str | None = kwargs.get("run_id")
         tool_name = (
             serialized.get("name")
             or serialized.get("id")
@@ -50,14 +51,15 @@ class MonitoringCallback(BaseCallbackHandler):
             self._tool_names[run_id] = tool_name
 
     def on_tool_end(self, output: Any, **kwargs: Any) -> None:
-        run_id: Optional[str] = kwargs.get("run_id")
+        run_id: str | None = kwargs.get("run_id")
         if run_id and run_id in self._tool_start_times:
             start = self._tool_start_times.pop(run_id)
             tool_name = self._tool_names.pop(run_id, "unknown_tool")
             self.tool_latency_ms[tool_name].append(int((time.time() - start) * 1000))
 
-    def on_tool_error(self, error: Exception, **kwargs: Any) -> None:
-        run_id: Optional[str] = kwargs.get("run_id")
+    def on_tool_error(
+        self, error: BaseException, *, run_id: UUID, parent_run_id: UUID | None = None, **kwargs: Any
+    ) -> Any:
         tool_name = "unknown_tool"
         if run_id and run_id in self._tool_names:
             tool_name = self._tool_names[run_id]

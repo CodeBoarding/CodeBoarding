@@ -48,6 +48,10 @@ class CodeReferenceReader(BaseTool):
         """
         logger.info(f"[Source Reference Tool] Reading source code for {code_reference}")
 
+        if self.static_analysis is None:
+            logger.error("[Source Reference Tool] static_analysis is not set")
+            return "Error: Static analysis is not set."
+
         # search for the qualified name:
         code_reference = code_reference.strip()
         if ":" in code_reference:
@@ -61,14 +65,16 @@ class CodeReferenceReader(BaseTool):
             except ValueError:
                 logger.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
                 # retry with loose matching
-                text, node = self.static_analysis.get_loose_reference(lang, code_reference)
-                if node is None:
+                text, loose_node = self.static_analysis.get_loose_reference(lang, code_reference)
+                if loose_node is None:
                     logger.warning(f"[Source Reference Tool] No loose reference found for {code_reference} in {lang}.")
                     continue
-                source_code = self.read_file(node.file_path, node.line_start, node.line_end)
+                source_code = self.read_file(loose_node.file_path, loose_node.line_start, loose_node.line_end)
                 logger.info(
                     f"[Source Reference Tool] Loose match found {code_reference} -> {text}, reading source code."
                 )
+                if text is None:
+                    return source_code
                 return text + "\n\n" + source_code
             except FileExistsError:
                 logger.warning(

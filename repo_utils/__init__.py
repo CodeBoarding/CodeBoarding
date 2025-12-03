@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from functools import wraps
 from pathlib import Path
-from typing import Optional, Any, Callable
+from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 
@@ -17,12 +17,12 @@ try:
     GIT_AVAILABLE = True
 except ImportError:
     GIT_AVAILABLE = False
-    Repo = None
-    Git = None
-    GitCommandError = None
+    Repo = None  # type: ignore[misc, assignment]
+    Git = None  # type: ignore[misc, assignment]
+    GitCommandError = None  # type: ignore[misc, assignment]
 
 
-def require_git_import(default: Optional[Any] = None) -> Callable:
+def require_git_import(default: Any | None = None) -> Callable:
     """
     Decorator that ensures git module is available for a function.
     If git import fails and a default value is provided, returns that value.

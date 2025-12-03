@@ -11,7 +11,7 @@ class ProgrammingLanguage:
         size: int,
         percentage: float,
         suffixes: list[str],
-        server_commands: list[str] = None,
+        server_commands: list[str] | None = None,
         lsp_server_key: str | None = None,
     ):
         self.language = language
@@ -99,7 +99,7 @@ class ProgrammingLanguageBuilder:
     ) -> ProgrammingLanguage:
         lsp_server_key = self._find_lsp_server_key(tokei_language, file_suffixes)
 
-        server_commands = None
+        server_commands: list | None = None
         config_suffixes: Set[str] = set()
 
         if lsp_server_key and lsp_server_key in self.lsp_configs:

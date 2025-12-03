@@ -7,7 +7,7 @@ from agents.tools import FileStructureTool
 class TestFileStructureTool(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        self.tool = FileStructureTool(analysis_dir=Path("./repos/django"))
+        self.tool = FileStructureTool(repo_dir=Path("./repos/django"))
 
     def test_file_structure(self):
         # Test the _run method with a valid directory

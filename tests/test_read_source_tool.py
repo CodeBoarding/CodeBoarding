@@ -2,12 +2,15 @@ import unittest
 from pathlib import Path
 
 from agents.tools import CodeReferenceReader
+from static_analyzer import StaticAnalyzer
 
 
 class TestReadSourceTool(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
-        self.tool = CodeReferenceReader(repo_dir=Path("./repos/django"))
+        analyzer = StaticAnalyzer(Path("./repos/django"))
+        static_analysis = analyzer.analyze()
+        self.tool = CodeReferenceReader(static_analysis=static_analysis)
 
     def test_read_method(self):
         # Test the _run method with a valid package

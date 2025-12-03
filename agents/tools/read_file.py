@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional
 
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import BaseModel, Field
@@ -25,10 +24,10 @@ class ReadFileTool(BaseTool):
         "Returns 300 lines centered on the requested line. "
         "Avoid exploratory reading - use only when you know exactly what to examine."
     )
-    args_schema: Optional[ArgsSchema] = ReadFileInput
+    args_schema: ArgsSchema | None = ReadFileInput
     return_direct: bool = False
-    cached_files: Optional[list[Path]] = None
-    repo_dir: Optional[Path] = None
+    cached_files: list[Path] | None = None
+    repo_dir: Path | None = None
 
     def __init__(self, repo_dir: Path):
         super().__init__()
@@ -50,19 +49,23 @@ class ReadFileTool(BaseTool):
 
         logger.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
 
-        file_path = Path(file_path)
+        file_path_obj = Path(file_path)
 
-        read_file = None
-        for cached_file in self.cached_files:
-            if self.is_subsequence(file_path, cached_file):
-                read_file = cached_file
-                break
+        read_file: Path | None = None
+        if self.cached_files:
+            for cached_file in self.cached_files:
+                if self.is_subsequence(file_path_obj, cached_file):
+                    read_file = cached_file
+                    break
 
-        common_prefix = str(self.repo_dir)
+        common_prefix = str(self.repo_dir) if self.repo_dir else ""
         if read_file is None:
-            files_str = "\n".join(
-                [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path.suffix]
-            )
+            if self.cached_files and self.repo_dir:
+                files_str = "\n".join(
+                    [str(f.relative_to(self.repo_dir)) for f in self.cached_files if f.suffix == file_path_obj.suffix]
+                )
+            else:
+                files_str = "No files cached"
             logger.error(f"[ReadFile Tool] File {file_path} not found in cached files.")
             return (
                 f"Error: The specified file '{file_path}' was not found in the indexed source files. "
@@ -109,11 +112,13 @@ class ReadFileTool(BaseTool):
 
     def is_subsequence(self, sub: Path, full: Path) -> bool:
         # exclude the analysis_dir from the comparison
-        sub = sub.parts
-        full = full.parts
-        repo_dir = self.repo_dir.parts
-        full = full[len(repo_dir) :]
-        for i in range(len(full) - len(sub) + 1):
-            if full[i : i + len(sub)] == sub:
+        if self.repo_dir is None:
+            return False
+        sub_parts = sub.parts
+        full_parts = full.parts
+        repo_dir_parts = self.repo_dir.parts
+        full_parts = full_parts[len(repo_dir_parts) :]
+        for i in range(len(full_parts) - len(sub_parts) + 1):
+            if full_parts[i : i + len(sub_parts)] == sub_parts:
                 return True
         return False

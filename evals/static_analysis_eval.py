@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 # Get project root from environment variable
 load_dotenv()
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT"))
+project_root_env = os.getenv("PROJECT_ROOT")
+if not project_root_env:
+    raise ValueError("PROJECT_ROOT environment variable is not set")
+PROJECT_ROOT = Path(project_root_env)
 
 
 def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, Any]:
@@ -46,8 +49,11 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
 
     try:
         # Clone the repository
-        repo_name = clone_repository(repo_url, Path(os.getenv("REPO_ROOT")))
-        repo_path = Path(os.getenv("REPO_ROOT")) / repo_name
+        repo_root_env = os.getenv("REPO_ROOT")
+        if not repo_root_env:
+            raise ValueError("REPO_ROOT environment variable is not set")
+        repo_name = clone_repository(repo_url, Path(repo_root_env))
+        repo_path = Path(repo_root_env) / repo_name
 
         logger.info(f"Repository cloned to {repo_path}")
 
@@ -57,7 +63,7 @@ def analyze_project_static_analysis(project_info: Dict[str, str]) -> Dict[str, A
         )
 
         # Just run static analysis, not full generation
-        static_analysis = generator.generate_static_analysis()
+        static_analysis = generator.generate_analysis()
 
         # Get the metrics that were collected
         metrics = getattr(generator, "static_analysis_metrics", {})

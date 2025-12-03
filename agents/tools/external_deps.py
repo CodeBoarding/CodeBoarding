@@ -24,7 +24,7 @@ class ExternalDepsTool(BaseTool):
     )
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
-    repo_dir: Optional[Path] = None
+    repo_dir: Path
 
     # Common dependency file patterns to search for
     DEPENDENCY_FILES: List[str] = [
@@ -71,7 +71,7 @@ class ExternalDepsTool(BaseTool):
 
         # Also search for requirements files in common subdirectories
         for subdir in ("requirements", "deps", "dependencies", "env"):
-            subdir_path = Path(self.repo_dir, subdir)
+            subdir_path = self.repo_dir / subdir
             if subdir_path.exists() and subdir_path.is_dir():
                 for pattern in ("*.txt", "*.yml", "*.yaml", "*.toml"):
                     for file_path in subdir_path.glob(pattern):
@@ -86,8 +86,8 @@ class ExternalDepsTool(BaseTool):
         summary = f"Found {len(found_files)} dependency file(s):\n\n"
 
         # List files with suggestions for using readFile
-        for i, file_path in enumerate(found_files, 1):
-            relative_path = file_path.relative_to(self.repo_dir)
+        for i, file_path_item in enumerate(found_files, 1):
+            relative_path = file_path_item.relative_to(self.repo_dir)
             summary += f'{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path="{relative_path}" and line_number=0\n\n'
 
         logger.info(

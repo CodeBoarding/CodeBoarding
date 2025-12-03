@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import List
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
@@ -12,8 +11,8 @@ from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 logger = logging.getLogger(__name__)
 
 
-def create_clients(programming_languages: List[ProgrammingLanguage], repository_path: Path) -> list:
-    clients = []
+def create_clients(programming_languages: list[ProgrammingLanguage], repository_path: Path) -> list[LSPClient]:
+    clients: list[LSPClient] = []
     for pl in programming_languages:
         if not pl.is_supported_lang():
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")

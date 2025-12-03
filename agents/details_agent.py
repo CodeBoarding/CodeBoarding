@@ -62,12 +62,12 @@ class DetailsAgent(CodeBoardingAgent):
             ),
         }
 
-        self.context = {}
+        self.context: dict[str, AnalysisInsights] = {}
 
     def step_subcfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
         # Now lets filter the cfg:
-        self.context["subcfg_insight"] = self.read_cfg_tool.component_cfg(component)
+        self.context["subcfg_insight"] = self.read_cfg_tool.component_cfg(component)  # type: ignore[assignment]
 
     @monitoring
     def step_cfg(self, component: Component):
@@ -92,9 +92,11 @@ class DetailsAgent(CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        cfg_insight = self.context.get("cfg_insight")
+        cfg_insight_str = cfg_insight.llm_str() if cfg_insight else "No CFG insight available."
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
-            insight_so_far=self.context.get("cfg_insight").llm_str(),
+            insight_so_far=cfg_insight_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -169,11 +171,13 @@ class DetailsAgent(CodeBoardingAgent):
             classification = self._parse_invoke(prompt, ComponentFiles)
             files.extend(classification.file_paths)
         for file in files:
-            comp = next((c for c in analysis.components if c.name == file.component_name), None)
-            if comp is None:
+            matched_comp: Component | None = next(
+                (c for c in analysis.components if c.name == file.component_name), None
+            )
+            if matched_comp is None:
                 logger.warning(f"[DetailsAgent] File {file.component_name} not found in analysis")
                 continue
-            comp.assigned_files.append(file.file_path)
+            matched_comp.assigned_files.append(file.file_path)
 
         for comp in analysis.components:
             files = []
