@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import List
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.lsp_client.client import LSPClient
-from static_analyzer.lsp_client.typescript_client import TypeScriptClient
+from static_analyzer.lsp_client import GoClient, LSPClient, TypeScriptClient
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
@@ -35,6 +34,8 @@ def create_clients(programming_languages: List[ProgrammingLanguage], repository_
                     # Fallback: No config files found, use repository root
                     logger.info("No TypeScript config files found, using repository root")
                     clients.append(TypeScriptClient(language=pl, project_path=repository_path))
+            elif pl.language.lower() == "go":
+                clients.append(GoClient(language=pl, project_path=repository_path))
             else:
                 clients.append(LSPClient(language=pl, project_path=repository_path))
         except RuntimeError as e:

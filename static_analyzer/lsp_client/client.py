@@ -470,6 +470,15 @@ class LSPClient:
             f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges"
         )
 
+        if len(call_graph.nodes) != 0 and len(call_graph.edges) == 0:
+            logger.warning("Call graph has nodes but no edges. This may indicate an issue with call extraction.")
+            # Try fallback call graph collection
+            edges_added = self._fallback_call_graph_collection(call_graph, src_files)
+            if edges_added > 0:
+                logger.info(f"Fallback collection added {edges_added} edges to call graph")
+            else:
+                logger.warning("Fallback collection did not add any edges to call graph")
+
         return {
             "call_graph": call_graph,
             "class_hierarchies": class_hierarchies,
@@ -680,6 +689,21 @@ class LSPClient:
     def _prepare_for_analysis(self):
         """Override in subclasses to perform language-specific preparation before analysis."""
         pass
+
+    def _fallback_call_graph_collection(self, call_graph: CallGraph, source_files: list) -> int:
+        """
+        Fallback method for call graph collection when LSP fails.
+        Override in subclasses to provide language-specific fallback.
+
+        Args:
+            call_graph: The CallGraph to update with edges
+            source_files: List of source files to scan
+
+        Returns:
+            Number of edges added
+        """
+        logger.debug("No fallback call graph collection available for this language")
+        return 0
 
     def _get_all_classes_in_workspace(self) -> list:
         """Get all class symbols in the workspace using workspace/symbol."""
