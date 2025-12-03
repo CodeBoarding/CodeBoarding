@@ -116,9 +116,9 @@ class FileStructureTool(BaseTool):
         # exclude the analysis_dir from the comparison
         if self.repo_dir is None:
             return False
-        sub_parts: tuple[str, ...] = sub.parts
-        full_parts: tuple[str, ...] = full.parts
-        analysis_parts: tuple[str, ...] = self.repo_dir.parts
+        sub_parts = sub.parts
+        full_parts = full.parts
+        analysis_parts = self.repo_dir.parts
         full_parts = full_parts[len(analysis_parts) :]
         for i in range(len(full_parts) - len(sub_parts) + 1):
             if full_parts[i : i + len(sub_parts)] == sub_parts:
@@ -149,25 +149,24 @@ def get_tree_string(
         return tree_lines
 
     try:
-        entries = sorted(os.listdir(str(startpath)))
+        entries = sorted([p for p in startpath.iterdir()])
     except (PermissionError, FileNotFoundError):
         # Handle permission errors or non-existent directories
         return [indent + "└── [Error reading directory]"]
 
-    for i, entry in enumerate(entries):
+    for i, entry_path in enumerate(entries):
         # Check if we've exceeded the maximum number of lines
         if len(tree_lines) >= max_lines:
             tree_lines.append(indent + "└── [Output truncated due to size limits]")
             return tree_lines
 
-        path = str(startpath / entry)
         connector = "└── " if i == len(entries) - 1 else "├── "
-        tree_lines.append(indent + connector + entry)
+        tree_lines.append(indent + connector + entry_path.name)
 
-        if os.path.isdir(path):
+        if entry_path.is_dir():
             extension = "    " if i == len(entries) - 1 else "│   "
             subtree = get_tree_string(
-                Path(path), indent + extension, max_depth, current_depth + 1, max_lines - len(tree_lines)
+                entry_path, indent + extension, max_depth, current_depth + 1, max_lines - len(tree_lines)
             )
             tree_lines.extend(subtree)
 

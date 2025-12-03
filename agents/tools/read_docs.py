@@ -153,9 +153,9 @@ class ReadDocsTool(BaseTool):
         # exclude the analysis_dir from the comparison
         if self.repo_dir is None:
             return False
-        sub_parts: tuple[str, ...] = sub.parts
-        full_parts: tuple[str, ...] = full.parts
-        repo_dir_parts: tuple[str, ...] = self.repo_dir.parts
+        sub_parts = sub.parts
+        full_parts = full.parts
+        repo_dir_parts = self.repo_dir.parts
         full_parts = full_parts[len(repo_dir_parts) :]
         for i in range(len(full_parts) - len(sub_parts) + 1):
             if full_parts[i : i + len(sub_parts)] == sub_parts:
