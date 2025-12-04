@@ -1,66 +1,81 @@
 {
-  "description": "The project's architecture now encompasses two primary subsystems: the `PromptFactory` and the `Static Analyzer`. The `PromptFactory` subsystem is responsible for dynamically generating LLM prompts based on specified types and models, utilizing an abstract factory pattern to manage concrete prompt implementations. The newly introduced `Static Analyzer` subsystem focuses on source code analysis, employing a `Scanner` to parse code, leveraging `ProgrammingLanguage` abstractions for language-specific handling, and potentially interacting with an `LSP Client` for enhanced analysis capabilities. The output of this analysis is encapsulated in an `AnalysisResult`, which may include `Graph` representations of the code. These two subsystems operate independently but contribute to the overall functionality of the project, with the `Static Analyzer` providing insights into code structure and behavior that could potentially inform or be utilized by other parts of the system.",
+  "description": "The system's architecture is centered around an Agent that orchestrates static code analysis and decision-making. The Agent utilizes a PromptFactory to dynamically generate context-aware prompts, guiding its interactions and analysis tasks. To perform code analysis, the Agent invokes the Scanner, which acts as the primary interface for static analysis. The Scanner relies on the LSP Client to communicate with external Language Servers, thereby acquiring rich, language-specific code insights. All findings from the static analysis are then structured and encapsulated within an AnalysisResult object, which the Agent subsequently consumes to inform its actions and refine its understanding of the codebase. This modular design ensures clear separation of concerns, enabling flexible integration with various language servers and adaptable agent behaviors.",
   "components": [
     {
-      "name": "PromptFactory",
-      "description": "Responsible for dynamically generating LLM prompts based on specified types and models.",
+      "name": "Agent",
+      "description": "Drives the overall analysis process, makes decisions based on analysis results, and orchestrates interactions with other components. It utilizes PromptFactory for dynamic prompt generation and Scanner to initiate code analysis.",
       "referenced_source_code": [
         {
-          "qualified_name": "PromptFactory",
-          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
-          "reference_start_line": 382,
-          "reference_end_line": 446
+          "qualified_name": "agents.abstraction_agent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools",
+          "reference_file": "agents/tools/",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts",
+          "reference_file": "agents/prompts/",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory",
+      "description": "Dynamically generates LLM prompts based on specified types and models, providing structured input for the Agent.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts",
+          "reference_file": "agents/prompts/",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
         "../../agents/prompts/__init__.py",
-        "../../agents/prompts/prompt_factory.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "AbstractPromptFactory",
-      "description": "Defines the interface for prompt factories.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": 10,
-          "reference_end_line": 95
-        }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/abstract_prompt_factory.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Concrete Prompt Factories",
-      "description": "Implementations of the AbstractPromptFactory for specific prompt types and models.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ConcretePromptFactory",
-          "reference_file": "YOUR_FILE_PATH",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ],
-      "assigned_files": [
         "../../agents/prompts/claude_prompts_bidirectional.py",
         "../../agents/prompts/gpt_prompts_unidirectional.py",
         "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/abstract_prompt_factory.py",
         "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/prompt_factory.py",
         "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "../../agents/prompts/claude_prompts_unidirectional.py"
+        "../../agents/prompts/claude_prompts_unidirectional.py",
+        "../../agents/prompts"
       ],
       "can_expand": true
     },
     {
       "name": "Scanner",
-      "description": "Responsible for parsing source code and extracting relevant information, acting as the entry point for static analysis.",
+      "description": "Acts as the entry point for static analysis, parsing source code, extracting relevant information, and orchestrating the data gathering from language servers.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner.Scanner",
+          "qualified_name": "static_analyzer.scanner",
           "reference_file": "static_analyzer/scanner.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -70,26 +85,12 @@
       "can_expand": true
     },
     {
-      "name": "ProgrammingLanguage",
-      "description": "Defines the interfaces or base classes for handling different programming languages, allowing the Scanner to be extensible.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-          "reference_file": "static_analyzer/programming_language.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
       "name": "LSP Client",
-      "description": "Integrates with Language Server Protocol (LSP) for interacting with language servers to obtain analysis data.",
+      "description": "Integrates with Language Server Protocol (LSP) to communicate with external language servers, obtaining rich analysis data such as definitions, references, and diagnostics.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.lsp_client.LSPClient",
-          "reference_file": "",
+          "qualified_name": "static_analyzer.lsp_client.client",
+          "reference_file": "static_analyzer/lsp_client/client.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -99,25 +100,11 @@
     },
     {
       "name": "AnalysisResult",
-      "description": "Encapsulates the output of the static analysis, providing a structured representation of the findings.",
+      "description": "Encapsulates the structured output of the static analysis, including code graphs, findings, and other relevant data, providing a standardized format for consumption.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
+          "qualified_name": "static_analyzer.analysis_result",
           "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Graph",
-      "description": "Used to represent the relationships within the analyzed code, such as control flow graphs or dependency graphs.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer.graph.Graph",
-          "reference_file": "static_analyzer/graph.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -135,34 +122,49 @@
   ],
   "components_relations": [
     {
-      "relation": "selects and instantiates",
+      "relation": "Uses",
+      "src_name": "Agent",
+      "dst_name": "PromptFactory"
+    },
+    {
+      "relation": "Initiates",
+      "src_name": "Agent",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "Consumes",
+      "src_name": "Agent",
+      "dst_name": "AnalysisResult"
+    },
+    {
+      "relation": "Generates prompts for",
       "src_name": "PromptFactory",
-      "dst_name": "Concrete Prompt Factories"
+      "dst_name": "Agent"
     },
     {
-      "relation": "implements",
-      "src_name": "Concrete Prompt Factories",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "uses",
-      "src_name": "Scanner",
-      "dst_name": "ProgrammingLanguage"
-    },
-    {
-      "relation": "interacts with",
+      "relation": "Utilizes",
       "src_name": "Scanner",
       "dst_name": "LSP Client"
     },
     {
-      "relation": "produces",
+      "relation": "Produces",
       "src_name": "Scanner",
       "dst_name": "AnalysisResult"
     },
     {
-      "relation": "may contain",
+      "relation": "Provides data to",
+      "src_name": "LSP Client",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "Is produced by",
       "src_name": "AnalysisResult",
-      "dst_name": "Graph"
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "Is consumed by",
+      "src_name": "AnalysisResult",
+      "dst_name": "Agent"
     }
   ]
 }

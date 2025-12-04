@@ -34,7 +34,7 @@ graph LR
 
 ## Details
 
-The system provides a comprehensive code analysis platform, initiated via the `User Interface / API Gateway`. The `Orchestration Engine (Agent Core)` centrally manages the analysis workflow, coordinating interactions with other components. It leverages the `Repository Manager` for seamless access to codebases. A critical component, the `Static Analysis Engine`, performs in-depth code analysis, now featuring significantly enhanced programming language support and more robust scanning mechanisms to extract detailed structural information. This data, combined with dynamic prompts from the `LLM Prompt Factory`, is fed to the `AI Interpretation Layer` for advanced contextual understanding and insight generation. Finally, the `Output Generation Engine` processes these insights into structured formats, which the `Diagram Analysis & Renderer` transforms into visual architectural diagrams for display back to the user.
+The system operates as a sophisticated code analysis and architectural diagram generation tool, centered around an Orchestration Engine (Agent Core). This engine initiates analysis requests received from the User Interface / API Gateway, then interacts with the Repository Manager to access the codebase. The codebase is subsequently submitted to the Static Analysis Engine for in-depth structural analysis. Results from static analysis inform the LLM Prompt Factory, which generates tailored prompts for the AI Interpretation Layer. This layer processes prompts and context using LLMs to derive architectural insights. These insights are then passed to the Output Generation Engine for structured formatting, and finally to the Diagram Analysis & Renderer to produce visual architectural diagrams, which are displayed back through the User Interface / API Gateway. This core flow is preserved, with internal enhancements across key components improving overall robustness and capability.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
 The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
@@ -46,7 +46,7 @@ The system's primary interface for users, handling analysis requests and display
 
 
 ### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit managing the entire analysis workflow, coordinating all components and maintaining analysis state.
+The central control unit managing the entire analysis workflow, coordinating all components, maintaining analysis state, and effectively managing enhanced capabilities and analysis workflow.
 
 
 **Related Classes/Methods**:
@@ -65,7 +65,7 @@ Manages all interactions with code repositories, providing a standardized interf
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs, now with significantly enhanced programming language support and more robust scanning mechanisms.
+Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs, now with significantly enhanced programming language support, more robust scanning mechanisms, and improved interaction with Language Server Protocols (LSP).
 
 
 **Related Classes/Methods**:
@@ -83,7 +83,7 @@ Dynamically generates and manages prompts tailored for various LLMs and code ana
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Interfaces with LLM providers to process analysis results and prompts, interpreting code context and generating architectural insights.
+Interfaces with LLM providers to process analysis results and prompts, interpreting code context and generating architectural insights with more sophisticated logic for processing analysis results and prompts.
 
 
 **Related Classes/Methods**:
@@ -103,7 +103,7 @@ Transforms AI-interpreted insights into structured output formats for diagram ge
 
 
 ### Diagram Analysis & Renderer [[Expand]](./Diagram_Analysis_Renderer.md)
-Refines structured output into diagram-specific formats and renders visual architectural diagrams.
+Refines structured output into diagram-specific formats and renders visual architectural diagrams, with enhanced capabilities for transforming AI-interpreted insights and rendering.
 
 
 **Related Classes/Methods**:

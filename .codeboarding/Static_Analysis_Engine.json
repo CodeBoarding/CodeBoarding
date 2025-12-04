@@ -1,9 +1,9 @@
 {
-  "description": "The system's architecture is centered around a robust static analysis pipeline. The Scanner initiates the process by parsing source code, leveraging enhanced language definitions to generate fundamental data. This data is then consumed by the Static Analysis Engine Core, which performs deeper analysis and produces structured outputs. An Agent component utilizes these analytical services to execute higher-level tasks and seamlessly integrates with the VSCode environment through the VSCode Integration component, managing IDE-specific interactions and configurations. All these core components rely on a set of External Dependencies for their functionality, ensuring a modular and extensible design. The main flow involves the Scanner feeding parsed data to the Static Analysis Engine Core, which then processes it and provides insights to the Agent. The Agent, in turn, coordinates with the VSCode Integration for IDE interactions, with all components underpinned by External Dependencies.",
+  "description": "The system's architecture is centered around the `Static Analysis Engine Core`, which performs deep code analysis, leveraging data from the `Scanner` for initial parsing. The `Agent` acts as the primary orchestrator, consuming enhanced analysis results from the `Static Analysis Engine Core` to perform higher-level tasks, understand project context, and refine its outputs. A new `Diagram Generator` component, orchestrated by the `Agent` and fed data by the `Static Analysis Engine Core`, provides visual representations of the analysis. The `VSCode Integration` manages the interface with the IDE, facilitating seamless interaction for the `Agent`. All these core components rely on `External Dependencies` for foundational support. This updated architecture reflects a significant evolution in the system's analytical depth, agent intelligence, and output capabilities, particularly with the introduction of diagram generation.",
   "components": [
     {
       "name": "Static Analysis Engine Core",
-      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities.",
+      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities through its refined LSP client, allowing for deeper and more accurate static analysis. Its analysis outputs may also have evolved in structure, impacting how the Agent consumes these results.",
       "referenced_source_code": [
         {
           "qualified_name": "StaticAnalysisEngineCore",
@@ -13,7 +13,6 @@
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/programming_language.py",
         "../../static_analyzer/reference_resolve_mixin.py",
         "../../static_analyzer/graph.py",
         "../../static_analyzer/analysis_result.py",
@@ -30,11 +29,12 @@
         {
           "qualified_name": "Scanner",
           "reference_file": "static_analyzer/__init__.py",
-          "reference_start_line": 24,
-          "reference_end_line": 24
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "../../static_analyzer/programming_language.py",
         "../../static_analyzer/__init__.py",
         "../../static_analyzer/scanner.py",
         "../../static_analyzer/typescript_config_scanner.py"
@@ -43,7 +43,7 @@
     },
     {
       "name": "Agent",
-      "description": "Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks, and coordinates with the VSCode Integration for IDE-specific operations.",
+      "description": "Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks. The Agent has undergone substantial enhancements, particularly in its ability to gather and process information, understand project context more deeply, and refine how it formulates and communicates its outputs. It also coordinates with the VSCode Integration for IDE-specific operations and can orchestrate diagram generation.",
       "referenced_source_code": [
         {
           "qualified_name": "Agent",
@@ -61,9 +61,23 @@
       "referenced_source_code": [
         {
           "qualified_name": "VSCodeIntegration",
-          "reference_file": "YOUR_FILE_PATH",
+          "reference_file": "example.txt",
           "reference_start_line": 1,
           "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Generator",
+      "description": "A new functional block responsible for generating diagrams. This component likely derives data from the Static Analysis Engine Core's analysis results and is orchestrated by the Agent to produce visual representations.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [],
@@ -98,14 +112,14 @@
       "dst_name": "Scanner"
     },
     {
-      "relation": "provides analysis results to",
+      "relation": "provides enhanced analysis results to",
       "src_name": "Static Analysis Engine Core",
       "dst_name": "Agent"
     },
     {
-      "relation": "depends on",
+      "relation": "provides data for",
       "src_name": "Static Analysis Engine Core",
-      "dst_name": "External Dependencies"
+      "dst_name": "Diagram Generator"
     },
     {
       "relation": "generates data for",
@@ -113,14 +127,14 @@
       "dst_name": "Static Analysis Engine Core"
     },
     {
-      "relation": "depends on",
-      "src_name": "Scanner",
-      "dst_name": "External Dependencies"
-    },
-    {
-      "relation": "consumes analysis from",
+      "relation": "consumes enhanced analysis from",
       "src_name": "Agent",
       "dst_name": "Static Analysis Engine Core"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Agent",
+      "dst_name": "Diagram Generator"
     },
     {
       "relation": "interacts with",
@@ -128,39 +142,19 @@
       "dst_name": "VSCode Integration"
     },
     {
-      "relation": "depends on",
-      "src_name": "Agent",
-      "dst_name": "External Dependencies"
-    },
-    {
       "relation": "manages the interface for",
       "src_name": "VSCode Integration",
       "dst_name": "Agent"
     },
     {
-      "relation": "depends on",
-      "src_name": "VSCode Integration",
-      "dst_name": "External Dependencies"
-    },
-    {
-      "relation": "supports",
-      "src_name": "External Dependencies",
-      "dst_name": "Scanner"
-    },
-    {
-      "relation": "supports",
-      "src_name": "External Dependencies",
+      "relation": "receives data from",
+      "src_name": "Diagram Generator",
       "dst_name": "Static Analysis Engine Core"
     },
     {
-      "relation": "supports",
-      "src_name": "External Dependencies",
+      "relation": "orchestrated by",
+      "src_name": "Diagram Generator",
       "dst_name": "Agent"
-    },
-    {
-      "relation": "supports",
-      "src_name": "External Dependencies",
-      "dst_name": "VSCode Integration"
     }
   ]
 }

@@ -1,97 +1,76 @@
 ```mermaid
 graph LR
+    Agent["Agent"]
     PromptFactory["PromptFactory"]
-    AbstractPromptFactory["AbstractPromptFactory"]
-    Concrete_Prompt_Factories["Concrete Prompt Factories"]
     Scanner["Scanner"]
-    ProgrammingLanguage["ProgrammingLanguage"]
     LSP_Client["LSP Client"]
     AnalysisResult["AnalysisResult"]
-    Graph["Graph"]
     Unclassified["Unclassified"]
-    PromptFactory -- "selects and instantiates" --> Concrete_Prompt_Factories
-    Concrete_Prompt_Factories -- "implements" --> AbstractPromptFactory
-    Scanner -- "uses" --> ProgrammingLanguage
-    Scanner -- "interacts with" --> LSP_Client
-    Scanner -- "produces" --> AnalysisResult
-    AnalysisResult -- "may contain" --> Graph
+    Agent -- "Uses" --> PromptFactory
+    Agent -- "Initiates" --> Scanner
+    Agent -- "Consumes" --> AnalysisResult
+    PromptFactory -- "Generates prompts for" --> Agent
+    Scanner -- "Utilizes" --> LSP_Client
+    Scanner -- "Produces" --> AnalysisResult
+    LSP_Client -- "Provides data to" --> Scanner
+    AnalysisResult -- "Is produced by" --> Scanner
+    AnalysisResult -- "Is consumed by" --> Agent
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The project's architecture now encompasses two primary subsystems: the `PromptFactory` and the `Static Analyzer`. The `PromptFactory` subsystem is responsible for dynamically generating LLM prompts based on specified types and models, utilizing an abstract factory pattern to manage concrete prompt implementations. The newly introduced `Static Analyzer` subsystem focuses on source code analysis, employing a `Scanner` to parse code, leveraging `ProgrammingLanguage` abstractions for language-specific handling, and potentially interacting with an `LSP Client` for enhanced analysis capabilities. The output of this analysis is encapsulated in an `AnalysisResult`, which may include `Graph` representations of the code. These two subsystems operate independently but contribute to the overall functionality of the project, with the `Static Analyzer` providing insights into code structure and behavior that could potentially inform or be utilized by other parts of the system.
+The system's architecture is centered around an Agent that orchestrates static code analysis and decision-making. The Agent utilizes a PromptFactory to dynamically generate context-aware prompts, guiding its interactions and analysis tasks. To perform code analysis, the Agent invokes the Scanner, which acts as the primary interface for static analysis. The Scanner relies on the LSP Client to communicate with external Language Servers, thereby acquiring rich, language-specific code insights. All findings from the static analysis are then structured and encapsulated within an AnalysisResult object, which the Agent subsequently consumes to inform its actions and refine its understanding of the codebase. This modular design ensures clear separation of concerns, enabling flexible integration with various language servers and adaptable agent behaviors.
+
+### Agent
+Drives the overall analysis process, makes decisions based on analysis results, and orchestrates interactions with other components. It utilizes PromptFactory for dynamic prompt generation and Scanner to initiate code analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/" target="_blank" rel="noopener noreferrer">`agents.tools`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/" target="_blank" rel="noopener noreferrer">`agents.prompts`</a>
+
 
 ### PromptFactory
-Responsible for dynamically generating LLM prompts based on specified types and models.
+Dynamically generates LLM prompts based on specified types and models, providing structured input for the Agent.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py#L382-L446" target="_blank" rel="noopener noreferrer">`PromptFactory`:382-446</a>
-
-
-### AbstractPromptFactory
-Defines the interface for prompt factories.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py#L10-L95" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`:10-95</a>
-
-
-### Concrete Prompt Factories
-Implementations of the AbstractPromptFactory for specific prompt types and models.
-
-
-**Related Classes/Methods**:
-
-- `ConcretePromptFactory`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/" target="_blank" rel="noopener noreferrer">`agents.prompts`</a>
 
 
 ### Scanner
-Responsible for parsing source code and extracting relevant information, acting as the entry point for static analysis.
+Acts as the entry point for static analysis, parsing source code, extracting relevant information, and orchestrating the data gathering from language servers.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
-
-
-### ProgrammingLanguage
-Defines the interfaces or base classes for handling different programming languages, allowing the Scanner to be extensible.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguage`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner`</a>
 
 
 ### LSP Client
-Integrates with Language Server Protocol (LSP) for interacting with language servers to obtain analysis data.
+Integrates with Language Server Protocol (LSP) to communicate with external language servers, obtaining rich analysis data such as definitions, references, and diagnostics.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.client`</a>
 
 
 ### AnalysisResult
-Encapsulates the output of the static analysis, providing a structured representation of the findings.
+Encapsulates the structured output of the static analysis, including code graphs, findings, and other relevant data, providing a standardized format for consumption.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_result.AnalysisResult`</a>
-
-
-### Graph
-Used to represent the relationships within the analyzed code, such as control flow graphs or dependency graphs.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.Graph`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_result`</a>
 
 
 ### Unclassified

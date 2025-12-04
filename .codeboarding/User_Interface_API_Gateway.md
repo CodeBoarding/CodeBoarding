@@ -9,18 +9,15 @@ graph LR
     Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Job_Management
-    API_Service -- "provides status to" --> Job_Management
     Job_Management -- "orchestrates" --> Documentation_Generation
-    Job_Management -- "receives requests from" --> API_Service
+    Job_Management -- "provides status to" --> API_Service
     Documentation_Generation -- "delegates tasks to" --> CodeBoardingAgent
-    Documentation_Generation -- "orchestrated by" --> Job_Management
     CodeBoardingAgent -- "utilizes" --> Static_Analysis_Tools
     CodeBoardingAgent -- "accesses" --> Temporary_Repository_Manager
     CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
-    CodeBoardingAgent -- "generates content for" --> Documentation_Generation
-    Temporary_Repository_Manager -- "manages repositories for" --> CodeBoardingAgent
     Static_Analysis_Tools -- "provides code understanding to" --> CodeBoardingAgent
     Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
+    Temporary_Repository_Manager -- "manages repositories for" --> CodeBoardingAgent
     Configuration_Manager -- "provides settings to" --> CodeBoardingAgent
     Configuration_Manager -- "provides settings to" --> Static_Analysis_Tools
 ```
@@ -29,10 +26,10 @@ graph LR
 
 ## Details
 
-The system is designed around a robust documentation generation pipeline. The `API Service` acts as the entry point, initiating and monitoring documentation jobs managed by the `Job Management` component. The `Documentation Generation` orchestrates the overall process, delegating the core analysis and content creation to the `CodeBoardingAgent`. This intelligent agent leverages enhanced `Static Analysis Tools` for in-depth code understanding, now with expanded capabilities for handling various programming languages. It also utilizes the `Temporary Repository Manager` for managing code repositories and relies on the `Configuration Manager` for all system settings, including those for static analysis and agent behavior. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.
+The system's core flow begins with the API Service receiving requests, which are then managed by Job Management. Job Management orchestrates the Documentation Generation process. The Documentation Generation component delegates the crucial task of understanding the codebase and generating content to the CodeBoardingAgent. The CodeBoardingAgent, acting as the central intelligence, leverages the Static Analysis Tools for deep code understanding, which has been significantly enhanced through an updated LSP client. It also uses the Temporary Repository Manager to access and manage the codebase. All components rely on the Configuration Manager for system settings. The refined internal mechanisms of CodeBoardingAgent and the enhanced Static Analysis Tools lead to more robust and accurate documentation generation.
 
 ### API Service
-Acts as the entry point for the system, initiating and monitoring documentation jobs.
+Acts as the external entry point for the system, initiating and monitoring documentation generation jobs.
 
 
 **Related Classes/Methods**:
@@ -40,52 +37,58 @@ Acts as the entry point for the system, initiating and monitoring documentation 
 
 
 ### Job Management
-Manages the lifecycle of documentation jobs, tracking their progress and status.
+Manages the lifecycle of documentation jobs, tracking their progress, status, and orchestrating the overall generation process.
 
 
 **Related Classes/Methods**:
 
-- `job_management.JobManager`
+- `job_management.JobManager`:1-10
 
 
 ### Documentation Generation
-Orchestrates the overall process of generating documentation, delegating tasks to other components.
+Orchestrates the detailed process of generating documentation content by delegating specific tasks to the CodeBoardingAgent.
 
 
 **Related Classes/Methods**:
 
-- `doc_generation.DocumentationGenerator`
 
 
 ### CodeBoardingAgent
-The central intelligence responsible for understanding the codebase, retrieving information, and generating documentation content.
+The central intelligence component, now with significantly refined internal mechanisms, responsible for deeply understanding the codebase, efficiently retrieving information, and generating robust documentation content. Its internal tools for information retrieval and response formulation have been substantially enhanced.
 
 
 **Related Classes/Methods**:
 
-- `codeboarding_agent.CodeBoardingAgent`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`None`</a>
 
 
 ### Temporary Repository Manager
-Assists the CodeBoardingAgent by handling repository cloning and temporary file storage.
+Supports the CodeBoardingAgent by managing the cloning of repositories and handling temporary file storage for analysis.
 
 
 **Related Classes/Methods**:
 
-- `temp_repo_manager.TemporaryRepositoryManager`:1-10
+- `temp_repo_manager.TemporaryRepositoryManager`
 
 
 ### Static Analysis Tools
-Provides in-depth code understanding to the CodeBoardingAgent, with enhanced capabilities for defining and processing various programming languages.
+Provides enhanced, in-depth code understanding capabilities to the CodeBoardingAgent through a significantly overhauled Language Server Protocol (LSP) client, improving the quality and depth of code analysis for various programming languages.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`None`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language`</a>
 
 
 ### Configuration Manager
-Provides all system settings and configurations to other components.
+Centralized component for providing all system settings and configurations to other components, ensuring consistent operational parameters.
 
 
 **Related Classes/Methods**:
