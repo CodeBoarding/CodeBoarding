@@ -42,10 +42,7 @@ def validate_env_vars():
         os.environ["REPO_ROOT"] = "repos"
 
     if not os.getenv("ROOT_RESULT"):
-        logger.warning(
-            "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'"
-        )
-        os.environ["ROOT_RESULT"] = "results"
+        logger.warning("ROOT_RESULT environment variable not set")
 
 
 def onboarding_materials_exist(project_name: str, source_dir: str):
