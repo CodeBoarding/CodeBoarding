@@ -507,7 +507,7 @@ requires-dist = [
     { name = "isort", specifier = "==6.0.1" },
     { name = "jiter", specifier = "==0.10.0" },
     { name = "jsonschema", specifier = "==4.25.0" },
-    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain", specifier = "==0.3.27" },
     { name = "langchain-anthropic", specifier = "==0.3.18" },
     { name = "langchain-aws", specifier = "==0.2.27" },
     { name = "langchain-cerebras", specifier = ">=0.8.1" },

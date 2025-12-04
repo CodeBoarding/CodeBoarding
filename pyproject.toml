@@ -29,7 +29,7 @@ dependencies = [
     "isort==6.0.1",
     "jiter==0.10.0",
     "jsonschema==4.25.0",
-    "langchain>=0.3.0",
+    "langchain==0.3.27",
     "langchain-anthropic==0.3.18",
     "langchain-aws==0.2.27",
     "langchain-cerebras>=0.8.1",
