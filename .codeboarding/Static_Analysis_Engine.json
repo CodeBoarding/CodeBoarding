@@ -11,16 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/reference_resolve_mixin.py",
-        "../../static_analyzer/graph.py",
-        "../../static_analyzer/analysis_result.py",
-        "../../static_analyzer/lsp_client/__init__.py",
-        "../../static_analyzer/lsp_client/typescript_client.py",
-        "../../static_analyzer/lsp_client/client.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Scanner",
@@ -32,14 +23,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/programming_language.py",
-        "../../static_analyzer/__init__.py",
-        "../../static_analyzer/scanner.py",
-        "../../static_analyzer/typescript_config_scanner.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Agent",
@@ -51,9 +35,7 @@
           "reference_start_line": 21,
           "reference_end_line": 149
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "VSCode Integration",
@@ -65,9 +47,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Diagram Generator",
@@ -79,9 +59,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "External Dependencies",
@@ -93,16 +71,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

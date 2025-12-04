@@ -41,9 +41,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "PromptFactory",
@@ -55,20 +53,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/__init__.py",
-        "../../agents/prompts/claude_prompts_bidirectional.py",
-        "../../agents/prompts/gpt_prompts_unidirectional.py",
-        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "../../agents/prompts/abstract_prompt_factory.py",
-        "../../agents/prompts/gpt_prompts_bidirectional.py",
-        "../../agents/prompts/prompt_factory.py",
-        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "../../agents/prompts/claude_prompts_unidirectional.py",
-        "../../agents/prompts"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Scanner",
@@ -80,9 +65,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "LSP Client",
@@ -94,9 +77,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "AnalysisResult",
@@ -108,16 +89,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
