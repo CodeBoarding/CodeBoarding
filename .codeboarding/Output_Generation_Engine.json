@@ -1,9 +1,9 @@
 {
-  "description": "The system's architecture is centered around the `Agent Component`, which acts as the primary orchestrator for static analysis and documentation generation. This component leverages its enhanced information-gathering capabilities to interact with the `Static Analysis Component`, a crucial upstream dependency responsible for performing robust code analysis and generating \"AI-interpreted insights.\" These insights, enriched by the `Static Analysis Component`'s strengthened LSP client integration and sophisticated language understanding, are then dispatched by the `Agent Component` to two distinct pathways: the `Output Format Dispatcher` and the `Diagram Generation Component`. The `Output Format Dispatcher` delegates the conversion of insights into various textual documentation formats (Markdown, HTML, MDX, Sphinx) via specialized generators, while the newly recognized `Diagram Generation Component` provides visual representations of the analysis results. This modular design ensures a clear separation of concerns, supporting a flexible and extensible pipeline for both comprehensive documentation and insightful visualizations.",
+  "description": "The system operates as a sophisticated documentation generation pipeline, orchestrated by the central `Agent Component`. This component, having undergone recent enhancements, now more robustly coordinates the entire workflow. It initiates by leveraging the `Static Analysis Component` to acquire AI-interpreted insights from the codebase. These refined insights are then intelligently dispatched by the `Agent Component` to either the `Output Format Dispatcher` for conversion into various textual documentation formats (Markdown, HTML, MDX, Sphinx) or to the `Diagram Generation Component` for visual representations. This architecture ensures a clear separation of concerns, allowing for flexible and extensible documentation and diagram generation capabilities.",
   "components": [
     {
       "name": "Agent Component",
-      "description": "This component acts as the primary orchestrator, driving the overall process of static analysis and documentation generation. It has significantly enhanced capabilities for gathering information from the codebase through its internal tools. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats, and to the `Diagram Generation Component` for visualization. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline.",
+      "description": "This component serves as the primary orchestrator, driving the overall process of static analysis and documentation generation. Recent architectural changes have further evolved and enhanced its core orchestration logic and capabilities. It now refines its information gathering processes through internal tools and more precisely coordinates with other components. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats, and to the `Diagram Generation Component` for visualization. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline with enhanced precision.",
       "referenced_source_code": [
         {
           "qualified_name": "agents/agent.py",
@@ -11,7 +11,9 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Static Analysis Component",
@@ -23,7 +25,9 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Output Format Dispatcher",
@@ -53,7 +57,11 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/__init__.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Markdown Generator",
@@ -65,7 +73,11 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/markdown.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "HTML Generator",
@@ -77,7 +89,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Mdx Generator",
@@ -89,7 +106,11 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/mdx.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Sphinx Generator",
@@ -101,7 +122,11 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/sphinx.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Diagram Generation Component",
@@ -113,12 +138,16 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [

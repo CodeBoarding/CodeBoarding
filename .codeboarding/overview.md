@@ -9,7 +9,6 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
     Orchestration_Engine_Agent_Core_ -- "Manages Repository Access" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
@@ -35,7 +34,7 @@ graph LR
 
 ## Details
 
-The system operates as a sophisticated code analysis and architectural diagram generation tool, centered around an Orchestration Engine (Agent Core). This engine initiates analysis requests received from the User Interface / API Gateway, then interacts with the Repository Manager to access the codebase. The codebase is subsequently submitted to the Static Analysis Engine for in-depth structural analysis. Results from static analysis inform the LLM Prompt Factory, which generates tailored prompts for the AI Interpretation Layer. This layer processes prompts and context using LLMs to derive architectural insights. These insights are then passed to the Output Generation Engine for structured formatting, and finally to the Diagram Analysis & Renderer to produce visual architectural diagrams, which are displayed back through the User Interface / API Gateway. This core flow is preserved, with internal enhancements across key components improving overall robustness and capability.
+The system operates with the Orchestration Engine (Agent Core) as its central control unit, dynamically managing the entire code analysis workflow. It initiates analysis requests received from the User Interface / API Gateway, then coordinates with the Repository Manager for codebase access. The Orchestration Engine directs the codebase to the Static Analysis Engine for structural analysis and leverages the LLM Prompt Factory to generate context-aware prompts. These prompts and analysis results are then processed by the AI Interpretation Layer to generate architectural insights. Finally, the Orchestration Engine guides these insights through the Output Generation Engine and Diagram Analysis & Renderer for structured output and visualization, which are ultimately presented back via the User Interface / API Gateway. The recent enhancements within the Orchestration Engine reflect an evolution in its internal logic, leading to more sophisticated state management and refined coordination mechanisms across all components.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
 The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
@@ -47,7 +46,7 @@ The system's primary interface for users, handling analysis requests and display
 
 
 ### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit managing the entire analysis workflow, coordinating all components, maintaining analysis state, and effectively managing enhanced capabilities and analysis workflow.
+The central control unit, dynamically managing the entire analysis workflow. It coordinates all components, maintains a sophisticated analysis state, and leverages refined internal logic to orchestrate enhanced capabilities and the overall analysis process.
 
 
 **Related Classes/Methods**:
@@ -111,12 +110,6 @@ Refines structured output into diagram-specific formats and renders visual archi
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

@@ -1,58 +1,62 @@
 ```mermaid
 graph LR
-    LSPClient["LSPClient"]
     AbstractionAgent["AbstractionAgent"]
     DetailsAgent["DetailsAgent"]
-    Language_Servers_External_["Language Servers (External)"]
+    LLM_Interaction_Handler["LLM Interaction Handler"]
+    Prompt_Factory["Prompt Factory"]
     Unclassified["Unclassified"]
-    LSPClient -- "initiates communication with" --> Language_Servers_External_
-    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
-    LSPClient -- "provides high-level static analysis data to" --> AbstractionAgent
-    LSPClient -- "provides detailed static analysis data to" --> DetailsAgent
-    AbstractionAgent -- "utilizes expanded tooling to analyze" --> LSPClient_data
-    DetailsAgent -- "utilizes expanded tooling to analyze" --> LSPClient_data
+    AbstractionAgent -- "Utilizes" --> LLM_Interaction_Handler
+    AbstractionAgent -- "Uses" --> Prompt_Factory
+    AbstractionAgent -- "Passes insights to" --> DetailsAgent
+    DetailsAgent -- "Utilizes" --> LLM_Interaction_Handler
+    DetailsAgent -- "Uses" --> Prompt_Factory
+    LLM_Interaction_Handler -- "Utilized by" --> AbstractionAgent
+    LLM_Interaction_Handler -- "Utilized by" --> DetailsAgent
+    Prompt_Factory -- "Used by" --> AbstractionAgent
+    Prompt_Factory -- "Used by" --> DetailsAgent
+    click Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Factory.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around the LSPClient, which serves as a robust data acquisition layer, orchestrating communication with various Language Servers (External) to gather comprehensive static analysis data. This client, now enhanced with flexible language configuration and VSCode integration, efficiently collects diverse code intelligence. The collected data is then channeled to two specialized analytical components: the AbstractionAgent and the DetailsAgent. The AbstractionAgent consumes high-level data to identify major system components and their interconnections, forming an abstract architectural representation. Concurrently, the DetailsAgent utilizes detailed data to perform granular analysis, uncovering implementation specifics and design patterns. Both agents leverage expanded internal tooling to process this data, ensuring a thorough and multi-faceted understanding of the codebase. This design facilitates a clear separation of concerns, enabling efficient and scalable architectural analysis.
-
-### LSPClient
-Acts as the central data acquisition and orchestration layer, establishing robust communication with various Language Servers (External). It is enhanced with flexible language detection and configuration mechanisms, alongside deeper integration with the VSCode environment, making it a sophisticated data provider.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py#L57-L1102" target="_blank" rel="noopener noreferrer">`LSPClient`:57-1102</a>
-
+The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform AI-driven architectural analysis. The `AbstractionAgent` initiates the process by transforming raw static analysis data into high-level architectural concepts, leveraging LLMs for interpretation. Subsequently, the `DetailsAgent` refines these abstractions, extracting granular insights. Both agents rely on a `LLM Interaction Handler` to manage communication with various LLM providers, ensuring consistent API calls and response processing. A `Prompt Factory` component is crucial for both agents, providing optimized prompt templates and strategies to ensure effective and consistent interactions with the LLMs, thereby maintaining the quality and relevance of the architectural interpretations. This modular design allows for flexible integration of different LLM technologies and robust prompt management.
 
 ### AbstractionAgent
-Focuses on synthesizing high-level architectural views, identifying major components and their responsibilities. It processes data using expanded tooling to synthesize high-level architectural views.
+Responsible for abstracting raw static analysis data into higher-level architectural concepts, identifying components, patterns, and relationships by formulating prompts for LLMs. This agent initiates the AI-driven analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L30-L206" target="_blank" rel="noopener noreferrer">`AbstractionAgent`:30-206</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`AbstractionAgent`</a>
 
 
 ### DetailsAgent
-Delves into specific code sections, uncovering design patterns and explaining implementation rationale. It processes data using expanded tooling to perform in-depth analysis of code structures.
+Complements the AbstractionAgent by refining initial abstractions, extracting specific details, or providing granular insights into the architecture using LLMs. It acts on the insights provided by the AbstractionAgent.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L31-L191" target="_blank" rel="noopener noreferrer">`DetailsAgent`:31-191</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
 
 
-### Language Servers (External)
-External services that provide comprehensive static analysis data and code intelligence (e.g., call graphs, symbol references) to the LSPClient.
+### LLM Interaction Handler
+This component is responsible for abstracting away the specifics of various LLM APIs, handling API calls, authentication, and response normalization for diverse LLM providers. It ensures the system's adaptability to different LLM technologies.
 
 
 **Related Classes/Methods**:
 
-- `LanguageServer`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.Agent`</a>
+
+
+### Prompt Factory [[Expand]](./Prompt_Factory.md)
+Manages prompt templates, context windows, and strategies to optimize LLM responses, ensuring consistent and effective communication with LLMs for architectural interpretation. This component ensures the quality and consistency of LLM interactions.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
 
 
 ### Unclassified

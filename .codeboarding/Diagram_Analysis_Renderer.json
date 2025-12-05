@@ -1,9 +1,9 @@
 {
-  "description": "The system is orchestrated by the Output Generation Engine, which initiates the analysis process. It delegates detailed code interpretation, abstraction, planning, and validation to the Agent Orchestration component. The Agent Orchestration component, in turn, relies heavily on the Static Analyzer for foundational code understanding. The Static Analyzer has been significantly enhanced with a deeper integration of the Language Server Protocol (LSP) through its LSPClient, enabling it to extract comprehensive structural and semantic information, including call graphs, class hierarchies, and package dependencies. This rich data is then consumed by the Agent Orchestration's expanded toolset to perform sophisticated analysis. Finally, the Output Generation Engine uses the Analysis Data Formatter to convert the processed analysis into a standardized JSON format for architectural diagram generation.",
+  "description": "The system's primary objective is to generate structured architectural analysis outputs. This process is initiated and managed by the Output Generation Engine, which orchestrates the entire workflow. It delegates the complex task of code interpretation and detailed analysis to the Agent Orchestration component. The Agent Orchestration component, in turn, relies heavily on the Static Analyzer to acquire foundational and semantic understanding of the codebase. Once the analysis is complete, the Output Generation Engine utilizes the Analysis Data Formatter to convert the internal analysis objects into a standardized JSON format, suitable for external consumption and diagram rendering.",
   "components": [
     {
       "name": "Output Generation Engine",
-      "description": "Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates `Agent Orchestration` to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams. It also utilizes the `Analysis Data Formatter`.",
+      "description": "The Output Generation Engine serves as the central orchestrator, managing the overall analysis workflow and coordinating the other components. It initiates and manages the process of generating structured architectural analysis outputs and utilizes the Analysis Data Formatter to convert internal analysis objects into a standardized JSON format.",
       "referenced_source_code": [
         {
           "qualified_name": "OutputGenerationEngine",
@@ -11,82 +11,86 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Agent Orchestration",
-      "description": "Manages and coordinates various specialized agents responsible for interpreting code, performing detailed analysis, abstraction, planning, and validation. These agents rely on the `Static Analyzer` for foundational code understanding, leveraging its enhanced capabilities through a sophisticated toolset for reading documentation, file content, file structures, and package information.",
+      "description": "The Agent Orchestration component is responsible for the complex task of code interpretation and detailed analysis. It relies on the Static Analyzer for foundational and semantic understanding of the codebase and has been enhanced with refined agent behaviors and expanded task capabilities.",
       "referenced_source_code": [
         {
           "qualified_name": "AgentOrchestration",
-          "reference_file": "agents/tools/utils.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 40,
+          "reference_end_line": 267
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Static Analyzer",
-      "description": "Provides foundational capabilities for understanding and processing source code across different programming languages. It has been significantly enhanced with a deeper integration of the Language Server Protocol (LSP) via its `LSPClient`, enabling it to extract comprehensive structural and semantic information, including call graphs, class hierarchies, and package dependencies. This rich data is then consumed by `Agent Orchestration` for deeper analysis.",
+      "description": "The Static Analyzer provides foundational code understanding, leveraging its advanced capabilities to extract structural and semantic information from the codebase, which is then used by the Agent Orchestration component.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-          "reference_file": "static_analyzer/programming_language.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.scanner.Scanner",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "StaticAnalyzer",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": 44,
+          "reference_end_line": 67
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Analysis Data Formatter",
-      "description": "Responsible for converting the internal analysis objects into a standardized JSON format. This component ensures that the output is structured consistently, making it suitable for consumption by external diagram rendering tools.",
+      "description": "The Analysis Data Formatter ensures that all generated analysis data is converted into a standardized JSON format, making it readily consumable for documentation and diagram generation.",
       "referenced_source_code": [
         {
           "qualified_name": "AnalysisDataFormatter",
-          "reference_file": ".",
+          "reference_file": "analysis_data_formatter.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "analysis_data_formatter.py",
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/diagram_generator.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "orchestrates",
+      "relation": "orchestrates and delegates analysis to",
       "src_name": "Output Generation Engine",
       "dst_name": "Agent Orchestration"
     },
     {
-      "relation": "formats output via",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Analysis Data Formatter"
-    },
-    {
-      "relation": "utilizes",
+      "relation": "utilizes and requests code understanding from",
       "src_name": "Agent Orchestration",
       "dst_name": "Static Analyzer"
     },
     {
-      "relation": "provides detailed code analysis to",
+      "relation": "provides code analysis and supplies semantic data to",
       "src_name": "Static Analyzer",
       "dst_name": "Agent Orchestration"
+    },
+    {
+      "relation": "formats output via and uses for standardization",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Analysis Data Formatter"
     }
   ]
 }

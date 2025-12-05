@@ -1,25 +1,21 @@
 ```mermaid
 graph LR
     Query_Processor["Query Processor"]
-    Language_Model_Interface["Language Model Interface"]
-    Tool_Executor["Tool Executor"]
+    CodeBoardingAgent["CodeBoardingAgent"]
     Tools["Tools"]
-    Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
-    Query_Processor -- "initiates workflow with" --> Language_Model_Interface
-    Language_Model_Interface -- "directs actions to" --> Tool_Executor
-    Tool_Executor -- "invokes" --> Tools
-    Tools -- "returns results to" --> Tool_Executor
-    Tool_Executor -- "provides results to" --> Language_Model_Interface
-    Language_Model_Interface -- "sends output to" --> Response_Formatter
-    Response_Formatter -- "delivers output to" --> Query_Processor
+    Query_Processor -- "initiates workflow with" --> CodeBoardingAgent
+    CodeBoardingAgent -- "orchestrates communication with" --> LLM
+    CodeBoardingAgent -- "invokes" --> Tools
+    Tools -- "returns results to" --> CodeBoardingAgent
+    CodeBoardingAgent -- "delivers output to" --> Query_Processor
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is designed around a Query Processor that manages user interactions and orchestrates the overall workflow. It interfaces with the Language Model Interface, which is responsible for communicating with the underlying Large Language Model and directing actions to the Tool Executor. A key strength of this architecture lies in its Tools component, which has been substantially enhanced to provide advanced information gathering, static code analysis, and LSP client interactions, significantly improving the system's analytical depth. The Tool Executor processes the rich data from these Tools and feeds it back to the Language Model Interface. Finally, the Response Formatter takes the LLM's output and transforms it into a user-friendly format, which is then returned to the Query Processor. This refined architecture underscores a robust and highly capable Tools component, driving a significant evolution in the system's ability to process and respond to complex queries.
+The system's architecture is centered around the `CodeBoardingAgent`, which acts as the intelligent core for processing user queries. The `Query Processor` initiates the workflow by forwarding user requests to the `CodeBoardingAgent`. The `CodeBoardingAgent` then orchestrates complex interactions with a Large Language Model (LLM) and a suite of specialized `Tools`. It dynamically selects and invokes these `Tools` to gather necessary information and perform static code analysis. After receiving results from the `Tools` and further refining its understanding with the LLM, the `CodeBoardingAgent` is responsible for parsing and formatting the final response, which is then delivered back to the `Query Processor` for presentation to the user. This design ensures a clear separation of concerns, with the `CodeBoardingAgent` managing the intelligent reasoning and execution, while `Tools` provide specific functionalities and the `Query Processor` handles user interaction.
 
 ### Query Processor
 Manages user interactions and initiates the overall workflow.
@@ -30,40 +26,24 @@ Manages user interactions and initiates the overall workflow.
 - `QueryProcessor.handle_request`:10-20
 
 
-### Language Model Interface
-Acts as the primary conduit to the Large Language Model (LLM), orchestrates communication with the LLM and directs necessary actions to the Tool Executor.
+### CodeBoardingAgent
+Serves as the central orchestrator, managing communication with the Large Language Model (LLM), directing the invocation of specialized tools, and processing/formatting the LLM's output. It embodies the core logic for intelligent reasoning and task execution.
 
 
 **Related Classes/Methods**:
 
-- `LanguageModelInterface.communicate_with_llm`
-
-
-### Tool Executor
-Processes the outcomes from the Tools and feeds the enriched results back to the Language Model Interface. Directs invocation of Tools for specialized tasks.
-
-
-**Related Classes/Methods**:
-
-- `ToolExecutor.execute_tool`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L155-L191" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent._invoke`:155-191</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L198-L224" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent._parse_response`:198-224</a>
 
 
 ### Tools
-Has undergone substantial modifications to its `read_` tools and `lsp_client`. Executes advanced static code analysis and data retrieval. Performs advanced information gathering and static analysis.
+A collection of specialized utilities that execute advanced static code analysis and data retrieval. These tools perform advanced information gathering and static analysis as directed by the `CodeBoardingAgent`.
 
 
 **Related Classes/Methods**:
 
-- `Tools.lsp_client`:1-10
-
-
-### Response Formatter
-Crafts a user-friendly message for the Query Processor. Formats LLM output.
-
-
-**Related Classes/Methods**:
-
-- `ResponseFormatter.format_response`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`Tools.read_tools`</a>
+- `Tools.lsp_client`
 
 
 ### Unclassified

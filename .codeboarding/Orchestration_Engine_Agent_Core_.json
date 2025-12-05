@@ -1,5 +1,5 @@
 {
-  "description": "The system's architecture is designed around a Query Processor that manages user interactions and orchestrates the overall workflow. It interfaces with the Language Model Interface, which is responsible for communicating with the underlying Large Language Model and directing actions to the Tool Executor. A key strength of this architecture lies in its Tools component, which has been substantially enhanced to provide advanced information gathering, static code analysis, and LSP client interactions, significantly improving the system's analytical depth. The Tool Executor processes the rich data from these Tools and feeds it back to the Language Model Interface. Finally, the Response Formatter takes the LLM's output and transforms it into a user-friendly format, which is then returned to the Query Processor. This refined architecture underscores a robust and highly capable Tools component, driving a significant evolution in the system's ability to process and respond to complex queries.",
+  "description": "The system's architecture is centered around the `CodeBoardingAgent`, which acts as the intelligent core for processing user queries. The `Query Processor` initiates the workflow by forwarding user requests to the `CodeBoardingAgent`. The `CodeBoardingAgent` then orchestrates complex interactions with a Large Language Model (LLM) and a suite of specialized `Tools`. It dynamically selects and invokes these `Tools` to gather necessary information and perform static code analysis. After receiving results from the `Tools` and further refining its understanding with the LLM, the `CodeBoardingAgent` is responsible for parsing and formatting the final response, which is then delivered back to the `Query Processor` for presentation to the user. This design ensures a clear separation of concerns, with the `CodeBoardingAgent` managing the intelligent reasoning and execution, while `Tools` provide specific functionalities and the `Query Processor` handles user interaction.",
   "components": [
     {
       "name": "Query Processor",
@@ -11,102 +11,104 @@
           "reference_start_line": 10,
           "reference_end_line": 20
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
-      "name": "Language Model Interface",
-      "description": "Acts as the primary conduit to the Large Language Model (LLM), orchestrates communication with the LLM and directs necessary actions to the Tool Executor.",
+      "name": "CodeBoardingAgent",
+      "description": "Serves as the central orchestrator, managing communication with the Large Language Model (LLM), directing the invocation of specialized tools, and processing/formatting the LLM's output. It embodies the core logic for intelligent reasoning and task execution.",
       "referenced_source_code": [
         {
-          "qualified_name": "LanguageModelInterface.communicate_with_llm",
-          "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Tool Executor",
-      "description": "Processes the outcomes from the Tools and feeds the enriched results back to the Language Model Interface. Directs invocation of Tools for specialized tasks.",
-      "referenced_source_code": [
+          "qualified_name": "agents.agent.CodeBoardingAgent._invoke",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 155,
+          "reference_end_line": 191
+        },
         {
-          "qualified_name": "ToolExecutor.execute_tool",
-          "reference_file": "ToolExecutor.execute_tool",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "agents.agent.CodeBoardingAgent._parse_response",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 198,
+          "reference_end_line": 224
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/__init__.py",
+        "../../agents/diff_analyzer.py",
+        "../../agents/validator_agent.py",
+        "../../agents/planner_agent.py",
+        "../../agents/meta_agent.py",
+        "../../agents/monitoring.py",
+        "../../agents/agent_responses.py",
+        "../../agents/agent.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Tools",
-      "description": "Has undergone substantial modifications to its `read_` tools and `lsp_client`. Executes advanced static code analysis and data retrieval. Performs advanced information gathering and static analysis.",
+      "description": "A collection of specialized utilities that execute advanced static code analysis and data retrieval. These tools perform advanced information gathering and static analysis as directed by the `CodeBoardingAgent`.",
       "referenced_source_code": [
         {
           "qualified_name": "Tools.read_tools",
-          "reference_file": "",
+          "reference_file": ".",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
           "qualified_name": "Tools.lsp_client",
           "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "Response Formatter",
-      "description": "Crafts a user-friendly message for the Query Processor. Formats LLM output.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ResponseFormatter.format_response",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/tools/read_source.py",
+        "../../agents/tools/read_file_structure.py",
+        "../../agents/tools/__init__.py",
+        "../../agents/tools/external_deps.py",
+        "../../agents/tools/read_packages.py",
+        "../../agents/tools/read_cfg.py",
+        "../../agents/tools/get_method_invocations.py",
+        "../../agents/tools/read_git_diff.py",
+        "../../agents/tools/read_file.py",
+        "../../agents/tools/utils.py",
+        "../../agents/tools/read_structure.py",
+        "../../agents/tools/read_docs.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
       "relation": "initiates workflow with",
       "src_name": "Query Processor",
-      "dst_name": "Language Model Interface"
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "directs actions to",
-      "src_name": "Language Model Interface",
-      "dst_name": "Tool Executor"
+      "relation": "orchestrates communication with",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "LLM"
     },
     {
       "relation": "invokes",
-      "src_name": "Tool Executor",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Tools"
     },
     {
       "relation": "returns results to",
       "src_name": "Tools",
-      "dst_name": "Tool Executor"
-    },
-    {
-      "relation": "provides results to",
-      "src_name": "Tool Executor",
-      "dst_name": "Language Model Interface"
-    },
-    {
-      "relation": "sends output to",
-      "src_name": "Language Model Interface",
-      "dst_name": "Response Formatter"
+      "dst_name": "CodeBoardingAgent"
     },
     {
       "relation": "delivers output to",
-      "src_name": "Response Formatter",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Query Processor"
     }
   ]

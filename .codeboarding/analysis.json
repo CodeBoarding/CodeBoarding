@@ -1,5 +1,5 @@
 {
-  "description": "The system operates as a sophisticated code analysis and architectural diagram generation tool, centered around an Orchestration Engine (Agent Core). This engine initiates analysis requests received from the User Interface / API Gateway, then interacts with the Repository Manager to access the codebase. The codebase is subsequently submitted to the Static Analysis Engine for in-depth structural analysis. Results from static analysis inform the LLM Prompt Factory, which generates tailored prompts for the AI Interpretation Layer. This layer processes prompts and context using LLMs to derive architectural insights. These insights are then passed to the Output Generation Engine for structured formatting, and finally to the Diagram Analysis & Renderer to produce visual architectural diagrams, which are displayed back through the User Interface / API Gateway. This core flow is preserved, with internal enhancements across key components improving overall robustness and capability.",
+  "description": "The system operates with the Orchestration Engine (Agent Core) as its central control unit, dynamically managing the entire code analysis workflow. It initiates analysis requests received from the User Interface / API Gateway, then coordinates with the Repository Manager for codebase access. The Orchestration Engine directs the codebase to the Static Analysis Engine for structural analysis and leverages the LLM Prompt Factory to generate context-aware prompts. These prompts and analysis results are then processed by the AI Interpretation Layer to generate architectural insights. Finally, the Orchestration Engine guides these insights through the Output Generation Engine and Diagram Analysis & Renderer for structured output and visualization, which are ultimately presented back via the User Interface / API Gateway. The recent enhancements within the Orchestration Engine reflect an evolution in its internal logic, leading to more sophisticated state management and refined coordination mechanisms across all components.",
   "components": [
     {
       "name": "User Interface / API Gateway",
@@ -21,7 +21,7 @@
     },
     {
       "name": "Orchestration Engine (Agent Core)",
-      "description": "The central control unit managing the entire analysis workflow, coordinating all components, maintaining analysis state, and effectively managing enhanced capabilities and analysis workflow.",
+      "description": "The central control unit, dynamically managing the entire analysis workflow. It coordinates all components, maintains a sophisticated analysis state, and leverages refined internal logic to orchestrate enhanced capabilities and the overall analysis process.",
       "referenced_source_code": [
         {
           "qualified_name": "agents.agent.CodeBoardingAgent",
@@ -192,8 +192,7 @@
       "assigned_files": [
         "diagram_analysis/__init__.py",
         "diagram_analysis/analysis_json.py",
-        "diagram_analysis/diagram_generator.py",
-        "diagram_analysis/version.py"
+        "diagram_analysis/diagram_generator.py"
       ],
       "can_expand": true
     },
@@ -210,15 +209,9 @@
         "evals/static_analysis_eval.py",
         "evals/end_to_end_eval.py",
         "evals/run_all_evals.py",
-        "evals/report_generator.py"
+        "evals/report_generator.py",
+        "diagram_analysis/version.py"
       ],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
       "can_expand": false
     }
   ],
