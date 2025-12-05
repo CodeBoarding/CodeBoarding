@@ -7,12 +7,12 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def generate_header(title: str, timestamp: str | None = None, extra_lines: list[str] | None = None) -> str:
     """Generate a standard Markdown header with timestamp."""
-    ts = timestamp or datetime.utcnow().isoformat()
+    ts = timestamp or datetime.now(timezone.utc).isoformat()
     lines = [f"# {title}", "", f"**Generated:** {ts}", ""]
     if extra_lines:
         lines.extend(extra_lines)
