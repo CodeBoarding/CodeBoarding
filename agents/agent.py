@@ -20,7 +20,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from monitoring import MonitoringCallback, stats, RunStats
+from monitoring import MonitoringCallback, RunStats
 from agents.tools import (
     CodeReferenceReader,
     CodeStructureTool,

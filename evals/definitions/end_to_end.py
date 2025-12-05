@@ -36,21 +36,9 @@ class EndToEndEval(BaseEval):
         llm_data = run_data.get("llm_usage", {})
         code_stats = run_data.get("code_stats", {})
 
-        # Check for diagrams in project output, although this might require checking files
-        # Base class doesn't inherently know about specific artifacts other than json files.
-        # But we can check if mermaid diagram exists in run_data or just assume we might need it later.
-        # The original code read it from `project.get("mermaid_diagram", "")` which seemed to come from nowhere
-        # or was expected to be populated. Looking at original `run_end_to_end_eval`, it didn't populate mermaid_diagram.
-        # Wait, looking at `generate_e2e_section` in `report_generator.py`:
-        # `mermaid_diagram = project.get("mermaid_diagram", "")`
-        # But `run_end_to_end_eval` function didn't seem to put it there.
-        # Let's check `demo.py` or `monitoring` to see where diagrams are.
-        # `demo.py` generates docs.
-
         return {
             "monitoring": self._aggregate_llm_usage(llm_data),
             "code_stats": code_stats,
-            # Placeholder if we want to read diagrams later
             "mermaid_diagram": "",
         }
 
