@@ -79,7 +79,7 @@ class ScalabilityEval(BaseEval):
 
         # Plot 3: Token Usage per Agent (Stacked Bar)
         # We'll take the average usage across projects for a representative view
-        avg_agent_tokens = {}
+        avg_agent_tokens: Dict[str, Dict[str, List[int]]] = {}
         for r in data:
             for agent, usage in r.get("agent_token_usage", {}).items():
                 if agent not in avg_agent_tokens:

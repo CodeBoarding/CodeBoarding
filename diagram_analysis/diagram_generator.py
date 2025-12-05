@@ -40,7 +40,7 @@ class DiagramGenerator:
         self.meta_agent: MetaAgent | None = None
         self.meta_context = None
         self.depth_level = depth_level
-        self._monitoring_agents: dict[str, CodeBoardingAgent] = {}
+        self._monitoring_agents: dict[str, CodeBoardingAgent | None] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
     def process_component(self, component):

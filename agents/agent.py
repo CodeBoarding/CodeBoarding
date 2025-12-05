@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Any, Dict
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
@@ -198,8 +199,8 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)
+            config: Dict[str, Any] = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
+            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:

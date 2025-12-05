@@ -24,8 +24,8 @@ class MonitoringCallback(BaseCallbackHandler):
 
     def __init__(self, stats_container: RunStats | None = None):
         # runtime bookkeeping
-        self._tool_start_times = {}  # run_id -> start_time
-        self._tool_names = {}  # run_id -> tool_name
+        self._tool_start_times: Dict[str, float] = {}  # run_id -> start_time
+        self._tool_names: Dict[str, str] = {}  # run_id -> tool_name
         self.stats = stats_container if stats_container is not None else stats
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -56,7 +56,8 @@ class MonitoringCallback(BaseCallbackHandler):
         )
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
-        run_id: str | None = kwargs.get("run_id")
+        run_id_any = kwargs.get("run_id")
+        run_id: str | None = str(run_id_any) if run_id_any else None
         tool_name = (
             serialized.get("name")
             or serialized.get("id")
@@ -72,7 +73,8 @@ class MonitoringCallback(BaseCallbackHandler):
             self._tool_names[run_id] = tool_name
 
     def on_tool_end(self, output: Any, **kwargs: Any) -> None:
-        run_id: str | None = kwargs.get("run_id")
+        run_id_any = kwargs.get("run_id")
+        run_id: str | None = str(run_id_any) if run_id_any else None
         if run_id and run_id in self._tool_start_times:
             start = self._tool_start_times.pop(run_id)
             tool_name = self._tool_names.pop(run_id, "unknown_tool")
@@ -84,15 +86,16 @@ class MonitoringCallback(BaseCallbackHandler):
         self, error: BaseException, *, run_id: UUID, parent_run_id: UUID | None = None, **kwargs: Any
     ) -> Any:
         tool_name = "unknown_tool"
-        if run_id and run_id in self._tool_names:
-            tool_name = self._tool_names[run_id]
+        run_id_str = str(run_id)
+        if run_id_str in self._tool_names:
+            tool_name = self._tool_names[run_id_str]
         with self.stats._lock:
             self.stats.tool_errors[tool_name] += 1
 
         # Clean up any in-flight timing
-        if run_id and run_id in self._tool_start_times:
-            self._tool_start_times.pop(run_id, None)
-            self._tool_names.pop(run_id, None)
+        if run_id_str in self._tool_start_times:
+            self._tool_start_times.pop(run_id_str, None)
+            self._tool_names.pop(run_id_str, None)
 
     def _extract_usage(self, response: LLMResult) -> Dict[str, int]:
         def _coerce_int(value: Any) -> int:

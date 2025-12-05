@@ -19,7 +19,7 @@ logger = logging.getLogger("monitoring")
 
 
 @contextlib.contextmanager
-def monitor_execution(run_id: str = None, output_dir: str = "evals/artifacts/monitoring_results", enabled: bool = True):
+def monitor_execution(run_id: str | None = None, output_dir: str = "evals/artifacts/monitoring_results", enabled: bool = True):
     """
     Context manager that handles the entire monitoring lifecycle.
     - Sets up JSONL streaming for trace events

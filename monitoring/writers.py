@@ -34,7 +34,7 @@ class StreamingStatsWriter:
         self.output_dir = output_dir
         self.interval = interval
         self._stop_event = threading.Event()
-        self._thread = None
+        self._thread: threading.Thread | None = None
         self._logger = logging.getLogger("monitoring.writer")
         self._start_time: float | None = None
         self._error: str | None = None

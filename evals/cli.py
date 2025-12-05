@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import sys
+from typing import Any
 from pathlib import Path
 
 # Ensure we can import from parent directory if run as script
@@ -31,7 +32,7 @@ def main():
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
 
-    evals_to_run = []
+    evals_to_run: list[tuple[Any, list[dict[str, str]], list[str]]] = []
 
     if args.type in ["static", "all"]:
         evals_to_run.append(

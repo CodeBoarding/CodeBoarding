@@ -24,7 +24,7 @@ class BaseEval(ABC):
     def __init__(self, name: str, output_dir: Path):
         self.name = name
         self.output_dir = output_dir
-        self.results = []
+        self.results: List[Dict[str, Any]] = []
         self.project_root = self._get_project_root()
 
     def _get_project_root(self) -> Path:
@@ -80,7 +80,7 @@ class BaseEval(ABC):
 
         return data
 
-    def run_pipeline(self, project: Dict[str, str], extra_args: List[str] = None) -> Dict[str, Any]:
+    def run_pipeline(self, project: Dict[str, str], extra_args: List[str] | None = None) -> Dict[str, Any]:
         """Run the CodeBoarding pipeline for a project."""
         repo_url = project["url"]
         project_name = project["name"]
@@ -143,7 +143,7 @@ class BaseEval(ABC):
         """Subclasses must implement this to format their specific Markdown report."""
         pass
 
-    def run(self, projects: List[Dict], extra_args: List[str] = None) -> Dict[str, Any]:
+    def run(self, projects: List[Dict], extra_args: List[str] | None = None) -> Dict[str, Any]:
         """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
         logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
 
