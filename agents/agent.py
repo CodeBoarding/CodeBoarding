@@ -199,7 +199,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config: Dict[str, Any] = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
+            config: dict[str, Any] = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
