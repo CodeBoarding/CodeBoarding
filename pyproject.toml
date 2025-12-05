@@ -32,6 +32,7 @@ dependencies = [
     "langchain==0.3.27",
     "langchain-anthropic==0.3.18",
     "langchain-aws==0.2.27",
+    "langchain-cerebras>=0.8.1",
     "langchain-community==0.3.27",
     "langchain-google-genai==2.1.4",
     "langchain-ollama==0.3.6",

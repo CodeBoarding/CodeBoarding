@@ -46,7 +46,6 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
-        # self._monitoring_callback = None  # Used by monitor decorator
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
