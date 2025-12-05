@@ -21,6 +21,7 @@ from agents.agent import CodeBoardingAgent
 from monitoring import StreamingStatsWriter
 from repo_utils import get_git_commit_hash
 from static_analyzer import StaticAnalyzer
+from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
 
@@ -93,26 +94,17 @@ class DiagramGenerator:
         # --- Capture Static Analysis Stats ---
         static_stats = {"repo_name": self.repo_name, "languages": {}}
 
+        # Use ProjectScanner to get accurate LOC counts via tokei
+        scanner = ProjectScanner(self.repo_location)
+        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)
-            file_count = len(files)
-            total_loc = 0
 
-            # Calculate LOC (simplistic approach)
-            for file_path in files:
-                try:
-                    # Determine if path is absolute or relative to repo
-                    full_path = Path(file_path)
-                    if not full_path.is_absolute():
-                        full_path = self.repo_location / full_path
-
-                    if full_path.exists():
-                        with open(full_path, "r", errors="ignore") as f:
-                            total_loc += sum(1 for _ in f)
-                except Exception as e:
-                    logging.warning(f"Could not count LOC for {file_path}: {e}")
-
-            static_stats["languages"][language] = {"file_count": file_count, "lines_of_code": total_loc}
+            static_stats["languages"][language] = {
+                "file_count": len(files),
+                "lines_of_code": loc_by_language.get(language, 0),
+            }
         # ------------------------------------------
 
         self.meta_agent = MetaAgent(
