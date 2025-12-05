@@ -4,32 +4,29 @@ graph LR
     Scanner["Scanner"]
     Agent["Agent"]
     VSCode_Integration["VSCode Integration"]
+    Diagram_Generator["Diagram Generator"]
     External_Dependencies["External Dependencies"]
     Unclassified["Unclassified"]
     Static_Analysis_Engine_Core -- "utilizes data from" --> Scanner
-    Static_Analysis_Engine_Core -- "provides analysis results to" --> Agent
-    Static_Analysis_Engine_Core -- "depends on" --> External_Dependencies
+    Static_Analysis_Engine_Core -- "provides enhanced analysis results to" --> Agent
+    Static_Analysis_Engine_Core -- "provides data for" --> Diagram_Generator
     Scanner -- "generates data for" --> Static_Analysis_Engine_Core
-    Scanner -- "depends on" --> External_Dependencies
-    Agent -- "consumes analysis from" --> Static_Analysis_Engine_Core
+    Agent -- "consumes enhanced analysis from" --> Static_Analysis_Engine_Core
+    Agent -- "orchestrates" --> Diagram_Generator
     Agent -- "interacts with" --> VSCode_Integration
-    Agent -- "depends on" --> External_Dependencies
     VSCode_Integration -- "manages the interface for" --> Agent
-    VSCode_Integration -- "depends on" --> External_Dependencies
-    External_Dependencies -- "supports" --> Scanner
-    External_Dependencies -- "supports" --> Static_Analysis_Engine_Core
-    External_Dependencies -- "supports" --> Agent
-    External_Dependencies -- "supports" --> VSCode_Integration
+    Diagram_Generator -- "receives data from" --> Static_Analysis_Engine_Core
+    Diagram_Generator -- "orchestrated by" --> Agent
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around a robust static analysis pipeline. The Scanner initiates the process by parsing source code, leveraging enhanced language definitions to generate fundamental data. This data is then consumed by the Static Analysis Engine Core, which performs deeper analysis and produces structured outputs. An Agent component utilizes these analytical services to execute higher-level tasks and seamlessly integrates with the VSCode environment through the VSCode Integration component, managing IDE-specific interactions and configurations. All these core components rely on a set of External Dependencies for their functionality, ensuring a modular and extensible design. The main flow involves the Scanner feeding parsed data to the Static Analysis Engine Core, which then processes it and provides insights to the Agent. The Agent, in turn, coordinates with the VSCode Integration for IDE interactions, with all components underpinned by External Dependencies.
+The system's architecture is centered around the `Static Analysis Engine Core`, which performs deep code analysis, leveraging data from the `Scanner` for initial parsing. The `Agent` acts as the primary orchestrator, consuming enhanced analysis results from the `Static Analysis Engine Core` to perform higher-level tasks, understand project context, and refine its outputs. A new `Diagram Generator` component, orchestrated by the `Agent` and fed data by the `Static Analysis Engine Core`, provides visual representations of the analysis. The `VSCode Integration` manages the interface with the IDE, facilitating seamless interaction for the `Agent`. All these core components rely on `External Dependencies` for foundational support. This updated architecture reflects a significant evolution in the system's analytical depth, agent intelligence, and output capabilities, particularly with the introduction of diagram generation.
 
 ### Static Analysis Engine Core
-Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities.
+Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities through its refined LSP client, allowing for deeper and more accurate static analysis. Its analysis outputs may also have evolved in structure, impacting how the Agent consumes these results.
 
 
 **Related Classes/Methods**:
@@ -47,7 +44,7 @@ Responsible for the initial parsing of source code, generating fundamental data.
 
 
 ### Agent
-Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks, and coordinates with the VSCode Integration for IDE-specific operations.
+Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks. The Agent has undergone substantial enhancements, particularly in its ability to gather and process information, understand project context more deeply, and refine how it formulates and communicates its outputs. It also coordinates with the VSCode Integration for IDE-specific operations and can orchestrate diagram generation.
 
 
 **Related Classes/Methods**:
@@ -62,6 +59,15 @@ Manages all interactions, configurations, and communication specific to the VSCo
 **Related Classes/Methods**:
 
 - `VSCodeIntegration`:1-10
+
+
+### Diagram Generator
+A new functional block responsible for generating diagrams. This component likely derives data from the Static Analysis Engine Core's analysis results and is orchestrated by the Agent to produce visual representations.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`DiagramGenerator`</a>
 
 
 ### External Dependencies

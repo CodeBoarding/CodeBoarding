@@ -1,9 +1,9 @@
 {
-  "description": "The system is designed around a robust documentation generation pipeline. The `API Service` acts as the entry point, initiating and monitoring documentation jobs managed by the `Job Management` component. The `Documentation Generation` orchestrates the overall process, delegating the core analysis and content creation to the `CodeBoardingAgent`. This intelligent agent leverages enhanced `Static Analysis Tools` for in-depth code understanding, now with expanded capabilities for handling various programming languages. It also utilizes the `Temporary Repository Manager` for managing code repositories and relies on the `Configuration Manager` for all system settings, including those for static analysis and agent behavior. This architecture ensures a clear separation of concerns, enabling efficient and scalable documentation generation.",
+  "description": "The system's core flow begins with the API Service receiving requests, which are then managed by Job Management. Job Management orchestrates the Documentation Generation process. The Documentation Generation component delegates the crucial task of understanding the codebase and generating content to the CodeBoardingAgent. The CodeBoardingAgent, acting as the central intelligence, leverages the Static Analysis Tools for deep code understanding, which has been significantly enhanced through an updated LSP client. It also uses the Temporary Repository Manager to access and manage the codebase. All components rely on the Configuration Manager for system settings. The refined internal mechanisms of CodeBoardingAgent and the enhanced Static Analysis Tools lead to more robust and accurate documentation generation.",
   "components": [
     {
       "name": "API Service",
-      "description": "Acts as the entry point for the system, initiating and monitoring documentation jobs.",
+      "description": "Acts as the external entry point for the system, initiating and monitoring documentation generation jobs.",
       "referenced_source_code": [
         {
           "qualified_name": "api_service.APIService",
@@ -11,106 +11,126 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Management",
-      "description": "Manages the lifecycle of documentation jobs, tracking their progress and status.",
+      "description": "Manages the lifecycle of documentation jobs, tracking their progress, status, and orchestrating the overall generation process.",
       "referenced_source_code": [
         {
           "qualified_name": "job_management.JobManager",
-          "reference_file": "<full file path>",
-          "reference_start_line": 0,
-          "reference_end_line": 0
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Documentation Generation",
-      "description": "Orchestrates the overall process of generating documentation, delegating tasks to other components.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "doc_generation.DocumentationGenerator",
-          "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../vscode_runnable.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "CodeBoardingAgent",
-      "description": "The central intelligence responsible for understanding the codebase, retrieving information, and generating documentation content.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "codeboarding_agent.CodeBoardingAgent",
-          "reference_file": "I cannot fulfill your request as the list of files to choose from is empty. The instructions state: \"You MUST select exactly one file path from the list above. Do not invent or modify paths.\" Since no paths are provided, I am unable to select one.",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Temporary Repository Manager",
-      "description": "Assists the CodeBoardingAgent by handling repository cloning and temporary file storage.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "temp_repo_manager.TemporaryRepositoryManager",
           "reference_file": "<file_path>",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
+    },
+    {
+      "name": "Documentation Generation",
+      "description": "Orchestrates the detailed process of generating documentation content by delegating specific tasks to the CodeBoardingAgent.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "doc_generation.DocumentationGenerator",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "CodeBoardingAgent",
+      "description": "The central intelligence component, now with significantly refined internal mechanisms, responsible for deeply understanding the codebase, efficiently retrieving information, and generating robust documentation content. Its internal tools for information retrieval and response formulation have been substantially enhanced.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/tools/read_docs.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/tools/read_file.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "None",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "Temporary Repository Manager",
+      "description": "Supports the CodeBoardingAgent by managing the cloning of repositories and handling temporary file storage for analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "temp_repo_manager.TemporaryRepositoryManager",
+          "reference_file": "No file paths were provided. Please provide a list of files to search within.",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
     },
     {
       "name": "Static Analysis Tools",
-      "description": "Provides in-depth code understanding to the CodeBoardingAgent, with enhanced capabilities for defining and processing various programming languages.",
+      "description": "Provides enhanced, in-depth code understanding capabilities to the CodeBoardingAgent through a significantly overhauled Language Server Protocol (LSP) client, improving the quality and depth of code analysis for various programming languages.",
       "referenced_source_code": [
+        {
+          "qualified_name": "None",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
           "qualified_name": "static_analyzer.programming_language",
           "reference_file": "static_analyzer/programming_language.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../vscode_constants.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Configuration Manager",
-      "description": "Provides all system settings and configurations to other components.",
+      "description": "Centralized component for providing all system settings and configurations to other components, ensuring consistent operational parameters.",
       "referenced_source_code": [
         {
           "qualified_name": "config_manager.ConfigurationManager",
-          "reference_file": "<file_path>",
+          "reference_file": "path/to/file.txt",
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
@@ -120,17 +140,12 @@
       "dst_name": "Job Management"
     },
     {
-      "relation": "provides status to",
-      "src_name": "API Service",
-      "dst_name": "Job Management"
-    },
-    {
       "relation": "orchestrates",
       "src_name": "Job Management",
       "dst_name": "Documentation Generation"
     },
     {
-      "relation": "receives requests from",
+      "relation": "provides status to",
       "src_name": "Job Management",
       "dst_name": "API Service"
     },
@@ -138,11 +153,6 @@
       "relation": "delegates tasks to",
       "src_name": "Documentation Generation",
       "dst_name": "CodeBoardingAgent"
-    },
-    {
-      "relation": "orchestrated by",
-      "src_name": "Documentation Generation",
-      "dst_name": "Job Management"
     },
     {
       "relation": "utilizes",
@@ -160,16 +170,6 @@
       "dst_name": "Configuration Manager"
     },
     {
-      "relation": "generates content for",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "Documentation Generation"
-    },
-    {
-      "relation": "manages repositories for",
-      "src_name": "Temporary Repository Manager",
-      "dst_name": "CodeBoardingAgent"
-    },
-    {
       "relation": "provides code understanding to",
       "src_name": "Static Analysis Tools",
       "dst_name": "CodeBoardingAgent"
@@ -178,6 +178,11 @@
       "relation": "retrieves settings from",
       "src_name": "Static Analysis Tools",
       "dst_name": "Configuration Manager"
+    },
+    {
+      "relation": "manages repositories for",
+      "src_name": "Temporary Repository Manager",
+      "dst_name": "CodeBoardingAgent"
     },
     {
       "relation": "provides settings to",

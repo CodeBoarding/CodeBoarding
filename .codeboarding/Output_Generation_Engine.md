@@ -7,9 +7,11 @@ graph LR
     HTML_Generator["HTML Generator"]
     Mdx_Generator["Mdx Generator"]
     Sphinx_Generator["Sphinx Generator"]
+    Diagram_Generation_Component["Diagram Generation Component"]
     Unclassified["Unclassified"]
     Agent_Component -- "orchestrates" --> Static_Analysis_Component
     Agent_Component -- "dispatches insights to" --> Output_Format_Dispatcher
+    Agent_Component -- "dispatches insights to" --> Diagram_Generation_Component
     Static_Analysis_Component -- "provides AI-interpreted insights to" --> Agent_Component
     Output_Format_Dispatcher -- "delegates generation to" --> Markdown_Generator
     Output_Format_Dispatcher -- "delegates generation to" --> HTML_Generator
@@ -21,10 +23,10 @@ graph LR
 
 ## Details
 
-The system's architecture is centered around a pipeline-driven approach, with the Agent Component serving as the primary orchestrator. It initiates the static analysis process by engaging the Static Analysis Component, which has been significantly enhanced to provide sophisticated AI-interpreted insights across various programming languages. Once these insights are generated, the Agent Component directs them to the Output Format Dispatcher. This dispatcher then intelligently delegates the task of transforming these insights into diverse documentation formats, such as Markdown, HTML, MDX, or Sphinx, to specialized generator components. This design ensures a modular, extensible, and efficient workflow for code analysis and documentation generation.
+The system's architecture is centered around the `Agent Component`, which acts as the primary orchestrator for static analysis and documentation generation. This component leverages its enhanced information-gathering capabilities to interact with the `Static Analysis Component`, a crucial upstream dependency responsible for performing robust code analysis and generating "AI-interpreted insights." These insights, enriched by the `Static Analysis Component`'s strengthened LSP client integration and sophisticated language understanding, are then dispatched by the `Agent Component` to two distinct pathways: the `Output Format Dispatcher` and the `Diagram Generation Component`. The `Output Format Dispatcher` delegates the conversion of insights into various textual documentation formats (Markdown, HTML, MDX, Sphinx) via specialized generators, while the newly recognized `Diagram Generation Component` provides visual representations of the analysis results. This modular design ensures a clear separation of concerns, supporting a flexible and extensible pipeline for both comprehensive documentation and insightful visualizations.
 
 ### Agent Component
-This component acts as the primary orchestrator, driving the overall process of static analysis and documentation generation. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline.
+This component acts as the primary orchestrator, driving the overall process of static analysis and documentation generation. It has significantly enhanced capabilities for gathering information from the codebase through its internal tools. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats, and to the `Diagram Generation Component` for visualization. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline.
 
 
 **Related Classes/Methods**:
@@ -33,7 +35,7 @@ This component acts as the primary orchestrator, driving the overall process of 
 
 
 ### Static Analysis Component
-This component is responsible for performing static analysis on the codebase and generating "AI-interpreted insights." It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Due to significant architectural changes in `static_analyzer/programming_language.py`, this component now features a deeper and more sophisticated understanding of various programming languages, enhancing its ability to identify, parse, and process code. It also features enhanced IDE integration, particularly with VS Code, allowing for more robust interaction and delivery of insights within the development environment. The updates in its LSP client and scanning logic (`static_analyzer/scanner.py`) highlight its active development and importance in the overall system.
+This component is responsible for performing robust static analysis on the codebase and generating "AI-interpreted insights." It acts as a crucial upstream dependency, providing the raw, processed data that the `Agent Component` then utilizes. Its strengthened LSP client integration and sophisticated understanding of various programming languages enhance its ability to identify, parse, and process code, delivering deeper insights within the development environment.
 
 
 **Related Classes/Methods**:
@@ -87,6 +89,15 @@ Focuses on transforming AI-interpreted insights into a format compatible with Sp
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators/sphinx.py`</a>
+
+
+### Diagram Generation Component
+This component is responsible for generating diagrams and visualizations from the AI-interpreted insights. It provides a new way to present and understand the analysis results, complementing the textual documentation outputs.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/diagram_generator.py`</a>
 
 
 ### Unclassified
