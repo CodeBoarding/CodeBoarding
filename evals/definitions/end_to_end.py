@@ -1,9 +1,14 @@
-from typing import Dict, Any, List
+from typing import Any
 from evals.base import BaseEval
 from evals.utils import generate_header
 
 
 class EndToEndEval(BaseEval):
+    """
+    Evaluates the full execution pipeline to determine overall success rates and resource consumption.
+    Aggregates metrics such as token usage, tool calls, and execution time across all agents.
+    Provides a high-level summary of system reliability and performance on real-world projects.
+    """
     def _aggregate_llm_usage(self, llm_data: dict) -> dict[str, Any]:
         """Aggregate token and tool usage across all agents."""
         total_tokens = 0
@@ -32,7 +37,7 @@ class EndToEndEval(BaseEval):
             "tool_usage": {"counts": tool_counts, "errors": tool_errors},
         }
 
-    def extract_metrics(self, project: Dict, run_data: Dict) -> Dict[str, Any]:
+    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
         llm_data = run_data.get("llm_usage", {})
         code_stats = run_data.get("code_stats", {})
 
@@ -42,7 +47,7 @@ class EndToEndEval(BaseEval):
             "mermaid_diagram": "",
         }
 
-    def generate_report(self, results: List[Dict]) -> str:
+    def generate_report(self, results: list[dict]) -> str:
         header = generate_header("End-to-End Pipeline Evaluation")
 
         lines = [

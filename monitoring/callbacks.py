@@ -5,7 +5,7 @@ LangChain callback handler for monitoring LLM usage.
 import json
 import logging
 import time
-from typing import Any, Dict, Mapping, MutableMapping, cast
+from typing import Any, Mapping, MutableMapping, cast
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -24,8 +24,8 @@ class MonitoringCallback(BaseCallbackHandler):
 
     def __init__(self, stats_container: RunStats | None = None):
         # runtime bookkeeping
-        self._tool_start_times: Dict[str, float] = {}  # run_id -> start_time
-        self._tool_names: Dict[str, str] = {}  # run_id -> tool_name
+        self._tool_start_times: dict[str, float] = {}  # run_id -> start_time
+        self._tool_names: dict[str, str] = {}  # run_id -> tool_name
         self.stats = stats_container if stats_container is not None else stats
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -97,7 +97,7 @@ class MonitoringCallback(BaseCallbackHandler):
             self._tool_start_times.pop(run_id_str, None)
             self._tool_names.pop(run_id_str, None)
 
-    def _extract_usage(self, response: LLMResult) -> Dict[str, int]:
+    def _extract_usage(self, response: LLMResult) -> dict[str, int]:
         def _coerce_int(value: Any) -> int:
             try:
                 return int(value)

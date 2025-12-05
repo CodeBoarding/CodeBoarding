@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -7,7 +7,12 @@ from evals.utils import generate_header
 
 
 class ScalabilityEval(BaseEval):
-    def extract_metrics(self, project: Dict, run_data: Dict) -> Dict[str, Any]:
+    """
+    Measures system performance characteristics as the size of the input codebase increases.
+    Correlates Lines of Code (LOC) with execution time and token usage to assess efficiency.
+    Generates visual plots to identify scaling trends and potential bottlenecks in the architecture.
+    """
+    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
         code_stats = run_data.get("code_stats", {})
         llm_usage = run_data.get("llm_usage", {})
 
@@ -41,7 +46,7 @@ class ScalabilityEval(BaseEval):
             "agent_tool_usage": agent_tool_usage,
         }
 
-    def generate_report(self, results: List[Dict]) -> str:
+    def generate_report(self, results: list[dict]) -> str:
         # Filter valid results
         data = [r for r in results if r.get("success") and r.get("loc", 0) > 0]
 
@@ -79,7 +84,7 @@ class ScalabilityEval(BaseEval):
 
         # Plot 3: Token Usage per Agent (Stacked Bar)
         # We'll take the average usage across projects for a representative view
-        avg_agent_tokens: Dict[str, Dict[str, List[int]]] = {}
+        avg_agent_tokens: dict[str, dict[str, list[int]]] = {}
         for r in data:
             for agent, usage in r.get("agent_token_usage", {}).items():
                 if agent not in avg_agent_tokens:

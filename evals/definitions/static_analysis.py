@@ -1,10 +1,10 @@
-from typing import Dict, Any, List
+from typing import Any
 from evals.base import BaseEval
 from evals.utils import generate_header
 
 
 class StaticAnalysisEval(BaseEval):
-    def extract_metrics(self, project: Dict, run_data: Dict) -> Dict[str, Any]:
+    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
         code_stats = run_data.get("code_stats", {})
 
         # Calculate totals
@@ -27,7 +27,7 @@ class StaticAnalysisEval(BaseEval):
             }
         }
 
-    def generate_report(self, results: List[Dict]) -> str:
+    def generate_report(self, results: list[dict]) -> str:
         header = generate_header("Static Analysis Performance Evaluation")
 
         # Aggregate totals

@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
@@ -27,7 +26,7 @@ class PlannerAgent(CodeBoardingAgent):
         )
 
     @trace_step("plan_analysis")
-    def plan_analysis(self, analysis: AnalysisInsights) -> List[Component]:
+    def plan_analysis(self, analysis: AnalysisInsights) -> list[Component]:
         """
         Generate a plan for analyzing the provided components.
         This method should return a structured plan detailing how to analyze each component.

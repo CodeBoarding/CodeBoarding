@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -24,7 +24,7 @@ class BaseEval(ABC):
     def __init__(self, name: str, output_dir: Path):
         self.name = name
         self.output_dir = output_dir
-        self.results: List[Dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
         self.project_root = self._get_project_root()
 
     def _get_project_root(self) -> Path:
@@ -53,7 +53,7 @@ class BaseEval(ABC):
 
         return matching_dirs[0] if matching_dirs else None
 
-    def get_latest_run_data(self, project_name: str) -> Dict[str, Any]:
+    def get_latest_run_data(self, project_name: str) -> dict[str, Any]:
         """Read all monitoring data for a project from its run directory."""
         run_dir = self.get_latest_run_dir(project_name)
 
@@ -80,7 +80,7 @@ class BaseEval(ABC):
 
         return data
 
-    def run_pipeline(self, project: Dict[str, str], extra_args: List[str] | None = None) -> Dict[str, Any]:
+    def run_pipeline(self, project: dict[str, str], extra_args: list[str] | None = None) -> dict[str, Any]:
         """Run the CodeBoarding pipeline for a project."""
         repo_url = project["url"]
         project_name = project["name"]
@@ -134,16 +134,16 @@ class BaseEval(ABC):
             }
 
     @abstractmethod
-    def extract_metrics(self, project: Dict, run_data: Dict) -> Dict[str, Any]:
+    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
         """Subclasses must implement this to pick what they care about."""
         pass
 
     @abstractmethod
-    def generate_report(self, results: List[Dict]) -> str:
+    def generate_report(self, results: list[dict]) -> str:
         """Subclasses must implement this to format their specific Markdown report."""
         pass
 
-    def run(self, projects: List[Dict], extra_args: List[str] | None = None) -> Dict[str, Any]:
+    def run(self, projects: list[dict], extra_args: list[str] | None = None) -> dict[str, Any]:
         """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
         logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
 
@@ -215,7 +215,7 @@ class BaseEval(ABC):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _write_json(self, path: Path, data: Dict):
+    def _write_json(self, path: Path, data: dict):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
