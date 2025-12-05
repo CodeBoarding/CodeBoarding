@@ -2,7 +2,7 @@ import logging
 import os.path
 from pathlib import Path
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
@@ -21,7 +21,7 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from agents.monitoring import monitoring
+from monitoring import trace_step
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
 
-        self.context: dict[str, AnalysisInsights | list[AnalysisInsights]] = {
+        self.context: dict[str, AnalysisInsights | CFGAnalysisInsights | list[AnalysisInsights]] = {
             "structure_insight": []
         }  # Store evolving insights here
 
@@ -61,7 +61,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
-    @monitoring
+    @trace_step("step_cfg")
     def step_cfg(self):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -87,7 +87,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["cfg_insight"] = parsed_response
         return parsed_response
 
-    @monitoring
+    @trace_step("step_source")
     def step_source(self):
         logger.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
@@ -97,9 +97,11 @@ class AbstractionAgent(CodeBoardingAgent):
                 insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
             elif isinstance(analysis_insight, AnalysisInsights):
                 insight_str += analysis_insight.llm_str() + "\n\n"
+            elif isinstance(analysis_insight, CFGAnalysisInsights):
+                insight_str += analysis_insight.llm_str() + "\n\n"
             else:
                 raise TypeError(
-                    f"Expected analysis_insight to be either list or AnalysisInsights, "
+                    f"Expected analysis_insight to be either list, AnalysisInsights or CFGAnalysisInsights, "
                     f"but got {type(analysis_insight).__name__} for insight_type '{insight_type}'"
                 )
 
@@ -113,7 +115,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = parsed_response
         return parsed_response
 
-    @monitoring
+    @trace_step("generate_analysis")
     def generate_analysis(self):
         logger.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -137,7 +139,7 @@ class AbstractionAgent(CodeBoardingAgent):
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
-    @monitoring
+    @trace_step("apply_feedback")
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
         Apply feedback to the analysis and return the updated analysis.
@@ -148,7 +150,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    @monitoring
+    @trace_step("classify_files")
     def classify_files(self, analysis: AnalysisInsights):
         """
         Classify files into components based on the analysis. It will modify directly the analysis object.
