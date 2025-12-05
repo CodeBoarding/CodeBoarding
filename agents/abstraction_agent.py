@@ -95,7 +95,7 @@ class AbstractionAgent(CodeBoardingAgent):
             insight_str += f"## {insight_type.capitalize()} Insight\n"
             if isinstance(analysis_insight, list):
                 insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            elif isinstance(analysis_insight, AnalysisInsights):
+            elif isinstance(analysis_insight, (AnalysisInsights, CFGAnalysisInsights)):
                 insight_str += analysis_insight.llm_str() + "\n\n"
             else:
                 raise TypeError(
