@@ -78,12 +78,14 @@ The `python setup.py` command creates a `.env` file if it doesn't exist with a d
 
 ```bash
 # LLM Provider (choose one)
-OPENAI_API_KEY=                 
-ANTHROPIC_API_KEY=                 
-GOOGLE_API_KEY=                  
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GOOGLE_API_KEY=
 AWS_BEARER_TOKEN_BEDROCK=
 OLLAMA_BASE_URL=
-OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint     
+OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
+CEREBRAS_API_KEY=
+CODEBOARDING_MODEL=                # Optional: Specify model to use (e.g., gpt-4, claude-3-opus, gemini-2.0-flash-exp)
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
