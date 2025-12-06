@@ -6,6 +6,7 @@ from langchain.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
+    LLMBaseModel,
     AnalysisInsights,
     CFGAnalysisInsights,
     ValidationInsights,
@@ -40,7 +41,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
 
-        self.context: dict[str, AnalysisInsights | list[AnalysisInsights]] = {
+        self.context: dict[str, LLMBaseModel | list[LLMBaseModel]] = {
             "structure_insight": []
         }  # Store evolving insights here
 
@@ -95,11 +96,11 @@ class AbstractionAgent(CodeBoardingAgent):
             insight_str += f"## {insight_type.capitalize()} Insight\n"
             if isinstance(analysis_insight, list):
                 insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            elif isinstance(analysis_insight, AnalysisInsights):
+            elif isinstance(analysis_insight, LLMBaseModel):
                 insight_str += analysis_insight.llm_str() + "\n\n"
             else:
                 raise TypeError(
-                    f"Expected analysis_insight to be either list or AnalysisInsights, "
+                    f"Expected analysis_insight to be either list or LLMBaseModel, "
                     f"but got {type(analysis_insight).__name__} for insight_type '{insight_type}'"
                 )
 
