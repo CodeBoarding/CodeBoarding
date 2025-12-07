@@ -41,9 +41,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
 
-        self.context: dict[str, LLMBaseModel | list[LLMBaseModel]] = {
-            "structure_insight": []
-        }  # Store evolving insights here
+        self.context: dict[str, LLMBaseModel] = dict()
 
         self.prompts = {
             "cfg": PromptTemplate(
@@ -94,9 +92,7 @@ class AbstractionAgent(CodeBoardingAgent):
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if isinstance(analysis_insight, list):
-                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            elif isinstance(analysis_insight, LLMBaseModel):
+            if isinstance(analysis_insight, LLMBaseModel):
                 insight_str += analysis_insight.llm_str() + "\n\n"
             else:
                 raise TypeError(
