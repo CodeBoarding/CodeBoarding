@@ -10,9 +10,9 @@ graph LR
     Diagram_Generation_Component["Diagram Generation Component"]
     Unclassified["Unclassified"]
     Agent_Component -- "orchestrates" --> Static_Analysis_Component
+    Static_Analysis_Component -- "provides insights to" --> Agent_Component
     Agent_Component -- "dispatches insights to" --> Output_Format_Dispatcher
     Agent_Component -- "dispatches insights to" --> Diagram_Generation_Component
-    Static_Analysis_Component -- "provides AI-interpreted insights to" --> Agent_Component
     Output_Format_Dispatcher -- "delegates generation to" --> Markdown_Generator
     Output_Format_Dispatcher -- "delegates generation to" --> HTML_Generator
     Output_Format_Dispatcher -- "delegates generation to" --> Mdx_Generator
@@ -23,15 +23,16 @@ graph LR
 
 ## Details
 
-The system operates as a sophisticated documentation generation pipeline, orchestrated by the central `Agent Component`. This component, having undergone recent enhancements, now more robustly coordinates the entire workflow. It initiates by leveraging the `Static Analysis Component` to acquire AI-interpreted insights from the codebase. These refined insights are then intelligently dispatched by the `Agent Component` to either the `Output Format Dispatcher` for conversion into various textual documentation formats (Markdown, HTML, MDX, Sphinx) or to the `Diagram Generation Component` for visual representations. This architecture ensures a clear separation of concerns, allowing for flexible and extensible documentation and diagram generation capabilities.
+The system's architecture is centered around the `Agent Component`, which acts as the primary orchestrator for static analysis and documentation generation. It initiates the analysis process by interacting with the `Static Analysis Component` to obtain AI-interpreted insights from the codebase. These insights are then processed internally by the `Agent Component` through a streamlined abstraction handling mechanism, leading to a comprehensive analysis. Subsequently, the `Agent Component` dispatches these refined insights to the `Output Format Dispatcher` for conversion into various documentation formats (Markdown, HTML, MDX, Sphinx) and to the `Diagram Generation Component` for visual representations. This design ensures a clear separation of concerns, with the `Agent Component` managing the overall workflow and coordination, while specialized components handle specific tasks like static analysis, output formatting, and diagram generation.
 
 ### Agent Component
-This component serves as the primary orchestrator, driving the overall process of static analysis and documentation generation. Recent architectural changes have further evolved and enhanced its core orchestration logic and capabilities. It now refines its information gathering processes through internal tools and more precisely coordinates with other components. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats, and to the `Diagram Generation Component` for visualization. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline with enhanced precision.
+This component serves as the primary orchestrator, driving the overall process of static analysis and documentation generation. Recent architectural changes have further evolved and enhanced its core orchestration logic and capabilities, with its internal abstraction handling now refined and simplified for more concise and efficient execution. It refines its information gathering processes through internal tools and more precisely coordinates with other components. It interacts with the `Static Analysis Component` to obtain AI-interpreted insights and then directs these insights to the `Output Format Dispatcher` for conversion into various documentation formats, and to the `Diagram Generation Component` for visualization. This component embodies the core workflow logic, coordinating the different stages of the documentation pipeline with enhanced precision.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents/agent.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents/abstraction_agent.py`</a>
 
 
 ### Static Analysis Component

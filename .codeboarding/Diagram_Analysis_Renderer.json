@@ -1,96 +1,69 @@
 {
-  "description": "The system's primary objective is to generate structured architectural analysis outputs. This process is initiated and managed by the Output Generation Engine, which orchestrates the entire workflow. It delegates the complex task of code interpretation and detailed analysis to the Agent Orchestration component. The Agent Orchestration component, in turn, relies heavily on the Static Analyzer to acquire foundational and semantic understanding of the codebase. Once the analysis is complete, the Output Generation Engine utilizes the Analysis Data Formatter to convert the internal analysis objects into a standardized JSON format, suitable for external consumption and diagram rendering.",
+  "description": "The `diagram_analysis` subsystem is centered around the Analysis Generation Engine, embodied by the `DiagramGenerator` class. This engine orchestrates a multi-agent system to perform a comprehensive architectural analysis of a codebase. It leverages a `Meta Agent` for project metadata, `Details Agent` for in-depth component analysis, `Abstraction Agent` for high-level architectural insights, a `Planner Agent` to guide the analysis process, and a `Validator Agent` to ensure the quality of the generated insights. Additionally, a `Diff Analyzing Agent` is employed to efficiently manage updates and leverage previous analysis. The primary output of this engine is a set of structured JSON files, representing the detailed architectural analysis, which can then be consumed by other systems for visualization or reporting.",
   "components": [
     {
-      "name": "Output Generation Engine",
-      "description": "The Output Generation Engine serves as the central orchestrator, managing the overall analysis workflow and coordinating the other components. It initiates and manages the process of generating structured architectural analysis outputs and utilizes the Analysis Data Formatter to convert internal analysis objects into a standardized JSON format.",
+      "name": "Analysis Generation Engine",
+      "description": "This is the core component responsible for orchestrating the architectural analysis of the codebase. It initializes and coordinates various specialized agents (e.g., `DetailsAgent`, `AbstractionAgent`, `PlannerAgent`, `ValidatorAgent`, `DiffAnalyzingAgent`) to perform detailed and abstract analysis, validate insights, and plan further exploration. Its primary function is to generate structured architectural analysis data and save it as JSON files, which serve as the foundation for subsequent diagram generation or reporting.",
       "referenced_source_code": [
         {
-          "qualified_name": "OutputGenerationEngine",
-          "reference_file": "OutputGenerationEngine",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Agent Orchestration",
-      "description": "The Agent Orchestration component is responsible for the complex task of code interpretation and detailed analysis. It relies on the Static Analyzer for foundational and semantic understanding of the codebase and has been enhanced with refined agent behaviors and expanded task capabilities.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AgentOrchestration",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": 40,
-          "reference_end_line": 267
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analyzer",
-      "description": "The Static Analyzer provides foundational code understanding, leveraging its advanced capabilities to extract structural and semantic information from the codebase, which is then used by the Agent Orchestration component.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "StaticAnalyzer",
-          "reference_file": "static_analyzer/__init__.py",
-          "reference_start_line": 44,
-          "reference_end_line": 67
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Analysis Data Formatter",
-      "description": "The Analysis Data Formatter ensures that all generated analysis data is converted into a standardized JSON format, making it readily consumable for documentation and diagram generation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AnalysisDataFormatter",
-          "reference_file": "analysis_data_formatter.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 22,
+          "reference_end_line": 205
         }
       ],
       "assigned_files": [
-        "analysis_data_formatter.py",
-        "../../diagram_analysis/analysis_json.py"
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py",
+        "../../diagram_analysis/diagram_generator.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/diagram_generator.py"
+        "../../diagram_analysis/version.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "orchestrates and delegates analysis to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Agent Orchestration"
+      "relation": "Initializes and utilizes for project metadata analysis.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Meta Agent"
     },
     {
-      "relation": "utilizes and requests code understanding from",
-      "src_name": "Agent Orchestration",
-      "dst_name": "Static Analyzer"
+      "relation": "Initializes and utilizes for detailed component analysis and feedback application.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Details Agent"
     },
     {
-      "relation": "provides code analysis and supplies semantic data to",
-      "src_name": "Static Analyzer",
-      "dst_name": "Agent Orchestration"
+      "relation": "Initializes and utilizes for abstract architectural analysis and feedback application.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Abstraction Agent"
     },
     {
-      "relation": "formats output via and uses for standardization",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Analysis Data Formatter"
+      "relation": "Initializes and utilizes for planning subsequent analysis steps and identifying new components.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Planner Agent"
+    },
+    {
+      "relation": "Initializes and utilizes for validating analysis results and providing feedback.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Validator Agent"
+    },
+    {
+      "relation": "Initializes and utilizes for checking component updates and retrieving existing analysis.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "Diff Analyzing Agent"
+    },
+    {
+      "relation": "Saves analysis results as JSON files.",
+      "src_name": "Analysis Generation Engine",
+      "dst_name": "File System"
     }
   ]
 }

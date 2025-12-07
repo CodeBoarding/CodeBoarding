@@ -13,9 +13,9 @@
         }
       ],
       "assigned_files": [
-        "vscode_constants.py",
-        "vscode_runnable.py",
-        "local_app.py"
+        "../../vscode_constants.py",
+        "../../vscode_runnable.py",
+        "../../local_app.py"
       ],
       "can_expand": true
     },
@@ -31,26 +31,26 @@
         }
       ],
       "assigned_files": [
-        "agents/__init__.py",
-        "agents/diff_analyzer.py",
-        "agents/validator_agent.py",
-        "agents/planner_agent.py",
-        "agents/meta_agent.py",
-        "agents/monitoring.py",
-        "agents/agent_responses.py",
-        "agents/agent.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/__init__.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_file.py",
-        "agents/tools/utils.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py"
+        "../../agents/__init__.py",
+        "../../agents/diff_analyzer.py",
+        "../../agents/validator_agent.py",
+        "../../agents/planner_agent.py",
+        "../../agents/meta_agent.py",
+        "../../agents/monitoring.py",
+        "../../agents/agent_responses.py",
+        "../../agents/agent.py",
+        "../../agents/tools/read_source.py",
+        "../../agents/tools/read_file_structure.py",
+        "../../agents/tools/__init__.py",
+        "../../agents/tools/external_deps.py",
+        "../../agents/tools/read_packages.py",
+        "../../agents/tools/read_cfg.py",
+        "../../agents/tools/get_method_invocations.py",
+        "../../agents/tools/read_git_diff.py",
+        "../../agents/tools/read_file.py",
+        "../../agents/tools/utils.py",
+        "../../agents/tools/read_structure.py",
+        "../../agents/tools/read_docs.py"
       ],
       "can_expand": true
     },
@@ -72,10 +72,10 @@
         }
       ],
       "assigned_files": [
-        "utils.py",
-        "repo_utils/__init__.py",
-        "repo_utils/git_diff.py",
-        "repo_utils/errors.py"
+        "../../utils.py",
+        "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py",
+        "../../repo_utils/errors.py"
       ],
       "can_expand": false
     },
@@ -91,16 +91,16 @@
         }
       ],
       "assigned_files": [
-        "static_analyzer/programming_language.py",
-        "static_analyzer/__init__.py",
-        "static_analyzer/reference_resolve_mixin.py",
-        "static_analyzer/graph.py",
-        "static_analyzer/analysis_result.py",
-        "static_analyzer/scanner.py",
-        "static_analyzer/typescript_config_scanner.py",
-        "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/lsp_client/typescript_client.py",
-        "static_analyzer/lsp_client/client.py"
+        "../../static_analyzer/programming_language.py",
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/reference_resolve_mixin.py",
+        "../../static_analyzer/graph.py",
+        "../../static_analyzer/analysis_result.py",
+        "../../static_analyzer/scanner.py",
+        "../../static_analyzer/typescript_config_scanner.py",
+        "../../static_analyzer/lsp_client/__init__.py",
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
       ],
       "can_expand": true
     },
@@ -116,15 +116,15 @@
         }
       ],
       "assigned_files": [
-        "agents/prompts/__init__.py",
-        "agents/prompts/claude_prompts_bidirectional.py",
-        "agents/prompts/gpt_prompts_unidirectional.py",
-        "agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/gpt_prompts_bidirectional.py",
-        "agents/prompts/prompt_factory.py",
-        "agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "agents/prompts/claude_prompts_unidirectional.py"
+        "../../agents/prompts/__init__.py",
+        "../../agents/prompts/claude_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_unidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/abstract_prompt_factory.py",
+        "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/prompt_factory.py",
+        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "../../agents/prompts/claude_prompts_unidirectional.py"
       ],
       "can_expand": true
     },
@@ -146,8 +146,8 @@
         }
       ],
       "assigned_files": [
-        "agents/details_agent.py",
-        "agents/abstraction_agent.py"
+        "../../agents/details_agent.py",
+        "../../agents/abstraction_agent.py"
       ],
       "can_expand": true
     },
@@ -169,12 +169,12 @@
         }
       ],
       "assigned_files": [
-        "output_generators/__init__.py",
-        "output_generators/sphinx.py",
-        "output_generators/mdx.py",
-        "output_generators/html.py",
-        "output_generators/html_template.py",
-        "output_generators/markdown.py"
+        "../../output_generators/__init__.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
       ],
       "can_expand": true
     },
@@ -190,9 +190,10 @@
         }
       ],
       "assigned_files": [
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/analysis_json.py",
-        "diagram_analysis/diagram_generator.py"
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py",
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/version.py"
       ],
       "can_expand": true
     },
@@ -201,17 +202,23 @@
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "setup.py",
-        "github_action.py",
-        "demo.py",
-        "duckdb_crud.py",
-        "logging_config.py",
-        "evals/static_analysis_eval.py",
-        "evals/end_to_end_eval.py",
-        "evals/run_all_evals.py",
-        "evals/report_generator.py",
-        "diagram_analysis/version.py"
+        "../../setup.py",
+        "../../github_action.py",
+        "../../demo.py",
+        "../../duckdb_crud.py",
+        "../../logging_config.py",
+        "../../evals/static_analysis_eval.py",
+        "../../evals/end_to_end_eval.py",
+        "../../evals/run_all_evals.py",
+        "../../evals/report_generator.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
       "can_expand": false
     }
   ],

@@ -1,5 +1,5 @@
 {
-  "description": "The system's architecture is centered around the `CodeBoardingAgent`, which acts as the intelligent core for processing user queries. The `Query Processor` initiates the workflow by forwarding user requests to the `CodeBoardingAgent`. The `CodeBoardingAgent` then orchestrates complex interactions with a Large Language Model (LLM) and a suite of specialized `Tools`. It dynamically selects and invokes these `Tools` to gather necessary information and perform static code analysis. After receiving results from the `Tools` and further refining its understanding with the LLM, the `CodeBoardingAgent` is responsible for parsing and formatting the final response, which is then delivered back to the `Query Processor` for presentation to the user. This design ensures a clear separation of concerns, with the `CodeBoardingAgent` managing the intelligent reasoning and execution, while `Tools` provide specific functionalities and the `Query Processor` handles user interaction.",
+  "description": "The system is designed around a reactive agent architecture, with the Query Processor serving as the initial interface for user requests. These requests are then managed by the CodeBoardingAgent, which acts as the central orchestrator. The CodeBoardingAgent leverages an external Large Language Model for intelligent reasoning and decision-making, and it dynamically invokes various Tools to perform specialized static code analysis and data retrieval. The recent introduction of an AbstractionAgent component suggests an evolving design pattern, where CodeBoardingAgent may become a concrete implementation, benefiting from a more generalized and extensible agent framework. This architecture ensures a clear separation of concerns, allowing for flexible interaction with external AI models and robust internal analysis capabilities.",
   "components": [
     {
       "name": "Query Processor",
@@ -16,8 +16,22 @@
       "can_expand": true
     },
     {
+      "name": "AbstractionAgent",
+      "description": "Likely introduces a new abstract base class for agents, providing a generalized framework for agent design.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 31,
+          "reference_end_line": 197
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
       "name": "CodeBoardingAgent",
-      "description": "Serves as the central orchestrator, managing communication with the Large Language Model (LLM), directing the invocation of specialized tools, and processing/formatting the LLM's output. It embodies the core logic for intelligent reasoning and task execution.",
+      "description": "Serves as the central orchestrator, managing communication with the Large Language Model (LLM), directing the invocation of specialized tools, and processing/formatting the LLM's output. It embodies the core logic for intelligent reasoning and task execution and may be a concrete implementation of AbstractionAgent.",
       "referenced_source_code": [
         {
           "qualified_name": "agents.agent.CodeBoardingAgent._invoke",
@@ -33,38 +47,34 @@
         }
       ],
       "assigned_files": [
-        "../../agents/__init__.py",
         "../../agents/diff_analyzer.py",
         "../../agents/validator_agent.py",
         "../../agents/planner_agent.py",
         "../../agents/meta_agent.py",
-        "../../agents/monitoring.py",
-        "../../agents/agent_responses.py",
         "../../agents/agent.py"
       ],
       "can_expand": true
     },
     {
       "name": "Tools",
-      "description": "A collection of specialized utilities that execute advanced static code analysis and data retrieval. These tools perform advanced information gathering and static analysis as directed by the `CodeBoardingAgent`.",
+      "description": "A collection of specialized utilities that execute advanced static code analysis and data retrieval. These tools perform advanced information gathering and static analysis as directed by the CodeBoardingAgent.",
       "referenced_source_code": [
         {
           "qualified_name": "Tools.read_tools",
-          "reference_file": ".",
+          "reference_file": "Tools.read_tools",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
           "qualified_name": "Tools.lsp_client",
           "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ],
       "assigned_files": [
         "../../agents/tools/read_source.py",
         "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/__init__.py",
         "../../agents/tools/external_deps.py",
         "../../agents/tools/read_packages.py",
         "../../agents/tools/read_cfg.py",
@@ -76,6 +86,25 @@
         "../../agents/tools/read_docs.py"
       ],
       "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "Unclassified",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [
+        "../../agents/__init__.py",
+        "../../agents/monitoring.py",
+        "../../agents/agent_responses.py",
+        "../../agents/tools/__init__.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
@@ -110,6 +139,11 @@
       "relation": "delivers output to",
       "src_name": "CodeBoardingAgent",
       "dst_name": "Query Processor"
+    },
+    {
+      "relation": "provides framework for",
+      "src_name": "AbstractionAgent",
+      "dst_name": "CodeBoardingAgent"
     }
   ]
 }
