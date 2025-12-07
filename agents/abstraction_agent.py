@@ -41,7 +41,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
 
-        self.context: dict[str, LLMBaseModel] = dict()
+        self.context: dict[str, LLMBaseModel] = {}
 
         self.prompts = {
             "cfg": PromptTemplate(
@@ -92,13 +92,7 @@ class AbstractionAgent(CodeBoardingAgent):
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if isinstance(analysis_insight, LLMBaseModel):
-                insight_str += analysis_insight.llm_str() + "\n\n"
-            else:
-                raise TypeError(
-                    f"Expected analysis_insight to be either list or LLMBaseModel, "
-                    f"but got {type(analysis_insight).__name__} for insight_type '{insight_type}'"
-                )
+            insight_str += analysis_insight.llm_str() + "\n\n"
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
