@@ -11,11 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/prompt_factory.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "AbstractPromptFactory",
@@ -27,11 +23,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/abstract_prompt_factory.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "GeminiFlashBidirectionalPromptFactory",
@@ -43,11 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/gemini_flash_prompts_bidirectional.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "ClaudeBidirectionalPromptFactory",
@@ -59,11 +47,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/claude_prompts_bidirectional.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "GPTBidirectionalPromptFactory",
@@ -75,11 +59,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/prompts/gpt_prompts_bidirectional.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "LLMType",
@@ -91,9 +71,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "PromptType",
@@ -105,21 +83,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../agents/prompts/__init__.py",
-        "../../agents/prompts/gpt_prompts_unidirectional.py",
-        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "../../agents/prompts/claude_prompts_unidirectional.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

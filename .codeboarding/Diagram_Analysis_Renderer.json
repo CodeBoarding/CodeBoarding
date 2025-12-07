@@ -11,22 +11,12 @@
           "reference_start_line": 22,
           "reference_end_line": 205
         }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/analysis_json.py",
-        "../../diagram_analysis/diagram_generator.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../diagram_analysis/version.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
