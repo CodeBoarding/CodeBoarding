@@ -1,11 +1,19 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
-![Supports Go 3 Projects](https://img.shields.io/badge/supports-Go-blue.svg)
-![Supports TypeScript 3 Projects](https://img.shields.io/badge/supports-TypeScript.x-blue.svg)
-![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Site: CodeBoarding.org](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2)](https://codeboarding.org)
-[![Join us on Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/T5zHTJYFuy)
+[![Website](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2?style=for-the-badge&logoColor=white)](https://codeboarding.org)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?style=for-the-badge&logoColor=white)](https://discord.gg/T5zHTJYFuy)
+[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/i/Codeboarding.codeboarding?style=for-the-badge&logo=visual-studio-code&logoColor=white&label=VS%20Code%20Extension&color=blue)](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding)
+[![AI IDE Extension](https://img.shields.io/open-vsx/v/CodeBoarding/codeboarding?style=for-the-badge&logo=visual-studio-code&label=AI%20IDE%20Extension)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
+
+
+
+**Supported Languages:**
+
+[![Python Support](https://img.shields.io/badge/Python-Supported-green?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript Support](https://img.shields.io/badge/TypeScript-Supported-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![JavaScript Support](https://img.shields.io/badge/JavaScript-Supported-yellow?style=for-the-badge&logo=javascript&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Go Support](https://img.shields.io/badge/Go-Supported-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+[![PHP Support](https://img.shields.io/badge/PHP-Supported-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 
 **CodeBoarding** is an open-source codebase analysis tool that generates high-level diagram representations of codebases
 using static analysis and LLM agents, that humans and agents can interact with.  
@@ -54,13 +62,13 @@ graph LR
 
 ## 📌 Setup
 
-First, make you you have uv installed. Check official installation guide [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
+First, make sure you have uv installed. Check official installation guide [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
 
 Setup the environment:
 
 ```bash
 uv sync --frozen
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python setup.py
 ```
 
@@ -116,7 +124,7 @@ python demo.py <github_repo_url> --output-dir <output_path>
 
 We have visualized **over 800+ popular open-source projects**. See examples:
 
-## PyTorch:
+### PyTorch:
 
 ```mermaid
 graph LR
