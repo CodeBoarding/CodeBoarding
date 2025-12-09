@@ -1,9 +1,9 @@
 {
-  "description": "The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform AI-driven architectural analysis. The `AbstractionAgent` initiates the process by transforming raw static analysis data into high-level architectural concepts, leveraging LLMs for interpretation. Subsequently, the `DetailsAgent` refines these abstractions, extracting granular insights. Both agents rely on a `LLM Interaction Handler` to manage communication with various LLM providers, ensuring consistent API calls and response processing. A `Prompt Factory` component is crucial for both agents, providing optimized prompt templates and strategies to ensure effective and consistent interactions with the LLMs, thereby maintaining the quality and relevance of the architectural interpretations. This modular design allows for flexible integration of different LLM technologies and robust prompt management.",
+  "description": "The system's core functionality revolves around two primary agents, AbstractionAgent and DetailsAgent, which are responsible for interpreting static analysis data at different levels of granularity. Both agents rely on a conceptual LLM_Provider_Interface to interact with Large Language Models. This interface acts as a crucial abstraction layer, standardizing communication with various LLM providers and handling underlying complexities like API calls and authentication. The architecture is centered on two specialized agents, AbstractionAgent and DetailsAgent, each designed for distinct levels of static analysis interpretation. The AbstractionAgent focuses on high-level architectural understanding, while the DetailsAgent delves into granular code specifics. Both agents communicate with external Large Language Models through a unified LLM_Provider_Interface. This interface is a critical abstraction, managing the complexities of LLM interactions and ensuring a consistent communication layer for the agents. This design promotes modularity and allows for flexible integration with different LLM services, enabling the agents to effectively process and interpret static analysis data to generate comprehensive architectural insights.",
   "components": [
     {
       "name": "AbstractionAgent",
-      "description": "Responsible for abstracting raw static analysis data into higher-level architectural concepts, identifying components, patterns, and relationships by formulating prompts for LLMs. This agent initiates the AI-driven analysis.",
+      "description": "Interprets structured static analysis data to derive and generate high-level architectural understanding and insights, including identifying major components, their relationships, and overall system design patterns. This agent focuses on macro-level architectural interpretation.",
       "referenced_source_code": [
         {
           "qualified_name": "AbstractionAgent",
@@ -11,11 +11,15 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/abstraction_agent.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "DetailsAgent",
-      "description": "Complements the AbstractionAgent by refining initial abstractions, extracting specific details, or providing granular insights into the architecture using LLMs. It acts on the insights provided by the AbstractionAgent.",
+      "description": "Interprets structured static analysis data to derive and generate detailed code context and specific, granular insights, including understanding class structures, method functionalities, and local dependencies. This agent focuses on micro-level code interpretation.",
       "referenced_source_code": [
         {
           "qualified_name": "DetailsAgent",
@@ -23,83 +27,54 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/details_agent.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "LLM Interaction Handler",
-      "description": "This component is responsible for abstracting away the specifics of various LLM APIs, handling API calls, authentication, and response normalization for diverse LLM providers. It ensures the system's adaptability to different LLM technologies.",
+      "name": "LLM_Provider_Interface",
+      "description": "Abstracts away the specifics of different LLM providers, providing a unified interface for agents to interact with various large language models. It handles API calls, authentication, rate limiting, and basic error handling, ensuring a consistent interaction layer for all LLM-dependent components.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.agent.Agent",
-          "reference_file": "agents/agent.py",
+          "qualified_name": "LLM_Provider_Interface",
+          "reference_file": "LLM_Provider_Interface",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "Prompt Factory",
-      "description": "Manages prompt templates, context windows, and strategies to optimize LLM responses, ensuring consistent and effective communication with LLMs for architectural interpretation. This component ensures the quality and consistency of LLM interactions.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "Utilizes",
+      "relation": "sends requests to",
       "src_name": "AbstractionAgent",
-      "dst_name": "LLM Interaction Handler"
+      "dst_name": "LLM_Provider_Interface"
     },
     {
-      "relation": "Uses",
+      "relation": "receives responses from",
       "src_name": "AbstractionAgent",
-      "dst_name": "Prompt Factory"
+      "dst_name": "LLM_Provider_Interface"
     },
     {
-      "relation": "Passes insights to",
-      "src_name": "AbstractionAgent",
-      "dst_name": "DetailsAgent"
-    },
-    {
-      "relation": "Utilizes",
+      "relation": "sends requests to",
       "src_name": "DetailsAgent",
-      "dst_name": "LLM Interaction Handler"
+      "dst_name": "LLM_Provider_Interface"
     },
     {
-      "relation": "Uses",
+      "relation": "receives responses from",
       "src_name": "DetailsAgent",
-      "dst_name": "Prompt Factory"
-    },
-    {
-      "relation": "Utilized by",
-      "src_name": "LLM Interaction Handler",
-      "dst_name": "AbstractionAgent"
-    },
-    {
-      "relation": "Utilized by",
-      "src_name": "LLM Interaction Handler",
-      "dst_name": "DetailsAgent"
-    },
-    {
-      "relation": "Used by",
-      "src_name": "Prompt Factory",
-      "dst_name": "AbstractionAgent"
-    },
-    {
-      "relation": "Used by",
-      "src_name": "Prompt Factory",
-      "dst_name": "DetailsAgent"
+      "dst_name": "LLM_Provider_Interface"
     }
   ]
 }

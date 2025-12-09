@@ -4,29 +4,22 @@
 graph LR
     AbstractionAgent["AbstractionAgent"]
     DetailsAgent["DetailsAgent"]
-    LLM_Interaction_Handler["LLM Interaction Handler"]
-    Prompt_Factory["Prompt Factory"]
+    LLM_Provider_Interface["LLM_Provider_Interface"]
     Unclassified["Unclassified"]
-    AbstractionAgent -- "Utilizes" --> LLM_Interaction_Handler
-    AbstractionAgent -- "Uses" --> Prompt_Factory
-    AbstractionAgent -- "Passes insights to" --> DetailsAgent
-    DetailsAgent -- "Utilizes" --> LLM_Interaction_Handler
-    DetailsAgent -- "Uses" --> Prompt_Factory
-    LLM_Interaction_Handler -- "Utilized by" --> AbstractionAgent
-    LLM_Interaction_Handler -- "Utilized by" --> DetailsAgent
-    Prompt_Factory -- "Used by" --> AbstractionAgent
-    Prompt_Factory -- "Used by" --> DetailsAgent
-    click Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Factory.md" "Details"
+    AbstractionAgent -- "sends requests to" --> LLM_Provider_Interface
+    AbstractionAgent -- "receives responses from" --> LLM_Provider_Interface
+    DetailsAgent -- "sends requests to" --> LLM_Provider_Interface
+    DetailsAgent -- "receives responses from" --> LLM_Provider_Interface
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform AI-driven architectural analysis. The `AbstractionAgent` initiates the process by transforming raw static analysis data into high-level architectural concepts, leveraging LLMs for interpretation. Subsequently, the `DetailsAgent` refines these abstractions, extracting granular insights. Both agents rely on a `LLM Interaction Handler` to manage communication with various LLM providers, ensuring consistent API calls and response processing. A `Prompt Factory` component is crucial for both agents, providing optimized prompt templates and strategies to ensure effective and consistent interactions with the LLMs, thereby maintaining the quality and relevance of the architectural interpretations. This modular design allows for flexible integration of different LLM technologies and robust prompt management.
+The system's core functionality revolves around two primary agents, AbstractionAgent and DetailsAgent, which are responsible for interpreting static analysis data at different levels of granularity. Both agents rely on a conceptual LLM_Provider_Interface to interact with Large Language Models. This interface acts as a crucial abstraction layer, standardizing communication with various LLM providers and handling underlying complexities like API calls and authentication. The architecture is centered on two specialized agents, AbstractionAgent and DetailsAgent, each designed for distinct levels of static analysis interpretation. The AbstractionAgent focuses on high-level architectural understanding, while the DetailsAgent delves into granular code specifics. Both agents communicate with external Large Language Models through a unified LLM_Provider_Interface. This interface is a critical abstraction, managing the complexities of LLM interactions and ensuring a consistent communication layer for the agents. This design promotes modularity and allows for flexible integration with different LLM services, enabling the agents to effectively process and interpret static analysis data to generate comprehensive architectural insights.
 
 ### AbstractionAgent
-Responsible for abstracting raw static analysis data into higher-level architectural concepts, identifying components, patterns, and relationships by formulating prompts for LLMs. This agent initiates the AI-driven analysis.
+Interprets structured static analysis data to derive and generate high-level architectural understanding and insights, including identifying major components, their relationships, and overall system design patterns. This agent focuses on macro-level architectural interpretation.
 
 
 **Related Classes/Methods**:
@@ -35,7 +28,7 @@ Responsible for abstracting raw static analysis data into higher-level architect
 
 
 ### DetailsAgent
-Complements the AbstractionAgent by refining initial abstractions, extracting specific details, or providing granular insights into the architecture using LLMs. It acts on the insights provided by the AbstractionAgent.
+Interprets structured static analysis data to derive and generate detailed code context and specific, granular insights, including understanding class structures, method functionalities, and local dependencies. This agent focuses on micro-level code interpretation.
 
 
 **Related Classes/Methods**:
@@ -43,22 +36,13 @@ Complements the AbstractionAgent by refining initial abstractions, extracting sp
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
 
 
-### LLM Interaction Handler
-This component is responsible for abstracting away the specifics of various LLM APIs, handling API calls, authentication, and response normalization for diverse LLM providers. It ensures the system's adaptability to different LLM technologies.
+### LLM_Provider_Interface
+Abstracts away the specifics of different LLM providers, providing a unified interface for agents to interact with various large language models. It handles API calls, authentication, rate limiting, and basic error handling, ensuring a consistent interaction layer for all LLM-dependent components.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.Agent`</a>
-
-
-### Prompt Factory [[Expand]](./Prompt_Factory.md)
-Manages prompt templates, context windows, and strategies to optimize LLM responses, ensuring consistent and effective communication with LLMs for architectural interpretation. This component ensures the quality and consistency of LLM interactions.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
+- `LLM_Provider_Interface`
 
 
 ### Unclassified
@@ -408,6 +392,62 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 ```mermaid
 graph LR
+    Repository_Access_Control["Repository Access & Control"]
+    Temporary_Workspace_Manager["Temporary Workspace Manager"]
+    Content_Deployment_Handler["Content Deployment Handler"]
+    Unclassified["Unclassified"]
+    Repository_Access_Control -- "uses" --> Temporary_Workspace_Manager
+    Content_Deployment_Handler -- "uses" --> Temporary_Workspace_Manager
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+The system is designed around three core components: Repository Access & Control, Temporary Workspace Manager, and Content Deployment Handler. The Repository Access & Control component is responsible for fetching and managing code from remote repositories, ensuring the correct version is available for processing. It interacts with the Temporary Workspace Manager to establish isolated environments for these operations. The Temporary Workspace Manager handles the lifecycle of temporary file system locations, creating them as needed and ensuring their proper cleanup. Finally, the Content Deployment Handler takes the generated output and deploys it back to a specified repository, also leveraging the Temporary Workspace Manager for any temporary file handling during this process. This architecture ensures a clear separation of concerns, with dedicated components for repository interaction, temporary resource management, and content delivery.
+
+### Repository Access & Control
+Manages the core operations of interacting with remote code repositories, including cloning repositories and managing specific branches or commits. It ensures that the correct version of the source code is available for analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L114-L122" target="_blank" rel="noopener noreferrer">`repo_utils.checkout_repo`:114-122</a>
+
+
+### Temporary Workspace Manager
+Responsible for creating and cleaning up temporary file system locations where cloned repositories or intermediate files can be stored. It ensures isolated and clean environments for each analysis job.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L18-L22" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`:18-22</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L25-L29" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`:25-29</a>
+
+
+### Content Deployment Handler
+Facilitates the uploading or pushing of generated content (e.g., documentation, analysis reports, onboarding materials) back to a specified repository. It handles the final step of delivering the tool's output.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L136-L163" target="_blank" rel="noopener noreferrer">`repo_utils.upload_onboarding_materials`:136-163</a>
+
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
     ProjectScanner["ProjectScanner"]
     ProgrammingLanguageBuilder["ProgrammingLanguageBuilder"]
     ProgrammingLanguage["ProgrammingLanguage"]
@@ -572,8 +612,6 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
     User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
     Orchestration_Engine_Agent_Core_ -- "Manages Repository Access" --> Repository_Manager
     Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
@@ -586,8 +624,10 @@ graph LR
     Orchestration_Engine_Agent_Core_ -- "Processes Insights for Output" --> Output_Generation_Engine
     Output_Generation_Engine -- "Provides Structured Diagram Data" --> Diagram_Analysis_Renderer
     Diagram_Analysis_Renderer -- "Renders & Displays Diagram" --> User_Interface_API_Gateway
+    Orchestration_Engine_Agent_Core_ -- "Uploads Generated Materials" --> Repository_Manager
     click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
     click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
+    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
@@ -599,7 +639,7 @@ graph LR
 
 ## Details
 
-The system operates with the Orchestration Engine (Agent Core) as its central control unit, dynamically managing the entire code analysis workflow. It initiates analysis requests received from the User Interface / API Gateway, then coordinates with the Repository Manager for codebase access. The Orchestration Engine directs the codebase to the Static Analysis Engine for structural analysis and leverages the LLM Prompt Factory to generate context-aware prompts. These prompts and analysis results are then processed by the AI Interpretation Layer to generate architectural insights. Finally, the Orchestration Engine guides these insights through the Output Generation Engine and Diagram Analysis & Renderer for structured output and visualization, which are ultimately presented back via the User Interface / API Gateway. The recent enhancements within the Orchestration Engine reflect an evolution in its internal logic, leading to more sophisticated state management and refined coordination mechanisms across all components.
+The system operates with a clear separation of concerns, orchestrated by the `Orchestration Engine (Agent Core)`. User requests are handled by the `User Interface / API Gateway`, which then directs the `Orchestration Engine` to initiate the analysis. The `Orchestration Engine` interacts with the `Repository Manager` to fetch and manage codebases, including cloning, checking out branches, and handling temporary folders. The fetched code is then passed to the `Static Analysis Engine` for structural analysis. Prompts for AI interpretation are generated by the `LLM Prompt Factory` and sent to the `AI Interpretation Layer` along with analysis context. The interpreted insights are then processed by the `Output Generation Engine` to create structured data, which the `Diagram Analysis & Renderer` uses to generate and display visual architectural diagrams. The `Repository Manager` also facilitates the uploading of generated onboarding materials back to the repositories.
 
 ### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
 The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
@@ -619,12 +659,15 @@ The central control unit, dynamically managing the entire analysis workflow. It 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
 
 
-### Repository Manager
-Manages all interactions with code repositories, providing a standardized interface for source code access and temporary folder management.
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Manages all interactions with code repositories, providing a standardized interface for source code access, temporary folder management, cloning, branch management, and uploading generated content.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.checkout_repo`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.upload_onboarding_materials`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`</a>
 
@@ -675,18 +718,6 @@ Refines structured output into diagram-specific formats and renders visual archi
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
 
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

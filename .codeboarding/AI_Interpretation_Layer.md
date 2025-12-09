@@ -2,29 +2,22 @@
 graph LR
     AbstractionAgent["AbstractionAgent"]
     DetailsAgent["DetailsAgent"]
-    LLM_Interaction_Handler["LLM Interaction Handler"]
-    Prompt_Factory["Prompt Factory"]
+    LLM_Provider_Interface["LLM_Provider_Interface"]
     Unclassified["Unclassified"]
-    AbstractionAgent -- "Utilizes" --> LLM_Interaction_Handler
-    AbstractionAgent -- "Uses" --> Prompt_Factory
-    AbstractionAgent -- "Passes insights to" --> DetailsAgent
-    DetailsAgent -- "Utilizes" --> LLM_Interaction_Handler
-    DetailsAgent -- "Uses" --> Prompt_Factory
-    LLM_Interaction_Handler -- "Utilized by" --> AbstractionAgent
-    LLM_Interaction_Handler -- "Utilized by" --> DetailsAgent
-    Prompt_Factory -- "Used by" --> AbstractionAgent
-    Prompt_Factory -- "Used by" --> DetailsAgent
-    click Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Factory.md" "Details"
+    AbstractionAgent -- "sends requests to" --> LLM_Provider_Interface
+    AbstractionAgent -- "receives responses from" --> LLM_Provider_Interface
+    DetailsAgent -- "sends requests to" --> LLM_Provider_Interface
+    DetailsAgent -- "receives responses from" --> LLM_Provider_Interface
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform AI-driven architectural analysis. The `AbstractionAgent` initiates the process by transforming raw static analysis data into high-level architectural concepts, leveraging LLMs for interpretation. Subsequently, the `DetailsAgent` refines these abstractions, extracting granular insights. Both agents rely on a `LLM Interaction Handler` to manage communication with various LLM providers, ensuring consistent API calls and response processing. A `Prompt Factory` component is crucial for both agents, providing optimized prompt templates and strategies to ensure effective and consistent interactions with the LLMs, thereby maintaining the quality and relevance of the architectural interpretations. This modular design allows for flexible integration of different LLM technologies and robust prompt management.
+The system's core functionality revolves around two primary agents, AbstractionAgent and DetailsAgent, which are responsible for interpreting static analysis data at different levels of granularity. Both agents rely on a conceptual LLM_Provider_Interface to interact with Large Language Models. This interface acts as a crucial abstraction layer, standardizing communication with various LLM providers and handling underlying complexities like API calls and authentication. The architecture is centered on two specialized agents, AbstractionAgent and DetailsAgent, each designed for distinct levels of static analysis interpretation. The AbstractionAgent focuses on high-level architectural understanding, while the DetailsAgent delves into granular code specifics. Both agents communicate with external Large Language Models through a unified LLM_Provider_Interface. This interface is a critical abstraction, managing the complexities of LLM interactions and ensuring a consistent communication layer for the agents. This design promotes modularity and allows for flexible integration with different LLM services, enabling the agents to effectively process and interpret static analysis data to generate comprehensive architectural insights.
 
 ### AbstractionAgent
-Responsible for abstracting raw static analysis data into higher-level architectural concepts, identifying components, patterns, and relationships by formulating prompts for LLMs. This agent initiates the AI-driven analysis.
+Interprets structured static analysis data to derive and generate high-level architectural understanding and insights, including identifying major components, their relationships, and overall system design patterns. This agent focuses on macro-level architectural interpretation.
 
 
 **Related Classes/Methods**:
@@ -33,7 +26,7 @@ Responsible for abstracting raw static analysis data into higher-level architect
 
 
 ### DetailsAgent
-Complements the AbstractionAgent by refining initial abstractions, extracting specific details, or providing granular insights into the architecture using LLMs. It acts on the insights provided by the AbstractionAgent.
+Interprets structured static analysis data to derive and generate detailed code context and specific, granular insights, including understanding class structures, method functionalities, and local dependencies. This agent focuses on micro-level code interpretation.
 
 
 **Related Classes/Methods**:
@@ -41,22 +34,13 @@ Complements the AbstractionAgent by refining initial abstractions, extracting sp
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
 
 
-### LLM Interaction Handler
-This component is responsible for abstracting away the specifics of various LLM APIs, handling API calls, authentication, and response normalization for diverse LLM providers. It ensures the system's adaptability to different LLM technologies.
+### LLM_Provider_Interface
+Abstracts away the specifics of different LLM providers, providing a unified interface for agents to interact with various large language models. It handles API calls, authentication, rate limiting, and basic error handling, ensuring a consistent interaction layer for all LLM-dependent components.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.Agent`</a>
-
-
-### Prompt Factory [[Expand]](./Prompt_Factory.md)
-Manages prompt templates, context windows, and strategies to optimize LLM responses, ensuring consistent and effective communication with LLMs for architectural interpretation. This component ensures the quality and consistency of LLM interactions.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
+- `LLM_Provider_Interface`
 
 
 ### Unclassified
