@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Handle the case where git is not installed on the system
 try:
-    from git import Repo, Git, GitCommandError
+    from git import Repo, Git, GitCommandError, GitError
 
     GIT_AVAILABLE = True
 except ImportError:
@@ -38,7 +38,14 @@ def require_git_import(default: Any | None = None) -> Callable:
                     return default
                 logger.error(f"Git module required for {func.__name__} but not installed")
                 raise ImportError("GitPython is not installed. Install it with: pip install gitpython")
-            return func(*args, **kwargs)
+            try:
+                return func(*args, **kwargs)
+            except GitError as e:
+                # Handle the cases in which there is no repository, or the repository state is invalid
+                logger.error(f"Invalid Git repository: {e}")
+                if default is not None:
+                    return default
+                raise e
 
         return wrapper
 
