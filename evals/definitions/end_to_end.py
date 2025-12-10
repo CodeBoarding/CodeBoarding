@@ -1,5 +1,13 @@
 from typing import Any
+
 from evals.base import BaseEval
+from evals.schemas import (
+    EndToEndMetrics,
+    MonitoringMetrics,
+    TokenUsage,
+    ToolUsage,
+)
+from evals.types import EvalResult, ProjectSpec, RunData
 from evals.utils import generate_header
 
 
@@ -9,8 +17,8 @@ class EndToEndEval(BaseEval):
     Aggregates metrics such as token usage, tool calls, and execution time across all agents.
     Provides a high-level summary of system reliability and performance on real-world projects.
     """
-    def _aggregate_llm_usage(self, llm_data: dict) -> dict[str, Any]:
-        """Aggregate token and tool usage across all agents."""
+
+    def _aggregate_llm_usage(self, llm_data: dict) -> MonitoringMetrics:
         total_tokens = 0
         input_tokens = 0
         output_tokens = 0
@@ -28,26 +36,26 @@ class EndToEndEval(BaseEval):
             for tool, count in agent_data.get("tool_usage", {}).get("errors", {}).items():
                 tool_errors[tool] = tool_errors.get(tool, 0) + count
 
-        return {
-            "token_usage": {
-                "total_tokens": total_tokens,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-            },
-            "tool_usage": {"counts": tool_counts, "errors": tool_errors},
-        }
+        return MonitoringMetrics(
+            token_usage=TokenUsage(
+                total_tokens=total_tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            ),
+            tool_usage=ToolUsage(counts=tool_counts, errors=tool_errors),
+        )
 
-    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
-        llm_data = run_data.get("llm_usage", {})
-        code_stats = run_data.get("code_stats", {})
+    def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
+        llm_data = run_data.llm_usage
+        code_stats = run_data.code_stats
 
-        return {
-            "monitoring": self._aggregate_llm_usage(llm_data),
-            "code_stats": code_stats,
-            "mermaid_diagram": "",
-        }
+        return EndToEndMetrics(
+            monitoring=self._aggregate_llm_usage(llm_data),
+            code_stats=code_stats,
+            mermaid_diagram="",
+        ).model_dump()
 
-    def generate_report(self, results: list[dict]) -> str:
+    def generate_report(self, results: list[EvalResult]) -> str:
         header = generate_header("End-to-End Pipeline Evaluation")
 
         lines = [
@@ -63,13 +71,13 @@ class EndToEndEval(BaseEval):
         success_count = 0
 
         for r in results:
-            status = "✅ Success" if r.get("success") else "❌ Failed"
-            time_taken = f"{r.get('duration_seconds', 0):.1f}"
-            lang = r.get("expected_language", "Unknown")
+            status = "✅ Success" if r.success else "❌ Failed"
+            time_taken = f"{r.duration_seconds:.1f}"
+            lang = r.expected_language or "Unknown"
 
-            if r.get("success"):
+            if r.success:
                 success_count += 1
-                monitoring = r.get("monitoring", {})
+                monitoring = r.metrics.get("monitoring", {})
                 token_usage = monitoring.get("token_usage", {})
                 tool_usage = monitoring.get("tool_usage", {})
 
@@ -82,9 +90,7 @@ class EndToEndEval(BaseEval):
                 t_tokens = 0
                 t_tools = 0
 
-            lines.append(
-                f"| {r.get('project', 'Unknown')} | {lang} | {status} | {time_taken} | {t_tokens:,} | {t_tools} |"
-            )
+            lines.append(f"| {r.project} | {lang} | {status} | {time_taken} | {t_tokens:,} | {t_tools} |")
 
         lines.extend(
             [
@@ -105,8 +111,8 @@ class EndToEndEval(BaseEval):
         )
 
         for r in results:
-            project_name = r.get("project", "Unknown")
-            mermaid_diagram = r.get("mermaid_diagram", "")
+            project_name = r.project
+            mermaid_diagram = r.metrics.get("mermaid_diagram", "")
 
             lines.append(f"### {project_name}")
             lines.append("")

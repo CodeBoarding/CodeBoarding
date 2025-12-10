@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 import sys
-from typing import Any
+from typing import Any, Tuple
 from pathlib import Path
 
 # Ensure we can import from parent directory if run as script
@@ -12,18 +12,23 @@ from evals.config import PROJECTS_STATIC_ANALYSIS, PROJECTS_E2E, PROJECTS_SCALIN
 from evals.definitions.static_analysis import StaticAnalysisEval
 from evals.definitions.end_to_end import EndToEndEval
 from evals.definitions.scalability import ScalabilityEval
+from evals.types import ProjectSpec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(description="Run evaluations for CodeBoarding")
     parser.add_argument(
         "--type", choices=["static", "e2e", "scalability", "all"], default="all", help="Type of evaluation to run"
     )
     parser.add_argument("--output-dir", type=Path, default=Path("evals/reports"), help="Directory to save reports")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
 
     # Ensure output directory exists
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -32,7 +37,7 @@ def main():
     if not os.getenv("REPO_ROOT"):
         os.environ["REPO_ROOT"] = "repos"
 
-    evals_to_run: list[tuple[Any, list[dict[str, str]], list[str]]] = []
+    evals_to_run: list[Tuple[Any, list[ProjectSpec], list[str]]] = []
 
     if args.type in ["static", "all"]:
         evals_to_run.append(

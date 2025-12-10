@@ -1,8 +1,13 @@
+import dataclasses
 from typing import Any
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+
 from evals.base import BaseEval
+from evals.schemas import AgentTokenBreakdown, ScalabilityMetrics
+from evals.types import EvalResult, ProjectSpec, RunData
 from evals.utils import generate_header
 
 
@@ -12,9 +17,10 @@ class ScalabilityEval(BaseEval):
     Correlates Lines of Code (LOC) with execution time and token usage to assess efficiency.
     Generates visual plots to identify scaling trends and potential bottlenecks in the architecture.
     """
-    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
-        code_stats = run_data.get("code_stats", {})
-        llm_usage = run_data.get("llm_usage", {})
+
+    def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
+        code_stats = run_data.code_stats
+        llm_usage = run_data.llm_usage
 
         # Calculate total LOC
         total_loc = 0
@@ -23,32 +29,40 @@ class ScalabilityEval(BaseEval):
 
         # Calculate total tokens
         total_tokens = 0
-        agent_token_usage = {}
-        agent_tool_usage = {}
+        agent_token_usage: dict[str, AgentTokenBreakdown] = {}
+        agent_tool_usage: dict[str, dict[str, int]] = {}
 
         for agent_name, agent_data in llm_usage.get("agents", {}).items():
             token_usage = agent_data.get("token_usage", {})
             total_tokens += token_usage.get("total_tokens", 0)
 
             # Store detailed usage for charts
-            agent_token_usage[agent_name] = {
-                "input": token_usage.get("input_tokens", 0),
-                "output": token_usage.get("output_tokens", 0),
-            }
+            agent_token_usage[agent_name] = AgentTokenBreakdown(
+                input=token_usage.get("input_tokens", 0),
+                output=token_usage.get("output_tokens", 0),
+            )
 
             tool_usage = agent_data.get("tool_usage", {}).get("counts", {})
             agent_tool_usage[agent_name] = tool_usage
 
-        return {
-            "loc": total_loc,
-            "total_tokens": total_tokens,
-            "agent_token_usage": agent_token_usage,
-            "agent_tool_usage": agent_tool_usage,
-        }
+        return ScalabilityMetrics(
+            loc=total_loc,
+            total_tokens=total_tokens,
+            agent_token_usage=agent_token_usage,
+            agent_tool_usage=agent_tool_usage,
+        ).model_dump()
 
-    def generate_report(self, results: list[dict]) -> str:
+    def generate_report(self, results: list[EvalResult]) -> str:
+        # Flatten results for DataFrame processing
+        flat_results = []
+        for r in results:
+            item = dataclasses.asdict(r)
+            metrics = item.pop("metrics", {})
+            item.update(metrics)
+            flat_results.append(item)
+
         # Filter valid results
-        data = [r for r in results if r.get("success") and r.get("loc", 0) > 0]
+        data = [r for r in flat_results if r.get("success") and r.get("loc", 0) > 0]
 
         if not data:
             return generate_header("Scalability Evaluation") + "\n\nNo successful runs to analyze."

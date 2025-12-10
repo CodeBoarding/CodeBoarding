@@ -10,6 +10,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agents.agent import CodeBoardingAgent
+
 logger = logging.getLogger("monitoring")
 
 
@@ -22,7 +24,7 @@ class StreamingStatsWriter:
     def __init__(
         self,
         monitoring_dir: Path,
-        agents_dict: dict,
+        agents_dict: dict[str, CodeBoardingAgent],
         repo_name: str,
         output_dir: str | None = None,
         interval: float = 5.0,
@@ -72,8 +74,7 @@ class StreamingStatsWriter:
         try:
             agents_payload = {}
             for name, agent in self.agents_dict.items():
-                if agent and hasattr(agent, "get_monitoring_results"):
-                    agents_payload[name] = agent.get_monitoring_results()
+                agents_payload[name] = agent.get_monitoring_results()
 
             if not agents_payload:
                 return

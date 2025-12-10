@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ from dotenv import load_dotenv
 # Ensure we can import from parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from evals.types import EvalResult, PipelineResult, ProjectSpec, RunData
 from evals.utils import generate_system_specs
 
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +26,7 @@ class BaseEval(ABC):
     def __init__(self, name: str, output_dir: Path):
         self.name = name
         self.output_dir = output_dir
-        self.results: list[dict[str, Any]] = []
+        self.results: list[EvalResult] = []
         self.project_root = self._get_project_root()
 
     def _get_project_root(self) -> Path:
@@ -53,15 +55,15 @@ class BaseEval(ABC):
 
         return matching_dirs[0] if matching_dirs else None
 
-    def get_latest_run_data(self, project_name: str) -> dict[str, Any]:
+    def get_latest_run_data(self, project_name: str) -> RunData:
         """Read all monitoring data for a project from its run directory."""
         run_dir = self.get_latest_run_dir(project_name)
 
         if not run_dir:
             logger.warning(f"No monitoring run found for: {project_name}")
-            return {}
+            return RunData(run_dir="")
 
-        data = {"run_dir": str(run_dir)}
+        data = RunData(run_dir=str(run_dir))
 
         # Helper to safely read json files
         def read_json(filename):
@@ -74,16 +76,15 @@ class BaseEval(ABC):
                     logger.warning(f"Failed to read {filename}: {e}")
             return {}
 
-        data["metadata"] = read_json("run_metadata.json")
-        data["code_stats"] = read_json("code_stats.json")
-        data["llm_usage"] = read_json("llm_usage.json")
+        data.metadata = read_json("run_metadata.json")
+        data.code_stats = read_json("code_stats.json")
+        data.llm_usage = read_json("llm_usage.json")
 
         return data
 
-    def run_pipeline(self, project: dict[str, str], extra_args: list[str] | None = None) -> dict[str, Any]:
-        """Run the CodeBoarding pipeline for a project."""
-        repo_url = project["url"]
-        project_name = project["name"]
+    def run_pipeline(self, project: ProjectSpec, extra_args: list[str] | None = None) -> PipelineResult:
+        repo_url = project.url
+        project_name = project.name
         output_dir = self.project_root / "evals/artifacts" / project_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -112,86 +113,78 @@ class BaseEval(ABC):
             success = result.returncode == 0
             stderr = result.stderr[-500:] if result.stderr else ""
 
-            return {
-                "success": success,
-                "stderr": stderr,
-                "pipeline_duration": duration,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            return PipelineResult(
+                success=success,
+                stderr=stderr,
+                pipeline_duration=duration,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
         except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "stderr": "Pipeline timed out (30 minutes)",
-                "pipeline_duration": time.time() - start_time,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            return PipelineResult(
+                success=False,
+                stderr="Pipeline timed out (30 minutes)",
+                pipeline_duration=time.time() - start_time,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
         except Exception as e:
-            return {
-                "success": False,
-                "stderr": str(e),
-                "pipeline_duration": time.time() - start_time,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            return PipelineResult(
+                success=False,
+                stderr=str(e),
+                pipeline_duration=time.time() - start_time,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
 
     @abstractmethod
-    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
+    def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
         """Subclasses must implement this to pick what they care about."""
         pass
 
     @abstractmethod
-    def generate_report(self, results: list[dict]) -> str:
+    def generate_report(self, results: list[EvalResult]) -> str:
         """Subclasses must implement this to format their specific Markdown report."""
         pass
 
-    def run(self, projects: list[dict], extra_args: list[str] | None = None) -> dict[str, Any]:
+    def run(self, projects: list[ProjectSpec], extra_args: list[str] | None = None) -> dict[str, Any]:
         """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
         logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
 
         self.results = []
         for project in projects:
-            logger.info(f"\n{'='*60}\nProject: {project['name']}\n{'='*60}")
+            logger.info(f"\n{'='*60}\nProject: {project.name}\n{'='*60}")
 
             # 1. Run Pipeline
             pipeline_result = self.run_pipeline(project, extra_args)
 
             # 2. Get Data
-            run_data = self.get_latest_run_data(project["name"])
+            run_data = self.get_latest_run_data(project.name)
 
             # 3. Extract Metrics
-            # We merge pipeline result into run_data metadata for consistency if needed,
-            # but primary source of truth for metrics is the run_data files.
-            # However, success/fail of the RUN itself is in pipeline_result.
-
-            # Check if pipeline failed but we have old data? No, we want fresh data.
-            # If pipeline failed, run_data might be stale or empty.
-
             metrics = self.extract_metrics(project, run_data)
 
-            # Merge high-level execution info
-            metrics.update(
-                {
-                    "project": project["name"],
-                    "url": project["url"],
-                    "expected_language": project.get("expected_language"),
-                    "success": pipeline_result["success"],
-                    "duration_seconds": pipeline_result["pipeline_duration"],
-                    "error": pipeline_result["stderr"] if not pipeline_result["success"] else None,
-                    "timestamp": pipeline_result["timestamp"],
-                }
+            # Construct EvalResult
+            eval_result = EvalResult(
+                project=project.name,
+                url=project.url,
+                expected_language=project.expected_language,
+                success=pipeline_result.success,
+                duration_seconds=pipeline_result.pipeline_duration,
+                timestamp=pipeline_result.timestamp,
+                error=pipeline_result.stderr if not pipeline_result.success else None,
+                metrics=metrics,
             )
 
             # Also pull success/error from metadata if available and successful
-            if pipeline_result["success"]:
-                meta = run_data.get("metadata", {})
+            if pipeline_result.success:
+                meta = run_data.metadata
                 if meta:
-                    metrics["duration_seconds"] = meta.get("duration_seconds", metrics["duration_seconds"])
+                    eval_result.duration_seconds = meta.get("duration_seconds", eval_result.duration_seconds)
 
-            self.results.append(metrics)
+            self.results.append(eval_result)
 
-            if metrics["success"]:
-                logger.info(f"✅ {project['name']} completed in {metrics['duration_seconds']:.1f}s")
+            if eval_result.success:
+                logger.info(f"✅ {project.name} completed in {eval_result.duration_seconds:.1f}s")
             else:
-                logger.error(f"❌ {project['name']} failed: {metrics.get('error', 'Unknown')[:100]}")
+                logger.error(f"❌ {project.name} failed: {str(eval_result.error)[:100]}")
 
         # 4. Generate & Save Report
         report_content = self.generate_report(self.results)
@@ -206,9 +199,18 @@ class BaseEval(ABC):
 
         # Save raw JSON results too
         json_path = self.project_root / "evals/artifacts/monitoring_results/reports" / f"{self.name}_eval.json"
-        self._write_json(json_path, {"timestamp": datetime.now(timezone.utc).isoformat(), "projects": self.results})
+        self._write_json(
+            json_path,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "projects": [dataclasses.asdict(r) for r in self.results],
+            },
+        )
 
-        return {"timestamp": datetime.now(timezone.utc).isoformat(), "results": self.results}
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "results": self.results,
+        }
 
     def _write_report(self, path: Path, content: str):
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -11,12 +11,17 @@ class RunStats:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self.total_tokens = 0
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.tool_counts = defaultdict(int)
-        self.tool_errors = defaultdict(int)
-        self.tool_latency_ms = defaultdict(list)
+        self.reset()
+
+    def reset(self):
+        """Reset all statistics to initial state."""
+        with self._lock:
+            self.total_tokens = 0
+            self.input_tokens = 0
+            self.output_tokens = 0
+            self.tool_counts = defaultdict(int)
+            self.tool_errors = defaultdict(int)
+            self.tool_latency_ms = defaultdict(list)
 
     def to_dict(self):
         """Convert stats to a dictionary representation."""

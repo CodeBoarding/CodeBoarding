@@ -22,6 +22,7 @@ from monitoring import StreamingStatsWriter
 from repo_utils import get_git_commit_hash
 from static_analyzer import StaticAnalyzer
 from static_analyzer.scanner import ProjectScanner
+from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +148,7 @@ class DiagramGenerator:
                 ).model_dump_json(indent=2)
             )
 
-        enable_monitoring = os.getenv("ENABLE_MONITORING", "").lower() in ("true", "1", "yes", "on")
-        if enable_monitoring:
+        if monitoring_enabled():
             # Create run directory: runs/{repo}_{timestamp}/
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_monitoring_dir = (
@@ -274,8 +274,7 @@ class DiagramGenerator:
 
             return files
         except Exception as e:
-            error_message = str(e)
-            raise
+            raise e
         finally:
             # Stop monitoring (saves run_metadata.json with timing)
             if self.stats_writer:

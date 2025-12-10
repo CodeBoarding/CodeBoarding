@@ -34,7 +34,8 @@ def caching_enabled():
     return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
-def is_monitoring_enabled():
+def monitoring_enabled():
+    print("Monitoring enabled:", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
 
 

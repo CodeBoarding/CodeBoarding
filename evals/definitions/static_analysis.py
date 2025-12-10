@@ -1,41 +1,44 @@
 from typing import Any
+
 from evals.base import BaseEval
+from evals.schemas import LanguageSummary, StaticAnalysisMetrics, StaticAnalysisSummary
+from evals.types import EvalResult, ProjectSpec, RunData
 from evals.utils import generate_header
 
 
 class StaticAnalysisEval(BaseEval):
-    def extract_metrics(self, project: dict, run_data: dict) -> dict[str, Any]:
-        code_stats = run_data.get("code_stats", {})
+    def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
+        code_stats = run_data.code_stats
 
         # Calculate totals
         total_files = 0
         total_loc = 0
-        languages_summary = {}
+        languages_summary: dict[str, LanguageSummary] = {}
 
         for lang, stats in code_stats.get("languages", {}).items():
             file_count = stats.get("file_count", 0)
             loc = stats.get("lines_of_code", 0)
             total_files += file_count
             total_loc += loc
-            languages_summary[lang] = {"files": file_count, "loc": loc}
+            languages_summary[lang] = LanguageSummary(files=file_count, loc=loc)
 
-        return {
-            "code_stats": {
-                "total_files": total_files,
-                "total_loc": total_loc,
-                "languages": languages_summary,
-            }
-        }
+        return StaticAnalysisMetrics(
+            code_stats=StaticAnalysisSummary(
+                total_files=total_files,
+                total_loc=total_loc,
+                languages=languages_summary,
+            )
+        ).model_dump()
 
-    def generate_report(self, results: list[dict]) -> str:
+    def generate_report(self, results: list[EvalResult]) -> str:
         header = generate_header("Static Analysis Performance Evaluation")
 
         # Aggregate totals
         total_files = 0
         total_loc = 0
         for r in results:
-            if r.get("success"):
-                stats = r.get("code_stats", {})
+            if r.success:
+                stats = r.metrics.get("code_stats", {})
                 total_files += stats.get("total_files", 0)
                 total_loc += stats.get("total_loc", 0)
 
@@ -48,18 +51,18 @@ class StaticAnalysisEval(BaseEval):
         ]
 
         for r in results:
-            status = "✅ Success" if r.get("success") else "❌ Failed"
-            time_taken = f"{r.get('duration_seconds', 0):.1f}"
-            lang = r.get("expected_language", "Unknown")
+            status = "✅ Success" if r.success else "❌ Failed"
+            time_taken = f"{r.duration_seconds:.1f}"
+            lang = r.expected_language or "Unknown"
 
             files = 0
             loc = 0
-            if r.get("success"):
-                stats = r.get("code_stats", {})
+            if r.success:
+                stats = r.metrics.get("code_stats", {})
                 files = stats.get("total_files", 0)
                 loc = stats.get("total_loc", 0)
 
-            lines.append(f"| {r.get('project', 'Unknown')} | {lang} | {status} | {time_taken} | {files:,} | {loc:,} |")
+            lines.append(f"| {r.project} | {lang} | {status} | {time_taken} | {files:,} | {loc:,} |")
 
         lines.extend(
             [

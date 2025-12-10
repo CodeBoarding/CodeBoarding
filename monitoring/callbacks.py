@@ -1,7 +1,3 @@
-"""
-LangChain callback handler for monitoring LLM usage.
-"""
-
 import json
 import logging
 import time
@@ -44,16 +40,8 @@ class MonitoringCallback(BaseCallbackHandler):
             self.stats.output_tokens += usage.get("completion_tokens", 0)
 
         # Log Event
-        logger.info(
-            json.dumps(
-                {
-                    "event": "llm_usage",
-                    "step": step_name,
-                    "model": response.llm_output.get("model_name") if response.llm_output else "unknown",
-                    "usage": usage,
-                }
-            )
-        )
+        model = response.llm_output.get("model_name") if response.llm_output else "unknown"
+        logger.info(f"LLM Usage: step={step_name} model={model} usage={usage}")
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         run_id_any = kwargs.get("run_id")
