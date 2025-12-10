@@ -68,11 +68,12 @@ def monitor_execution(
             # Also update the ContextVar for other components
             self._token = current_step.set(name)
 
-        def end_step(self):
-            # Reset if needed, though trace_step decorator usually handles this
-            pass
+            def end_step(self):
+                pass
 
     try:
+        stats.reset()
+
         # Log start of run
         trace_logger.info(json.dumps({"event": "run_start", "run_id": run_id, "timestamp": time.time()}))
 
@@ -97,36 +98,46 @@ def monitor_execution(
         logger.info(f"✨ Execution traces saved to {trace_file}")
 
 
-def trace_step(step_name: str):
+def trace(step_name: str | None = None):
     """
     Sets the current step context and logs start/end events.
-    Usage: @trace_step("analyze_source")
+    Usage:
+        @trace("analyze_source")  # Explicit name
+        @trace                    # Uses function name
     """
 
-    def decorator(func):
+    def _create_wrapper(func, name):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # Set context
-            token = current_step.set(step_name)
+            token = current_step.set(name)
             start_time = time.time()
 
             # Log Start
-            logger.info(json.dumps({"event": "step_start", "step": step_name, "timestamp": start_time}))
+            logger.info(json.dumps({"event": "step_start", "step": name, "timestamp": start_time}))
 
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error(json.dumps({"event": "step_error", "step": step_name, "error": str(e)}))
+                logger.error(json.dumps({"event": "step_error", "step": name, "error": str(e)}))
                 raise
             finally:
                 # Log End
                 duration = time.time() - start_time
-                logger.info(
-                    json.dumps({"event": "step_end", "step": step_name, "duration_ms": round(duration * 1000, 2)})
-                )
+                logger.info(json.dumps({"event": "step_end", "step": name, "duration_ms": round(duration * 1000, 2)}))
                 # Reset context
                 current_step.reset(token)
 
         return wrapper
+
+    # Case 1: Called as @trace (no parens) -> step_name is the function
+    if callable(step_name) and not isinstance(step_name, str):
+        func = step_name
+        return _create_wrapper(func, func.__name__)
+
+    # Case 2: Called as @trace("name") or @trace() -> step_name is string or None
+    def decorator(func):
+        final_name = step_name or func.__name__
+        return _create_wrapper(func, final_name)
 
     return decorator

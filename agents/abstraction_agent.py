@@ -8,6 +8,7 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     CFGAnalysisInsights,
+    LLMBaseModel,
     ValidationInsights,
     MetaAnalysisInsights,
     ComponentFiles,
@@ -21,7 +22,7 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from monitoring import trace_step
+from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -39,10 +40,7 @@ class AbstractionAgent(CodeBoardingAgent):
 
         self.project_name = project_name
         self.meta_context = meta_context
-
-        self.context: dict[str, AnalysisInsights | CFGAnalysisInsights | list[AnalysisInsights]] = {
-            "structure_insight": []
-        }  # Store evolving insights here
+        self.context: dict[str, LLMBaseModel] = {"structure_insight": []}
 
         self.prompts = {
             "cfg": PromptTemplate(
@@ -61,7 +59,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
-    @trace_step("step_cfg")
+    @trace
     def step_cfg(self):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -87,7 +85,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["cfg_insight"] = parsed_response
         return parsed_response
 
-    @trace_step("step_source")
+    @trace
     def step_source(self):
         logger.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
@@ -115,7 +113,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = parsed_response
         return parsed_response
 
-    @trace_step("generate_analysis")
+    @trace
     def generate_analysis(self):
         logger.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -139,7 +137,7 @@ class AbstractionAgent(CodeBoardingAgent):
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
-    @trace_step("apply_feedback")
+    @trace
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
         Apply feedback to the analysis and return the updated analysis.
@@ -150,7 +148,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    @trace_step("classify_files")
+    @trace
     def classify_files(self, analysis: AnalysisInsights):
         """
         Classify files into components based on the analysis. It will modify directly the analysis object.

@@ -41,7 +41,7 @@ class DiagramGenerator:
         self.meta_agent: MetaAgent | None = None
         self.meta_context = None
         self.depth_level = depth_level
-        self._monitoring_agents: dict[str, CodeBoardingAgent | None] = {}
+        self._monitoring_agents: dict[str, CodeBoardingAgent] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
     def process_component(self, component):
@@ -119,7 +119,6 @@ class DiagramGenerator:
             static_analysis=static_analysis,
             meta_context=meta_context,
         )
-        self._monitoring_agents["AbstractionAgent"] = None  # placeholder for type; assigned below
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,

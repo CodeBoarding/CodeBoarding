@@ -14,7 +14,7 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
-from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder, is_monitoring_enabled
+from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder, monitoring_enabled
 from monitoring import monitor_execution
 
 logger = logging.getLogger(__name__)
@@ -175,9 +175,12 @@ Examples:
     setup_logging()
     logger.info("Starting up…")
 
-    with monitor_execution(run_id="demo_run", enabled=is_monitoring_enabled()) as mon:
-        for repo in tqdm(args.repositories, desc="Generating docs for repos"):
-            mon.step(f"processing_{get_repo_name(repo)}")
+    for repo in tqdm(args.repositories, desc="Generating docs for repos"):
+        repo_name = get_repo_name(repo)
+        run_id = f"demo_run_{repo_name}"
+
+        with monitor_execution(run_id=run_id, enabled=monitoring_enabled()) as mon:
+            mon.step(f"processing_{repo_name}")
 
             temp_repo_folder = create_temp_repo_folder()
             try:
