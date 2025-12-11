@@ -1,8 +1,3 @@
-"""
-Unified entry point for CodeBoarding documentation generation.
-Supports both local and remote repository analysis.
-"""
-
 import argparse
 import logging
 import os
@@ -46,12 +41,6 @@ def validate_env_vars():
 
 
 def setup_environment(project_root: Path | None = None):
-    """
-    Set up environment variables with defaults if not already set.
-
-    Args:
-        project_root: Optional project root path. If not provided, uses current directory.
-    """
     if project_root is None:
         project_root = Path.cwd()
 
@@ -81,7 +70,6 @@ def setup_environment(project_root: Path | None = None):
 
 
 def onboarding_materials_exist(project_name: str) -> bool:
-    """Check if onboarding materials already exist in the generated repository."""
     generated_repo_url = f"https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main/{project_name}"
     response = requests.get(generated_repo_url)
     if response.status_code == 200:
@@ -96,18 +84,6 @@ def generate_analysis(
     output_dir: Path,
     depth_level: int = 1,
 ) -> list[Path]:
-    """
-    Generate analysis files for a repository.
-
-    Args:
-        repo_name: Name of the repository
-        repo_path: Path to the repository
-        output_dir: Directory for output files
-        depth_level: Depth level for diagram generation
-
-    Returns:
-        List of paths to generated analysis files
-    """
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,
@@ -126,17 +102,6 @@ def generate_markdown_docs(
     output_dir: Path,
     demo_mode: bool = False,
 ):
-    """
-    Generate markdown documentation from analysis files for remote repositories.
-
-    Args:
-        repo_name: Name of the repository
-        repo_path: Path to the repository
-        repo_url: URL of the repository (for linking in docs)
-        analysis_files: List of analysis file paths
-        output_dir: Directory for output files
-        demo_mode: Whether to run in demo mode
-    """
     target_branch = get_branch(repo_path)
     repo_ref = f"{repo_url}/blob/{target_branch}/"
 
@@ -169,14 +134,6 @@ def partial_update(
 ):
     """
     Update a specific component in an existing analysis.
-
-    Args:
-        repo_path: Path to the repository
-        output_dir: Directory containing analysis files
-        project_name: Name of the project
-        component_name: Name of the component to update
-        analysis_name: Name of the analysis file to update
-        depth_level: Depth level for diagram generation
     """
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -192,8 +149,15 @@ def partial_update(
 
     # Load the analysis for which we want to extend the component
     analysis_file = output_dir / f"{analysis_name}.json"
-    with open(analysis_file, "r") as file:
-        analysis = AnalysisInsights.model_validate_json(file.read())
+    try:
+        with open(analysis_file, "r") as file:
+            analysis = AnalysisInsights.model_validate_json(file.read())
+    except FileNotFoundError:
+        logger.error(f"Analysis file '{analysis_file}' not found. Please ensure the file exists.")
+        return
+    except Exception as e:
+        logger.error(f"Failed to load analysis file '{analysis_file}': {e}")
+        return
 
     # Find and update the component
     component_to_update = None
@@ -212,12 +176,7 @@ def partial_update(
 
 def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev: bool = False):
     """
-    Clone a git repo and generate documentation (backward compatibility wrapper).
-
-    Args:
-        repo_url: URL of the remote repository
-        temp_repo_folder: Path to temporary folder for output files
-        local_dev: Whether running in local development mode (disables token storage)
+    Clone a git repo and generate documentation (backward compatibility wrapper used by local_app).
     """
     process_remote_repository(
         repo_url=repo_url,
@@ -237,13 +196,6 @@ def process_remote_repository(
 ):
     """
     Process a remote repository by cloning and generating documentation.
-
-    Args:
-        repo_url: URL of the remote repository
-        output_dir: Optional output directory for generated files
-        depth_level: Depth level for diagram generation
-        upload: Whether to upload onboarding materials
-        cache_check: Whether to check if materials already exist
     """
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     root_result = os.getenv("ROOT_RESULT", "results")
@@ -259,11 +211,9 @@ def process_remote_repository(
     repo_name = clone_repository(repo_url, repo_root)
     repo_path = repo_root / repo_name
 
-    # Create temp folder for output
     temp_folder = create_temp_repo_folder()
 
     try:
-        # Generate analysis files
         analysis_files = generate_analysis(
             repo_name=repo_name,
             repo_path=repo_path,
@@ -302,17 +252,6 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
 ):
-    """
-    Process a local repository and generate documentation.
-
-    Args:
-        repo_path: Path to the local repository
-        output_dir: Directory for output files
-        project_name: Name of the project
-        depth_level: Depth level for diagram generation
-        component_name: Optional component name for partial updates
-        analysis_name: Optional analysis name for partial updates
-    """
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -359,8 +298,24 @@ def copy_files(temp_folder: Path, output_dir: Path):
         logger.info(f"Copied {file.name} to {dest_file}")
 
 
-def parse_args():
-    """Parse command line arguments."""
+def validate_arguments(args, parser, is_local: bool):
+    # Validate local repository arguments
+    if is_local and not args.project_name:
+        parser.error("--project-name is required when using --local")
+
+    # Validate partial update arguments
+    if (args.partial_component or args.partial_analysis) and not is_local:
+        parser.error("Partial updates (--partial-component, --partial-analysis) only work with local repositories")
+
+    if args.partial_component and not args.partial_analysis:
+        parser.error("--partial-analysis is required when using --partial-component")
+
+    if args.partial_analysis and not args.partial_component:
+        parser.error("--partial-component is required when using --partial-analysis")
+
+
+def main():
+    """Main entry point for the unified CodeBoarding CLI."""
     parser = argparse.ArgumentParser(
         description="Generate onboarding documentation for Git repositories (local or remote)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -378,7 +333,7 @@ Examples:
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
                  --partial-component ComponentName --partial-analysis analysis_name
 
-  # Use custom binary location (for VSCode integration)
+  # Use custom binary location
   python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
         """,
     )
@@ -386,7 +341,7 @@ Examples:
     # Repository specification (mutually exclusive groups)
     repo_group = parser.add_mutually_exclusive_group(required=True)
     repo_group.add_argument(
-        "repositories", nargs="*", help="One or more Git repository URLs to generate documentation for"
+        "repositories", nargs="+", help="One or more Git repository URLs to generate documentation for"
     )
     repo_group.add_argument("--local", type=Path, help="Path to a local repository")
 
@@ -401,9 +356,7 @@ Examples:
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
-    parser.add_argument(
-        "--binary-location", type=Path, help="Path to the binary directory for language servers (VSCode integration)"
-    )
+    parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
     parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
     parser.add_argument(
         "--prompt-type",
@@ -412,72 +365,46 @@ Examples:
         help="Prompt type to use (default: bidirectional for remote, unidirectional for local)",
     )
     parser.add_argument(
-        "--no-upload", action="store_true", help="Skip uploading onboarding materials (remote repos only)"
+        "--upload",
+        action="store_true",
+        help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
     )
     parser.add_argument(
         "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
     )
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
 
-    return parser.parse_args()
+    args = parser.parse_args()
 
+    # Validate interdependent arguments
+    is_local = args.local is not None
+    validate_arguments(args, parser, is_local)
 
-def main():
-    """Main entry point for the unified CodeBoarding CLI."""
-    args = parse_args()
+    # Setup logging first, before any operations that might log
+    log_dir: Path | None = args.output_dir if args.output_dir else None
+    setup_logging(log_dir=log_dir)
+    logger.info("Starting CodeBoarding documentation generation...")
 
     # Load environment from .env file if it exists
     load_dotenv()
 
-    # Setup environment with defaults
     setup_environment(args.project_root)
 
-    # Determine mode based on arguments
-    is_local = args.local is not None
-
-    # Validate local repository arguments
-    if is_local and not args.project_name:
-        parser = argparse.ArgumentParser()
-        parser.error("--project-name is required when using --local")
-
-    # Validate partial update arguments
-    if (args.partial_component or args.partial_analysis) and not is_local:
-        parser = argparse.ArgumentParser()
-        parser.error("Partial updates (--partial-component, --partial-analysis) only work with local repositories")
-
-    if args.partial_component and not args.partial_analysis:
-        parser = argparse.ArgumentParser()
-        parser.error("--partial-analysis is required when using --partial-component")
-
-    if args.partial_analysis and not args.partial_component:
-        parser = argparse.ArgumentParser()
-        parser.error("--partial-component is required when using --partial-analysis")
-
-    # Determine prompt type: bidirectional for remote (github repo link), unidirectional for local
     if args.prompt_type:
         prompt_type = PromptType.BIDIRECTIONAL if args.prompt_type == "bidirectional" else PromptType.UNIDIRECTIONAL
     else:
         prompt_type = PromptType.UNIDIRECTIONAL if is_local else PromptType.BIDIRECTIONAL
 
-    # Initialize prompt factory
     initialize_global_factory(LLMType.GEMINI_FLASH, prompt_type)
 
-    # Validate environment variables (only for remote repos that need API access)
+    # Validate environment variables (only for remote repos due to .env file - should be modified soon)
     if not is_local:
         validate_env_vars()
 
-    # Handle binary location for VSCode integration
     if args.binary_location:
         update_config(args.binary_location)
 
-    # Setup logging
-    log_dir: Path | None = args.output_dir if args.output_dir else None
-    setup_logging(log_dir=log_dir)
-    logger.info("Starting CodeBoarding documentation generation...")
-
-    # Process repositories
     if is_local:
-        # Local repository processing
         process_local_repository(
             repo_path=args.local,
             output_dir=args.output_dir or Path("./analysis"),
@@ -488,23 +415,20 @@ def main():
         )
         logger.info(f"Documentation generated successfully in {args.output_dir or './analysis'}")
     else:
-        # Remote repositories processing
         if args.repositories:
-            # Store GitHub token if needed
-            if not args.no_upload:
+            if args.upload:
                 try:
                     store_token()
                 except Exception as e:
                     logger.warning(f"Could not store GitHub token: {e}")
 
-            # Process each repository
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 try:
                     process_remote_repository(
                         repo_url=repo,
                         output_dir=args.output_dir,
                         depth_level=args.depth_level,
-                        upload=not args.no_upload,
+                        upload=args.upload,
                         cache_check=not args.no_cache_check,
                     )
                 except Exception as e:

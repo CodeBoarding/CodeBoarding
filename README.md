@@ -147,7 +147,7 @@ python main.py --local /path/to/repo --project-name MyProject --output-dir <outp
 - `--prompt-type <type>` - Prompt type: `bidirectional` or `unidirectional` (default: bidirectional for remote, unidirectional for local)
 - `--binary-location <path>` - Custom path to language server binaries (for VSCode integration)
 - `--project-root <path>` - Project root directory (default: current directory)
-- `--no-upload` - Skip uploading onboarding materials to GeneratedOnBoardings repo (remote repos only)
+- `--upload` - Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)
 - `--no-cache-check` - Skip checking if documentation already exists (remote repos only)
 
 #### Examples
