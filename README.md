@@ -145,7 +145,7 @@ python main.py --local /path/to/repo --project-name MyProject --output-dir <outp
 **Advanced Options:**
 - `--depth-level <int>` - Depth level for diagram generation (default: 1)
 - `--prompt-type <type>` - Prompt type: `bidirectional` or `unidirectional` (default: bidirectional for remote, unidirectional for local)
-- `--binary-location <path>` - Custom path to language server binaries (for VSCode integration)
+- `--binary-location <path>` - Custom path to language server binaries
 - `--project-root <path>` - Project root directory (default: current directory)
 - `--upload` - Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)
 - `--no-cache-check` - Skip checking if documentation already exists (remote repos only)
