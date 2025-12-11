@@ -90,24 +90,23 @@ def onboarding_materials_exist(project_name: str) -> bool:
     return False
 
 
-def generate_docs(
+def generate_analysis(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
     depth_level: int = 1,
-    repo_url: str | None = None,
-    demo_mode: bool = False,
-):
+) -> list[Path]:
     """
-    Generate documentation for a repository.
+    Generate analysis files for a repository.
 
     Args:
         repo_name: Name of the repository
         repo_path: Path to the repository
         output_dir: Directory for output files
         depth_level: Depth level for diagram generation
-        repo_url: Optional URL of the repository (for linking in docs)
-        demo_mode: Whether to run in demo mode
+
+    Returns:
+        List of paths to generated analysis files
     """
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -116,22 +115,38 @@ def generate_docs(
         output_dir=output_dir,
         depth_level=depth_level,
     )
-    analysis_files = generator.generate_analysis()
+    return generator.generate_analysis()
 
-    # Generate markdown from analysis files
+
+def generate_markdown_docs(
+    repo_name: str,
+    repo_path: Path,
+    repo_url: str,
+    analysis_files: list[Path],
+    output_dir: Path,
+    demo_mode: bool = False,
+):
+    """
+    Generate markdown documentation from analysis files for remote repositories.
+
+    Args:
+        repo_name: Name of the repository
+        repo_path: Path to the repository
+        repo_url: URL of the repository (for linking in docs)
+        analysis_files: List of analysis file paths
+        output_dir: Directory for output files
+        demo_mode: Whether to run in demo mode
+    """
+    target_branch = get_branch(repo_path)
+    repo_ref = f"{repo_url}/blob/{target_branch}/"
+
     for file in analysis_files:
         with open(file, "r") as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
-            logger.info(f"Generated analysis file: {file}")
+            logger.info(f"Generating markdown for analysis file: {file}")
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
-
-            # Get branch for linking if repo_url is provided
-            repo_ref = None
-            if repo_url:
-                target_branch = get_branch(repo_path)
-                repo_ref = f"{repo_url}/blob/{target_branch}/"
 
             generate_markdown_file(
                 fname,
@@ -195,6 +210,24 @@ def partial_update(
     generator.process_component(component_to_update)
 
 
+def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev: bool = False):
+    """
+    Clone a git repo and generate documentation (backward compatibility wrapper).
+
+    Args:
+        repo_url: URL of the remote repository
+        temp_repo_folder: Path to temporary folder for output files
+        local_dev: Whether running in local development mode (disables token storage)
+    """
+    process_remote_repository(
+        repo_url=repo_url,
+        output_dir=temp_repo_folder,
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+        upload=not local_dev,  # Only upload if not in local dev mode
+        cache_check=True,
+    )
+
+
 def process_remote_repository(
     repo_url: str,
     output_dir: Path | None = None,
@@ -230,13 +263,21 @@ def process_remote_repository(
     temp_folder = create_temp_repo_folder()
 
     try:
-        # Generate documentation
-        generate_docs(
+        # Generate analysis files
+        analysis_files = generate_analysis(
             repo_name=repo_name,
             repo_path=repo_path,
             output_dir=temp_folder,
             depth_level=depth_level,
+        )
+
+        # Generate markdown documentation for remote repo
+        generate_markdown_docs(
+            repo_name=repo_name,
+            repo_path=repo_path,
             repo_url=repo_url,
+            analysis_files=analysis_files,
+            output_dir=temp_folder,
             demo_mode=True,
         )
 
@@ -286,13 +327,12 @@ def process_local_repository(
             depth_level=depth_level,
         )
     else:
-        # Full analysis
-        generate_docs(
+        # Full analysis (local repo - no markdown generation)
+        generate_analysis(
             repo_name=project_name,
             repo_path=repo_path,
             output_dir=output_dir,
             depth_level=depth_level,
-            demo_mode=False,
         )
 
 
@@ -431,7 +471,7 @@ def main():
         update_config(args.binary_location)
 
     # Setup logging
-    log_dir = str(args.output_dir) if args.output_dir else None
+    log_dir: Path | None = args.output_dir if args.output_dir else None
     setup_logging(log_dir=log_dir)
     logger.info("Starting CodeBoarding documentation generation...")
 

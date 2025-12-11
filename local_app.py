@@ -1,6 +1,6 @@
 import dotenv
 
-from demo import generate_docs_remote
+from main import generate_docs_remote
 
 import logging
 import os
