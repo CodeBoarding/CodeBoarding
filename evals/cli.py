@@ -12,7 +12,7 @@ from evals.config import PROJECTS_STATIC_ANALYSIS, PROJECTS_E2E, PROJECTS_SCALIN
 from evals.definitions.static_analysis import StaticAnalysisEval
 from evals.definitions.end_to_end import EndToEndEval
 from evals.definitions.scalability import ScalabilityEval
-from evals.types import ProjectSpec
+from evals.schemas import ProjectSpec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ def main():
 
     if args.type in ["static", "all"]:
         evals_to_run.append(
-            (StaticAnalysisEval("static-analysis", args.output_dir), PROJECTS_STATIC_ANALYSIS, ["--depth-level", "1"])
+            (StaticAnalysisEval("static-analysis", args.output_dir), PROJECTS_STATIC_ANALYSIS, ["--static-only"])
         )
 
     if args.type in ["e2e", "all"]:

@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents.agent import CodeBoardingAgent
+from monitoring.mixin import MonitoringMixin
 
 logger = logging.getLogger("monitoring")
 
@@ -24,10 +24,11 @@ class StreamingStatsWriter:
     def __init__(
         self,
         monitoring_dir: Path,
-        agents_dict: dict[str, CodeBoardingAgent],
+        agents_dict: dict[str, MonitoringMixin],
         repo_name: str,
         output_dir: str | None = None,
         interval: float = 5.0,
+        start_time: float | None = None,
     ):
         self.monitoring_dir = Path(monitoring_dir)
         self.llm_usage_file = self.monitoring_dir / "llm_usage.json"
@@ -38,8 +39,9 @@ class StreamingStatsWriter:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._logger = logging.getLogger("monitoring.writer")
-        self._start_time: float | None = None
+        self._start_time: float | None = start_time
         self._error: str | None = None
+        self._end_time: float | None = None
 
     def __enter__(self):
         self.start()
@@ -54,7 +56,8 @@ class StreamingStatsWriter:
         if self._thread is not None:
             return
 
-        self._start_time = time.time()
+        if self._start_time is None:
+            self._start_time = time.time()
         self.monitoring_dir.mkdir(parents=True, exist_ok=True)
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -65,6 +68,7 @@ class StreamingStatsWriter:
         if self._thread is None:
             return
 
+        self._end_time = time.time()
         self._error = error
         self._stop_event.set()
         self._thread.join(timeout=2.0)
@@ -75,7 +79,7 @@ class StreamingStatsWriter:
     def _loop(self):
         while not self._stop_event.is_set():
             self._save_llm_usage()
-            time.sleep(self.interval)
+            self._stop_event.wait(self.interval)
 
     def _save_llm_usage(self):
         """Save LLM usage stats to llm_usage.json."""
@@ -101,7 +105,8 @@ class StreamingStatsWriter:
     def _save_run_metadata(self):
         """Save run metadata including timing information."""
         try:
-            duration = time.time() - self._start_time if self._start_time else 0
+            end_time = self._end_time if self._end_time else time.time()
+            duration = end_time - self._start_time if self._start_time else 0
 
             # Count output files
             json_count = 0

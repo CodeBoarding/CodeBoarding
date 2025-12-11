@@ -43,9 +43,9 @@ def create_clients(programming_languages: list[ProgrammingLanguage], repository_
 
 class StaticAnalyzer:
     def __init__(self, repository_path: Path):
-        self.repository_path = repository_path
-        programming_langs = ProjectScanner(repository_path).scan()
-        self.clients = create_clients(programming_langs, repository_path)
+        self.repository_path = repository_path.resolve()
+        programming_langs = ProjectScanner(self.repository_path).scan()
+        self.clients = create_clients(programming_langs, self.repository_path)
 
     def analyze(self):
         results = StaticAnalysisResults()

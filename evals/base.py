@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 # Ensure we can import from parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from evals.types import EvalResult, PipelineResult, ProjectSpec, RunData
+from evals.schemas import EvalResult, PipelineResult, ProjectSpec, RunData
 from evals.utils import generate_system_specs
 
 logging.basicConfig(level=logging.INFO)
@@ -82,7 +82,12 @@ class BaseEval(ABC):
 
         return data
 
-    def run_pipeline(self, project: ProjectSpec, extra_args: list[str] | None = None) -> PipelineResult:
+    def run_pipeline(
+        self,
+        project: ProjectSpec,
+        extra_args: list[str] | None = None,
+        env_vars: dict[str, str] | None = None,
+    ) -> PipelineResult:
         repo_url = project.url
         project_name = project.name
         output_dir = self.project_root / "evals/artifacts" / project_name
@@ -95,7 +100,21 @@ class BaseEval(ABC):
         if not env.get("REPO_ROOT"):
             env["REPO_ROOT"] = "repos"
 
-        cmd = [sys.executable, "demo.py", repo_url, "--output-dir", str(output_dir)]
+        if project.env_vars:
+            env.update(project.env_vars)
+
+        if env_vars:
+            env.update(env_vars)
+
+        cmd = [
+            sys.executable,
+            "demo.py",
+            repo_url,
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            project_name,
+        ]
         if extra_args:
             cmd.extend(extra_args)
 

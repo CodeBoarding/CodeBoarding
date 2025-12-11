@@ -1,8 +1,14 @@
 from typing import Any
 
 from evals.base import BaseEval
-from evals.schemas import LanguageSummary, StaticAnalysisMetrics, StaticAnalysisSummary
-from evals.types import EvalResult, ProjectSpec, RunData
+from evals.schemas import (
+    EvalResult,
+    LanguageSummary,
+    ProjectSpec,
+    RunData,
+    StaticAnalysisMetrics,
+    StaticAnalysisSummary,
+)
 from evals.utils import generate_header
 
 
@@ -13,7 +19,7 @@ class StaticAnalysisEval(BaseEval):
         # Calculate totals
         total_files = 0
         total_loc = 0
-        languages_summary: dict[str, LanguageSummary] = {}
+        languages_summary = {}
 
         for lang, stats in code_stats.get("languages", {}).items():
             file_count = stats.get("file_count", 0)

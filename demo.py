@@ -46,7 +46,6 @@ def validate_env_vars():
         logger.warning(
             "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'"
         )
-        os.environ["ROOT_RESULT"] = "results"
 
 
 def onboarding_materials_exist(project_name: str, source_dir: str):
@@ -59,7 +58,13 @@ def onboarding_materials_exist(project_name: str, source_dir: str):
         return False
 
 
-def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str | None = None):
+def generate_docs(
+    repo_name: str,
+    temp_repo_folder: Path,
+    repo_url: str | None = None,
+    static_only: bool = False,
+    project_name: str | None = None,
+):
     # Create directories if they don't exist
     repo_root = os.getenv("REPO_ROOT")
     if not repo_root:
@@ -75,6 +80,8 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str | None =
         repo_name=repo_name,
         output_dir=temp_repo_folder,
         depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+        static_only=static_only,
+        project_name=project_name,
     )
     analysis_files = generator.generate_analysis()
 
@@ -97,14 +104,20 @@ def generate_docs(repo_name: str, temp_repo_folder: Path, repo_url: str | None =
             )
 
 
-def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False):
+def generate_docs_remote(
+    repo_url: str,
+    temp_repo_folder: Path,
+    local_dev=False,
+    static_only=False,
+    project_name: str | None = None,
+):
     """
     Clone a git repo to target_dir/<repo-name>.
     Returns the Path to the cloned repository.
     """
-    ROOT_RESULT = os.getenv("ROOT_RESULT")
-    if not ROOT_RESULT:
-        raise ValueError("ROOT_RESULT environment variable is not set")
+    # ROOT_RESULT = os.getenv("ROOT_RESULT")
+    # if not ROOT_RESULT:
+    #     raise ValueError("ROOT_RESULT environment variable is not set")
 
     REPO_ROOT = os.getenv("REPO_ROOT")
     if not REPO_ROOT:
@@ -118,7 +131,7 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev=False)
         return
 
     repo_name = clone_repository(repo_url, Path(REPO_ROOT))
-    generate_docs(repo_name, temp_repo_folder, repo_url)
+    generate_docs(repo_name, temp_repo_folder, repo_url, static_only=static_only, project_name=project_name)
     if os.path.exists(ROOT_RESULT):
         upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
     else:
@@ -167,6 +180,8 @@ Examples:
     )
     parser.add_argument("repositories", nargs="+", help="One or more Git repository URLs to generate documentation for")
     parser.add_argument("--output-dir", type=Path, help="Directory to copy generated markdown files to")
+    parser.add_argument("--static-only", action="store_true", help="Run only static analysis without agents")
+    parser.add_argument("--project-name", help="Custom project name for monitoring runs")
 
     args = parser.parse_args()
 
@@ -177,14 +192,20 @@ Examples:
 
     for repo in tqdm(args.repositories, desc="Generating docs for repos"):
         repo_name = get_repo_name(repo)
-        run_id = f"demo_run_{repo_name}"
+        run_id = args.project_name if args.project_name else f"demo_run_{repo_name}"
 
         with monitor_execution(run_id=run_id, enabled=monitoring_enabled()) as mon:
             mon.step(f"processing_{repo_name}")
 
             temp_repo_folder = create_temp_repo_folder()
             try:
-                generate_docs_remote(repo, temp_repo_folder, local_dev=True)
+                generate_docs_remote(
+                    repo,
+                    temp_repo_folder,
+                    local_dev=True,
+                    static_only=args.static_only,
+                    project_name=args.project_name,
+                )
 
                 # Copy markdown files to output directory if specified
                 if args.output_dir:

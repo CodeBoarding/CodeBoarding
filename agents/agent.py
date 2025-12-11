@@ -21,6 +21,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
 from agents.tools import (
     CodeReferenceReader,
@@ -37,6 +38,8 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
+
+MONITORING_CALLBACK = MonitoringCallback()
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
@@ -150,7 +153,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
-                callback_list.append(self.global_monitoring_callback)
+                callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
 
                 if callback_list:
@@ -196,7 +199,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [self.global_monitoring_callback, self.agent_monitoring_callback]}
+            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
@@ -228,7 +231,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
             chain = prompt | self.extractor_llm | parser
-            config = {"callbacks": [self.global_monitoring_callback, self.agent_monitoring_callback]}
+            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():

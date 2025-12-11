@@ -1,14 +1,39 @@
+import logging
+from pathlib import Path
 from typing import Any
 
+from agents.agent_responses import AnalysisInsights
 from evals.base import BaseEval
 from evals.schemas import (
     EndToEndMetrics,
+    EvalResult,
     MonitoringMetrics,
+    ProjectSpec,
+    RunData,
     TokenUsage,
     ToolUsage,
 )
-from evals.types import EvalResult, ProjectSpec, RunData
 from evals.utils import generate_header
+from output_generators.markdown import generated_mermaid_str
+
+logger = logging.getLogger(__name__)
+
+
+def _strip_mermaid_fences(mermaid: str) -> str:
+    """
+    `output_generators.markdown.generated_mermaid_str()` returns a fenced block:
+    ```mermaid
+    ...
+    ```
+    This report writer adds its own fences, so we strip them here.
+    """
+
+    lines = mermaid.splitlines()
+    if lines and lines[0].strip() == "```mermaid":
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip("\n")
 
 
 class EndToEndEval(BaseEval):
@@ -42,17 +67,59 @@ class EndToEndEval(BaseEval):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
             ),
-            tool_usage=ToolUsage(counts=tool_counts, errors=tool_errors),
+            tool_usage=ToolUsage(
+                counts=tool_counts,
+                errors=tool_errors,
+            ),
         )
+
+    def _project_artifacts_dir(self, project_name: str) -> Path:
+        return self.project_root / "evals" / "artifacts" / project_name
+
+    def _load_top_level_mermaid_diagram(self, project_name: str) -> str:
+        artifacts_dir = self._project_artifacts_dir(project_name)
+        analysis_path = artifacts_dir / "analysis.json"
+        if not analysis_path.exists():
+            logger.warning("End-to-end report: missing analysis.json at %s", analysis_path)
+            return ""
+
+        try:
+            insights = AnalysisInsights.model_validate_json(analysis_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning("End-to-end report: failed to parse %s (%s)", analysis_path, e)
+            return ""
+
+        linked_files = list(artifacts_dir.glob("*.json"))
+        # end-to-end report is written to evals/reports/, so point click-links at ../artifacts/<project>/...
+        repo_ref = f"../artifacts/{project_name}"
+
+        try:
+            mermaid_fenced = generated_mermaid_str(
+                analysis=insights,
+                linked_files=linked_files,
+                repo_ref=repo_ref,
+                project=project_name,
+                demo=False,
+            )
+        except Exception as e:
+            logger.warning("End-to-end report: failed to generate Mermaid for %s (%s)", project_name, e)
+            return ""
+
+        return _strip_mermaid_fences(mermaid_fenced)
 
     def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
         llm_data = run_data.llm_usage
         code_stats = run_data.code_stats
 
+        # Only embed diagrams for successful runs (when metadata is available).
+        meta = run_data.metadata or {}
+        is_success = meta.get("success", True)
+        mermaid_diagram = self._load_top_level_mermaid_diagram(project.name) if is_success else ""
+
         return EndToEndMetrics(
             monitoring=self._aggregate_llm_usage(llm_data),
             code_stats=code_stats,
-            mermaid_diagram="",
+            mermaid_diagram=mermaid_diagram,
         ).model_dump()
 
     def generate_report(self, results: list[EvalResult]) -> str:

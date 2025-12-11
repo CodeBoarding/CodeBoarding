@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from datetime import datetime
@@ -29,11 +30,22 @@ logger = logging.getLogger(__name__)
 
 
 class DiagramGenerator:
-    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
+    def __init__(
+        self,
+        repo_location,
+        temp_folder,
+        repo_name,
+        output_dir,
+        depth_level: int,
+        static_only: bool = False,
+        project_name: str | None = None,
+    ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
+        self.static_only = static_only
+        self.project_name = project_name
         self.details_agent: DetailsAgent | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.planner_agent: PlannerAgent | None = None
@@ -91,6 +103,7 @@ class DiagramGenerator:
             return None, []
 
     def pre_analysis(self):
+        analysis_start_time = time.time()
         static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
         # --- Capture Static Analysis Stats ---
@@ -109,36 +122,37 @@ class DiagramGenerator:
             }
         # ------------------------------------------
 
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
-        meta_context = self.meta_agent.analyze_project_metadata()
-        self.details_agent = DetailsAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-        )
-        self._monitoring_agents["DetailsAgent"] = self.details_agent
-        self.abstraction_agent = AbstractionAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-        )
-        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        if not self.static_only:
+            self.meta_agent = MetaAgent(
+                repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+            )
+            self._monitoring_agents["MetaAgent"] = self.meta_agent
+            meta_context = self.meta_agent.analyze_project_metadata()
+            self.details_agent = DetailsAgent(
+                repo_dir=self.repo_location,
+                project_name=self.repo_name,
+                static_analysis=static_analysis,
+                meta_context=meta_context,
+            )
+            self._monitoring_agents["DetailsAgent"] = self.details_agent
+            self.abstraction_agent = AbstractionAgent(
+                repo_dir=self.repo_location,
+                project_name=self.repo_name,
+                static_analysis=static_analysis,
+                meta_context=meta_context,
+            )
+            self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self._monitoring_agents["PlannerAgent"] = self.planner_agent
+            self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+            self._monitoring_agents["PlannerAgent"] = self.planner_agent
 
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self._monitoring_agents["ValidatorAgent"] = self.validator_agent
+            self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+            self._monitoring_agents["ValidatorAgent"] = self.validator_agent
 
-        self.diff_analyzer_agent = DiffAnalyzingAgent(
-            repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
-        )
-        self._monitoring_agents["DiffAnalyzerAgent"] = self.diff_analyzer_agent
+            self.diff_analyzer_agent = DiffAnalyzingAgent(
+                repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
+            )
+            self._monitoring_agents["DiffAnalyzerAgent"] = self.diff_analyzer_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
@@ -158,7 +172,8 @@ class DiagramGenerator:
                 / "monitoring_results"
                 / "runs"
             )
-            monitoring_dir = base_monitoring_dir / f"{self.repo_name}_{timestamp}"
+            run_name = self.project_name or self.repo_name
+            monitoring_dir = base_monitoring_dir / f"{run_name}_{timestamp}"
             monitoring_dir.mkdir(parents=True, exist_ok=True)
 
             # Save code_stats.json
@@ -170,8 +185,9 @@ class DiagramGenerator:
             self.stats_writer = StreamingStatsWriter(
                 monitoring_dir=monitoring_dir,
                 agents_dict=self._monitoring_agents,
-                repo_name=self.repo_name,
+                repo_name=self.project_name or self.repo_name,
                 output_dir=str(self.output_dir),
+                start_time=analysis_start_time,
             )
 
     def generate_analysis(self):
@@ -193,6 +209,10 @@ class DiagramGenerator:
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
+            if self.static_only:
+                logger.info("Static analysis only mode enabled. Analysis complete.")
+                return files
+
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 

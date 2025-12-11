@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -7,8 +8,10 @@ import seaborn as sns
 
 from evals.base import BaseEval
 from evals.schemas import AgentTokenBreakdown, ScalabilityMetrics
-from evals.types import EvalResult, ProjectSpec, RunData
+from evals.schemas import EvalResult, ProjectSpec, RunData
 from evals.utils import generate_header
+
+logger = logging.getLogger(__name__)
 
 
 class ScalabilityEval(BaseEval):
@@ -45,11 +48,14 @@ class ScalabilityEval(BaseEval):
             tool_usage = agent_data.get("tool_usage", {}).get("counts", {})
             agent_tool_usage[agent_name] = tool_usage
 
+        depth = int(project.env_vars.get("DIAGRAM_DEPTH_LEVEL"))
+
         return ScalabilityMetrics(
             loc=total_loc,
             total_tokens=total_tokens,
             agent_token_usage=agent_token_usage,
             agent_tool_usage=agent_tool_usage,
+            depth=depth,
         ).model_dump()
 
     def generate_report(self, results: list[EvalResult]) -> str:
@@ -76,9 +82,15 @@ class ScalabilityEval(BaseEval):
         # Set seaborn style
         sns.set_theme(style="whitegrid")
 
-        # Plot 1: LOC vs Duration
+        # Plot 1: LOC vs Duration (Colored by Depth if available)
         plt.figure(figsize=(10, 6))
-        sns.regplot(data=df, x="loc", y="duration_seconds")
+        # Use hue="depth" if depth varies, else just default
+        hue_arg = "depth" if "depth" in df.columns and df["depth"].nunique() > 1 else None
+
+        sns.scatterplot(data=df, x="loc", y="duration_seconds", hue=hue_arg, palette="viridis", s=100)
+        # Add regression line only if enough points, treating all same
+        sns.regplot(data=df, x="loc", y="duration_seconds", scatter=False, color="gray", line_kws={"alpha": 0.5})
+
         plt.title("Scalability: LOC vs Duration")
         plt.xlabel("Lines of Code")
         plt.ylabel("Duration (seconds)")
@@ -88,7 +100,9 @@ class ScalabilityEval(BaseEval):
 
         # Plot 2: LOC vs Tokens
         plt.figure(figsize=(10, 6))
-        sns.regplot(data=df, x="loc", y="total_tokens", color="orange")
+        sns.scatterplot(data=df, x="loc", y="total_tokens", hue=hue_arg, palette="viridis", s=100)
+        sns.regplot(data=df, x="loc", y="total_tokens", scatter=False, color="orange", line_kws={"alpha": 0.5})
+
         plt.title("Scalability: LOC vs Tokens")
         plt.xlabel("Lines of Code")
         plt.ylabel("Total Tokens")
@@ -175,13 +189,13 @@ class ScalabilityEval(BaseEval):
             "",
             "### Data Summary",
             "",
-            "| Project | LOC | Duration (s) | Tokens |",
-            "|---------|-----|--------------|--------|",
+            "| Project | Depth | LOC | Duration (s) | Tokens |",
+            "|---------|-------|-----|--------------|--------|",
         ]
 
         for row in data:
             lines.append(
-                f"| {row.get('project')} | {row.get('loc', 0):,} | {row.get('duration_seconds', 0):.1f} | {row.get('total_tokens', 0):,} |"
+                f"| {row.get('project')} | {row.get('depth')} | {row.get('loc', 0):,} | {row.get('duration_seconds', 0):.1f} | {row.get('total_tokens', 0):,} |"
             )
 
         return "\n".join(lines)

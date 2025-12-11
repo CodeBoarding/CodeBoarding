@@ -1,4 +1,5 @@
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
@@ -82,3 +83,44 @@ class StaticAnalysisMetrics(BaseModel):
     """Metrics returned by StaticAnalysisEval.extract_metrics()."""
 
     code_stats: StaticAnalysisSummary = Field(default_factory=StaticAnalysisSummary)
+
+
+# =============================================================================
+# Core Pipeline Models (Dataclasses for compatibility with evals/base.py)
+# =============================================================================
+
+
+@dataclass
+class ProjectSpec:
+    name: str
+    url: str
+    expected_language: str = ""
+    env_vars: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class RunData:
+    run_dir: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+    code_stats: dict[str, Any] = field(default_factory=dict)
+    llm_usage: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PipelineResult:
+    success: bool
+    stderr: str
+    pipeline_duration: float
+    timestamp: str
+
+
+@dataclass
+class EvalResult:
+    project: str
+    url: str
+    expected_language: str
+    success: bool
+    duration_seconds: float
+    timestamp: str
+    metrics: dict[str, Any]
+    error: Optional[str] = None
