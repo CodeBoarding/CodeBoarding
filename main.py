@@ -314,30 +314,10 @@ def validate_arguments(args, parser, is_local: bool):
         parser.error("--partial-component is required when using --partial-analysis")
 
 
-def main():
-    """Main entry point for the unified CodeBoarding CLI."""
-    parser = argparse.ArgumentParser(
-        description="Generate onboarding documentation for Git repositories (local or remote)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Remote repositories
-  python main.py https://github.com/user/repo1
-  python main.py https://github.com/user/repo1 --output-dir ./docs
-  python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
-
-  # Local repository
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
-
-  # Partial update
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
-                 --partial-component ComponentName --partial-analysis analysis_name
-
-  # Use custom binary location
-  python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
-        """,
-    )
-
+def define_cli_arguments(parser: argparse.ArgumentParser):
+    """
+    Adds all command-line arguments and groups to the ArgumentParser.
+    """
     # Repository specification (mutually exclusive groups)
     repo_group = parser.add_mutually_exclusive_group(required=True)
     repo_group.add_argument(
@@ -373,6 +353,32 @@ Examples:
         "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
     )
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
+
+
+def main():
+    """Main entry point for the unified CodeBoarding CLI."""
+    parser = argparse.ArgumentParser(
+        description="Generate onboarding documentation for Git repositories (local or remote)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Remote repositories
+  python main.py https://github.com/user/repo1
+  python main.py https://github.com/user/repo1 --output-dir ./docs
+  python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
+
+  # Local repository
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
+
+  # Partial update
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
+                 --partial-component ComponentName --partial-analysis analysis_name
+
+  # Use custom binary location
+  python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
+        """,
+    )
+    define_cli_arguments(parser)
 
     args = parser.parse_args()
 
