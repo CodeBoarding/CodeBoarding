@@ -1,19 +1,23 @@
 # Static Analysis Performance Evaluation
 
-**Generated:** 2025-11-04T12:52:32.533065
-
-**Evaluation Time:** 2.83 seconds
+**Generated:** 2025-12-11T23:21:14.580915+00:00
 
 ### Summary
 
-| Project | Language | Status | Time (s) | Files | Errors |
-|---------|----------|--------|----------|-------|--------|
-| markitdown | Python | ❌ Failed | 0.68 | 0 | 0 |
-| tsoa | TypeScript | ❌ Failed | 1.38 | 0 | 0 |
-| cobra | Go | ❌ Failed | 0.77 | 0 | 0 |
+| Project | Language | Status | Time (s) | Files | LOC |
+|---------|----------|--------|----------|-------|-----|
+| markitdown | Python | ✅ Success | 26.8 | 43 | 5,166 |
+| bertopic | Python | ✅ Success | 84.9 | 56 | 12,145 |
+| browser-use | Python | ✅ Success | 439.7 | 260 | 56,993 |
+| fastapi | Python | ✅ Success | 102.0 | 765 | 98,809 |
+| django | Python | ✅ Success | 873.8 | 983 | 438,942 |
+
+**Total Files:** 2,107
+**Total LOC:** 612,055
+
 ## System Specifications
 
-**Operating System:** Linux (Linux-6.11.0-1018-azure-x86_64-with-glibc2.39)
-**Processor:** x86_64
-**CPU Cores:** 4
-**Git User:** Not configured
+**Operating System:** Darwin (macOS-15.6-arm64-arm-64bit)
+**Processor:** arm
+**CPU Cores:** 10
+**Git User:** brovatten
