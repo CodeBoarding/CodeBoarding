@@ -24,6 +24,11 @@ def parse_args():
         "--type", choices=["static", "e2e", "scalability", "all"], default="all", help="Type of evaluation to run"
     )
     parser.add_argument("--output-dir", type=Path, default=Path("evals/reports"), help="Directory to save reports")
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Skip pipeline execution and generate reports from existing artifacts",
+    )
     return parser.parse_args()
 
 
@@ -52,7 +57,7 @@ def main():
 
     for eval_instance, projects, extra_args in evals_to_run:
         try:
-            eval_instance.run(projects, extra_args)
+            eval_instance.run(projects, extra_args, report_only=args.report_only)
         except Exception as e:
             logger.error(f"Evaluation {eval_instance.name} failed: {e}")
             # We continue to next eval if one fails

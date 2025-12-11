@@ -99,8 +99,8 @@ class ScalabilityEval(BaseEval):
         # Plot 3: Token Usage per Agent (Stacked Bar)
         # We'll take the average usage across projects for a representative view
         avg_agent_tokens: dict[str, dict[str, list[int]]] = {}
-        for r in data:
-            for agent, usage in r.get("agent_token_usage", {}).items():
+        for row in data:
+            for agent, usage in row.get("agent_token_usage", {}).items():
                 if agent not in avg_agent_tokens:
                     avg_agent_tokens[agent] = {"input": [], "output": []}
                 avg_agent_tokens[agent]["input"].append(usage["input"])
@@ -131,8 +131,8 @@ class ScalabilityEval(BaseEval):
         # Plot 4: Tool Usage Counts per Agent
         # We'll aggregate all tool calls across all projects
         tool_data = []
-        for r in data:
-            for agent, tools in r.get("agent_tool_usage", {}).items():
+        for row in data:
+            for agent, tools in row.get("agent_tool_usage", {}).items():
                 for tool, count in tools.items():
                     tool_data.append({"Agent": agent, "Tool": tool, "Count": count})
 
@@ -179,9 +179,9 @@ class ScalabilityEval(BaseEval):
             "|---------|-----|--------------|--------|",
         ]
 
-        for r in data:
+        for row in data:
             lines.append(
-                f"| {r.get('project')} | {r.get('loc', 0):,} | {r.get('duration_seconds', 0):.1f} | {r.get('total_tokens', 0):,} |"
+                f"| {row.get('project')} | {row.get('loc', 0):,} | {row.get('duration_seconds', 0):.1f} | {row.get('total_tokens', 0):,} |"
             )
 
         return "\n".join(lines)

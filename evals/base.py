@@ -144,7 +144,9 @@ class BaseEval(ABC):
         """Subclasses must implement this to format their specific Markdown report."""
         pass
 
-    def run(self, projects: list[ProjectSpec], extra_args: list[str] | None = None) -> dict[str, Any]:
+    def run(
+        self, projects: list[ProjectSpec], extra_args: list[str] | None = None, report_only: bool = False
+    ) -> dict[str, Any]:
         """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
         logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
 
@@ -152,14 +154,40 @@ class BaseEval(ABC):
         for project in projects:
             logger.info(f"\n{'='*60}\nProject: {project.name}\n{'='*60}")
 
+            pipeline_result = None
+
             # 1. Run Pipeline
-            pipeline_result = self.run_pipeline(project, extra_args)
+            if not report_only:
+                pipeline_result = self.run_pipeline(project, extra_args)
 
             # 2. Get Data
             run_data = self.get_latest_run_data(project.name)
 
+            if report_only:
+                meta = run_data.metadata
+                if meta:
+                    pipeline_result = PipelineResult(
+                        success=meta.get("success", False),
+                        stderr=meta.get("error") or "",
+                        pipeline_duration=meta.get("duration_seconds", 0.0),
+                        timestamp=meta.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                    )
+                else:
+                    logger.warning(
+                        f"No run data found for {project.name}, skipping report generation for this project."
+                    )
+                    pipeline_result = PipelineResult(
+                        success=False,
+                        stderr="No previous run data found for report generation",
+                        pipeline_duration=0.0,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                    )
+
             # 3. Extract Metrics
             metrics = self.extract_metrics(project, run_data)
+
+            # Ensure pipeline_result is set
+            assert pipeline_result is not None
 
             # Construct EvalResult
             eval_result = EvalResult(

@@ -4,6 +4,7 @@ RunStats: Thread-safe statistics container for monitoring.
 
 import threading
 from collections import defaultdict
+from contextvars import ContextVar
 
 
 class RunStats:
@@ -43,5 +44,5 @@ class RunStats:
             }
 
 
-# Global stats instance - Lean & Simple for CLI tools
-stats = RunStats()
+# Context variable for the current RunStats instance
+current_stats: ContextVar[RunStats] = ContextVar("current_stats")

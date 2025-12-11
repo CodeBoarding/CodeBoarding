@@ -21,7 +21,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from monitoring import MonitoringCallback, RunStats
+from monitoring.mixin import MonitoringMixin
 from agents.tools import (
     CodeReferenceReader,
     CodeStructureTool,
@@ -38,12 +38,11 @@ from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
 
-MONITORING_CALLBACK = MonitoringCallback()
 
-
-class CodeBoardingAgent(ReferenceResolverMixin):
+class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
-        super().__init__(repo_dir, static_analysis)
+        ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
+        MonitoringMixin.__init__(self)
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
@@ -57,8 +56,6 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
         self.read_docs = ReadDocsTool(repo_dir=repo_dir)
         self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
-        self.agent_stats = RunStats()
-        self.agent_monitoring_callback = MonitoringCallback(stats_container=self.agent_stats)
 
         self.agent = create_react_agent(
             model=self.llm,
@@ -153,7 +150,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
-                callback_list.append(MONITORING_CALLBACK)
+                callback_list.append(self.global_monitoring_callback)
                 callback_list.append(self.agent_monitoring_callback)
 
                 if callback_list:
@@ -199,7 +196,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
+            config = {"callbacks": [self.global_monitoring_callback, self.agent_monitoring_callback]}
             result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
@@ -231,7 +228,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
             chain = prompt | self.extractor_llm | parser
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
+            config = {"callbacks": [self.global_monitoring_callback, self.agent_monitoring_callback]}
             return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():
@@ -240,7 +237,3 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
-
-    def get_monitoring_results(self) -> dict:
-        """Return monitoring statistics."""
-        return self.agent_stats.to_dict()

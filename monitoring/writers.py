@@ -41,6 +41,14 @@ class StreamingStatsWriter:
         self._start_time: float | None = None
         self._error: str | None = None
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        error_msg = str(exc_val) if exc_val else None
+        self.stop(error=error_msg)
+
     def start(self):
         """Start the background writer thread and record start time."""
         if self._thread is not None:

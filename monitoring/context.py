@@ -5,8 +5,9 @@ import time
 import contextlib
 from contextvars import ContextVar
 from pathlib import Path
+from typing import Callable, Any
 
-from monitoring.stats import stats
+from monitoring.stats import RunStats, current_stats
 
 # Tracks the current high-level operation (e.g., "static_analysis", "code_generation")
 current_step: ContextVar[str] = ContextVar("current_step", default="startup")
@@ -71,9 +72,11 @@ def monitor_execution(
             def end_step(self):
                 pass
 
-    try:
-        stats.reset()
+    # Initialize stats for this run
+    run_stats = RunStats()
+    stats_token = current_stats.set(run_stats)
 
+    try:
         # Log start of run
         trace_logger.info(json.dumps({"event": "run_start", "run_id": run_id, "timestamp": time.time()}))
 
@@ -87,7 +90,7 @@ def monitor_execution(
         summary_file = out_path / f"summary_{run_id}.json"
         try:
             with open(summary_file, "w") as f:
-                json.dump(stats.to_dict(), f, indent=2)
+                json.dump(run_stats.to_dict(), f, indent=2)
             logger.info(f"✨ Monitoring summary saved to {summary_file}")
         except Exception as e:
             logger.error(f"Failed to save monitoring summary: {e}")
@@ -97,8 +100,11 @@ def monitor_execution(
         trace_handler.close()
         logger.info(f"✨ Execution traces saved to {trace_file}")
 
+        # Reset context var
+        current_stats.reset(stats_token)
 
-def trace(step_name: str | None = None):
+
+def trace(step_name: str | None | Callable[..., Any] = None):
     """
     Sets the current step context and logs start/end events.
     Usage:

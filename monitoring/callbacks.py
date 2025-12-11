@@ -7,7 +7,7 @@ from uuid import UUID
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from monitoring.stats import RunStats, stats
+from monitoring.stats import RunStats, current_stats
 from monitoring.context import current_step
 
 logger = logging.getLogger("monitoring")
@@ -22,7 +22,18 @@ class MonitoringCallback(BaseCallbackHandler):
         # runtime bookkeeping
         self._tool_start_times: dict[str, float] = {}  # run_id -> start_time
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name
-        self.stats = stats_container if stats_container is not None else stats
+        self._stats_container = stats_container
+        # Fallback for when running outside of a monitored context
+        self._fallback_stats = RunStats()
+
+    @property
+    def stats(self) -> RunStats:
+        if self._stats_container:
+            return self._stats_container
+        try:
+            return current_stats.get()
+        except LookupError:
+            return self._fallback_stats
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         step_name = current_step.get()

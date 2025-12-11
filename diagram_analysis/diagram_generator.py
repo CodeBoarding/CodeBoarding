@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
@@ -180,7 +181,6 @@ class DiagramGenerator:
         Components are analyzed in parallel by level.
         """
         files = []
-        error_message = None
 
         if (
             self.details_agent is None
@@ -191,10 +191,8 @@ class DiagramGenerator:
             self.pre_analysis()
 
         # Start monitoring (tracks start time)
-        if self.stats_writer:
-            self.stats_writer.start()
-
-        try:
+        monitor = self.stats_writer if self.stats_writer else nullcontext()
+        with monitor:
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
@@ -272,9 +270,3 @@ class DiagramGenerator:
             print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
 
             return files
-        except Exception as e:
-            raise e
-        finally:
-            # Stop monitoring (saves run_metadata.json with timing)
-            if self.stats_writer:
-                self.stats_writer.stop(error=error_message)
