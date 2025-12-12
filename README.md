@@ -116,8 +116,58 @@ LANGCHAIN_API_KEY=                # Optional: LangChain API key
 
 ### Run it
 
+#### Basic Usage
+
 ```bash
-python demo.py <github_repo_url> --output-dir <output_path>
+# Analyze a remote repository
+python main.py <github_repo_url> --output-dir <output_path>
+
+# Analyze a local repository
+python main.py --local /path/to/repo --project-name MyProject --output-dir <output_path>
+```
+
+#### Command-Line Arguments
+
+**Repository Selection (required, choose one):**
+- `<repository_url>` - One or more GitHub repository URLs to analyze
+- `--local <path>` - Path to a local repository for analysis
+
+**Output Configuration:**
+- `--output-dir <path>` - Directory where generated documentation will be saved (optional, defaults to `./analysis` for local repos)
+
+**Local Repository Options:**
+- `--project-name <name>` - Name of the project (required when using `--local`)
+
+**Partial Update Options (local repos only):**
+- `--partial-component <name>` - Specific component to update in existing analysis
+- `--partial-analysis <name>` - Analysis file name to update (both component and analysis must be specified together)
+
+**Advanced Options:**
+- `--depth-level <int>` - Depth level for diagram generation (default: 1)
+- `--prompt-type <type>` - Prompt type: `bidirectional` or `unidirectional` (default: bidirectional for remote, unidirectional for local)
+- `--binary-location <path>` - Custom path to language server binaries
+- `--project-root <path>` - Project root directory (default: current directory)
+- `--upload` - Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)
+- `--no-cache-check` - Skip checking if documentation already exists (remote repos only)
+
+#### Examples
+
+```bash
+# Analyze a single remote repository
+python main.py https://github.com/pytorch/pytorch --output-dir ./pytorch-docs
+
+# Analyze multiple remote repositories
+python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./docs
+
+# Analyze a local repository
+python main.py --local ./my-project --project-name MyProject --output-dir ./analysis
+
+# Partial update of a specific component
+python main.py --local ./my-project --project-name MyProject --output-dir ./analysis \
+               --partial-component "API Service" --partial-analysis on_boarding
+
+# Use custom depth level and disable caching
+python main.py https://github.com/user/repo --depth-level 2 --no-cache-check --output-dir ./deep-analysis
 ```
 
 ## 🖥️ Examples:
