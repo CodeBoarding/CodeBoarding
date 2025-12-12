@@ -5,3 +5,4 @@ from .read_file_structure import FileStructureTool
 from .read_cfg import GetCFGTool
 from .get_method_invocations import MethodInvocationsTool
 from .read_file import ReadFileTool
+from .read_docs import ReadDocsTool

@@ -34,6 +34,11 @@ def caching_enabled():
     return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
+def monitoring_enabled():
+    print("Monitoring enabled:", os.getenv("ENABLE_MONITORING", "false"))
+    return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
+
+
 def contains_json(node_id, files):
     for file in files:
         if str(file).endswith(f"{node_id}.json"):

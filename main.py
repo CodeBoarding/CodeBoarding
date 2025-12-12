@@ -14,7 +14,8 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
-from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder
+from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
+from monitoring import monitor_execution
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -299,6 +300,13 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 
 def validate_arguments(args, parser, is_local: bool):
+    # Ensure mutual exclusivity between remote and local runs
+    has_remote_repos = bool(getattr(args, "repositories", None))
+    has_local_repo = args.local is not None
+
+    if has_remote_repos == has_local_repo:
+        parser.error("Provide either one or more remote repositories or --local, but not both.")
+
     # Validate local repository arguments
     if is_local and not args.project_name:
         parser.error("--project-name is required when using --local")
@@ -318,12 +326,13 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     """
     Adds all command-line arguments and groups to the ArgumentParser.
     """
-    # Repository specification (mutually exclusive groups)
-    repo_group = parser.add_mutually_exclusive_group(required=True)
-    repo_group.add_argument(
-        "repositories", nargs="+", help="One or more Git repository URLs to generate documentation for"
+    # Repository specification (mutually exclusive handled in validation)
+    parser.add_argument(
+        "repositories",
+        nargs="*",
+        help="One or more Git repository URLs to generate documentation for",
     )
-    repo_group.add_argument("--local", type=Path, help="Path to a local repository")
+    parser.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
     parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
@@ -429,17 +438,23 @@ Examples:
                     logger.warning(f"Could not store GitHub token: {e}")
 
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
-                try:
-                    process_remote_repository(
-                        repo_url=repo,
-                        output_dir=args.output_dir,
-                        depth_level=args.depth_level,
-                        upload=args.upload,
-                        cache_check=not args.no_cache_check,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to process repository {repo}: {e}")
-                    continue
+                repo_name = get_repo_name(repo)
+                run_id = args.project_name if args.project_name else f"demo_run_{repo_name}"
+
+                with monitor_execution(run_id=run_id, enabled=monitoring_enabled()) as mon:
+                    mon.step(f"processing_{repo_name}")
+
+                    try:
+                        process_remote_repository(
+                            repo_url=repo,
+                            output_dir=args.output_dir,
+                            depth_level=args.depth_level,
+                            upload=args.upload,
+                            cache_check=not args.no_cache_check,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to process repository {repo}: {e}")
+                        continue
 
             logger.info("All repositories processed successfully!")
         else:

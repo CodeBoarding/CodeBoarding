@@ -2,13 +2,14 @@ import logging
 import os.path
 from pathlib import Path
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     LLMBaseModel,
     AnalysisInsights,
     CFGAnalysisInsights,
+    LLMBaseModel,
     ValidationInsights,
     MetaAnalysisInsights,
     ComponentFiles,
@@ -22,7 +23,7 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from agents.monitoring import monitoring
+from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class AbstractionAgent(CodeBoardingAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
-    @monitoring
+    @trace
     def step_cfg(self):
         logger.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -86,7 +87,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["cfg_insight"] = parsed_response
         return parsed_response
 
-    @monitoring
+    @trace
     def step_source(self):
         logger.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
         insight_str = ""
@@ -104,7 +105,7 @@ class AbstractionAgent(CodeBoardingAgent):
         self.context["source"] = parsed_response
         return parsed_response
 
-    @monitoring
+    @trace
     def generate_analysis(self):
         logger.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -128,7 +129,7 @@ class AbstractionAgent(CodeBoardingAgent):
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
-    @monitoring
+    @trace
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
         Apply feedback to the analysis and return the updated analysis.
@@ -139,7 +140,7 @@ class AbstractionAgent(CodeBoardingAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    @monitoring
+    @trace
     def classify_files(self, analysis: AnalysisInsights):
         """
         Classify files into components based on the analysis. It will modify directly the analysis object.

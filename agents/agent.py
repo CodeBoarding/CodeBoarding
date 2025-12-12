@@ -20,6 +20,8 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from monitoring.callbacks import MonitoringCallback
+from monitoring.mixin import MonitoringMixin
 from agents.tools import (
     CodeReferenceReader,
     CodeStructureTool,
@@ -28,22 +30,24 @@ from agents.tools import (
     GetCFGTool,
     MethodInvocationsTool,
     ReadFileTool,
+    ReadDocsTool,
 )
 from agents.tools.external_deps import ExternalDepsTool
-from agents.tools.read_docs import ReadDocsTool
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
 
+MONITORING_CALLBACK = MonitoringCallback()
 
-class CodeBoardingAgent(ReferenceResolverMixin):
+
+class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
-        super().__init__(repo_dir, static_analysis)
+        ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
+        MonitoringMixin.__init__(self)
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
-        self._monitoring_callback = None  # Used by monitor decorator
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -158,19 +162,15 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         for _ in range(max_retries):
             try:
                 callback_list = callbacks or []
-                if self._monitoring_callback:
-                    callback_list.append(self._monitoring_callback)
+                # Always append monitoring callback - logging config controls output
+                callback_list.append(MONITORING_CALLBACK)
+                callback_list.append(self.agent_monitoring_callback)
 
-                if callback_list:
-                    response = self.agent.invoke(
-                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"callbacks": callback_list, "recursion_limit": 40},
-                    )
-                else:
-                    response = self.agent.invoke(
-                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"recursion_limit": 200},
-                    )
+                response = self.agent.invoke(
+                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                    config={"callbacks": callback_list, "recursion_limit": 40},
+                )
+
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):
@@ -204,8 +204,8 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [self._monitoring_callback]} if self._monitoring_callback else None
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)
+            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
+            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:
@@ -236,7 +236,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
             chain = prompt | self.extractor_llm | parser
-            config = {"callbacks": [self._monitoring_callback]} if self._monitoring_callback else None
+            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():
@@ -245,24 +245,3 @@ class CodeBoardingAgent(ReferenceResolverMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
-
-    def get_monitoring_results(self) -> dict:
-        """Return monitoring statistics if monitoring is enabled."""
-        if not self._monitoring_callback:
-            return {}
-
-        return {
-            "token_usage": {
-                "prompt_tokens": self._monitoring_callback.prompt_tokens,
-                "completion_tokens": self._monitoring_callback.completion_tokens,
-                "total_tokens": self._monitoring_callback.total_tokens,
-            },
-            "tool_usage": {
-                "counts": dict(self._monitoring_callback.tool_counts),
-                "errors": dict(self._monitoring_callback.tool_errors),
-                "avg_latency_ms": {
-                    tool: sum(latencies) / len(latencies) if latencies else 0
-                    for tool, latencies in self._monitoring_callback.tool_latency_ms.items()
-                },
-            },
-        }

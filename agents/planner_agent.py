@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
@@ -7,7 +6,7 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
 from agents.prompts import get_expansion_prompt, get_planner_system_message
-from agents.monitoring import monitoring
+from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -26,8 +25,8 @@ class PlannerAgent(CodeBoardingAgent):
             ],
         )
 
-    @monitoring
-    def plan_analysis(self, analysis: AnalysisInsights) -> List[Component]:
+    @trace
+    def plan_analysis(self, analysis: AnalysisInsights) -> list[Component]:
         """
         Generate a plan for analyzing the provided components.
         This method should return a structured plan detailing how to analyze each component.

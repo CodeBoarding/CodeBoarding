@@ -22,7 +22,7 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
-from agents.monitoring import monitoring
+from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class DetailsAgent(CodeBoardingAgent):
         # Now lets filter the cfg:
         self.context["subcfg_insight"] = self.read_cfg_tool.component_cfg(component)  # type: ignore[assignment]
 
-    @monitoring
+    @trace
     def step_cfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -86,7 +86,7 @@ class DetailsAgent(CodeBoardingAgent):
         self.context["cfg_insight"] = parsed  # Store for next step
         return parsed
 
-    @monitoring
+    @trace
     def step_enhance_structure(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -105,7 +105,7 @@ class DetailsAgent(CodeBoardingAgent):
         self.context["structure_insight"] = parsed
         return parsed
 
-    @monitoring
+    @trace
     def step_analysis(self, component: Component):
         logger.info("[DetailsAgent] Generating details documentation")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -119,7 +119,7 @@ class DetailsAgent(CodeBoardingAgent):
         )
         return self._parse_invoke(prompt, AnalysisInsights)
 
-    @monitoring
+    @trace
     def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
         """
         Apply feedback to the analysis and return the updated analysis.
@@ -142,7 +142,7 @@ class DetailsAgent(CodeBoardingAgent):
         analysis = self.step_analysis(component)
         return self.fix_source_code_reference_lines(analysis)
 
-    @monitoring
+    @trace
     def classify_files(self, component: Component, analysis: AnalysisInsights):
         """
         Classify the component using the LLM.
