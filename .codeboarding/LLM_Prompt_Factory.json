@@ -1,41 +1,13 @@
 {
-  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
+  "description": "The prompt generation subsystem is centered around the `PromptFactory`, which serves as the primary interface for constructing LLM-optimized prompts. Instead of directly implementing prompt generation logic, `PromptFactory` leverages a composition pattern, utilizing an instance of `AbstractPromptFactory`. This `AbstractPromptFactory` defines the common interface for prompt creation, allowing various concrete prompt factories (e.g., for different LLMs like Gemini Flash or Claude) to provide specific implementations. This architectural choice ensures modularity, extensibility, and a consistent approach to prompt generation across diverse analysis tasks within the project's AI Interpretation Layer.",
   "components": [
     {
-      "name": "Query Processor",
-      "description": "Handles incoming user queries and prepares them for further processing.",
+      "name": "AbstractPromptFactory",
+      "description": "This component establishes the contract and defines the interface for prompt generation. It ensures a consistent and standardized approach to creating prompts, regardless of the specific LLM or analysis task. Concrete prompt factories (e.g., `GeminiFlashBidirectionalPromptFactory`, `ClaudeBidirectionalPromptFactory`) implement this interface to provide specific prompt generation logic. This aligns with the project's emphasis on modularity and extensibility.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryHandler.process",
-          "reference_file": "query_handler.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Information Retriever",
-      "description": "Fetches relevant information based on the processed query from a knowledge base.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "KnowledgeBase.retrieve",
-          "reference_file": "knowledge_base.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "Response Generator",
-      "description": "Utilizes a language model to generate a natural language response.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "LanguageModel.generate_response",
-          "reference_file": "language_model.py",
+          "qualified_name": "AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -43,60 +15,39 @@
       "assigned_files": [
         "../../agents/prompts/abstract_prompt_factory.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "History Logger",
-      "description": "Stores the user query and the generated response for future reference.",
+      "name": "PromptFactory",
+      "description": "This component acts as the primary orchestrator for dynamically generating and formatting prompts. It interprets static analysis results, applies task-specific parameters, and constructs LLM-optimized prompts by *composing* and *delegating* the actual prompt generation to an instance of `AbstractPromptFactory`. This design allows `PromptFactory` to remain decoupled from the specifics of prompt generation, promoting flexibility and extensibility. As the central executor of prompt generation, it is crucial to the \"AI Interpretation Layer\" and the \"pipeline-driven, AI-centric approach\" of the project.",
       "referenced_source_code": [
         {
-          "qualified_name": "InteractionLogger.log",
-          "reference_file": "interaction_logger.py",
+          "qualified_name": "PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../agents/prompts/prompt_factory.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../agents/prompts/__init__.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "sends query to",
-      "src_name": "Query Processor",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "sends info to",
-      "src_name": "Information Retriever",
-      "dst_name": "Response Generator"
-    },
-    {
-      "relation": "sends response to",
-      "src_name": "Response Generator",
-      "dst_name": "History Logger"
-    },
-    {
-      "relation": "receives query from",
-      "src_name": "Information Retriever",
-      "dst_name": "Query Processor"
-    },
-    {
-      "relation": "receives info from",
-      "src_name": "Response Generator",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "receives response from",
-      "src_name": "History Logger",
-      "dst_name": "Response Generator"
+      "relation": "composes",
+      "src_name": "PromptFactory",
+      "dst_name": "AbstractPromptFactory"
     }
   ]
 }

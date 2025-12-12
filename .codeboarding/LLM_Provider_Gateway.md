@@ -1,10 +1,17 @@
 ```mermaid
 graph LR
     LLM_Provider_Gateway["LLM Provider Gateway"]
-    CodeBoardingAgent["CodeBoardingAgent"]
+    LLM_Client_Orchestrator["LLM Client Orchestrator"]
+    Specific_LLM_Integrations["Specific LLM Integrations"]
+    Agent["Agent"]
     Unclassified["Unclassified"]
-    CodeBoardingAgent -- "uses" --> LLM_Provider_Gateway
-    LLM_Provider_Gateway -- "provides LLM Services to" --> CodeBoardingAgent
+    LLM_Provider_Gateway -- "delegates client creation to" --> LLM_Client_Orchestrator
+    LLM_Provider_Gateway -- "uses" --> Specific_LLM_Integrations
+    LLM_Client_Orchestrator -- "creates" --> Specific_LLM_Integrations
+    LLM_Client_Orchestrator -- "provides client to" --> LLM_Provider_Gateway
+    Specific_LLM_Integrations -- "returns response to" --> LLM_Provider_Gateway
+    Agent -- "sends requests to" --> LLM_Provider_Gateway
+    Agent -- "receives responses from" --> LLM_Provider_Gateway
     click LLM_Provider_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Provider_Gateway.md" "Details"
 ```
 
@@ -12,19 +19,47 @@ graph LR
 
 ## Details
 
-The system's core functionality revolves around the CodeBoardingAgent within the AI Interpretation Layer, which intelligently processes code and generates documentation. This agent relies heavily on the LLM Provider Gateway to abstract and manage interactions with various Large Language Models. The gateway ensures a standardized interface for LLM communication, handling provider-specific complexities, authentication, and response parsing, thereby enabling the CodeBoardingAgent to focus on its primary task of code interpretation and documentation generation.
+The `agents` subsystem is centered around the `CodeBoardingAgent`, which acts as the primary `Agent` and also embodies the `LLM Provider Gateway` and `LLM Client Orchestrator` functionalities. The `CodeBoardingAgent` directly manages the selection and initialization of various `Specific LLM Integrations` (e.g., `ChatOpenAI`, `ChatAnthropic`) based on available API keys. This design allows the agent to dynamically adapt to different LLM providers without external factory components. The `Agent` sends requests to the `LLM Provider Gateway` (which is part of itself) and receives responses, abstracting the underlying LLM communication details. The `LLM Client Orchestrator` within the `CodeBoardingAgent` is responsible for instantiating the correct `Specific LLM Integrations`, which then handle the actual communication with external LLM services.
 
 ### LLM Provider Gateway [[Expand]](./LLM_Provider_Gateway.md)
-Provides a unified and consistent API for the AI Interpretation Layer to interact with various Large Language Model providers. It encapsulates provider-specific APIs, manages authentication, executes API calls, parses responses into a standardized format, and implements error handling and retry logic. This component is crucial for abstracting away the complexities of different LLM services, allowing the rest of the system to interact with LLMs uniformly.
+This is the overarching conceptual component that acts as a facade for all LLM interactions. It manages the lifecycle of LLM requests, from receiving a request to delegating to the appropriate client and handling initial response processing. It embodies the "Modular Architecture" by providing a consistent interface regardless of the underlying LLM provider.
 
 
-**Related Classes/Methods**: _None_
+**Related Classes/Methods**:
 
-### CodeBoardingAgent
-A key component within the AI Interpretation Layer responsible for orchestrating the code analysis and documentation generation process using LLMs. It relies on the LLM Provider Gateway to set up and configure the appropriate LLM instance for its operations, enabling it to interpret code, generate insights, and facilitate the creation of architectural documentation. This agent represents the intelligent core that leverages LLMs for understanding and transforming code.
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L90-L157" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent._initialize_llm`:90-157</a>
 
 
-**Related Classes/Methods**: _None_
+### LLM Client Orchestrator
+This component, embodied by the `CodeBoardingAgent`, is responsible for dynamically selecting and initializing specific LLM client implementations (e.g., `ChatOpenAI`, `ChatGoogleGenerativeAI`). It directly manages the configuration and instantiation of various LLM providers based on available API keys, promoting a flexible "Plugin/Extension Architecture" within the agent itself.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L90-L157" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent._initialize_llm`:90-157</a>
+
+
+### Specific LLM Integrations
+These are the concrete implementations of various LLM clients (e.g., `ChatOpenAI`, `ChatAnthropic`, `ChatGoogleGenerativeAI`, `ChatBedrockConverse`, `ChatCerebras`, `ChatOllama`) directly used by the `LLM Client Orchestrator`. Each integration handles the unique API calls, authentication, and data formatting for a particular external LLM provider, enforcing "Separation of Concerns" by isolating provider-specific logic.
+
+
+**Related Classes/Methods**:
+
+- `langchain_openai.ChatOpenAI`:1-10
+- `langchain_google_genai.ChatGoogleGenerativeAI`
+- `langchain_aws.ChatBedrockConverse`
+- `langchain_cerebras.ChatCerebras`:10-25
+- `langchain_ollama.ChatOllama`:1-10
+
+
+### Agent
+The primary orchestrator within the `agents` package that initiates requests for LLM interactions. It acts as the consumer of the `LLM Provider Gateway`, abstracting the details of LLM communication from its core reasoning logic. This component is part of the broader "AI Interpretation Layer" and drives the "Data Flow" through the LLM integration.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L44-L247" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`:44-247</a>
+
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

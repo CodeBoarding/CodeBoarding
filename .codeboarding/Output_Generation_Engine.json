@@ -1,0 +1,107 @@
+{
+  "description": "The system is structured around three core components: the AI Interpretation Layer, the Diagram Generation Engine, and the Documentation & Report Generator. The AI Interpretation Layer serves as the foundational analysis component, extracting structured architectural insights from the codebase. These insights are then consumed by both the Diagram Generation Engine to visualize the architecture and the Documentation & Report Generator to produce comprehensive human-readable documentation. The Diagram Generation Engine further provides its generated diagrams to the Documentation & Report Generator for inclusion in final reports, ensuring a cohesive and visually rich output.",
+  "components": [
+    {
+      "name": "AI Interpretation Layer",
+      "description": "This component is responsible for analyzing the codebase to extract and generate structured architectural insights. It acts as the primary source of high-level architectural understanding, which is then consumed by other components for documentation and diagram generation. This component aligns with the \"Codebase Analysis Tool\" pattern.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents",
+          "reference_file": "agents/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Documentation & Report Generator",
+      "description": "This component is responsible for transforming architectural insights, potentially enriched by AI interpretation, into various human-readable documentation formats such as Markdown, HTML, MDX, and Sphinx. It also integrates visual diagrams provided by the Diagram Generation Engine into comprehensive reports. This component aligns with the \"Documentation Generator\" project type pattern.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.markdown",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.mdx",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.sphinx",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../output_generators/markdown.py",
+        "../../output_generators/html.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/__init__.py",
+        "../../output_generators/html_template.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Generation Engine",
+      "description": "This component is dedicated to creating visual representations (diagrams) of the codebase architecture from structured architectural insights. It likely utilizes external tools or libraries, such as Mermaid.js, for rendering these diagrams. This component aligns with the \"Codebase Analysis Tool\" pattern due to its role in visualizing code structure.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "depends on",
+      "src_name": "Documentation & Report Generator",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "receives from",
+      "src_name": "Documentation & Report Generator",
+      "dst_name": "Diagram Generation Engine"
+    },
+    {
+      "relation": "depends on",
+      "src_name": "Diagram Generation Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "provides to",
+      "src_name": "Diagram Generation Engine",
+      "dst_name": "Documentation & Report Generator"
+    }
+  ]
+}

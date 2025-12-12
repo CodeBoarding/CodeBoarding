@@ -1,85 +1,130 @@
 {
-  "description": "The static analysis subsystem is centered around the ProjectScanner, which serves as the primary entry point for initiating code analysis. The ProjectScanner is responsible for identifying the programming languages present in a repository and preparing the codebase for deeper inspection. It delegates the actual file traversal and initial language identification to external tools. Following this, the LanguageSpecificAnalysis component, represented by LSPClient and its specialized implementations, takes over to perform detailed parsing, AST generation, CFG construction, and metric extraction for each identified language. Finally, the DataAggregators, exemplified by AnalysisResult, collect and consolidate all the generated analysis data into a coherent and structured report, making it ready for further consumption or visualization. This architecture emphasizes a clear separation of concerns, with the ProjectScanner orchestrating the overall flow and LanguageSpecificAnalysis handling the intricate details of code understanding, all culminating in a unified output from DataAggregators.",
+  "description": "The static analysis subsystem is designed to process a codebase, extract structural and relational information, and present it in a standardized format. The ProjectScanner initiates the process by identifying programming languages and basic code statistics. This information is then used to set up language-specific analysis clients. The core of the analysis involves building call graphs and extracting dependencies, primarily handled by the CallGraph component. Finally, the StaticAnalyzer orchestrates these steps, aggregates the results, and normalizes them into a structured StaticAnalysisResults object, making the data ready for consumption by other systems, such as an LLM Prompt Factory.",
   "components": [
     {
-      "name": "ProjectScanner",
-      "description": "The orchestrator of the entire static analysis process. It initiates scanning, manages the flow of files, invokes language-specific parsing, and coordinates the collection of analysis results. It acts as the primary interface for the subsystem.",
+      "name": "Scanner",
+      "description": "This component is responsible for the initial ingestion and high-level analysis of the codebase. It utilizes external tools (like Tokei) to identify programming languages present in the repository, along with their code statistics and file suffixes. This provides a foundational understanding of the project's technological landscape.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "qualified_name": "static_analyzer/scanner.py:ProjectScanner.scan",
           "reference_file": "static_analyzer/scanner.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/scanner.py",
+        "../../static_analyzer/programming_language.py",
         "../../static_analyzer/typescript_config_scanner.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Graph Builder",
+      "description": "This component constructs various graph representations of the codebase, primarily focusing on call graphs. It defines the structure for nodes and edges within these graphs and provides mechanisms to build and manipulate them, often leveraging graph libraries for complex analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/graph.py:CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/graph.py:Node",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/graph.py:Edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "LanguageSpecificAnalysis",
-      "description": "This component represents the collective functionality for language-specific processing, including parsing source code into Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and extracting various code metrics. It leverages Language Server Protocol (LSP) clients for detailed language understanding.",
+      "name": "Dependency Extractor",
+      "description": "Working in conjunction with the Graph Builder, this component identifies and maps explicit and implicit dependencies between different code entities. It leverages the constructed call graphs to determine relationships between functions, methods, and classes, providing insights into the codebase's interconnections.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-          "reference_file": "static_analyzer/lsp_client/client.py",
+          "qualified_name": "static_analyzer/graph.py:CallGraph.add_edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/graph.py:CallGraph.to_networkx",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Data Normalizer/Formatter",
+      "description": "This central orchestration component aggregates, validates, and transforms the raw outputs from the Scanner, Graph Builder, and Dependency Extractor into a standardized, structured format. It manages the lifecycle of LSP clients for language-specific analysis and consolidates all analysis results into a StaticAnalysisResults object, preparing the data for downstream consumption.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/__init__.py:StaticAnalyzer",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/__init__.py:create_clients",
+          "reference_file": "static_analyzer/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/programming_language.py",
-        "../../static_analyzer/graph.py",
-        "../../static_analyzer/lsp_client/typescript_client.py",
-        "../../static_analyzer/lsp_client/client.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "DataAggregators",
-      "description": "Gathers and consolidates the diverse outputs from the language-specific analysis (ASTs, CFGs, metrics) into a unified, structured analysis report. This component ensures a consistent data format for downstream processing.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
-          "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
+        "../../static_analyzer/__init__.py",
         "../../static_analyzer/analysis_result.py",
         "../../static_analyzer/reference_resolve_mixin.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../static_analyzer/__init__.py",
-        "../../static_analyzer/lsp_client/__init__.py"
+        "../../static_analyzer/lsp_client/__init__.py",
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
-      "src_name": "ProjectScanner",
-      "dst_name": "LanguageSpecificAnalysis"
+      "relation": "feeds output to",
+      "src_name": "Scanner",
+      "dst_name": "Data Normalizer/Formatter"
     },
     {
-      "relation": "collects results from",
-      "src_name": "ProjectScanner",
-      "dst_name": "DataAggregators"
+      "relation": "orchestrates",
+      "src_name": "Data Normalizer/Formatter",
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "processes code for",
-      "src_name": "LanguageSpecificAnalysis",
-      "dst_name": "DataAggregators"
+      "relation": "provides data to",
+      "src_name": "Graph Builder",
+      "dst_name": "Dependency Extractor"
+    },
+    {
+      "relation": "sends results to",
+      "src_name": "Dependency Extractor",
+      "dst_name": "Data Normalizer/Formatter"
+    },
+    {
+      "relation": "aggregates results from",
+      "src_name": "Data Normalizer/Formatter",
+      "dst_name": "Graph Builder"
     }
   ]
 }

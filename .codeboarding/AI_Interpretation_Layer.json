@@ -1,124 +1,117 @@
 {
-  "description": "The `CodeBoardingAgent` acts as the central intelligence, orchestrating the entire code interpretation process. It interacts with the `LLM` to process and interpret architectural patterns from code. To gather the necessary context for the `LLM`, the `CodeBoardingAgent` leverages a suite of specialized tools: `CodeReferenceReader` for source code retrieval, `PackageRelationsTool` for dependency analysis, `CodeStructureTool` for understanding code organization, `GetCFGTool` for control flow analysis, and `MethodInvocationsTool` for method interaction insights. This modular design allows the `CodeBoardingAgent` to dynamically gather and feed comprehensive code context to the `LLM`, enabling robust architectural analysis and insight generation.",
+  "description": "The AI Interpretation Layer subsystem is primarily defined by the `agents` package. It is the overarching core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. It acts as a multi-agent system, transforming raw LLM outputs and static analysis data into structured architectural knowledge, aligning with the project's AI-centric and pipeline-driven architectural bias.",
   "components": [
     {
-      "name": "CodeBoardingAgent",
-      "description": "The central orchestrator of the AI interpretation process. It manages LLM selection, prompt engineering, tool invocation for gathering context, and parsing of LLM responses. It translates raw static analysis data into actionable architectural insights.",
+      "name": "AI Interpretation Layer",
+      "description": "The overarching core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. It acts as a multi-agent system, transforming raw LLM outputs and static analysis data into structured architectural knowledge.",
       "referenced_source_code": [
         {
-          "qualified_name": "CodeBoardingAgent",
+          "qualified_name": "agents",
+          "reference_file": "agents/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/__init__.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Agent",
+      "description": "Serves as the foundational base class or interface for all specialized agents within this layer, defining common methods and properties for agent behavior.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "Agent",
           "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/diff_analyzer.py",
-        "../../agents/details_agent.py",
-        "../../agents/validator_agent.py",
-        "../../agents/abstraction_agent.py",
-        "../../agents/planner_agent.py",
-        "../../agents/meta_agent.py",
-        "../../agents/agent_responses.py",
         "../../agents/agent.py"
       ],
       "can_expand": true
     },
     {
-      "name": "LLM",
-      "description": "The core AI engine responsible for performing the actual interpretation of code context. It identifies architectural patterns, generates explanations, and responds to prompts provided by the `CodeBoardingAgent`.",
+      "name": "MetaAgent",
+      "description": "The primary orchestrator of the AI Interpretation Layer. It receives LLM responses and static analysis data, then delegates tasks to other agents to achieve comprehensive architectural insights, managing the overall workflow and interpretation strategy.",
       "referenced_source_code": [
         {
-          "qualified_name": "LLM",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": 86,
-          "reference_end_line": 153
+          "qualified_name": "MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../agents/meta_agent.py"
+      ],
       "can_expand": true
     },
     {
-      "name": "CodeReferenceReader",
-      "description": "A specialized tool that abstracts the retrieval of source code based on fully qualified names. It provides the `CodeBoardingAgent` with specific code snippets for detailed LLM analysis.",
+      "name": "AbstractionAgent",
+      "description": "Responsible for synthesizing high-level architectural patterns, components, and relationships from raw LLM interpretations and static analysis data, focusing on deriving abstract insights.",
       "referenced_source_code": [
         {
-          "qualified_name": "CodeReferenceReader",
-          "reference_file": "agents/tools/read_source.py",
-          "reference_start_line": 26,
-          "reference_end_line": 114
+          "qualified_name": "AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/tools/read_source.py"
+        "../../agents/abstraction_agent.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "PackageRelationsTool",
-      "description": "A specialized tool that abstracts the analysis of package dependencies. It supplies the `CodeBoardingAgent` with data on how modules and packages relate, enabling architectural pattern identification.",
+      "name": "DetailsAgent",
+      "description": "Extracts granular, specific details from LLM responses and code, complementing the AbstractionAgent by providing supporting evidence or finer-grained information.",
       "referenced_source_code": [
         {
-          "qualified_name": "PackageRelationsTool",
-          "reference_file": "agents/tools/read_packages.py",
-          "reference_start_line": 29,
-          "reference_end_line": 69
+          "qualified_name": "DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/tools/read_packages.py"
+        "../../agents/details_agent.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "CodeStructureTool",
-      "description": "A specialized tool that abstracts the understanding of code structure, such as class hierarchies and internal organization. It provides structural context to the `CodeBoardingAgent` for LLM interpretation.",
+      "name": "PlannerAgent",
+      "description": "Determines the optimal sequence of analysis steps and the overall strategy for interpreting LLM responses, guiding the MetaAgent's orchestration.",
       "referenced_source_code": [
         {
-          "qualified_name": "CodeStructureTool",
-          "reference_file": "agents/tools/read_structure.py",
-          "reference_start_line": 17,
-          "reference_end_line": 58
+          "qualified_name": "PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/read_structure.py"
+        "../../agents/planner_agent.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "GetCFGTool",
-      "description": "A specialized tool that abstracts the retrieval of Control Flow Graphs (CFGs). It provides the `CodeBoardingAgent` with data on execution paths, enabling the `LLM` to interpret behavioral patterns.",
+      "name": "ValidatorAgent",
+      "description": "Responsible for reviewing and validating the architectural insights generated by other agents, ensuring accuracy, consistency, and completeness against static analysis data and predefined rules.",
       "referenced_source_code": [
         {
-          "qualified_name": "GetCFGTool",
-          "reference_file": "agents/tools/read_cfg.py",
-          "reference_start_line": 11,
-          "reference_end_line": 68
+          "qualified_name": "ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/tools/read_cfg.py"
+        "../../agents/validator_agent.py"
       ],
-      "can_expand": false
-    },
-    {
-      "name": "MethodInvocationsTool",
-      "description": "A specialized tool that abstracts the analysis of method invocation patterns. It delivers data on how methods interact, assisting the `CodeBoardingAgent` and `LLM` in understanding component interactions and data flow.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "MethodInvocationsTool",
-          "reference_file": "agents/tools/get_method_invocations.py",
-          "reference_start_line": 17,
-          "reference_end_line": 54
-        }
-      ],
-      "assigned_files": [
-        "../../agents/tools/get_method_invocations.py"
-      ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
@@ -126,13 +119,19 @@
       "referenced_source_code": [],
       "assigned_files": [
         "main.py",
-        "../../local_app.py",
-        "../../agents/monitoring.py",
+        "../../agents/diff_analyzer.py",
+        "../../agents/agent_responses.py",
+        "../../agents/tools/read_source.py",
+        "../../agents/tools/read_file_structure.py",
         "../../agents/tools/__init__.py",
         "../../agents/tools/external_deps.py",
+        "../../agents/tools/read_packages.py",
+        "../../agents/tools/read_cfg.py",
+        "../../agents/tools/get_method_invocations.py",
         "../../agents/tools/read_git_diff.py",
         "../../agents/tools/read_file.py",
         "../../agents/tools/utils.py",
+        "../../agents/tools/read_structure.py",
         "../../agents/tools/read_docs.py"
       ],
       "can_expand": false
@@ -140,64 +139,74 @@
   ],
   "components_relations": [
     {
-      "relation": "sends prompts and context to",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "LLM"
+      "relation": "inherits from",
+      "src_name": "MetaAgent",
+      "dst_name": "Agent"
     },
     {
-      "relation": "returns interpretive responses to",
-      "src_name": "LLM",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "inherits from",
+      "src_name": "AbstractionAgent",
+      "dst_name": "Agent"
     },
     {
-      "relation": "invokes to retrieve",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "CodeReferenceReader"
+      "relation": "inherits from",
+      "src_name": "DetailsAgent",
+      "dst_name": "Agent"
     },
     {
-      "relation": "provides source code to",
-      "src_name": "CodeReferenceReader",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "inherits from",
+      "src_name": "PlannerAgent",
+      "dst_name": "Agent"
     },
     {
-      "relation": "invokes to gather",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "PackageRelationsTool"
+      "relation": "inherits from",
+      "src_name": "ValidatorAgent",
+      "dst_name": "Agent"
     },
     {
-      "relation": "provides dependency data to",
-      "src_name": "PackageRelationsTool",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "orchestrates",
+      "src_name": "MetaAgent",
+      "dst_name": "AbstractionAgent"
     },
     {
-      "relation": "invokes to obtain",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "CodeStructureTool"
+      "relation": "orchestrates",
+      "src_name": "MetaAgent",
+      "dst_name": "DetailsAgent"
     },
     {
-      "relation": "provides structural context to",
-      "src_name": "CodeStructureTool",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "orchestrates",
+      "src_name": "MetaAgent",
+      "dst_name": "PlannerAgent"
     },
     {
-      "relation": "invokes to retrieve",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "GetCFGTool"
+      "relation": "orchestrates",
+      "src_name": "MetaAgent",
+      "dst_name": "ValidatorAgent"
     },
     {
-      "relation": "provides CFG data to",
-      "src_name": "GetCFGTool",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "collaborates with",
+      "src_name": "AbstractionAgent",
+      "dst_name": "DetailsAgent"
     },
     {
-      "relation": "invokes to analyze",
-      "src_name": "CodeBoardingAgent",
-      "dst_name": "MethodInvocationsTool"
+      "relation": "provides granular data to",
+      "src_name": "DetailsAgent",
+      "dst_name": "AbstractionAgent"
     },
     {
-      "relation": "provides invocation data to",
-      "src_name": "MethodInvocationsTool",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "provides strategic guidance to",
+      "src_name": "PlannerAgent",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "validates outputs of",
+      "src_name": "ValidatorAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "validates outputs of",
+      "src_name": "ValidatorAgent",
+      "dst_name": "DetailsAgent"
     }
   ]
 }

@@ -1,27 +1,37 @@
 {
-  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
+  "description": "The core of this subsystem is the `Repository Manager`, which serves as the central gateway for all interactions with code repositories. It provides essential functionalities such as cloning, updating, and reading repository contents, making raw source code and metadata accessible. This information is then consumed by the `Static Analysis Engine` for in-depth code examination. Intelligent `agents` and their specialized `agents.tools` rely on the `Repository Manager` to access and manipulate codebase information, facilitating their operational tasks. Furthermore, the `diagram_analysis` component leverages the `Repository Manager` to retrieve necessary data for generating and analyzing architectural diagrams. This design establishes a clear, centralized mechanism for managing and distributing repository data across various analytical and operational components.",
   "components": [
     {
-      "name": "Query Processor",
-      "description": "Handles incoming user queries and prepares them for further processing.",
+      "name": "Repository Manager",
+      "description": "This component is responsible for all interactions with code repositories. It handles fundamental operations such as cloning repositories, updating their state, reading specific files, and navigating the project's directory structure. It serves as the primary source for raw source code and repository-specific metadata (e.g., Git diffs), making this information available for subsequent analysis stages. Its role is crucial for ingesting the initial data into the codebase analysis pipeline.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryHandler.process",
-          "reference_file": "query_handler.py",
+          "qualified_name": "/home/ubuntu/CodeBoarding/repo/CodeBoarding/repo_utils/__init__.py",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "/home/ubuntu/CodeBoarding/repo/CodeBoarding/repo_utils/git_diff.py",
+          "reference_file": "repo_utils/git_diff.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py",
+        "../../repo_utils/errors.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Information Retriever",
-      "description": "Fetches relevant information based on the processed query from a knowledge base.",
+      "name": "Static Analysis Engine",
+      "description": "This component is responsible for performing various static analyses on the source code provided by the `Repository Manager`. It processes the code to identify patterns, potential issues, or extract structural information without executing it.",
       "referenced_source_code": [
         {
-          "qualified_name": "KnowledgeBase.retrieve",
-          "reference_file": "knowledge_base.py",
+          "qualified_name": "Static Analysis Engine",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -30,75 +40,75 @@
       "can_expand": true
     },
     {
-      "name": "Response Generator",
-      "description": "Utilizes a language model to generate a natural language response.",
+      "name": "agents.tools",
+      "description": "This component represents a collection of specialized tools used by intelligent agents. These tools interact with the `Repository Manager` to access and manipulate repository data, enabling agents to perform tasks requiring code or repository information.",
       "referenced_source_code": [
         {
-          "qualified_name": "LanguageModel.generate_response",
-          "reference_file": "language_model.py",
+          "qualified_name": "agents.tools",
+          "reference_file": "agents/tools",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "History Logger",
-      "description": "Stores the user query and the generated response for future reference.",
+      "name": "agents",
+      "description": "This component encompasses the intelligent agents within the system. These agents utilize the `Repository Manager` (potentially through `agents.tools`) to interact with the codebase, retrieve information, and execute operations based on their objectives.",
       "referenced_source_code": [
         {
-          "qualified_name": "InteractionLogger.log",
-          "reference_file": "interaction_logger.py",
+          "qualified_name": "agents",
+          "reference_file": "agents/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
+    },
+    {
+      "name": "diagram_analysis",
+      "description": "This component is responsible for analyzing and potentially generating diagrams based on the project's codebase. It utilizes the `Repository Manager` to access file structures and source code necessary for diagrammatic representation and analysis.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis",
+          "reference_file": "diagram_analysis",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "../../repo_utils/__init__.py",
-        "../../repo_utils/git_diff.py",
-        "../../repo_utils/errors.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "sends query to",
-      "src_name": "Query Processor",
-      "dst_name": "Information Retriever"
+      "relation": "feeds source code to",
+      "src_name": "Repository Manager",
+      "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "sends info to",
-      "src_name": "Information Retriever",
-      "dst_name": "Response Generator"
+      "relation": "is utilized by",
+      "src_name": "Repository Manager",
+      "dst_name": "agents.tools"
     },
     {
-      "relation": "sends response to",
-      "src_name": "Response Generator",
-      "dst_name": "History Logger"
+      "relation": "is utilized by",
+      "src_name": "Repository Manager",
+      "dst_name": "agents"
     },
     {
-      "relation": "receives query from",
-      "src_name": "Information Retriever",
-      "dst_name": "Query Processor"
-    },
-    {
-      "relation": "receives info from",
-      "src_name": "Response Generator",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "receives response from",
-      "src_name": "History Logger",
-      "dst_name": "Response Generator"
+      "relation": "is utilized by",
+      "src_name": "Repository Manager",
+      "dst_name": "diagram_analysis"
     }
   ]
 }

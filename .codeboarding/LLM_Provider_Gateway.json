@@ -1,18 +1,97 @@
 {
-  "description": "The system's core functionality revolves around the CodeBoardingAgent within the AI Interpretation Layer, which intelligently processes code and generates documentation. This agent relies heavily on the LLM Provider Gateway to abstract and manage interactions with various Large Language Models. The gateway ensures a standardized interface for LLM communication, handling provider-specific complexities, authentication, and response parsing, thereby enabling the CodeBoardingAgent to focus on its primary task of code interpretation and documentation generation.",
+  "description": "The `agents` subsystem is centered around the `CodeBoardingAgent`, which acts as the primary `Agent` and also embodies the `LLM Provider Gateway` and `LLM Client Orchestrator` functionalities. The `CodeBoardingAgent` directly manages the selection and initialization of various `Specific LLM Integrations` (e.g., `ChatOpenAI`, `ChatAnthropic`) based on available API keys. This design allows the agent to dynamically adapt to different LLM providers without external factory components. The `Agent` sends requests to the `LLM Provider Gateway` (which is part of itself) and receives responses, abstracting the underlying LLM communication details. The `LLM Client Orchestrator` within the `CodeBoardingAgent` is responsible for instantiating the correct `Specific LLM Integrations`, which then handle the actual communication with external LLM services.",
   "components": [
     {
       "name": "LLM Provider Gateway",
-      "description": "Provides a unified and consistent API for the AI Interpretation Layer to interact with various Large Language Model providers. It encapsulates provider-specific APIs, manages authentication, executes API calls, parses responses into a standardized format, and implements error handling and retry logic. This component is crucial for abstracting away the complexities of different LLM services, allowing the rest of the system to interact with LLMs uniformly.",
-      "referenced_source_code": [],
+      "description": "This is the overarching conceptual component that acts as a facade for all LLM interactions. It manages the lifecycle of LLM requests, from receiving a request to delegating to the appropriate client and handling initial response processing. It embodies the \"Modular Architecture\" by providing a consistent interface regardless of the underlying LLM provider.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent._initialize_llm",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 90,
+          "reference_end_line": 157
+        }
+      ],
       "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "CodeBoardingAgent",
-      "description": "A key component within the AI Interpretation Layer responsible for orchestrating the code analysis and documentation generation process using LLMs. It relies on the LLM Provider Gateway to set up and configure the appropriate LLM instance for its operations, enabling it to interpret code, generate insights, and facilitate the creation of architectural documentation. This agent represents the intelligent core that leverages LLMs for understanding and transforming code.",
-      "referenced_source_code": [],
+      "name": "LLM Client Orchestrator",
+      "description": "This component, embodied by the `CodeBoardingAgent`, is responsible for dynamically selecting and initializing specific LLM client implementations (e.g., `ChatOpenAI`, `ChatGoogleGenerativeAI`). It directly manages the configuration and instantiation of various LLM providers based on available API keys, promoting a flexible \"Plugin/Extension Architecture\" within the agent itself.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent._initialize_llm",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 90,
+          "reference_end_line": 157
+        }
+      ],
       "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Specific LLM Integrations",
+      "description": "These are the concrete implementations of various LLM clients (e.g., `ChatOpenAI`, `ChatAnthropic`, `ChatGoogleGenerativeAI`, `ChatBedrockConverse`, `ChatCerebras`, `ChatOllama`) directly used by the `LLM Client Orchestrator`. Each integration handles the unique API calls, authentication, and data formatting for a particular external LLM provider, enforcing \"Separation of Concerns\" by isolating provider-specific logic.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "langchain_openai.ChatOpenAI",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        },
+        {
+          "qualified_name": "langchain_anthropic.ChatAnthropic",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "langchain_google_genai.ChatGoogleGenerativeAI",
+          "reference_file": "<file_path>",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "langchain_aws.ChatBedrockConverse",
+          "reference_file": "langchain_aws.ChatBedrockConverse",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "langchain_cerebras.ChatCerebras",
+          "reference_file": "full/file/path/here.txt",
+          "reference_start_line": 10,
+          "reference_end_line": 25
+        },
+        {
+          "qualified_name": "langchain_ollama.ChatOllama",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent",
+      "description": "The primary orchestrator within the `agents` package that initiates requests for LLM interactions. It acts as the consumer of the `LLM Provider Gateway`, abstracting the details of LLM communication from its core reasoning logic. This component is part of the broader \"AI Interpretation Layer\" and drives the \"Data Flow\" through the LLM integration.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 44,
+          "reference_end_line": 247
+        }
+      ],
+      "assigned_files": [
+        "../../agents/prompts/claude_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_unidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "../../agents/prompts/claude_prompts_unidirectional.py"
+      ],
       "can_expand": true
     },
     {
@@ -25,14 +104,39 @@
   ],
   "components_relations": [
     {
+      "relation": "delegates client creation to",
+      "src_name": "LLM Provider Gateway",
+      "dst_name": "LLM Client Orchestrator"
+    },
+    {
       "relation": "uses",
-      "src_name": "CodeBoardingAgent",
+      "src_name": "LLM Provider Gateway",
+      "dst_name": "Specific LLM Integrations"
+    },
+    {
+      "relation": "creates",
+      "src_name": "LLM Client Orchestrator",
+      "dst_name": "Specific LLM Integrations"
+    },
+    {
+      "relation": "provides client to",
+      "src_name": "LLM Client Orchestrator",
       "dst_name": "LLM Provider Gateway"
     },
     {
-      "relation": "provides LLM Services to",
-      "src_name": "LLM Provider Gateway",
-      "dst_name": "CodeBoardingAgent"
+      "relation": "returns response to",
+      "src_name": "Specific LLM Integrations",
+      "dst_name": "LLM Provider Gateway"
+    },
+    {
+      "relation": "sends requests to",
+      "src_name": "Agent",
+      "dst_name": "LLM Provider Gateway"
+    },
+    {
+      "relation": "receives responses from",
+      "src_name": "Agent",
+      "dst_name": "LLM Provider Gateway"
     }
   ]
 }
