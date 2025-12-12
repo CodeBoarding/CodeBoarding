@@ -143,42 +143,59 @@ async def generate_onboarding(job_id: str):
 
                 if not docs_content:
                     logger.warning("No documentation files generated for: %s", job["repo_url"])
-                    update_job(job_id, status=JobStatus.FAILED, error="No documentation files were generated")
+                    update_job(
+                        job_id,
+                        status=JobStatus.FAILED,
+                        error="No documentation files were generated",
+                        finished_at=datetime.now(timezone.utc),
+                    )
                     return
 
                 # Store result as JSON string in the result field
                 result = json.dumps({"files": docs_content})
-                update_job(job_id, result=result, status=JobStatus.COMPLETED)
+                update_job(job_id, result=result, status=JobStatus.COMPLETED, finished_at=datetime.now(timezone.utc))
                 logger.info(
                     "Successfully generated %d doc files for %s (job: %s)", len(docs_content), job["repo_url"], job_id
                 )
 
             except RepoDontExistError:
                 url = job.get("repo_url", "unknown") if job else "unknown"
-                update_job(job_id, error=f"Repository not found: {url}", status=JobStatus.FAILED)
+                update_job(
+                    job_id,
+                    error=f"Repository not found: {url}",
+                    status=JobStatus.FAILED,
+                    finished_at=datetime.now(timezone.utc),
+                )
             except CFGGenerationError:
-                update_job(job_id, error="Failed to generate diagram.", status=JobStatus.FAILED)
+                update_job(
+                    job_id,
+                    error="Failed to generate diagram.",
+                    status=JobStatus.FAILED,
+                    finished_at=datetime.now(timezone.utc),
+                )
             except Exception as e:
-                update_job(job_id, error=f"Server error: {e}", status=JobStatus.FAILED)
+                update_job(
+                    job_id, error=f"Server error: {e}", status=JobStatus.FAILED, finished_at=datetime.now(timezone.utc)
+                )
             finally:
                 remove_temp_repo_folder(str(temp_repo_folder))
-    finally:
-        update_job(job_id, finished_at=datetime.now(timezone.utc))
+    except Exception as e:
+        logger.exception(f"Unexpected error in generate_onboarding: {e}")
+        update_job(
+            job_id, error=f"Unexpected error: {e}", status=JobStatus.FAILED, finished_at=datetime.now(timezone.utc)
+        )
 
 
 # -- API Endpoints --
 @app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job")
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks | None = None
+    background_tasks: BackgroundTasks, repo_url: str = Query(..., description="GitHub repo URL")
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
     job = make_job(repo_url)
     insert_job(job)
-    if background_tasks:
-        background_tasks.add_task(generate_onboarding, job["id"])
-    else:
-        asyncio.create_task(generate_onboarding(job["id"]))
+    background_tasks.add_task(generate_onboarding, job["id"])
     return {"job_id": job["id"], "status": job["status"]}
 
 

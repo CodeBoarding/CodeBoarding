@@ -559,43 +559,57 @@ class LSPClient:
                 for item in hierarchy_items:
                     # METHOD 1: Get OUTGOING calls (what this function calls)
                     # This is the PRIMARY method - captures all calls made by this function
-                    outgoing_calls = self._get_outgoing_calls(item)
-                    if outgoing_calls:
-                        for call in outgoing_calls:
-                            callee_item = call["to"]
-                            try:
-                                callee_uri = callee_item["uri"]
-                                if callee_uri.startswith("file://"):
-                                    callee_path = uri_to_path(callee_uri)
-                                    callee_qualified_name = self._create_qualified_name(
-                                        callee_path, callee_item["name"]
-                                    )
+                    try:
+                        outgoing_calls = self._get_outgoing_calls(item)
+                        if outgoing_calls:
+                            for call in outgoing_calls:
+                                callee_item = call["to"]
+                                try:
+                                    callee_uri = callee_item["uri"]
+                                    if callee_uri.startswith("file://"):
+                                        callee_path = uri_to_path(callee_uri)
+                                        callee_qualified_name = self._create_qualified_name(
+                                            callee_path, callee_item["name"]
+                                        )
 
-                                    # Add edge: current_function -> called_function
-                                    result.call_relationships.append((current_qualified_name, callee_qualified_name))
-                                    logger.debug(f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}")
-                            except Exception as e:
-                                logger.debug(f"Error processing outgoing call: {e}")
+                                        # Add edge: current_function -> called_function
+                                        result.call_relationships.append(
+                                            (current_qualified_name, callee_qualified_name)
+                                        )
+                                        logger.debug(
+                                            f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}"
+                                        )
+                                except Exception as e:
+                                    logger.debug(f"Error processing outgoing call: {e}")
+                    except Exception as e:
+                        logger.debug(f"Error getting outgoing calls: {e}")
 
                     # METHOD 2: Get INCOMING calls (who calls this function)
                     # This is SUPPLEMENTARY - helps catch calls we might have missed
-                    incoming_calls = self._get_incoming_calls(item)
-                    if incoming_calls:
-                        for call in incoming_calls:
-                            caller_item = call["from"]
-                            try:
-                                caller_uri = caller_item["uri"]
-                                if caller_uri.startswith("file://"):
-                                    caller_path = uri_to_path(caller_uri)
-                                    caller_qualified_name = self._create_qualified_name(
-                                        caller_path, caller_item["name"]
-                                    )
+                    try:
+                        incoming_calls = self._get_incoming_calls(item)
+                        if incoming_calls:
+                            for call in incoming_calls:
+                                caller_item = call["from"]
+                                try:
+                                    caller_uri = caller_item["uri"]
+                                    if caller_uri.startswith("file://"):
+                                        caller_path = uri_to_path(caller_uri)
+                                        caller_qualified_name = self._create_qualified_name(
+                                            caller_path, caller_item["name"]
+                                        )
 
-                                    # Add edge: calling_function -> current_function
-                                    result.call_relationships.append((caller_qualified_name, current_qualified_name))
-                                    logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
-                            except Exception as e:
-                                logger.debug(f"Error processing incoming call: {e}")
+                                        # Add edge: calling_function -> current_function
+                                        result.call_relationships.append(
+                                            (caller_qualified_name, current_qualified_name)
+                                        )
+                                        logger.debug(
+                                            f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
+                                        )
+                                except Exception as e:
+                                    logger.debug(f"Error processing incoming call: {e}")
+                    except Exception as e:
+                        logger.debug(f"Error getting incoming calls: {e}")
 
             # METHOD 3: Body-level calls by finding call positions
             try:
