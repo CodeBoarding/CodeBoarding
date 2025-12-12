@@ -301,7 +301,7 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 def validate_arguments(args, parser, is_local: bool):
     # Ensure mutual exclusivity between remote and local runs
-    has_remote_repos = bool(getattr(args, 'repositories', None))
+    has_remote_repos = bool(getattr(args, "repositories", None))
     has_local_repo = args.local is not None
 
     if has_remote_repos == has_local_repo:
