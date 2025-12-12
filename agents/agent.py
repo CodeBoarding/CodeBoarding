@@ -170,7 +170,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     {"messages": [self.system_message, HumanMessage(content=prompt)]},
                     config={"callbacks": callback_list, "recursion_limit": 40},
                 )
-                
+
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):
