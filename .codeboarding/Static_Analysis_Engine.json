@@ -1,63 +1,85 @@
 {
-  "description": "The static analysis subsystem is centered around the ProjectScanner, which acts as the primary orchestrator. The ProjectScanner is responsible for initiating the code scanning process, leveraging external tools like Tokei to gather raw code statistics and identify programming languages. It then delegates the construction of detailed ProgrammingLanguage objects to the ProgrammingLanguageBuilder, which encapsulates language-specific properties and configurations. Finally, the ProjectScanner collects and manages these ProgrammingLanguage objects, representing the detected languages and their associated metrics within the codebase. This clear separation of concerns ensures that scanning, language object creation, and data encapsulation are handled by distinct, focused components.",
+  "description": "The static analysis subsystem is centered around the ProjectScanner, which serves as the primary entry point for initiating code analysis. The ProjectScanner is responsible for identifying the programming languages present in a repository and preparing the codebase for deeper inspection. It delegates the actual file traversal and initial language identification to external tools. Following this, the LanguageSpecificAnalysis component, represented by LSPClient and its specialized implementations, takes over to perform detailed parsing, AST generation, CFG construction, and metric extraction for each identified language. Finally, the DataAggregators, exemplified by AnalysisResult, collect and consolidate all the generated analysis data into a coherent and structured report, making it ready for further consumption or visualization. This architecture emphasizes a clear separation of concerns, with the ProjectScanner orchestrating the overall flow and LanguageSpecificAnalysis handling the intricate details of code understanding, all culminating in a unified output from DataAggregators.",
   "components": [
     {
       "name": "ProjectScanner",
-      "description": "The central component responsible for orchestrating the static analysis process. It scans the code repository, identifies programming languages, gathers code statistics using external tools (e.g., Tokei), and extracts unique file suffixes. It then uses the ProgrammingLanguageBuilder to prepare language-specific data for further processing.",
+      "description": "The orchestrator of the entire static analysis process. It initiates scanning, manages the flow of files, invokes language-specific parsing, and coordinates the collection of analysis results. It acts as the primary interface for the subsystem.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer.scanner.ProjectScanner",
           "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": 12,
-          "reference_end_line": 84
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/scanner.py",
+        "../../static_analyzer/typescript_config_scanner.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "ProgrammingLanguageBuilder",
-      "description": "Responsible for constructing and configuring ProgrammingLanguage objects based on the data gathered by the ProjectScanner. It ensures that language-specific properties, such as associated LSP servers, are correctly initialized.",
+      "name": "LanguageSpecificAnalysis",
+      "description": "This component represents the collective functionality for language-specific processing, including parsing source code into Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and extracting various code metrics. It leverages Language Server Protocol (LSP) clients for detailed language understanding.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguageBuilder",
-          "reference_file": "static_analyzer/programming_language.py",
-          "reference_start_line": 58,
-          "reference_end_line": 122
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/programming_language.py",
+        "../../static_analyzer/graph.py",
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "ProgrammingLanguage",
-      "description": "Represents a detected programming language within the codebase. It encapsulates properties such as the language name, associated file suffixes, collected code statistics (e.g., lines of code), and configuration for its Language Server Protocol (LSP) server.",
+      "name": "DataAggregators",
+      "description": "Gathers and consolidates the diverse outputs from the language-specific analysis (ASTs, CFGs, metrics) into a unified, structured analysis report. This component ensures a consistent data format for downstream processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-          "reference_file": "static_analyzer/programming_language.py",
-          "reference_start_line": 6,
-          "reference_end_line": 55
+          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../static_analyzer/analysis_result.py",
+        "../../static_analyzer/reference_resolve_mixin.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/lsp_client/__init__.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "uses",
+      "relation": "initiates",
       "src_name": "ProjectScanner",
-      "dst_name": "ProgrammingLanguageBuilder"
+      "dst_name": "LanguageSpecificAnalysis"
     },
     {
-      "relation": "creates/configures",
-      "src_name": "ProgrammingLanguageBuilder",
-      "dst_name": "ProgrammingLanguage"
+      "relation": "collects results from",
+      "src_name": "ProjectScanner",
+      "dst_name": "DataAggregators"
     },
     {
-      "relation": "processes/stores",
-      "src_name": "ProjectScanner",
-      "dst_name": "ProgrammingLanguage"
+      "relation": "processes code for",
+      "src_name": "LanguageSpecificAnalysis",
+      "dst_name": "DataAggregators"
     }
   ]
 }

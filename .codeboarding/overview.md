@@ -1,54 +1,66 @@
 ```mermaid
 graph LR
-    User_Interface_API_Gateway["User Interface / API Gateway"]
-    Orchestration_Engine_Agent_Core_["Orchestration Engine (Agent Core)"]
     Repository_Manager["Repository Manager"]
     Static_Analysis_Engine["Static Analysis Engine"]
     LLM_Prompt_Factory["LLM Prompt Factory"]
     AI_Interpretation_Layer["AI Interpretation Layer"]
-    Output_Generation_Engine["Output Generation Engine"]
-    Diagram_Analysis_Renderer["Diagram Analysis & Renderer"]
+    LLM_Provider_Gateway["LLM Provider Gateway"]
+    Diagram_Generation_Engine["Diagram Generation Engine"]
+    Documentation_Report_Generator["Documentation & Report Generator"]
     Unclassified["Unclassified"]
-    User_Interface_API_Gateway -- "Initiates Analysis Request" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Manages Repository Access" --> Repository_Manager
-    Repository_Manager -- "Provides Codebase" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Submits Codebase for Static Analysis" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "Returns Static Analysis Results" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Requests Prompt Generation" --> LLM_Prompt_Factory
-    LLM_Prompt_Factory -- "Provides Tailored Prompt" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Sends Prompt & Context to LLM" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "Returns LLM Interpreted Insights" --> Orchestration_Engine_Agent_Core_
-    Orchestration_Engine_Agent_Core_ -- "Processes Insights for Output" --> Output_Generation_Engine
-    Output_Generation_Engine -- "Provides Structured Diagram Data" --> Diagram_Analysis_Renderer
-    Diagram_Analysis_Renderer -- "Renders & Displays Diagram" --> User_Interface_API_Gateway
-    Orchestration_Engine_Agent_Core_ -- "Uploads Generated Materials" --> Repository_Manager
-    click User_Interface_API_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/User_Interface_API_Gateway.md" "Details"
-    click Orchestration_Engine_Agent_Core_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine_Agent_Core_.md" "Details"
+    Repository_Manager -- "Provides Source Code" --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "Outputs CFG Data & Metrics" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "Requests Prompts" --> LLM_Prompt_Factory
+    LLM_Prompt_Factory -- "Supplies LLM Prompts" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "Sends LLM Queries" --> LLM_Provider_Gateway
+    LLM_Provider_Gateway -- "Returns LLM Responses" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "Generates Architectural Insights" --> Diagram_Generation_Engine
+    AI_Interpretation_Layer -- "Produces Analysis Results" --> Documentation_Report_Generator
+    Diagram_Generation_Engine -- "Embeds Diagrams" --> Documentation_Report_Generator
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
-    click Diagram_Analysis_Renderer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Diagram_Analysis_Renderer.md" "Details"
+    click LLM_Provider_Gateway href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Provider_Gateway.md" "Details"
+    click Diagram_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Diagram_Generation_Engine.md" "Details"
+    click Documentation_Report_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Documentation_Report_Generator.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system operates with a clear separation of concerns, orchestrated by the `Orchestration Engine (Agent Core)`. User requests are handled by the `User Interface / API Gateway`, which then directs the `Orchestration Engine` to initiate the analysis. The `Orchestration Engine` interacts with the `Repository Manager` to fetch and manage codebases, including cloning, checking out branches, and handling temporary folders. The fetched code is then passed to the `Static Analysis Engine` for structural analysis. Prompts for AI interpretation are generated by the `LLM Prompt Factory` and sent to the `AI Interpretation Layer` along with analysis context. The interpreted insights are then processed by the `Output Generation Engine` to create structured data, which the `Diagram Analysis & Renderer` uses to generate and display visual architectural diagrams. The `Repository Manager` also facilitates the uploading of generated onboarding materials back to the repositories.
+The CodeBoarding project is structured around a core `AI Interpretation Layer` that orchestrates the analysis of software repositories. This layer initiates the process by interacting with the `Repository Manager` to obtain source code. The retrieved code is then fed into the `Static Analysis Engine`, which extracts crucial structural information and Control Flow Graphs (CFGs). The `AI Interpretation Layer` leverages these static analysis results and dynamically generates prompts through the `LLM Prompt Factory` to query various Large Language Models via the `LLM Provider Gateway`. The insights derived from these LLM interactions are then passed to the `Diagram Generation Engine` for visual representation and to the `Documentation & Report Generator` for comprehensive textual outputs. This modular design ensures clear separation of concerns, facilitating maintainability and extensibility, and provides a robust framework for automated software architecture analysis and documentation.
 
-### User Interface / API Gateway [[Expand]](./User_Interface_API_Gateway.md)
-The system's primary interface for users, handling analysis requests and displaying results, with expanded integration for VS Code.
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Manages access to source code repositories, including fetching, cloning, and organizing project files for analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py" target="_blank" rel="noopener noreferrer">`local_app.app`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.__init__.clone_repository`</a>
 
 
-### Orchestration Engine (Agent Core) [[Expand]](./Orchestration_Engine_Agent_Core_.md)
-The central control unit, dynamically managing the entire analysis workflow. It coordinates all components, maintains a sophisticated analysis state, and leverages refined internal logic to orchestrate enhanced capabilities and the overall analysis process.
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+Performs static analysis on the retrieved source code to extract structural information, control flow graphs (CFGs), and other code metrics.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`</a>
+
+
+### LLM Prompt Factory [[Expand]](./LLM_Prompt_Factory.md)
+Centralized component for generating and managing LLM prompts, adapting to different LLM providers and specific analysis contexts.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.abstract_prompt_factory.AbstractPromptFactory`</a>
+
+
+### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
+The core intelligence layer that orchestrates the analysis workflow, interprets static analysis results, and interacts with LLMs to derive architectural insights.
 
 
 **Related Classes/Methods**:
@@ -56,64 +68,31 @@ The central control unit, dynamically managing the entire analysis workflow. It 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
 
 
-### Repository Manager [[Expand]](./Repository_Manager.md)
-Manages all interactions with code repositories, providing a standardized interface for source code access, temporary folder management, cloning, branch management, and uploading generated content.
+### LLM Provider Gateway [[Expand]](./LLM_Provider_Gateway.md)
+Provides a unified interface for interacting with various Large Language Model providers, handling API calls, authentication, and response parsing.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.checkout_repo`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.upload_onboarding_materials`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent._initialize_llm`</a>
 
 
-### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static analysis on source code to extract structural information like CFGs and ASTs, now with significantly enhanced programming language support, more robust scanning mechanisms, and improved interaction with Language Server Protocols (LSP).
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
-
-
-### LLM Prompt Factory [[Expand]](./LLM_Prompt_Factory.md)
-Dynamically generates and manages prompts tailored for various LLMs and code analysis tasks.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-
-
-### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Interfaces with LLM providers to process analysis results and prompts, interpreting code context and generating architectural insights with more sophisticated logic for processing analysis results and prompts.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent.DetailsAgent`</a>
-
-
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Transforms AI-interpreted insights into structured output formats for diagram generation and documentation.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.MarkdownGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html.HTMLGenerator`</a>
-
-
-### Diagram Analysis & Renderer [[Expand]](./Diagram_Analysis_Renderer.md)
-Refines structured output into diagram-specific formats and renders visual architectural diagrams, with enhanced capabilities for transforming AI-interpreted insights and rendering.
+### Diagram Generation Engine [[Expand]](./Diagram_Generation_Engine.md)
+Transforms interpreted architectural insights and data flow information into visual diagrams, primarily using tools like Mermaid.js.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
+
+
+### Documentation & Report Generator [[Expand]](./Documentation_Report_Generator.md)
+Generates comprehensive documentation and reports based on the AI's analysis, including textual summaries, structured data, and embedded diagrams.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
 
 
 ### Unclassified

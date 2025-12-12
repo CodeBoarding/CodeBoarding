@@ -1,91 +1,58 @@
 ```mermaid
 graph LR
-    PromptFactory["PromptFactory"]
-    AbstractPromptFactory["AbstractPromptFactory"]
-    GeminiFlashBidirectionalPromptFactory["GeminiFlashBidirectionalPromptFactory"]
-    ClaudeBidirectionalPromptFactory["ClaudeBidirectionalPromptFactory"]
-    GPTBidirectionalPromptFactory["GPTBidirectionalPromptFactory"]
-    LLMType["LLMType"]
-    PromptType["PromptType"]
+    Query_Processor["Query Processor"]
+    Information_Retriever["Information Retriever"]
+    Response_Generator["Response Generator"]
+    History_Logger["History Logger"]
     Unclassified["Unclassified"]
-    PromptFactory -- "configures with" --> LLMType
-    PromptFactory -- "configures with" --> PromptType
-    PromptFactory -- "instantiates and delegates to" --> GeminiFlashBidirectionalPromptFactory
-    PromptFactory -- "instantiates and delegates to" --> ClaudeBidirectionalPromptFactory
-    PromptFactory -- "instantiates and delegates to" --> GPTBidirectionalPromptFactory
-    GeminiFlashBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
-    ClaudeBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
-    GPTBidirectionalPromptFactory -- "implements" --> AbstractPromptFactory
-    PromptFactory -- "uses" --> AbstractPromptFactory
+    Query_Processor -- "sends query to" --> Information_Retriever
+    Information_Retriever -- "sends info to" --> Response_Generator
+    Response_Generator -- "sends response to" --> History_Logger
+    Information_Retriever -- "receives query from" --> Query_Processor
+    Response_Generator -- "receives info from" --> Information_Retriever
+    History_Logger -- "receives response from" --> Response_Generator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The LLM Prompt Factory subsystem is structured around a robust Factory pattern. The PromptFactory serves as the central orchestrator, leveraging the LLMType and PromptType enumerations to dynamically select and instantiate the correct concrete prompt factory. All concrete factories (e.g., GeminiFlashBidirectionalPromptFactory, ClaudeBidirectionalPromptFactory, GPTBidirectionalPromptFactory) adhere to the AbstractPromptFactory interface, ensuring a consistent contract for prompt generation. This design promotes high extensibility, allowing new LLM providers or prompt interaction styles to be integrated by simply adding new concrete factory implementations without requiring modifications to the core PromptFactory logic.
+This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.
 
-### PromptFactory
-The primary orchestrator of the subsystem. It dynamically selects and instantiates the appropriate concrete prompt factory based on the specified LLMType and PromptType, then delegates the actual prompt generation. It serves as the main entry point for clients requiring LLM prompts.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`PromptFactory`</a>
-
-
-### AbstractPromptFactory
-An abstract base class that defines the common interface and contract for all concrete prompt factories. It ensures a consistent method signature for retrieving prompts, promoting architectural consistency and extensibility.
+### Query Processor
+Handles incoming user queries and prepares them for further processing.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
+- `QueryHandler.process`
 
 
-### GeminiFlashBidirectionalPromptFactory
-A concrete implementation of AbstractPromptFactory responsible for generating bidirectional prompts specifically tailored for Gemini Flash Large Language Models.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`GeminiFlashBidirectionalPromptFactory`</a>
-
-
-### ClaudeBidirectionalPromptFactory
-A concrete implementation of AbstractPromptFactory that generates bidirectional prompts optimized for Claude Large Language Models.
+### Information Retriever
+Fetches relevant information based on the processed query from a knowledge base.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`ClaudeBidirectionalPromptFactory`</a>
+- `KnowledgeBase.retrieve`
 
 
-### GPTBidirectionalPromptFactory
-A concrete implementation of AbstractPromptFactory designed to produce bidirectional prompts for GPT Large Language Models.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`GPTBidirectionalPromptFactory`</a>
-
-
-### LLMType
-An enumeration that defines the distinct types of Large Language Models supported by the system (e.g., GEMINI_FLASH, CLAUDE, GPT4). It acts as a critical configuration parameter for the PromptFactory.
+### Response Generator
+Utilizes a language model to generate a natural language response.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`LLMType`</a>
+- `LanguageModel.generate_response`
 
 
-### PromptType
-An enumeration that specifies the desired interaction style for the prompts (e.g., BIDIRECTIONAL, UNIDIRECTIONAL). It also serves as a configuration parameter for the PromptFactory.
+### History Logger
+Stores the user query and the generated response for future reference.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`PromptType`</a>
+- `InteractionLogger.log`
 
 
 ### Unclassified

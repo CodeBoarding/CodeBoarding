@@ -1,46 +1,58 @@
 ```mermaid
 graph LR
-    Repository_Access_Control["Repository Access & Control"]
-    Temporary_Workspace_Manager["Temporary Workspace Manager"]
-    Content_Deployment_Handler["Content Deployment Handler"]
+    Query_Processor["Query Processor"]
+    Information_Retriever["Information Retriever"]
+    Response_Generator["Response Generator"]
+    History_Logger["History Logger"]
     Unclassified["Unclassified"]
-    Repository_Access_Control -- "uses" --> Temporary_Workspace_Manager
-    Content_Deployment_Handler -- "uses" --> Temporary_Workspace_Manager
+    Query_Processor -- "sends query to" --> Information_Retriever
+    Information_Retriever -- "sends info to" --> Response_Generator
+    Response_Generator -- "sends response to" --> History_Logger
+    Information_Retriever -- "receives query from" --> Query_Processor
+    Response_Generator -- "receives info from" --> Information_Retriever
+    History_Logger -- "receives response from" --> Response_Generator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is designed around three core components: Repository Access & Control, Temporary Workspace Manager, and Content Deployment Handler. The Repository Access & Control component is responsible for fetching and managing code from remote repositories, ensuring the correct version is available for processing. It interacts with the Temporary Workspace Manager to establish isolated environments for these operations. The Temporary Workspace Manager handles the lifecycle of temporary file system locations, creating them as needed and ensuring their proper cleanup. Finally, the Content Deployment Handler takes the generated output and deploys it back to a specified repository, also leveraging the Temporary Workspace Manager for any temporary file handling during this process. This architecture ensures a clear separation of concerns, with dedicated components for repository interaction, temporary resource management, and content delivery.
+This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.
 
-### Repository Access & Control
-Manages the core operations of interacting with remote code repositories, including cloning repositories and managing specific branches or commits. It ensures that the correct version of the source code is available for analysis.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L114-L122" target="_blank" rel="noopener noreferrer">`repo_utils.checkout_repo`:114-122</a>
-
-
-### Temporary Workspace Manager
-Responsible for creating and cleaning up temporary file system locations where cloned repositories or intermediate files can be stored. It ensures isolated and clean environments for each analysis job.
+### Query Processor
+Handles incoming user queries and prepares them for further processing.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L18-L22" target="_blank" rel="noopener noreferrer">`utils.create_temp_repo_folder`:18-22</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingutils.py#L25-L29" target="_blank" rel="noopener noreferrer">`utils.remove_temp_repo_folder`:25-29</a>
+- `QueryHandler.process`
 
 
-### Content Deployment Handler
-Facilitates the uploading or pushing of generated content (e.g., documentation, analysis reports, onboarding materials) back to a specified repository. It handles the final step of delivering the tool's output.
+### Information Retriever
+Fetches relevant information based on the processed query from a knowledge base.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py#L136-L163" target="_blank" rel="noopener noreferrer">`repo_utils.upload_onboarding_materials`:136-163</a>
+- `KnowledgeBase.retrieve`
+
+
+### Response Generator
+Utilizes a language model to generate a natural language response.
+
+
+**Related Classes/Methods**:
+
+- `LanguageModel.generate_response`
+
+
+### History Logger
+Stores the user query and the generated response for future reference.
+
+
+**Related Classes/Methods**:
+
+- `InteractionLogger.log`
 
 
 ### Unclassified

@@ -1,141 +1,102 @@
 {
-  "description": "The LLM Prompt Factory subsystem is structured around a robust Factory pattern. The PromptFactory serves as the central orchestrator, leveraging the LLMType and PromptType enumerations to dynamically select and instantiate the correct concrete prompt factory. All concrete factories (e.g., GeminiFlashBidirectionalPromptFactory, ClaudeBidirectionalPromptFactory, GPTBidirectionalPromptFactory) adhere to the AbstractPromptFactory interface, ensuring a consistent contract for prompt generation. This design promotes high extensibility, allowing new LLM providers or prompt interaction styles to be integrated by simply adding new concrete factory implementations without requiring modifications to the core PromptFactory logic.",
+  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
   "components": [
     {
-      "name": "PromptFactory",
-      "description": "The primary orchestrator of the subsystem. It dynamically selects and instantiates the appropriate concrete prompt factory based on the specified LLMType and PromptType, then delegates the actual prompt generation. It serves as the main entry point for clients requiring LLM prompts.",
+      "name": "Query Processor",
+      "description": "Handles incoming user queries and prepares them for further processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
+          "qualified_name": "QueryHandler.process",
+          "reference_file": "query_handler.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "AbstractPromptFactory",
-      "description": "An abstract base class that defines the common interface and contract for all concrete prompt factories. It ensures a consistent method signature for retrieving prompts, promoting architectural consistency and extensibility.",
+      "name": "Information Retriever",
+      "description": "Fetches relevant information based on the processed query from a knowledge base.",
       "referenced_source_code": [
         {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
+          "qualified_name": "KnowledgeBase.retrieve",
+          "reference_file": "knowledge_base.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "GeminiFlashBidirectionalPromptFactory",
-      "description": "A concrete implementation of AbstractPromptFactory responsible for generating bidirectional prompts specifically tailored for Gemini Flash Large Language Models.",
+      "name": "Response Generator",
+      "description": "Utilizes a language model to generate a natural language response.",
       "referenced_source_code": [
         {
-          "qualified_name": "GeminiFlashBidirectionalPromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
+          "qualified_name": "LanguageModel.generate_response",
+          "reference_file": "language_model.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/prompts/abstract_prompt_factory.py"
+      ],
+      "can_expand": false
     },
     {
-      "name": "ClaudeBidirectionalPromptFactory",
-      "description": "A concrete implementation of AbstractPromptFactory that generates bidirectional prompts optimized for Claude Large Language Models.",
+      "name": "History Logger",
+      "description": "Stores the user query and the generated response for future reference.",
       "referenced_source_code": [
         {
-          "qualified_name": "ClaudeBidirectionalPromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
+          "qualified_name": "InteractionLogger.log",
+          "reference_file": "interaction_logger.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "GPTBidirectionalPromptFactory",
-      "description": "A concrete implementation of AbstractPromptFactory designed to produce bidirectional prompts for GPT Large Language Models.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "GPTBidirectionalPromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "LLMType",
-      "description": "An enumeration that defines the distinct types of Large Language Models supported by the system (e.g., GEMINI_FLASH, CLAUDE, GPT4). It acts as a critical configuration parameter for the PromptFactory.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "LLMType",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "PromptType",
-      "description": "An enumeration that specifies the desired interaction style for the prompts (e.g., BIDIRECTIONAL, UNIDIRECTIONAL). It also serves as a configuration parameter for the PromptFactory.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "PromptType",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "configures with",
-      "src_name": "PromptFactory",
-      "dst_name": "LLMType"
+      "relation": "sends query to",
+      "src_name": "Query Processor",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "configures with",
-      "src_name": "PromptFactory",
-      "dst_name": "PromptType"
+      "relation": "sends info to",
+      "src_name": "Information Retriever",
+      "dst_name": "Response Generator"
     },
     {
-      "relation": "instantiates and delegates to",
-      "src_name": "PromptFactory",
-      "dst_name": "GeminiFlashBidirectionalPromptFactory"
+      "relation": "sends response to",
+      "src_name": "Response Generator",
+      "dst_name": "History Logger"
     },
     {
-      "relation": "instantiates and delegates to",
-      "src_name": "PromptFactory",
-      "dst_name": "ClaudeBidirectionalPromptFactory"
+      "relation": "receives query from",
+      "src_name": "Information Retriever",
+      "dst_name": "Query Processor"
     },
     {
-      "relation": "instantiates and delegates to",
-      "src_name": "PromptFactory",
-      "dst_name": "GPTBidirectionalPromptFactory"
+      "relation": "receives info from",
+      "src_name": "Response Generator",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "implements",
-      "src_name": "GeminiFlashBidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "implements",
-      "src_name": "ClaudeBidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "implements",
-      "src_name": "GPTBidirectionalPromptFactory",
-      "dst_name": "AbstractPromptFactory"
-    },
-    {
-      "relation": "uses",
-      "src_name": "PromptFactory",
-      "dst_name": "AbstractPromptFactory"
+      "relation": "receives response from",
+      "src_name": "History Logger",
+      "dst_name": "Response Generator"
     }
   ]
 }

@@ -1,86 +1,104 @@
 {
-  "description": "The system is designed around three core components: Repository Access & Control, Temporary Workspace Manager, and Content Deployment Handler. The Repository Access & Control component is responsible for fetching and managing code from remote repositories, ensuring the correct version is available for processing. It interacts with the Temporary Workspace Manager to establish isolated environments for these operations. The Temporary Workspace Manager handles the lifecycle of temporary file system locations, creating them as needed and ensuring their proper cleanup. Finally, the Content Deployment Handler takes the generated output and deploys it back to a specified repository, also leveraging the Temporary Workspace Manager for any temporary file handling during this process. This architecture ensures a clear separation of concerns, with dedicated components for repository interaction, temporary resource management, and content delivery.",
+  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
   "components": [
     {
-      "name": "Repository Access & Control",
-      "description": "Manages the core operations of interacting with remote code repositories, including cloning repositories and managing specific branches or commits. It ensures that the correct version of the source code is available for analysis.",
+      "name": "Query Processor",
+      "description": "Handles incoming user queries and prepares them for further processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.clone_repository",
-          "reference_file": "repo_utils/__init__.py",
+          "qualified_name": "QueryHandler.process",
+          "reference_file": "query_handler.py",
           "reference_start_line": null,
           "reference_end_line": null
-        },
-        {
-          "qualified_name": "repo_utils.checkout_repo",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 114,
-          "reference_end_line": 122
         }
       ],
-      "assigned_files": [
-        "../../repo_utils/__init__.py",
-        "../../repo_utils/git_diff.py",
-        "../../repo_utils/errors.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "Temporary Workspace Manager",
-      "description": "Responsible for creating and cleaning up temporary file system locations where cloned repositories or intermediate files can be stored. It ensures isolated and clean environments for each analysis job.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "utils.create_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 18,
-          "reference_end_line": 22
-        },
-        {
-          "qualified_name": "utils.remove_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 25,
-          "reference_end_line": 29
-        }
-      ],
-      "assigned_files": [
-        "../../utils.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
-      "name": "Content Deployment Handler",
-      "description": "Facilitates the uploading or pushing of generated content (e.g., documentation, analysis reports, onboarding materials) back to a specified repository. It handles the final step of delivering the tool's output.",
+      "name": "Information Retriever",
+      "description": "Fetches relevant information based on the processed query from a knowledge base.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.upload_onboarding_materials",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 136,
-          "reference_end_line": 163
+          "qualified_name": "KnowledgeBase.retrieve",
+          "reference_file": "knowledge_base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../repo_utils/__init__.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
+    },
+    {
+      "name": "Response Generator",
+      "description": "Utilizes a language model to generate a natural language response.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LanguageModel.generate_response",
+          "reference_file": "language_model.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "History Logger",
+      "description": "Stores the user query and the generated response for future reference.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "InteractionLogger.log",
+          "reference_file": "interaction_logger.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../repo_utils/__init__.py",
+        "../../repo_utils/git_diff.py",
+        "../../repo_utils/errors.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "uses",
-      "src_name": "Repository Access & Control",
-      "dst_name": "Temporary Workspace Manager"
+      "relation": "sends query to",
+      "src_name": "Query Processor",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "uses",
-      "src_name": "Content Deployment Handler",
-      "dst_name": "Temporary Workspace Manager"
+      "relation": "sends info to",
+      "src_name": "Information Retriever",
+      "dst_name": "Response Generator"
+    },
+    {
+      "relation": "sends response to",
+      "src_name": "Response Generator",
+      "dst_name": "History Logger"
+    },
+    {
+      "relation": "receives query from",
+      "src_name": "Information Retriever",
+      "dst_name": "Query Processor"
+    },
+    {
+      "relation": "receives info from",
+      "src_name": "Response Generator",
+      "dst_name": "Information Retriever"
+    },
+    {
+      "relation": "receives response from",
+      "src_name": "History Logger",
+      "dst_name": "Response Generator"
     }
   ]
 }
