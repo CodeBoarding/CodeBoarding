@@ -40,7 +40,7 @@ dependencies = [
     "markdown==3.8",
     "markdown-it-py==3.0.0",
     "markitdown==0.1.1",
-    "matplotlib==3.10.7",
+    "matplotlib==3.10.1",
     "memory-profiler==0.61.0",
     "networkx==3.4.2",
     "opencensus-ext-azure==1.1.14",
