@@ -29,7 +29,8 @@ class TestCFGTools(unittest.TestCase):
 
     def test_get_cfg_without_static_analysis(self):
         # Test when static_analysis is None
-        tool = GetCFGTool(static_analysis=None)
+        mock_analysis = MagicMock()
+        tool = GetCFGTool(static_analysis=mock_analysis)
         tool.static_analysis = None
         result = tool._run()
         self.assertEqual(result, "No static analysis data available.")
@@ -49,7 +50,12 @@ class TestCFGTools(unittest.TestCase):
 
     def test_component_cfg_with_valid_component(self):
         # Create a component with some files from the static analysis
-        component = Component(name="TestComponent", assigned_files=set())
+        component = Component(
+            name="TestComponent",
+            description="Test component for CFG testing",
+            referenced_source_code=[],
+            assigned_files=[],
+        )
 
         # Get some files from the analysis
         for lang in self.static_analysis.get_languages():
@@ -57,7 +63,7 @@ class TestCFGTools(unittest.TestCase):
             if cfg and cfg.nodes:
                 # Add first node's file to component
                 first_node = next(iter(cfg.nodes.values()))
-                component.assigned_files.add(first_node.file_path)
+                component.assigned_files.append(first_node.file_path)
                 break
 
         result = self.read_cfg.component_cfg(component)
@@ -66,15 +72,21 @@ class TestCFGTools(unittest.TestCase):
 
     def test_component_cfg_without_static_analysis(self):
         # Test when static_analysis is None
-        tool = GetCFGTool(static_analysis=None)
+        mock_analysis = MagicMock()
+        tool = GetCFGTool(static_analysis=mock_analysis)
         tool.static_analysis = None
-        component = Component(name="Test", assigned_files=set())
+        component = Component(name="Test", description="Test component", referenced_source_code=[], assigned_files=[])
         result = tool.component_cfg(component)
         self.assertEqual(result, "No static analysis data available.")
 
     def test_component_cfg_with_no_matching_files(self):
         # Test component with files that don't exist in CFG
-        component = Component(name="EmptyComponent", assigned_files={"nonexistent.py"})
+        component = Component(
+            name="EmptyComponent",
+            description="Empty test component",
+            referenced_source_code=[],
+            assigned_files=["nonexistent.py"],
+        )
         result = self.read_cfg.component_cfg(component)
         self.assertIn("No control flow graph data available for this component", result)
 
