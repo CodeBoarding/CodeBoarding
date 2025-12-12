@@ -84,9 +84,11 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     @patch("local_app.fetch_job")
     @patch("local_app.update_job")
     @patch("local_app.run_in_threadpool")
+    @patch("local_app.job_semaphore")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos"})
     async def test_generate_onboarding_success(
         self,
+        mock_semaphore,
         mock_run_in_threadpool,
         mock_update_job,
         mock_fetch_job,
@@ -95,6 +97,10 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     ):
         # Test successful onboarding generation
         job_id = "test-job-id"
+
+        # Mock semaphore to act as an async context manager
+        mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+        mock_semaphore.__aexit__ = AsyncMock(return_value=None)
 
         # Mock job data
         mock_fetch_job.return_value = {
@@ -132,9 +138,11 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     @patch("local_app.fetch_job")
     @patch("local_app.update_job")
     @patch("local_app.run_in_threadpool")
+    @patch("local_app.job_semaphore")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos"})
     async def test_generate_onboarding_no_files_generated(
         self,
+        mock_semaphore,
         mock_run_in_threadpool,
         mock_update_job,
         mock_fetch_job,
@@ -143,6 +151,10 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     ):
         # Test when no files are generated
         job_id = "test-job-id"
+
+        # Mock semaphore to act as an async context manager
+        mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+        mock_semaphore.__aexit__ = AsyncMock(return_value=None)
 
         mock_fetch_job.return_value = {
             "id": job_id,
@@ -165,9 +177,11 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.fetch_job")
     @patch("local_app.update_job")
+    @patch("local_app.job_semaphore")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos"})
     async def test_generate_onboarding_job_not_found(
         self,
+        mock_semaphore,
         mock_update_job,
         mock_fetch_job,
         mock_create_temp,
@@ -175,6 +189,11 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     ):
         # Test when job is not found
         job_id = "nonexistent-job"
+
+        # Mock semaphore to act as an async context manager
+        mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+        mock_semaphore.__aexit__ = AsyncMock(return_value=None)
+
         mock_fetch_job.return_value = None
 
         with tempfile.TemporaryDirectory() as temp_dir:
