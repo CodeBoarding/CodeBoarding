@@ -326,12 +326,13 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     """
     Adds all command-line arguments and groups to the ArgumentParser.
     """
-    # Repository specification (mutually exclusive groups)
-    repo_group = parser.add_mutually_exclusive_group(required=True)
-    repo_group.add_argument(
-        "repositories", nargs="+", help="One or more Git repository URLs to generate documentation for"
+    # Repository specification (mutually exclusive handled in validation)
+    parser.add_argument(
+        "repositories",
+        nargs="*",
+        help="One or more Git repository URLs to generate documentation for",
     )
-    repo_group.add_argument("--local", type=Path, help="Path to a local repository")
+    parser.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
     parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
