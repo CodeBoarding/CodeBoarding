@@ -79,6 +79,7 @@ class TestMakeJob(unittest.TestCase):
 
 
 class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
+    @patch("main.clone_repository")
     @patch("local_app.remove_temp_repo_folder")
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.fetch_job")
@@ -94,6 +95,7 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
         mock_fetch_job,
         mock_create_temp,
         mock_remove_temp,
+        mock_clone_repo,
     ):
         # Test successful onboarding generation
         job_id = "test-job-id"
@@ -108,6 +110,9 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
             "repo_url": "https://github.com/test/repo",
             "status": JobStatus.PENDING,
         }
+
+        # Mock clone_repository to avoid GitHub authentication
+        mock_clone_repo.return_value = "test-repo"
 
         # Create temp directory and files for testing
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -133,6 +138,7 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
             # Check that cleanup was called
             mock_remove_temp.assert_called_once()
 
+    @patch("main.clone_repository")
     @patch("local_app.remove_temp_repo_folder")
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.fetch_job")
@@ -148,6 +154,7 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
         mock_fetch_job,
         mock_create_temp,
         mock_remove_temp,
+        mock_clone_repo,
     ):
         # Test when no files are generated
         job_id = "test-job-id"
@@ -161,6 +168,9 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
             "repo_url": "https://github.com/test/repo",
             "status": JobStatus.PENDING,
         }
+
+        # Mock clone_repository to avoid GitHub authentication
+        mock_clone_repo.return_value = "test-repo"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -206,6 +216,7 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
 
 
 class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
+    @patch("github_action.clone_repository")
     @patch("local_app.remove_temp_repo_folder")
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.update_job")
@@ -216,6 +227,7 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
         mock_update_job,
         mock_create_temp,
         mock_remove_temp,
+        mock_clone_repo,
     ):
         # Test successful docs generation
         job_id = "test-job-id"
@@ -224,6 +236,9 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
         target_branch = "main"
         output_dir = ".codeboarding"
         extension = ".md"
+
+        # Mock clone_repository to avoid GitHub authentication
+        mock_clone_repo.return_value = "test-repo"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -245,6 +260,7 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
 
             mock_remove_temp.assert_called_once()
 
+    @patch("github_action.clone_repository")
     @patch("local_app.remove_temp_repo_folder")
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.update_job")
@@ -255,9 +271,13 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
         mock_update_job,
         mock_create_temp,
         mock_remove_temp,
+        mock_clone_repo,
     ):
         # Test when no files are generated
         job_id = "test-job-id"
+
+        # Mock clone_repository to avoid GitHub authentication
+        mock_clone_repo.return_value = "test-repo"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -271,6 +291,7 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
             failed_calls = [call for call in calls if call.kwargs.get("status") == JobStatus.FAILED]
             self.assertTrue(len(failed_calls) > 0)
 
+    @patch("github_action.clone_repository")
     @patch("local_app.remove_temp_repo_folder")
     @patch("local_app.create_temp_repo_folder")
     @patch("local_app.update_job")
@@ -281,15 +302,18 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
         mock_update_job,
         mock_create_temp,
         mock_remove_temp,
+        mock_clone_repo,
     ):
         # Test when repository is not found
         from repo_utils import RepoDontExistError
 
         job_id = "test-job-id"
 
+        # Mock clone_repository to raise RepoDontExistError
+        mock_clone_repo.side_effect = RepoDontExistError("Repo not found")
+
         with tempfile.TemporaryDirectory() as temp_dir:
             mock_create_temp.return_value = Path(temp_dir)
-            mock_run_in_threadpool.side_effect = RepoDontExistError("Repo not found")
 
             await process_docs_generation_job(job_id, "nonexistent/repo", "main", "main", ".codeboarding", ".md")
 
