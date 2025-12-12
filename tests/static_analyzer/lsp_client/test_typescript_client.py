@@ -130,7 +130,7 @@ class TestTypeScriptClient(unittest.TestCase):
 
         client = TypeScriptClient(self.project_path, self.mock_language)
 
-        base_params = {"capabilities": {}}
+        base_params: dict = {"capabilities": {}}
         customized = client._customize_initialization_params(base_params)
 
         # Should include preferences
@@ -212,7 +212,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         # Create tsconfig.json
         tsconfig = self.project_path / "tsconfig.json"
@@ -231,7 +231,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         # Create jsconfig.json
         jsconfig = self.project_path / "jsconfig.json"
@@ -249,7 +249,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         # Create package.json
         package_json = self.project_path / "package.json"
@@ -267,7 +267,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         result = client._process_config_files()
 
@@ -284,9 +284,9 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
-        client._validate_typescript_project = Mock(return_value=True)
-        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._validate_typescript_project = Mock(return_value=True)  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))  # type: ignore[method-assign]
 
         # Create test files
         (self.project_path / "src").mkdir()
@@ -317,9 +317,9 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
-        client._validate_typescript_project = Mock(return_value=True)
-        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._validate_typescript_project = Mock(return_value=True)  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))  # type: ignore[method-assign]
 
         (self.project_path / "file.ts").touch()
         ts_files = [self.project_path / "file.ts"]
@@ -338,7 +338,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_notification = Mock()
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         # Create sample files
         file1 = self.project_path / "file1.ts"
@@ -361,7 +361,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._validate_typescript_project = Mock(return_value=True)
+        client._validate_typescript_project = Mock(return_value=True)  # type: ignore[method-assign]
 
         client._prepare_for_analysis()
 
@@ -376,8 +376,8 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)
-        client._wait_for_response = Mock(return_value={"result": []})
+        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._validate_typescript_project()
 
@@ -392,8 +392,8 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)
-        client._wait_for_response = Mock(return_value={"error": "No Project loaded"})
+        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"error": "No Project loaded"})  # type: ignore[method-assign]
 
         result = client._validate_typescript_project()
 
@@ -407,8 +407,8 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)
-        client._wait_for_response = Mock(return_value={"error": "Other error"})
+        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"error": "Other error"})  # type: ignore[method-assign]
 
         result = client._validate_typescript_project()
 
@@ -422,7 +422,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(side_effect=Exception("Test error"))
+        client._send_request = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
         result = client._validate_typescript_project()
 
@@ -436,8 +436,8 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._find_typescript_files = Mock(return_value=[])
-        client._send_notification = Mock()
+        client._find_typescript_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
 
         client._configure_typescript_workspace()
 
@@ -458,9 +458,9 @@ class TestTypeScriptClient(unittest.TestCase):
         # Create test files
         (self.project_path / "app.ts").touch()
 
-        client._send_notification = Mock()
-        client._validate_typescript_project = Mock(return_value=True)
-        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._validate_typescript_project = Mock(return_value=True)  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=pathspec.PathSpec.from_lines("gitwildmatch", []))  # type: ignore[method-assign]
 
         client._configure_typescript_workspace()
 
@@ -474,7 +474,7 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._find_typescript_files = Mock(side_effect=Exception("Test error"))
+        client._find_typescript_files = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
         # Should not raise, just log warning
         try:

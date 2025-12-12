@@ -84,7 +84,6 @@ class TestAbstractionAgent(unittest.TestCase):
         )
 
         mock_response = CFGAnalysisInsights(
-            description="Test CFG analysis",
             components=[],
             components_relations=[],
         )
@@ -111,7 +110,6 @@ class TestAbstractionAgent(unittest.TestCase):
         )
 
         mock_response = CFGAnalysisInsights(
-            description="Test CFG analysis",
             components=[],
             components_relations=[],
         )
@@ -137,7 +135,6 @@ class TestAbstractionAgent(unittest.TestCase):
         )
 
         mock_response = CFGAnalysisInsights(
-            description="Test CFG analysis",
             components=[],
             components_relations=[],
         )
@@ -161,7 +158,6 @@ class TestAbstractionAgent(unittest.TestCase):
 
         # Add some context
         cfg_insight = CFGAnalysisInsights(
-            description="CFG insight",
             components=[],
             components_relations=[],
         )

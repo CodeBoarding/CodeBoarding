@@ -411,7 +411,8 @@ class TestCallGraph(unittest.TestCase):
             ["module.func2", "module.func3"],
         ]
 
-        result = CallGraph._CallGraph__cluster_str(communities, nx_graph)
+        graph_instance = CallGraph()
+        result = graph_instance._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
 
         self.assertIn("Cluster Definitions", result)
         self.assertIn("Inter-Cluster Connections", result)
@@ -435,7 +436,8 @@ class TestCallGraph(unittest.TestCase):
         # Define top nodes (in clusters)
         top_nodes = {"module.func0", "module.func1"}
 
-        result = CallGraph._CallGraph__non_cluster_str(nx_graph, top_nodes)
+        graph_instance = CallGraph()
+        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes)  # type: ignore[attr-defined]
 
         # Should show edges involving func2 and func3
         self.assertIn("module.func2", result)

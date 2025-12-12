@@ -108,7 +108,7 @@ class TestVSCodeConstants(unittest.TestCase):
             cli_file.write_text("test")
 
             # Reset VSCODE_CONFIG to known state
-            original_cmd = VSCODE_CONFIG["lsp_servers"]["typescript"]["command"].copy()
+            original_cmd = list(VSCODE_CONFIG["lsp_servers"]["typescript"]["command"])
 
             update_command_paths(temp_dir)
 
@@ -127,7 +127,7 @@ class TestVSCodeConstants(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             original_config = {}
             for lang in ["typescript", "python", "php"]:
-                original_config[lang] = VSCODE_CONFIG["lsp_servers"][lang]["command"].copy()
+                original_config[lang] = list(VSCODE_CONFIG["lsp_servers"][lang]["command"])
 
             update_command_paths(temp_dir)
 
@@ -148,7 +148,7 @@ class TestVSCodeConstants(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             original_config = {}
             for lang in ["typescript", "python", "php"]:
-                original_config[lang] = VSCODE_CONFIG["lsp_servers"][lang]["command"].copy()
+                original_config[lang] = list(VSCODE_CONFIG["lsp_servers"][lang]["command"])
 
             update_command_paths(temp_dir)
 

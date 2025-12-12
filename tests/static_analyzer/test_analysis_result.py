@@ -116,6 +116,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
         # Should match by suffix
         message, retrieved = self.results.get_loose_reference("python", "myclass.method")
         self.assertIsNotNone(retrieved)
+        assert retrieved is not None
         self.assertEqual(retrieved.fully_qualified_name, "mypackage.module.MyClass.method")
 
     def test_get_loose_reference_unique_substring(self):
@@ -125,6 +126,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
         message, retrieved = self.results.get_loose_reference("python", "unique")
         self.assertIsNotNone(retrieved)
+        assert retrieved is not None
         self.assertEqual(retrieved.fully_qualified_name, "mypackage.unique_function")
 
     def test_get_loose_reference_not_found(self):

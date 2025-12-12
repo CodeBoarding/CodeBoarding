@@ -16,7 +16,7 @@ class TestAbstractPromptFactory(unittest.TestCase):
     def test_abstract_prompt_factory_cannot_instantiate(self):
         # Test that AbstractPromptFactory cannot be instantiated directly
         with self.assertRaises(TypeError):
-            AbstractPromptFactory()
+            AbstractPromptFactory()  # type: ignore[abstract]
 
     def test_abstract_methods_exist(self):
         # Test that all expected abstract methods are defined

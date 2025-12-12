@@ -259,7 +259,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         # Set monitoring callback
         mock_callback = Mock()
-        agent._monitoring_callback = mock_callback
+        agent._monitoring_callback = mock_callback  # type: ignore[assignment]
 
         result = agent._invoke("Test prompt")
 
@@ -331,7 +331,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_callback.tool_errors = {"tool1": 1}
         mock_callback.tool_latency_ms = {"tool1": [100, 200, 150]}
 
-        agent._monitoring_callback = mock_callback
+        agent._monitoring_callback = mock_callback  # type: ignore[assignment]
 
         results = agent.get_monitoring_results()
 

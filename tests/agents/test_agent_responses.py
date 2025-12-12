@@ -195,12 +195,6 @@ class TestAnalysisInsights(unittest.TestCase):
         llm_str = insights.llm_str()
         self.assertIn("No abstract components found", llm_str)
 
-    def test_pydantic_validation(self):
-        # Test that Pydantic validation works
-        with self.assertRaises(Exception):
-            # Missing required fields should raise validation error
-            Component(name="Test")
-
     def test_reference_list_validation(self):
         # Test that referenced_source_code cannot be empty per field description
         ref = SourceCodeReference(

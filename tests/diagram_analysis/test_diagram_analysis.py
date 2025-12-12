@@ -151,7 +151,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_from_component_to_json_component_can_expand_false(self):
         # Test when component cannot be expanded
-        new_components = []  # No new components
+        new_components: list[Component] = []  # No new components
 
         result = from_component_to_json_component(self.comp1, new_components)
 

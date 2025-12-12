@@ -51,7 +51,7 @@ class TestReadDiffTool(unittest.TestCase):
 
     def test_read_diff_no_diffs(self):
         # Test with no diffs available
-        empty_tool = ReadDiffTool(diffs=None)
+        empty_tool = ReadDiffTool(diffs=[])
         content = empty_tool._run("example.py", 1)
         self.assertIn("Error: No diff information available", content)
 

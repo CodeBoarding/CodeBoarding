@@ -88,6 +88,7 @@ class TestDuckDBCRUD(unittest.TestCase):
         # Verify job was inserted
         fetched_job = fetch_job("test-job-1")
         self.assertIsNotNone(fetched_job)
+        assert fetched_job is not None
         self.assertEqual(fetched_job["id"], "test-job-1")
         self.assertEqual(fetched_job["repo_url"], "https://github.com/test/repo")
         self.assertEqual(fetched_job["status"], "PENDING")
@@ -117,6 +118,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Verify update
         fetched_job = fetch_job("test-job-2")
+        assert fetched_job is not None
         self.assertEqual(fetched_job["status"], "RUNNING")
 
     def test_update_job_multiple_fields(self):
@@ -140,6 +142,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Verify updates
         fetched_job = fetch_job("test-job-3")
+        assert fetched_job is not None
         self.assertEqual(fetched_job["status"], "RUNNING")
         self.assertIsNotNone(fetched_job["started_at"])
 
@@ -164,6 +167,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Verify update
         fetched_job = fetch_job("test-job-4")
+        assert fetched_job is not None
         self.assertEqual(fetched_job["status"], "COMPLETED")
         self.assertEqual(fetched_job["result"], result_data)
 
@@ -188,6 +192,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Verify update
         fetched_job = fetch_job("test-job-5")
+        assert fetched_job is not None
         self.assertEqual(fetched_job["status"], "FAILED")
         self.assertEqual(fetched_job["error"], error_msg)
 
@@ -290,6 +295,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Fetch job
         fetched_job = fetch_job("test-job-10")
+        assert fetched_job is not None
 
         # Verify timestamps are returned as ISO format strings
         self.assertIsInstance(fetched_job["created_at"], str)
@@ -318,6 +324,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Verify final state
         fetched_job = fetch_job("test-job-11")
+        assert fetched_job is not None
         self.assertEqual(fetched_job["status"], "COMPLETED")
 
     def test_none_values_handled(self):
@@ -337,6 +344,7 @@ class TestDuckDBCRUD(unittest.TestCase):
 
         # Fetch job
         fetched_job = fetch_job("test-job-12")
+        assert fetched_job is not None
 
         # Verify None values
         self.assertIsNone(fetched_job["result"])

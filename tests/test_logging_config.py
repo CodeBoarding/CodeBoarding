@@ -39,14 +39,6 @@ class TestLoggingConfig(unittest.TestCase):
             logs_dir = temp_path / "logs"
             self.assertTrue(logs_dir.exists())
 
-    def test_setup_logging_default(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            setup_logging(log_dir=temp_path)
-
-            logs_dir = temp_path / "logs"
-            self.assertTrue(logs_dir.exists())
-
             self._clean_logging_handlers()
 
     def test_setup_logging_custom_filename(self):

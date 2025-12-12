@@ -131,7 +131,7 @@ class TestLSPClient(unittest.TestCase):
         client = LSPClient(self.project_path, self.mock_language)
 
         # Mock _initialize to avoid actual initialization
-        client._initialize = Mock()
+        client._initialize = Mock()  # type: ignore[method-assign]  # type: ignore[method-assign]
 
         client.start()
 
@@ -215,7 +215,7 @@ class TestLSPClient(unittest.TestCase):
         client = LSPClient(self.project_path, self.mock_language)
 
         with self.assertRaises(TimeoutError) as context:
-            client._wait_for_response(999, timeout=0.1)
+            client._wait_for_response(999, timeout=1)  # Use int instead of float
 
         self.assertIn("Timed out", str(context.exception))
 
@@ -477,11 +477,11 @@ class TestLSPClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = LSPClient(self.project_path, self.mock_language)
-        client._initialize = Mock()
+        client._initialize = Mock()  # type: ignore[method-assign]
         client.start()
 
         # Mock _wait_for_response to avoid timeout
-        client._wait_for_response = Mock(return_value={"result": None})
+        client._wait_for_response = Mock(return_value={"result": None})  # type: ignore[method-assign]
 
         client.close()
 
@@ -502,7 +502,7 @@ class TestLSPClient(unittest.TestCase):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
         client._shutdown_flag = threading.Event()
-        client._wait_for_response = Mock(return_value={"result": None})
+        client._wait_for_response = Mock(return_value={"result": None})  # type: ignore[method-assign]
 
         client.close()
 
@@ -684,7 +684,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         # Mock error response
-        client._wait_for_response = Mock(return_value={"error": {"message": "Init failed"}})
+        client._wait_for_response = Mock(return_value={"error": {"message": "Init failed"}})  # type: ignore[method-assign]
 
         with self.assertRaises(RuntimeError) as context:
             client._initialize()
@@ -702,7 +702,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         test_symbols = [{"name": "TestClass", "kind": 5}]
-        client._wait_for_response = Mock(return_value={"result": test_symbols})
+        client._wait_for_response = Mock(return_value={"result": test_symbols})  # type: ignore[method-assign]
 
         result = client._get_document_symbols("file:///test.py")
 
@@ -719,7 +719,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         test_items = [{"name": "test_function", "uri": "file:///test.py"}]
-        client._wait_for_response = Mock(return_value={"result": test_items})
+        client._wait_for_response = Mock(return_value={"result": test_items})  # type: ignore[method-assign]
 
         result = client._prepare_call_hierarchy("file:///test.py", 10, 5)
 
@@ -736,7 +736,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         test_calls = [{"from": {"name": "caller", "uri": "file:///caller.py"}}]
-        client._wait_for_response = Mock(return_value={"result": test_calls})
+        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
 
         item = {"name": "test_func"}
         result = client._get_incoming_calls(item)
@@ -754,7 +754,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         test_calls = [{"to": {"name": "callee", "uri": "file:///callee.py"}}]
-        client._wait_for_response = Mock(return_value={"result": test_calls})
+        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
 
         item = {"name": "test_func"}
         result = client._get_outgoing_calls(item)
@@ -777,12 +777,13 @@ class TestLSPClient(unittest.TestCase):
 
         # Mock definition pointing to project file
         definition = [{"uri": test_file.as_uri(), "range": {"start": {"line": 0}}}]
-        client._get_definition_for_position = Mock(return_value=definition)
+        client._get_definition_for_position = Mock(return_value=definition)  # type: ignore[method-assign]
 
         call_pos = {"line": 5, "char": 10, "name": "helper"}
         result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
 
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertIn("helper", result)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
@@ -797,7 +798,7 @@ class TestLSPClient(unittest.TestCase):
 
         # Mock definition pointing to external file using URI directly
         definition = [{"uri": "file:///external/lib/module.py", "range": {"start": {"line": 0}}}]
-        client._get_definition_for_position = Mock(return_value=definition)
+        client._get_definition_for_position = Mock(return_value=definition)  # type: ignore[method-assign]
 
         call_pos = {"line": 5, "char": 10, "name": "external_func"}
         result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
@@ -816,7 +817,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         # No definition found
-        client._get_definition_for_position = Mock(return_value=[])
+        client._get_definition_for_position = Mock(return_value=[])  # type: ignore[method-assign]
 
         call_pos = {"line": 5, "char": 10, "name": "unknown_func"}
         result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
@@ -834,7 +835,7 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         test_def = [{"uri": "file:///def.py", "range": {"start": {"line": 10}}}]
-        client._wait_for_response = Mock(return_value={"result": test_def})
+        client._wait_for_response = Mock(return_value={"result": test_def})  # type: ignore[method-assign]
 
         result = client._get_definition_for_position("file:///test.py", 5, 10)
 
@@ -850,7 +851,7 @@ class TestLSPClient(unittest.TestCase):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(return_value={"error": {"message": "Not found"}})
+        client._wait_for_response = Mock(return_value={"error": {"message": "Not found"}})  # type: ignore[method-assign]
 
         result = client._get_definition_for_position("file:///test.py", 5, 10)
 
@@ -877,7 +878,7 @@ class DerivedClass(BaseClass):
         test_file.touch()
 
         # Mock _resolve_class_name to return a qualified name
-        client._resolve_class_name = Mock(return_value="test.BaseClass")
+        client._resolve_class_name = Mock(return_value="test.BaseClass")  # type: ignore[method-assign]
 
         result = client._extract_superclasses_from_text(test_file, "DerivedClass", content)
 
@@ -933,7 +934,7 @@ class DerivedClass(MyClass):
         client._process = mock_process
 
         test_refs = [{"uri": "file:///ref.py", "range": {"start": {"line": 5}}}]
-        client._wait_for_response = Mock(return_value={"result": test_refs})
+        client._wait_for_response = Mock(return_value={"result": test_refs})  # type: ignore[method-assign]
 
         result = client._get_references("file:///test.py", 10, 5)
 
@@ -973,7 +974,7 @@ from typing import List, Dict
 def my_function():
     pass
 """
-        symbols = []
+        symbols: list[dict] = []
 
         result = client._extract_imports_from_symbols(symbols, content)
 
@@ -1021,7 +1022,7 @@ def my_function():
             {"name": "function1", "kind": 12},
             {"name": "Class2", "kind": 5},
         ]
-        client._wait_for_response = Mock(return_value={"result": test_symbols})
+        client._wait_for_response = Mock(return_value={"result": test_symbols})  # type: ignore[method-assign]
 
         result = client._get_all_classes_in_workspace()
 
@@ -1040,7 +1041,7 @@ def my_function():
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(return_value={"error": {"message": "Failed"}})
+        client._wait_for_response = Mock(return_value={"error": {"message": "Failed"}})  # type: ignore[method-assign]
 
         result = client._get_all_classes_in_workspace()
 
@@ -1069,7 +1070,7 @@ class DerivedClass(BaseClass):
         # Mock definition pointing to base class
         definition = [{"uri": base_file.as_uri(), "range": {"start": {"line": 0}, "end": {"line": 1}}}]
 
-        client._get_definition_for_position = Mock(return_value=definition)
+        client._get_definition_for_position = Mock(return_value=definition)  # type: ignore[method-assign]
 
         result = client._find_superclasses_via_definition("file:///test.py", class_symbol, content)
 
@@ -1094,7 +1095,7 @@ class DerivedClass(BaseClass):
         # Mock references pointing to derived class
         references = [{"uri": derived_file.as_uri(), "range": {"start": {"line": 0}, "end": {"line": 1}}}]
 
-        client._get_references = Mock(return_value=references)
+        client._get_references = Mock(return_value=references)  # type: ignore[method-assign]
 
         result = client._find_subclasses("file:///base.py", class_symbol, [])
 
@@ -1113,7 +1114,7 @@ class DerivedClass(BaseClass):
         symbols = [{"name": "my_function", "kind": 12, "selectionRange": {"start": {"line": 5, "character": 4}}}]
 
         test_refs = [{"uri": "file:///other.py", "range": {"start": {"line": 10}}}]
-        client._get_references = Mock(return_value=test_refs)
+        client._get_references = Mock(return_value=test_refs)  # type: ignore[method-assign]
 
         result = client._find_external_references("file:///test.py", symbols)
 
@@ -1129,8 +1130,8 @@ class DerivedClass(BaseClass):
         client._process = mock_process
 
         # Mock to return no files
-        client._get_source_files = Mock(return_value=[])
-        client.get_exclude_dirs = Mock(return_value=Mock())
+        client._get_source_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
 
         result = client.build_static_analysis()
 
@@ -1150,7 +1151,7 @@ class DerivedClass(BaseClass):
         client._process = mock_process
 
         # Mock to raise exception
-        client._get_definition_for_position = Mock(side_effect=Exception("Test error"))
+        client._get_definition_for_position = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
         call_pos = {"line": 5, "char": 10, "name": "func"}
         result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
@@ -1168,7 +1169,7 @@ class DerivedClass(BaseClass):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(side_effect=Exception("Test error"))
+        client._wait_for_response = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
         result = client._get_definition(5, 10)
 
@@ -1184,7 +1185,7 @@ class DerivedClass(BaseClass):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(side_effect=Exception("Test error"))
+        client._wait_for_response = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
         result = client._get_references("file:///test.py", 5, 10)
 
@@ -1207,11 +1208,11 @@ class DerivedClass(BaseClass):
         test_file2.write_text("def func2(): pass")
 
         # Mock methods
-        client._get_source_files = Mock(return_value=[test_file1, test_file2])
-        client.get_exclude_dirs = Mock(return_value=Mock())
-        client.filter_src_files = Mock(return_value=[test_file1, test_file2])
-        client._prepare_for_analysis = Mock()
-        client._get_all_classes_in_workspace = Mock(return_value=[])
+        client._get_source_files = Mock(return_value=[test_file1, test_file2])  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
+        client.filter_src_files = Mock(return_value=[test_file1, test_file2])  # type: ignore[method-assign]
+        client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Create mock results
         result1 = FileAnalysisResult(
@@ -1275,11 +1276,11 @@ class DerivedClass(BaseClass):
         test_file = self.project_path / "module.py"
         test_file.write_text("def func(): pass")
 
-        client._get_source_files = Mock(return_value=[test_file])
-        client.get_exclude_dirs = Mock(return_value=Mock())
-        client.filter_src_files = Mock(return_value=[test_file])
-        client._prepare_for_analysis = Mock()
-        client._get_all_classes_in_workspace = Mock(return_value=[])
+        client._get_source_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
+        client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
+        client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Create result with error
         error_result = FileAnalysisResult(
@@ -1324,11 +1325,11 @@ class DerivedClass(BaseClass):
         test_file = self.project_path / "module.py"
         test_file.write_text("def func(): pass")
 
-        client._get_source_files = Mock(return_value=[test_file])
-        client.get_exclude_dirs = Mock(return_value=Mock())
-        client.filter_src_files = Mock(return_value=[test_file])
-        client._prepare_for_analysis = Mock()
-        client._get_all_classes_in_workspace = Mock(return_value=[])
+        client._get_source_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
+        client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
+        client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
+        client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Mock future that raises exception
         mock_future = Mock()
@@ -1394,15 +1395,15 @@ def helper_function():
             },
         ]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=["os"])
-        client._prepare_call_hierarchy = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
-        client._find_superclasses = Mock(return_value=[])
-        client._find_subclasses = Mock(return_value=[])
-        client._resolve_call_position = Mock(return_value=None)
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=["os"])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1425,8 +1426,8 @@ def helper_function():
         test_file = self.project_path / "empty.py"
         test_file.write_text("# Empty file\n")
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=[])
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1448,12 +1449,13 @@ def helper_function():
         test_file.write_text("def func(): pass")
 
         # Mock to raise exception
-        client._send_notification = Mock(side_effect=Exception("LSP error"))
+        client._send_notification = Mock(side_effect=Exception("LSP error"))  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
         # Should capture error
         self.assertIsNotNone(result.error)
+        assert result.error is not None
         self.assertIn("LSP error", result.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
@@ -1494,17 +1496,17 @@ def callee():
         hierarchy_items = [{"name": "caller", "uri": test_file.as_uri()}]
         outgoing_calls = [{"to": {"name": "callee", "uri": test_file.as_uri()}}]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)
-        client._get_outgoing_calls = Mock(return_value=outgoing_calls)
-        client._get_incoming_calls = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
-        client._find_superclasses = Mock(return_value=[])
-        client._find_subclasses = Mock(return_value=[])
-        client._resolve_call_position = Mock(return_value=None)
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
+        client._get_outgoing_calls = Mock(return_value=outgoing_calls)  # type: ignore[method-assign]
+        client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1545,15 +1547,15 @@ class DerivedClass(BaseClass):
             },
         ]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=[])
-        client._find_superclasses = Mock(return_value=["root.BaseClass"])
-        client._find_subclasses = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
-        client._resolve_call_position = Mock(return_value=None)
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_superclasses = Mock(return_value=["root.BaseClass"])  # type: ignore[method-assign]
+        client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
+        client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1587,15 +1589,15 @@ def main():
             }
         ]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
-        client._find_superclasses = Mock(return_value=[])
-        client._find_subclasses = Mock(return_value=[])
-        client._resolve_call_position = Mock(return_value="root.helper1")
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
+        client._resolve_call_position = Mock(return_value="root.helper1")  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1623,14 +1625,14 @@ def main():
             }
         ]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         # Make _find_call_positions_in_range raise exception
-        client._find_call_positions_in_range = Mock(side_effect=Exception("Parse error"))
+        client._find_call_positions_in_range = Mock(side_effect=Exception("Parse error"))  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1661,14 +1663,14 @@ def main():
         hierarchy_items = [{"name": "target", "uri": test_file.as_uri()}]
         incoming_calls = [{"from": {"name": "caller", "uri": test_file.as_uri()}}]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)
-        client._get_outgoing_calls = Mock(return_value=[])
-        client._get_incoming_calls = Mock(return_value=incoming_calls)
-        client._find_external_references = Mock(return_value=[])
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
+        client._get_outgoing_calls = Mock(return_value=[])  # type: ignore[method-assign]
+        client._get_incoming_calls = Mock(return_value=incoming_calls)  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1698,15 +1700,15 @@ def main():
 
         hierarchy_items = [{"name": "func", "uri": test_file.as_uri()}]
 
-        client._send_notification = Mock()
-        client._get_document_symbols = Mock(return_value=test_symbols)
-        client._get_package_name = Mock(return_value="root")
-        client._extract_imports_from_symbols = Mock(return_value=[])
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
+        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
+        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         # Make outgoing calls raise exception
-        client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))
-        client._get_incoming_calls = Mock(return_value=[])
-        client._find_external_references = Mock(return_value=[])
+        client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
+        client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
+        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 

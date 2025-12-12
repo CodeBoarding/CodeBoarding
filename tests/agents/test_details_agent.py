@@ -1,6 +1,7 @@
+from typing import cast
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
@@ -111,10 +112,10 @@ class TestDetailsAgent(unittest.TestCase):
         )
 
         # Set up context
-        agent.context["subcfg_insight"] = "Mock subcfg data"
+        mock_insight = cast(AnalysisInsights, Mock())
+        agent.context["subcfg_insight"] = mock_insight
 
         mock_response = CFGAnalysisInsights(
-            description="CFG analysis",
             components=[],
             components_relations=[],
         )
@@ -140,7 +141,6 @@ class TestDetailsAgent(unittest.TestCase):
 
         # Set up context
         cfg_insight = CFGAnalysisInsights(
-            description="CFG insight",
             components=[],
             components_relations=[],
         )
@@ -247,7 +247,6 @@ class TestDetailsAgent(unittest.TestCase):
 
         # Mock responses for each step
         cfg_response = CFGAnalysisInsights(
-            description="CFG",
             components=[],
             components_relations=[],
         )

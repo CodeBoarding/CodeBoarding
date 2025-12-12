@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
@@ -20,6 +21,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from agents.monitoring import MonitoringCallback
 from agents.tools import (
     CodeReferenceReader,
     CodeStructureTool,
@@ -43,7 +45,7 @@ class CodeBoardingAgent(ReferenceResolverMixin):
         self._setup_env_vars()
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
-        self._monitoring_callback = None  # Used by monitor decorator
+        self._monitoring_callback = None  # type: ignore
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)

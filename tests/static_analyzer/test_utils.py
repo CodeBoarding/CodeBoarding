@@ -90,7 +90,7 @@ class TestUtils(unittest.TestCase):
 
     def test_contains_json_empty_list(self):
         # Test with empty file list
-        files = []
+        files: list[Path] = []
         self.assertFalse(contains_json("node123", files))
 
     def test_contains_json_with_path(self):
