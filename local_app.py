@@ -169,16 +169,13 @@ async def generate_onboarding(job_id: str):
 # -- API Endpoints --
 @app.post("/generation", response_class=JSONResponse, summary="Create a new onboarding job")
 async def start_generation_job(
-    repo_url: str = Query(..., description="GitHub repo URL"), background_tasks: BackgroundTasks | None = None
+    background_tasks: BackgroundTasks, repo_url: str = Query(..., description="GitHub repo URL")
 ):
     if not repo_url:
         raise HTTPException(400, detail="repo_url is required")
     job = make_job(repo_url)
     insert_job(job)
-    if background_tasks:
-        background_tasks.add_task(generate_onboarding, job["id"])
-    else:
-        asyncio.create_task(generate_onboarding(job["id"]))
+    background_tasks.add_task(generate_onboarding, job["id"])
     return {"job_id": job["id"], "status": job["status"]}
 
 

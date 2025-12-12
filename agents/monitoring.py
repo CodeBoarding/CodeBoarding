@@ -61,13 +61,14 @@ class MonitoringCallback(BaseCallbackHandler):
         self, error: BaseException, *, run_id: UUID, parent_run_id: UUID | None = None, **kwargs: Any
     ) -> Any:
         tool_name = "unknown_tool"
-        if run_id and run_id in self._tool_names:
-            tool_name = self._tool_names[run_id]
+        run_id_str = str(run_id)  # Convert UUID to string to match storage format
+        if run_id_str in self._tool_names:
+            tool_name = self._tool_names[run_id_str]
         self.tool_errors[tool_name] += 1
         # Clean up any in-flight timing
-        if run_id and run_id in self._tool_start_times:
-            self._tool_start_times.pop(run_id, None)
-            self._tool_names.pop(run_id, None)
+        if run_id_str in self._tool_start_times:
+            self._tool_start_times.pop(run_id_str, None)
+            self._tool_names.pop(run_id_str, None)
 
 
 def monitoring(func):

@@ -91,10 +91,13 @@ def generate_html(
                 if not reference.reference_file.startswith(root_dir):
                     references_html += f"<li><code>{reference.llm_str()}</code></li>"
                     continue
+                # Handle case when root_dir is empty or reference file doesn't start with root_dir
+                if root_dir and reference.reference_file.startswith(root_dir):
+                    relative_path = reference.reference_file.split(root_dir)[1]
+                else:
+                    relative_path = reference.reference_file
                 ref_url = (
-                    repo_ref
-                    + reference.reference_file.split(root_dir)[1]
-                    + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
+                    repo_ref + relative_path + f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 )
                 references_html += f'<li><a href="{ref_url}" target="_blank" rel="noopener noreferrer"><code>{reference.llm_str()}</code></a></li>'
             references_html += "</ul>"
