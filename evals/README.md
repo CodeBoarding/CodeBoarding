@@ -1,14 +1,14 @@
 # CodeBoarding Evaluations
 
-Comprehensive evaluation framework for assessing CodeBoarding's performance, reliability, and scalability across real-world projects.
+Comprehensive evaluation framework for assessing CodeBoarding's performance, reliability, and scalability across real-world projects. We run this only for major releases that impacts either of these.
 
 ## Overview
 
 The evaluation system consists of three evaluation types:
 
-- **Static Analysis**: Measures static analysis performance (files analyzed, LOC, execution time)
-- **End-to-End**: Evaluates full pipeline execution (token usage, tool calls, success rates, generated diagrams)
-- **Scalability**: Analyzes system scaling characteristics with codebase size (LOC vs duration/tokens, agent performance)
+- **Static Analysis**: Measures static analysis performance.
+- **End-to-End**: Runs the full pipeline to produce diagrams of repos we are familiar with, to eyeball differences.
+- **Scalability**: Analyzes system scaling characteristics with codebase size and depth-level.
 
 ## Quick Start
 
@@ -76,4 +76,3 @@ evals/
 ```
 
 Each evaluation follows the pattern: **Run Pipeline → Extract Metrics → Generate Report**
-
