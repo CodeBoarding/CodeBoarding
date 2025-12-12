@@ -95,7 +95,6 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
     ):
         # Test successful onboarding generation
         job_id = "test-job-id"
-        temp_folder = Path("/tmp/temp_folder")
 
         # Mock job data
         mock_fetch_job.return_value = {
@@ -104,16 +103,17 @@ class TestGenerateOnboarding(unittest.IsolatedAsyncioTestCase):
             "status": JobStatus.PENDING,
         }
 
-        mock_create_temp.return_value = temp_folder
-
         # Create temp directory and files for testing
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             mock_create_temp.return_value = temp_path
 
-            # Create test files
+            # Create test files that will be found by the glob operations
             (temp_path / "analysis.json").write_text('{"test": "data"}')
             (temp_path / "overview.md").write_text("# Overview")
+
+            # Mock run_in_threadpool to do nothing (files are already created)
+            mock_run_in_threadpool.return_value = None
 
             await generate_onboarding(job_id)
 
@@ -287,11 +287,35 @@ class TestProcessDocsGenerationJob(unittest.IsolatedAsyncioTestCase):
 class TestAPIEndpoints(unittest.TestCase):
     def setUp(self):
         # Initialize database before tests
-        from duckdb_crud import init_db
+        import duckdb_crud
 
-        init_db()
+        # Create a temporary directory for the test database
+        self.temp_dir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.temp_dir, "test_jobs.duckdb")
+
+        # Patch the DB_PATH in duckdb_crud module
+        self.original_db_path = duckdb_crud.DB_PATH
+        self.original_lock_path = duckdb_crud.LOCK_PATH
+        duckdb_crud.DB_PATH = self.db_path
+        duckdb_crud.LOCK_PATH = self.db_path + ".lock"
+
+        # Initialize the database
+        duckdb_crud.init_db()
+
         # Create test client
         self.client = TestClient(app)
+
+    def tearDown(self):
+        # Restore original paths and clean up
+        import duckdb_crud
+        import shutil
+
+        duckdb_crud.DB_PATH = self.original_db_path
+        duckdb_crud.LOCK_PATH = self.original_lock_path
+
+        # Clean up temporary directory
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
     @patch("local_app.insert_job")
     @patch("local_app.generate_onboarding")
