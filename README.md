@@ -1,11 +1,19 @@
 # <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
 
-![Supports Go 3 Projects](https://img.shields.io/badge/supports-Go-blue.svg)
-![Supports TypeScript 3 Projects](https://img.shields.io/badge/supports-TypeScript.x-blue.svg)
-![Supports Python 3 Projects](https://img.shields.io/badge/supports-Python%203.x-blue.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Site: CodeBoarding.org](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2)](https://codeboarding.org)
-[![Join us on Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/T5zHTJYFuy)
+[![Website](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2?style=for-the-badge&logoColor=white)](https://codeboarding.org)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?style=for-the-badge&logoColor=white)](https://discord.gg/T5zHTJYFuy)
+[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/i/Codeboarding.codeboarding?style=for-the-badge&logo=visual-studio-code&logoColor=white&label=VS%20Code%20Extension&color=blue)](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding)
+[![AI IDE Extension](https://img.shields.io/open-vsx/v/CodeBoarding/codeboarding?style=for-the-badge&logo=visual-studio-code&label=AI%20IDE%20Extension)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
+
+
+
+**Supported Languages:**
+
+[![Python Support](https://img.shields.io/badge/Python-Supported-green?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript Support](https://img.shields.io/badge/TypeScript-Supported-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![JavaScript Support](https://img.shields.io/badge/JavaScript-Supported-yellow?style=for-the-badge&logo=javascript&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Go Support](https://img.shields.io/badge/Go-Supported-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+[![PHP Support](https://img.shields.io/badge/PHP-Supported-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 
 **CodeBoarding** is an open-source codebase analysis tool that generates high-level diagram representations of codebases
 using static analysis and LLM agents, that humans and agents can interact with.  
@@ -54,13 +62,13 @@ graph LR
 
 ## 📌 Setup
 
-First, make you you have uv installed. Check official installation guide [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
+First, make sure you have uv installed. Check official installation guide [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
 
 Setup the environment:
 
 ```bash
 uv sync --frozen
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python setup.py
 ```
 
@@ -78,12 +86,14 @@ The `python setup.py` command creates a `.env` file if it doesn't exist with a d
 
 ```bash
 # LLM Provider (choose one)
-OPENAI_API_KEY=                 
-ANTHROPIC_API_KEY=                 
-GOOGLE_API_KEY=                  
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GOOGLE_API_KEY=
 AWS_BEARER_TOKEN_BEDROCK=
 OLLAMA_BASE_URL=
-OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint     
+OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
+CEREBRAS_API_KEY=
+CODEBOARDING_MODEL=                # Optional: Specify model to use (e.g., gpt-4, claude-3-opus, gemini-2.0-flash-exp)
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
@@ -106,15 +116,65 @@ LANGCHAIN_API_KEY=                # Optional: LangChain API key
 
 ### Run it
 
+#### Basic Usage
+
 ```bash
-python demo.py <github_repo_url> --output-dir <output_path>
+# Analyze a remote repository
+python main.py <github_repo_url> --output-dir <output_path>
+
+# Analyze a local repository
+python main.py --local /path/to/repo --project-name MyProject --output-dir <output_path>
+```
+
+#### Command-Line Arguments
+
+**Repository Selection (required, choose one):**
+- `<repository_url>` - One or more GitHub repository URLs to analyze
+- `--local <path>` - Path to a local repository for analysis
+
+**Output Configuration:**
+- `--output-dir <path>` - Directory where generated documentation will be saved (optional, defaults to `./analysis` for local repos)
+
+**Local Repository Options:**
+- `--project-name <name>` - Name of the project (required when using `--local`)
+
+**Partial Update Options (local repos only):**
+- `--partial-component <name>` - Specific component to update in existing analysis
+- `--partial-analysis <name>` - Analysis file name to update (both component and analysis must be specified together)
+
+**Advanced Options:**
+- `--depth-level <int>` - Depth level for diagram generation (default: 1)
+- `--prompt-type <type>` - Prompt type: `bidirectional` or `unidirectional` (default: bidirectional for remote, unidirectional for local)
+- `--binary-location <path>` - Custom path to language server binaries
+- `--project-root <path>` - Project root directory (default: current directory)
+- `--upload` - Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)
+- `--no-cache-check` - Skip checking if documentation already exists (remote repos only)
+
+#### Examples
+
+```bash
+# Analyze a single remote repository
+python main.py https://github.com/pytorch/pytorch --output-dir ./pytorch-docs
+
+# Analyze multiple remote repositories
+python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./docs
+
+# Analyze a local repository
+python main.py --local ./my-project --project-name MyProject --output-dir ./analysis
+
+# Partial update of a specific component
+python main.py --local ./my-project --project-name MyProject --output-dir ./analysis \
+               --partial-component "API Service" --partial-analysis on_boarding
+
+# Use custom depth level and disable caching
+python main.py https://github.com/user/repo --depth-level 2 --no-cache-check --output-dir ./deep-analysis
 ```
 
 ## 🖥️ Examples:
 
 We have visualized **over 800+ popular open-source projects**. See examples:
 
-## PyTorch:
+### PyTorch:
 
 ```mermaid
 graph LR

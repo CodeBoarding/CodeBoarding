@@ -1,59 +1,29 @@
 ```mermaid
 graph LR
-    Output_Generation_Engine["Output Generation Engine"]
-    Agent_Orchestration["Agent Orchestration"]
-    Static_Analyzer["Static Analyzer"]
-    Analysis_Data_Formatter["Analysis Data Formatter"]
+    Analysis_Generation_Engine["Analysis Generation Engine"]
     Unclassified["Unclassified"]
-    Output_Generation_Engine -- "orchestrates" --> Agent_Orchestration
-    Output_Generation_Engine -- "formats output via" --> Analysis_Data_Formatter
-    Agent_Orchestration -- "utilizes" --> Static_Analyzer
-    Static_Analyzer -- "provides detailed code analysis to" --> Agent_Orchestration
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    Analysis_Generation_Engine -- "Initializes and utilizes for project metadata analysis." --> Meta_Agent
+    Analysis_Generation_Engine -- "Initializes and utilizes for detailed component analysis and feedback application." --> Details_Agent
+    Analysis_Generation_Engine -- "Initializes and utilizes for abstract architectural analysis and feedback application." --> Abstraction_Agent
+    Analysis_Generation_Engine -- "Initializes and utilizes for planning subsequent analysis steps and identifying new components." --> Planner_Agent
+    Analysis_Generation_Engine -- "Initializes and utilizes for validating analysis results and providing feedback." --> Validator_Agent
+    Analysis_Generation_Engine -- "Initializes and utilizes for checking component updates and retrieving existing analysis." --> Diff_Analyzing_Agent
+    Analysis_Generation_Engine -- "Saves analysis results as JSON files." --> File_System
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is orchestrated by the Output Generation Engine, which initiates the analysis process. It delegates detailed code interpretation, abstraction, planning, and validation to the Agent Orchestration component. The Agent Orchestration component, in turn, relies heavily on the Static Analyzer for foundational code understanding. The Static Analyzer has been significantly enhanced with a deeper integration of the Language Server Protocol (LSP) through its LSPClient, enabling it to extract comprehensive structural and semantic information, including call graphs, class hierarchies, and package dependencies. This rich data is then consumed by the Agent Orchestration's expanded toolset to perform sophisticated analysis. Finally, the Output Generation Engine uses the Analysis Data Formatter to convert the processed analysis into a standardized JSON format for architectural diagram generation.
+The `diagram_analysis` subsystem is centered around the Analysis Generation Engine, embodied by the `DiagramGenerator` class. This engine orchestrates a multi-agent system to perform a comprehensive architectural analysis of a codebase. It leverages a `Meta Agent` for project metadata, `Details Agent` for in-depth component analysis, `Abstraction Agent` for high-level architectural insights, a `Planner Agent` to guide the analysis process, and a `Validator Agent` to ensure the quality of the generated insights. Additionally, a `Diff Analyzing Agent` is employed to efficiently manage updates and leverage previous analysis. The primary output of this engine is a set of structured JSON files, representing the detailed architectural analysis, which can then be consumed by other systems for visualization or reporting.
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Orchestrates the entire process of generating structured analysis outputs from interpreted code. It coordinates `Agent Orchestration` to perform detailed analysis, abstraction, planning, and validation, ultimately producing JSON files that serve as the basis for architectural diagrams. It also utilizes the `Analysis Data Formatter`.
-
-
-**Related Classes/Methods**:
-
-- `OutputGenerationEngine`
-
-
-### Agent Orchestration
-Manages and coordinates various specialized agents responsible for interpreting code, performing detailed analysis, abstraction, planning, and validation. These agents rely on the `Static Analyzer` for foundational code understanding, leveraging its enhanced capabilities through a sophisticated toolset for reading documentation, file content, file structures, and package information.
+### Analysis Generation Engine
+This is the core component responsible for orchestrating the architectural analysis of the codebase. It initializes and coordinates various specialized agents (e.g., `DetailsAgent`, `AbstractionAgent`, `PlannerAgent`, `ValidatorAgent`, `DiffAnalyzingAgent`) to perform detailed and abstract analysis, validate insights, and plan further exploration. Its primary function is to generate structured architectural analysis data and save it as JSON files, which serve as the foundation for subsequent diagram generation or reporting.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/utils.py" target="_blank" rel="noopener noreferrer">`AgentOrchestration`</a>
-
-
-### Static Analyzer
-Provides foundational capabilities for understanding and processing source code across different programming languages. It has been significantly enhanced with a deeper integration of the Language Server Protocol (LSP) via its `LSPClient`, enabling it to extract comprehensive structural and semantic information, including call graphs, class hierarchies, and package dependencies. This rich data is then consumed by `Agent Orchestration` for deeper analysis.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguage`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.Scanner`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.client.LSPClient`</a>
-
-
-### Analysis Data Formatter
-Responsible for converting the internal analysis objects into a standardized JSON format. This component ensures that the output is structured consistently, making it suitable for consumption by external diagram rendering tools.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`AnalysisDataFormatter`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L22-L205" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`:22-205</a>
 
 
 ### Unclassified

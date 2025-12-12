@@ -1,75 +1,39 @@
 {
-  "description": "The system's architecture is centered around the `Static Analysis Engine Core`, which performs deep code analysis, leveraging data from the `Scanner` for initial parsing. The `Agent` acts as the primary orchestrator, consuming enhanced analysis results from the `Static Analysis Engine Core` to perform higher-level tasks, understand project context, and refine its outputs. A new `Diagram Generator` component, orchestrated by the `Agent` and fed data by the `Static Analysis Engine Core`, provides visual representations of the analysis. The `VSCode Integration` manages the interface with the IDE, facilitating seamless interaction for the `Agent`. All these core components rely on `External Dependencies` for foundational support. This updated architecture reflects a significant evolution in the system's analytical depth, agent intelligence, and output capabilities, particularly with the introduction of diagram generation.",
+  "description": "The static analysis subsystem is centered around the ProjectScanner, which acts as the primary orchestrator. The ProjectScanner is responsible for initiating the code scanning process, leveraging external tools like Tokei to gather raw code statistics and identify programming languages. It then delegates the construction of detailed ProgrammingLanguage objects to the ProgrammingLanguageBuilder, which encapsulates language-specific properties and configurations. Finally, the ProjectScanner collects and manages these ProgrammingLanguage objects, representing the detected languages and their associated metrics within the codebase. This clear separation of concerns ensures that scanning, language object creation, and data encapsulation are handled by distinct, focused components.",
   "components": [
     {
-      "name": "Static Analysis Engine Core",
-      "description": "Orchestrates the static analysis process, performing deeper analysis and providing structured outputs. It now incorporates enhanced language definition and processing capabilities through its refined LSP client, allowing for deeper and more accurate static analysis. Its analysis outputs may also have evolved in structure, impacting how the Agent consumes these results.",
+      "name": "ProjectScanner",
+      "description": "The central component responsible for orchestrating the static analysis process. It scans the code repository, identifies programming languages, gathers code statistics using external tools (e.g., Tokei), and extracts unique file suffixes. It then uses the ProgrammingLanguageBuilder to prepare language-specific data for further processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "StaticAnalysisEngineCore",
-          "reference_file": "StaticAnalysisEngineCore",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 12,
+          "reference_end_line": 84
         }
       ]
     },
     {
-      "name": "Scanner",
-      "description": "Responsible for the initial parsing of source code, generating fundamental data. Its scanning logic has been adapted to accommodate new or modified language definitions.",
+      "name": "ProgrammingLanguageBuilder",
+      "description": "Responsible for constructing and configuring ProgrammingLanguage objects based on the data gathered by the ProjectScanner. It ensures that language-specific properties, such as associated LSP servers, are correctly initialized.",
       "referenced_source_code": [
         {
-          "qualified_name": "Scanner",
-          "reference_file": "static_analyzer/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguageBuilder",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": 58,
+          "reference_end_line": 122
         }
       ]
     },
     {
-      "name": "Agent",
-      "description": "Interacts with the Static Analysis Engine Core, utilizing its analytical services to perform specific, higher-level tasks. The Agent has undergone substantial enhancements, particularly in its ability to gather and process information, understand project context more deeply, and refine how it formulates and communicates its outputs. It also coordinates with the VSCode Integration for IDE-specific operations and can orchestrate diagram generation.",
+      "name": "ProgrammingLanguage",
+      "description": "Represents a detected programming language within the codebase. It encapsulates properties such as the language name, associated file suffixes, collected code statistics (e.g., lines of code), and configuration for its Language Server Protocol (LSP) server.",
       "referenced_source_code": [
         {
-          "qualified_name": "Agent",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 21,
-          "reference_end_line": 149
-        }
-      ]
-    },
-    {
-      "name": "VSCode Integration",
-      "description": "Manages all interactions, configurations, and communication specific to the VSCode environment, acting as an interface between the core system and the IDE.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "VSCodeIntegration",
-          "reference_file": "example.txt",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
-    },
-    {
-      "name": "Diagram Generator",
-      "description": "A new functional block responsible for generating diagrams. This component likely derives data from the Static Analysis Engine Core's analysis results and is orchestrated by the Agent to produce visual representations.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "External Dependencies",
-      "description": "Encompasses all external libraries, frameworks, and third-party packages that the project relies on, managed through packaging configurations.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ExternalDependencies",
-          "reference_file": "ExternalDependencies",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": 6,
+          "reference_end_line": 55
         }
       ]
     },
@@ -81,54 +45,19 @@
   ],
   "components_relations": [
     {
-      "relation": "utilizes data from",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "Scanner"
+      "relation": "uses",
+      "src_name": "ProjectScanner",
+      "dst_name": "ProgrammingLanguageBuilder"
     },
     {
-      "relation": "provides enhanced analysis results to",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "Agent"
+      "relation": "creates/configures",
+      "src_name": "ProgrammingLanguageBuilder",
+      "dst_name": "ProgrammingLanguage"
     },
     {
-      "relation": "provides data for",
-      "src_name": "Static Analysis Engine Core",
-      "dst_name": "Diagram Generator"
-    },
-    {
-      "relation": "generates data for",
-      "src_name": "Scanner",
-      "dst_name": "Static Analysis Engine Core"
-    },
-    {
-      "relation": "consumes enhanced analysis from",
-      "src_name": "Agent",
-      "dst_name": "Static Analysis Engine Core"
-    },
-    {
-      "relation": "orchestrates",
-      "src_name": "Agent",
-      "dst_name": "Diagram Generator"
-    },
-    {
-      "relation": "interacts with",
-      "src_name": "Agent",
-      "dst_name": "VSCode Integration"
-    },
-    {
-      "relation": "manages the interface for",
-      "src_name": "VSCode Integration",
-      "dst_name": "Agent"
-    },
-    {
-      "relation": "receives data from",
-      "src_name": "Diagram Generator",
-      "dst_name": "Static Analysis Engine Core"
-    },
-    {
-      "relation": "orchestrated by",
-      "src_name": "Diagram Generator",
-      "dst_name": "Agent"
+      "relation": "processes/stores",
+      "src_name": "ProjectScanner",
+      "dst_name": "ProgrammingLanguage"
     }
   ]
 }

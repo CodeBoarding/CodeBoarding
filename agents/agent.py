@@ -85,12 +85,16 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
 
+        # Model selection via environment variable
+        self.codeboarding_model = os.getenv("CODEBOARDING_MODEL")
+
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
         if self.openai_api_key:
-            logger.info("Using OpenAI LLM")
+            model = self.codeboarding_model if self.codeboarding_model else "gpt-4o"
+            logger.info(f"Using OpenAI LLM with model: {model}")
             return ChatOpenAI(
-                model="gpt-4o",
+                model=model,
                 temperature=0,
                 max_tokens=None,  # type: ignore[call-arg]
                 timeout=None,
@@ -99,9 +103,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 base_url=self.openai_base_url,
             )
         elif self.anthropic_api_key:
-            logger.info("Using Anthropic LLM")
+            model = self.codeboarding_model if self.codeboarding_model else "claude-3-7-sonnet-20250219"
+            logger.info(f"Using Anthropic LLM with model: {model}")
             return ChatAnthropic(
-                model="claude-3-7-sonnet-20250219",  # type: ignore[call-arg]
+                model=model,  # type: ignore[call-arg]
                 temperature=0,
                 max_tokens=8192,  # type: ignore[call-arg]
                 timeout=None,
@@ -109,9 +114,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.anthropic_api_key,  # type: ignore[arg-type]
             )
         elif self.google_api_key:
-            logger.info("Using Google Gemini LLM")
+            model = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
+            logger.info(f"Using Google Gemini LLM with model: {model}")
             return ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash",
+                model=model,
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -119,18 +125,22 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.google_api_key,
             )
         elif self.aws_bearer_token:
-            logger.info("Using AWS Bedrock Converse LLM")
+            model = (
+                self.codeboarding_model if self.codeboarding_model else "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+            )
+            logger.info(f"Using AWS Bedrock Converse LLM with model: {model}")
             return ChatBedrockConverse(
-                model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model=model,
                 temperature=0,
                 max_tokens=4096,
                 region_name=self.aws_region,
                 credentials_profile_name=None,
             )
         elif self.cerebras_api_key:
-            logger.info("Using Cerebras LLM")
+            model = self.codeboarding_model if self.codeboarding_model else "gpt-oss-120b"
+            logger.info(f"Using Cerebras LLM with model: {model}")
             return ChatCerebras(
-                model="gpt-oss-120b",
+                model=model,
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -138,8 +148,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.cerebras_api_key,  # type: ignore[arg-type]
             )
         elif self.ollama_base_url:
-            logging.info("Using Ollama LLM")
-            return ChatOllama(model="qwen3:30b", base_url=self.ollama_base_url, temperature=0.6)
+            model = self.codeboarding_model if self.codeboarding_model else "qwen3:30b"
+            logging.info(f"Using Ollama LLM with model: {model}")
+            return ChatOllama(model=model, base_url=self.ollama_base_url, temperature=0.6)
         else:
             raise ValueError(
                 "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "

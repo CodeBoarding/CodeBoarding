@@ -1,91 +1,85 @@
 {
-  "description": "The system's architecture is centered around an Agent that orchestrates static code analysis and decision-making. The Agent utilizes a PromptFactory to dynamically generate context-aware prompts, guiding its interactions and analysis tasks. To perform code analysis, the Agent invokes the Scanner, which acts as the primary interface for static analysis. The Scanner relies on the LSP Client to communicate with external Language Servers, thereby acquiring rich, language-specific code insights. All findings from the static analysis are then structured and encapsulated within an AnalysisResult object, which the Agent subsequently consumes to inform its actions and refine its understanding of the codebase. This modular design ensures clear separation of concerns, enabling flexible integration with various language servers and adaptable agent behaviors.",
+  "description": "The LLM Prompt Factory subsystem is structured around a robust Factory pattern. The PromptFactory serves as the central orchestrator, leveraging the LLMType and PromptType enumerations to dynamically select and instantiate the correct concrete prompt factory. All concrete factories (e.g., GeminiFlashBidirectionalPromptFactory, ClaudeBidirectionalPromptFactory, GPTBidirectionalPromptFactory) adhere to the AbstractPromptFactory interface, ensuring a consistent contract for prompt generation. This design promotes high extensibility, allowing new LLM providers or prompt interaction styles to be integrated by simply adding new concrete factory implementations without requiring modifications to the core PromptFactory logic.",
   "components": [
     {
-      "name": "Agent",
-      "description": "Drives the overall analysis process, makes decisions based on analysis results, and orchestrates interactions with other components. It utilizes PromptFactory for dynamic prompt generation and Scanner to initiate code analysis.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "agents.abstraction_agent",
-          "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.agent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.agent_responses",
-          "reference_file": "agents/agent_responses.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.details_agent",
-          "reference_file": "agents/details_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.tools",
-          "reference_file": "agents/tools/",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "agents.prompts",
-          "reference_file": "agents/prompts/",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
       "name": "PromptFactory",
-      "description": "Dynamically generates LLM prompts based on specified types and models, providing structured input for the Agent.",
+      "description": "The primary orchestrator of the subsystem. It dynamically selects and instantiates the appropriate concrete prompt factory based on the specified LLMType and PromptType, then delegates the actual prompt generation. It serves as the main entry point for clients requiring LLM prompts.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.prompts",
-          "reference_file": "agents/prompts/",
+          "qualified_name": "PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ]
     },
     {
-      "name": "Scanner",
-      "description": "Acts as the entry point for static analysis, parsing source code, extracting relevant information, and orchestrating the data gathering from language servers.",
+      "name": "AbstractPromptFactory",
+      "description": "An abstract base class that defines the common interface and contract for all concrete prompt factories. It ensures a consistent method signature for retrieving prompts, promoting architectural consistency and extensibility.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner",
-          "reference_file": "static_analyzer/scanner.py",
+          "qualified_name": "AbstractPromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ]
     },
     {
-      "name": "LSP Client",
-      "description": "Integrates with Language Server Protocol (LSP) to communicate with external language servers, obtaining rich analysis data such as definitions, references, and diagnostics.",
+      "name": "GeminiFlashBidirectionalPromptFactory",
+      "description": "A concrete implementation of AbstractPromptFactory responsible for generating bidirectional prompts specifically tailored for Gemini Flash Large Language Models.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.lsp_client.client",
-          "reference_file": "static_analyzer/lsp_client/client.py",
+          "qualified_name": "GeminiFlashBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ]
     },
     {
-      "name": "AnalysisResult",
-      "description": "Encapsulates the structured output of the static analysis, including code graphs, findings, and other relevant data, providing a standardized format for consumption.",
+      "name": "ClaudeBidirectionalPromptFactory",
+      "description": "A concrete implementation of AbstractPromptFactory that generates bidirectional prompts optimized for Claude Large Language Models.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.analysis_result",
-          "reference_file": "static_analyzer/analysis_result.py",
+          "qualified_name": "ClaudeBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "GPTBidirectionalPromptFactory",
+      "description": "A concrete implementation of AbstractPromptFactory designed to produce bidirectional prompts for GPT Large Language Models.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "GPTBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "LLMType",
+      "description": "An enumeration that defines the distinct types of Large Language Models supported by the system (e.g., GEMINI_FLASH, CLAUDE, GPT4). It acts as a critical configuration parameter for the PromptFactory.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LLMType",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ]
+    },
+    {
+      "name": "PromptType",
+      "description": "An enumeration that specifies the desired interaction style for the prompts (e.g., BIDIRECTIONAL, UNIDIRECTIONAL). It also serves as a configuration parameter for the PromptFactory.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "PromptType",
+          "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -99,49 +93,49 @@
   ],
   "components_relations": [
     {
-      "relation": "Uses",
-      "src_name": "Agent",
-      "dst_name": "PromptFactory"
-    },
-    {
-      "relation": "Initiates",
-      "src_name": "Agent",
-      "dst_name": "Scanner"
-    },
-    {
-      "relation": "Consumes",
-      "src_name": "Agent",
-      "dst_name": "AnalysisResult"
-    },
-    {
-      "relation": "Generates prompts for",
+      "relation": "configures with",
       "src_name": "PromptFactory",
-      "dst_name": "Agent"
+      "dst_name": "LLMType"
     },
     {
-      "relation": "Utilizes",
-      "src_name": "Scanner",
-      "dst_name": "LSP Client"
+      "relation": "configures with",
+      "src_name": "PromptFactory",
+      "dst_name": "PromptType"
     },
     {
-      "relation": "Produces",
-      "src_name": "Scanner",
-      "dst_name": "AnalysisResult"
+      "relation": "instantiates and delegates to",
+      "src_name": "PromptFactory",
+      "dst_name": "GeminiFlashBidirectionalPromptFactory"
     },
     {
-      "relation": "Provides data to",
-      "src_name": "LSP Client",
-      "dst_name": "Scanner"
+      "relation": "instantiates and delegates to",
+      "src_name": "PromptFactory",
+      "dst_name": "ClaudeBidirectionalPromptFactory"
     },
     {
-      "relation": "Is produced by",
-      "src_name": "AnalysisResult",
-      "dst_name": "Scanner"
+      "relation": "instantiates and delegates to",
+      "src_name": "PromptFactory",
+      "dst_name": "GPTBidirectionalPromptFactory"
     },
     {
-      "relation": "Is consumed by",
-      "src_name": "AnalysisResult",
-      "dst_name": "Agent"
+      "relation": "implements",
+      "src_name": "GeminiFlashBidirectionalPromptFactory",
+      "dst_name": "AbstractPromptFactory"
+    },
+    {
+      "relation": "implements",
+      "src_name": "ClaudeBidirectionalPromptFactory",
+      "dst_name": "AbstractPromptFactory"
+    },
+    {
+      "relation": "implements",
+      "src_name": "GPTBidirectionalPromptFactory",
+      "dst_name": "AbstractPromptFactory"
+    },
+    {
+      "relation": "uses",
+      "src_name": "PromptFactory",
+      "dst_name": "AbstractPromptFactory"
     }
   ]
 }

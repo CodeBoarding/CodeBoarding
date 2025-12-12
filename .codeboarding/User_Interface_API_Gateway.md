@@ -9,24 +9,22 @@ graph LR
     Configuration_Manager["Configuration Manager"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Job_Management
-    Job_Management -- "orchestrates" --> Documentation_Generation
     Job_Management -- "provides status to" --> API_Service
+    Job_Management -- "orchestrates" --> Documentation_Generation
     Documentation_Generation -- "delegates tasks to" --> CodeBoardingAgent
     CodeBoardingAgent -- "utilizes" --> Static_Analysis_Tools
-    CodeBoardingAgent -- "accesses" --> Temporary_Repository_Manager
-    CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
     Static_Analysis_Tools -- "provides code understanding to" --> CodeBoardingAgent
-    Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
+    CodeBoardingAgent -- "accesses" --> Temporary_Repository_Manager
     Temporary_Repository_Manager -- "manages repositories for" --> CodeBoardingAgent
-    Configuration_Manager -- "provides settings to" --> CodeBoardingAgent
-    Configuration_Manager -- "provides settings to" --> Static_Analysis_Tools
+    CodeBoardingAgent -- "retrieves settings from" --> Configuration_Manager
+    Static_Analysis_Tools -- "retrieves settings from" --> Configuration_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's core flow begins with the API Service receiving requests, which are then managed by Job Management. Job Management orchestrates the Documentation Generation process. The Documentation Generation component delegates the crucial task of understanding the codebase and generating content to the CodeBoardingAgent. The CodeBoardingAgent, acting as the central intelligence, leverages the Static Analysis Tools for deep code understanding, which has been significantly enhanced through an updated LSP client. It also uses the Temporary Repository Manager to access and manage the codebase. All components rely on the Configuration Manager for system settings. The refined internal mechanisms of CodeBoardingAgent and the enhanced Static Analysis Tools lead to more robust and accurate documentation generation.
+The system is designed around a clear separation of concerns, with the API Service handling external requests and the Job Management component orchestrating the overall documentation generation workflow. The Documentation Generation component delegates core analysis and content creation to the CodeBoardingAgent, which serves as the central intelligence. The CodeBoardingAgent is supported by specialized components: Static Analysis Tools for deep code understanding and the Temporary Repository Manager for managing code repositories. A Configuration Manager provides centralized settings across the system, ensuring consistent operation. This architecture allows for robust, scalable documentation generation, with the CodeBoardingAgent continuously evolving its internal capabilities to improve analysis quality.
 
 ### API Service
 Acts as the external entry point for the system, initiating and monitoring documentation generation jobs.
@@ -34,6 +32,7 @@ Acts as the external entry point for the system, initiating and monitoring docum
 
 **Related Classes/Methods**:
 
+- `api_service.start_job`:10-25
 
 
 ### Job Management
@@ -42,7 +41,7 @@ Manages the lifecycle of documentation jobs, tracking their progress, status, an
 
 **Related Classes/Methods**:
 
-- `job_management.JobManager`:1-10
+- `job_manager.create_job`:1-10
 
 
 ### Documentation Generation
@@ -51,6 +50,7 @@ Orchestrates the detailed process of generating documentation content by delegat
 
 **Related Classes/Methods**:
 
+- `doc_generator.generate`:10-20
 
 
 ### CodeBoardingAgent
@@ -59,13 +59,7 @@ The central intelligence component, now with significantly refined internal mech
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`None`</a>
+- `codeboarding_agent.analyze`:1-10
 
 
 ### Temporary Repository Manager
@@ -74,7 +68,6 @@ Supports the CodeBoardingAgent by managing the cloning of repositories and handl
 
 **Related Classes/Methods**:
 
-- `temp_repo_manager.TemporaryRepositoryManager`
 
 
 ### Static Analysis Tools
@@ -83,8 +76,6 @@ Provides enhanced, in-depth code understanding capabilities to the CodeBoardingA
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`None`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language`</a>
 
 
 ### Configuration Manager
@@ -93,7 +84,7 @@ Centralized component for providing all system settings and configurations to ot
 
 **Related Classes/Methods**:
 
-- `config_manager.ConfigurationManager`:1-10
+- `config_manager.get_setting`:10-25
 
 
 ### Unclassified

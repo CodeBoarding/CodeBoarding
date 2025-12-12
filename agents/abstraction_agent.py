@@ -7,6 +7,7 @@ from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
+    LLMBaseModel,
     AnalysisInsights,
     CFGAnalysisInsights,
     LLMBaseModel,
@@ -41,7 +42,8 @@ class AbstractionAgent(CodeBoardingAgent):
 
         self.project_name = project_name
         self.meta_context = meta_context
-        self.context: dict[str, LLMBaseModel] = {"structure_insight": []}
+
+        self.context: dict[str, LLMBaseModel] = {}
 
         self.prompts = {
             "cfg": PromptTemplate(
@@ -92,17 +94,7 @@ class AbstractionAgent(CodeBoardingAgent):
         insight_str = ""
         for insight_type, analysis_insight in self.context.items():
             insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if isinstance(analysis_insight, list):
-                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            elif isinstance(analysis_insight, AnalysisInsights):
-                insight_str += analysis_insight.llm_str() + "\n\n"
-            elif isinstance(analysis_insight, CFGAnalysisInsights):
-                insight_str += analysis_insight.llm_str() + "\n\n"
-            else:
-                raise TypeError(
-                    f"Expected analysis_insight to be either list, AnalysisInsights or CFGAnalysisInsights, "
-                    f"but got {type(analysis_insight).__name__} for insight_type '{insight_type}'"
-                )
+            insight_str += analysis_insight.llm_str() + "\n\n"
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"

@@ -1,58 +1,46 @@
 ```mermaid
 graph LR
-    LSPClient["LSPClient"]
     AbstractionAgent["AbstractionAgent"]
     DetailsAgent["DetailsAgent"]
-    Language_Servers_External_["Language Servers (External)"]
+    LLM_Provider_Interface["LLM_Provider_Interface"]
     Unclassified["Unclassified"]
-    LSPClient -- "initiates communication with" --> Language_Servers_External_
-    Language_Servers_External_ -- "provides static analysis data to" --> LSPClient
-    LSPClient -- "provides high-level static analysis data to" --> AbstractionAgent
-    LSPClient -- "provides detailed static analysis data to" --> DetailsAgent
-    AbstractionAgent -- "utilizes expanded tooling to analyze" --> LSPClient_data
-    DetailsAgent -- "utilizes expanded tooling to analyze" --> LSPClient_data
+    AbstractionAgent -- "sends requests to" --> LLM_Provider_Interface
+    AbstractionAgent -- "receives responses from" --> LLM_Provider_Interface
+    DetailsAgent -- "sends requests to" --> LLM_Provider_Interface
+    DetailsAgent -- "receives responses from" --> LLM_Provider_Interface
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around the LSPClient, which serves as a robust data acquisition layer, orchestrating communication with various Language Servers (External) to gather comprehensive static analysis data. This client, now enhanced with flexible language configuration and VSCode integration, efficiently collects diverse code intelligence. The collected data is then channeled to two specialized analytical components: the AbstractionAgent and the DetailsAgent. The AbstractionAgent consumes high-level data to identify major system components and their interconnections, forming an abstract architectural representation. Concurrently, the DetailsAgent utilizes detailed data to perform granular analysis, uncovering implementation specifics and design patterns. Both agents leverage expanded internal tooling to process this data, ensuring a thorough and multi-faceted understanding of the codebase. This design facilitates a clear separation of concerns, enabling efficient and scalable architectural analysis.
-
-### LSPClient
-Acts as the central data acquisition and orchestration layer, establishing robust communication with various Language Servers (External). It is enhanced with flexible language detection and configuration mechanisms, alongside deeper integration with the VSCode environment, making it a sophisticated data provider.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py#L57-L1102" target="_blank" rel="noopener noreferrer">`LSPClient`:57-1102</a>
-
+The system's core functionality revolves around two primary agents, AbstractionAgent and DetailsAgent, which are responsible for interpreting static analysis data at different levels of granularity. Both agents rely on a conceptual LLM_Provider_Interface to interact with Large Language Models. This interface acts as a crucial abstraction layer, standardizing communication with various LLM providers and handling underlying complexities like API calls and authentication. The architecture is centered on two specialized agents, AbstractionAgent and DetailsAgent, each designed for distinct levels of static analysis interpretation. The AbstractionAgent focuses on high-level architectural understanding, while the DetailsAgent delves into granular code specifics. Both agents communicate with external Large Language Models through a unified LLM_Provider_Interface. This interface is a critical abstraction, managing the complexities of LLM interactions and ensuring a consistent communication layer for the agents. This design promotes modularity and allows for flexible integration with different LLM services, enabling the agents to effectively process and interpret static analysis data to generate comprehensive architectural insights.
 
 ### AbstractionAgent
-Focuses on synthesizing high-level architectural views, identifying major components and their responsibilities. It processes data using expanded tooling to synthesize high-level architectural views.
+Interprets structured static analysis data to derive and generate high-level architectural understanding and insights, including identifying major components, their relationships, and overall system design patterns. This agent focuses on macro-level architectural interpretation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L30-L206" target="_blank" rel="noopener noreferrer">`AbstractionAgent`:30-206</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`AbstractionAgent`</a>
 
 
 ### DetailsAgent
-Delves into specific code sections, uncovering design patterns and explaining implementation rationale. It processes data using expanded tooling to perform in-depth analysis of code structures.
+Interprets structured static analysis data to derive and generate detailed code context and specific, granular insights, including understanding class structures, method functionalities, and local dependencies. This agent focuses on micro-level code interpretation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L31-L191" target="_blank" rel="noopener noreferrer">`DetailsAgent`:31-191</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
 
 
-### Language Servers (External)
-External services that provide comprehensive static analysis data and code intelligence (e.g., call graphs, symbol references) to the LSPClient.
+### LLM_Provider_Interface
+Abstracts away the specifics of different LLM providers, providing a unified interface for agents to interact with various large language models. It handles API calls, authentication, rate limiting, and basic error handling, ensuring a consistent interaction layer for all LLM-dependent components.
 
 
 **Related Classes/Methods**:
 
-- `LanguageServer`:1-10
+- `LLM_Provider_Interface`
 
 
 ### Unclassified

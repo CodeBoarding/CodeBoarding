@@ -301,7 +301,7 @@ def copy_files(temp_folder: Path, output_dir: Path):
 
 def validate_arguments(args, parser, is_local: bool):
     # Ensure mutual exclusivity between remote and local runs
-    has_remote_repos = bool(args.repositories)
+    has_remote_repos = bool(getattr(args, 'repositories', None))
     has_local_repo = args.local is not None
 
     if has_remote_repos == has_local_repo:
@@ -326,9 +326,12 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     """
     Adds all command-line arguments and groups to the ArgumentParser.
     """
-    # Repository specification
-    parser.add_argument("repositories", nargs="*", help="One or more Git repository URLs to generate documentation for")
-    parser.add_argument("--local", type=Path, help="Path to a local repository")
+    # Repository specification (mutually exclusive groups)
+    repo_group = parser.add_mutually_exclusive_group(required=True)
+    repo_group.add_argument(
+        "repositories", nargs="+", help="One or more Git repository URLs to generate documentation for"
+    )
+    repo_group.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
     parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
