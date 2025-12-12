@@ -57,6 +57,7 @@ class ScalabilityMetrics(BaseModel):
     total_tokens: int = 0
     agent_token_usage: dict[str, AgentTokenBreakdown] = Field(default_factory=dict)
     agent_tool_usage: dict[str, dict[str, int]] = Field(default_factory=dict)
+    depth: int
 
 
 # =============================================================================

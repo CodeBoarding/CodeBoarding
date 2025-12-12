@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from datetime import datetime
@@ -21,6 +22,7 @@ from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from agents.agent import CodeBoardingAgent
 from monitoring import StreamingStatsWriter
+from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import StaticAnalyzer
 from static_analyzer.scanner import ProjectScanner
@@ -32,10 +34,10 @@ logger = logging.getLogger(__name__)
 class DiagramGenerator:
     def __init__(
         self,
-        repo_location,
-        temp_folder,
-        repo_name,
-        output_dir,
+        repo_location: Path,
+        temp_folder: Path,
+        repo_name: str,
+        output_dir: Path,
         depth_level: int,
         static_only: bool = False,
         project_name: str | None = None,
@@ -54,7 +56,7 @@ class DiagramGenerator:
         self.meta_agent: MetaAgent | None = None
         self.meta_context = None
         self.depth_level = depth_level
-        self._monitoring_agents: dict[str, CodeBoardingAgent] = {}
+        self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
     def process_component(self, component):
@@ -107,7 +109,7 @@ class DiagramGenerator:
         static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
         # --- Capture Static Analysis Stats ---
-        static_stats = {"repo_name": self.repo_name, "languages": {}}
+        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
 
         # Use ProjectScanner to get accurate LOC counts via tokei
         scanner = ProjectScanner(self.repo_location)
@@ -120,7 +122,6 @@ class DiagramGenerator:
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),
             }
-        # ------------------------------------------
 
         if not self.static_only:
             self.meta_agent = MetaAgent(
@@ -196,7 +197,7 @@ class DiagramGenerator:
         The output is stored in json files in output_dir.
         Components are analyzed in parallel by level.
         """
-        files = []
+        files: list[str] = []
 
         if (
             self.details_agent is None

@@ -48,7 +48,7 @@ class ScalabilityEval(BaseEval):
             tool_usage = agent_data.get("tool_usage", {}).get("counts", {})
             agent_tool_usage[agent_name] = tool_usage
 
-        depth = int(project.env_vars.get("DIAGRAM_DEPTH_LEVEL"))
+        depth = int(project.env_vars.get("DIAGRAM_DEPTH_LEVEL") or 0)
 
         return ScalabilityMetrics(
             loc=total_loc,

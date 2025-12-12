@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
@@ -167,16 +166,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
 
-                if callback_list:
-                    response = self.agent.invoke(
-                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"callbacks": callback_list, "recursion_limit": 40},
-                    )
-                else:
-                    response = self.agent.invoke(
-                        {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                        config={"recursion_limit": 200},
-                    )
+                response = self.agent.invoke(
+                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                    config={"callbacks": callback_list, "recursion_limit": 40},
+                )
+                
                 agent_response = response["messages"][-1]
                 assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
                 if isinstance(agent_response.content, str):
