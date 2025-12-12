@@ -14,13 +14,15 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
-from utils import caching_enabled, create_temp_repo_folder, remove_temp_repo_folder, monitoring_enabled
+from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
 from monitoring import monitor_execution
+from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
 
 
 def validate_env_vars():
+    """Validate that required API keys and environment variables are set."""
     api_provider_keys = [
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
@@ -38,105 +40,239 @@ def validate_env_vars():
         logger.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
         exit(2)
 
+
+def setup_environment(project_root: Path | None = None):
+    if project_root is None:
+        project_root = Path.cwd()
+
+    # Set defaults for environment variables that can be deduced
     if not os.getenv("REPO_ROOT"):
-        logger.warning("REPO_ROOT environment variable not set, setting REPO_ROOT environment variable to 'repos'")
-        os.environ["REPO_ROOT"] = "repos"
+        repo_root = project_root / "repos"
+        os.environ["REPO_ROOT"] = str(repo_root)
+        logger.info(f"REPO_ROOT not set, using default: {repo_root}")
 
     if not os.getenv("ROOT_RESULT"):
-        logger.warning(
-            "ROOT_RESULT environment variable not set, setting ROOT_RESULT environment variable to 'results'"
-        )
+        root_result = project_root / "results"
+        os.environ["ROOT_RESULT"] = str(root_result)
+        logger.info(f"ROOT_RESULT not set, using default: {root_result}")
+
+    if not os.getenv("STATIC_ANALYSIS_CONFIG"):
+        static_config = project_root / "static_analysis_config.yml"
+        os.environ["STATIC_ANALYSIS_CONFIG"] = str(static_config)
+        logger.info(f"STATIC_ANALYSIS_CONFIG not set, using default: {static_config}")
+
+    if not os.getenv("PROJECT_ROOT"):
+        os.environ["PROJECT_ROOT"] = str(project_root)
+        logger.info(f"PROJECT_ROOT not set, using default: {project_root}")
+
+    if not os.getenv("DIAGRAM_DEPTH_LEVEL"):
+        os.environ["DIAGRAM_DEPTH_LEVEL"] = "1"
+        logger.info(f"DIAGRAM_DEPTH_LEVEL not set, using default: 1")
 
 
-def onboarding_materials_exist(project_name: str, source_dir: str):
+def onboarding_materials_exist(project_name: str) -> bool:
     generated_repo_url = f"https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main/{project_name}"
     response = requests.get(generated_repo_url)
     if response.status_code == 200:
-        logger.info(f"Repostiory has already been generated, please check {generated_repo_url}")
+        logger.info(f"Repository has already been generated, please check {generated_repo_url}")
         return True
-    else:
-        return False
+    return False
 
 
-def generate_docs(
+def generate_analysis(
     repo_name: str,
-    temp_repo_folder: Path,
-    repo_url: str | None = None,
-    static_only: bool = False,
-    project_name: str | None = None,
-):
-    # Create directories if they don't exist
-    repo_root = os.getenv("REPO_ROOT")
-    if not repo_root:
-        raise ValueError("REPO_ROOT environment variable is not set")
-    repos_dir = Path(repo_root)
-    repos_dir.mkdir(parents=True, exist_ok=True)
-
-    repo_path = repos_dir / repo_name
-
+    repo_path: Path,
+    output_dir: Path,
+    depth_level: int = 1,
+) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
-        temp_folder=temp_repo_folder,
+        temp_folder=output_dir,
         repo_name=repo_name,
-        output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
-        static_only=static_only,
-        project_name=project_name,
+        output_dir=output_dir,
+        depth_level=depth_level,
     )
-    analysis_files = generator.generate_analysis()
+    return generator.generate_analysis()
+
+
+def generate_markdown_docs(
+    repo_name: str,
+    repo_path: Path,
+    repo_url: str,
+    analysis_files: list[Path],
+    output_dir: Path,
+    demo_mode: bool = False,
+):
+    target_branch = get_branch(repo_path)
+    repo_ref = f"{repo_url}/blob/{target_branch}/"
 
     for file in analysis_files:
         with open(file, "r") as f:
             analysis = AnalysisInsights.model_validate_json(f.read())
-            logger.info(f"Generated analysis file: {file}")
+            logger.info(f"Generating markdown for analysis file: {file}")
             fname = Path(file).name.split(".json")[0]
             if fname.endswith("analysis"):
                 fname = "on_boarding"
-            target_branch = get_branch(repo_path)
+
             generate_markdown_file(
                 fname,
                 analysis,
                 repo_name,
-                repo_ref=f"{repo_url}/blob/{target_branch}/",
+                repo_ref=repo_ref,
                 linked_files=analysis_files,
-                temp_dir=temp_repo_folder,
-                demo=True,
+                temp_dir=output_dir,
+                demo=demo_mode,
             )
 
 
-def generate_docs_remote(
-    repo_url: str,
-    temp_repo_folder: Path,
-    local_dev=False,
-    static_only=False,
-    project_name: str | None = None,
+def partial_update(
+    repo_path: Path,
+    output_dir: Path,
+    project_name: str,
+    component_name: str,
+    analysis_name: str,
+    depth_level: int = 1,
 ):
     """
-    Clone a git repo to target_dir/<repo-name>.
-    Returns the Path to the cloned repository.
+    Update a specific component in an existing analysis.
     """
-    # ROOT_RESULT = os.getenv("ROOT_RESULT")
-    # if not ROOT_RESULT:
-    #     raise ValueError("ROOT_RESULT environment variable is not set")
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    REPO_ROOT = os.getenv("REPO_ROOT")
-    if not REPO_ROOT:
-        raise ValueError("REPO_ROOT environment variable is not set")
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=output_dir,
+        repo_name=project_name,
+        output_dir=output_dir,
+        depth_level=depth_level,
+    )
+    generator.pre_analysis()
+
+    # Load the analysis for which we want to extend the component
+    analysis_file = output_dir / f"{analysis_name}.json"
+    try:
+        with open(analysis_file, "r") as file:
+            analysis = AnalysisInsights.model_validate_json(file.read())
+    except FileNotFoundError:
+        logger.error(f"Analysis file '{analysis_file}' not found. Please ensure the file exists.")
+        return
+    except Exception as e:
+        logger.error(f"Failed to load analysis file '{analysis_file}': {e}")
+        return
+
+    # Find and update the component
+    component_to_update = None
+    for component in analysis.components:
+        if component.name == component_name:
+            logger.info(f"Updating analysis for component: {component.name}")
+            component_to_update = component
+            break
+
+    if component_to_update is None:
+        logger.error(f"Component '{component_name}' not found in analysis '{analysis_name}'")
+        return
+
+    generator.process_component(component_to_update)
+
+
+def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev: bool = False):
+    """
+    Clone a git repo and generate documentation (backward compatibility wrapper used by local_app).
+    """
+    process_remote_repository(
+        repo_url=repo_url,
+        output_dir=temp_repo_folder,
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+        upload=not local_dev,  # Only upload if not in local dev mode
+        cache_check=True,
+    )
+
+
+def process_remote_repository(
+    repo_url: str,
+    output_dir: Path | None = None,
+    depth_level: int = 1,
+    upload: bool = False,
+    cache_check: bool = True,
+):
+    """
+    Process a remote repository by cloning and generating documentation.
+    """
+    repo_root = Path(os.getenv("REPO_ROOT", "repos"))
+    root_result = os.getenv("ROOT_RESULT", "results")
 
     repo_name = get_repo_name(repo_url)
-    if not local_dev:
-        store_token()
-    if caching_enabled() and onboarding_materials_exist(repo_name, ROOT_RESULT):
+
+    # Check cache if enabled
+    if cache_check and caching_enabled() and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
 
-    repo_name = clone_repository(repo_url, Path(REPO_ROOT))
-    generate_docs(repo_name, temp_repo_folder, repo_url, static_only=static_only, project_name=project_name)
-    if os.path.exists(ROOT_RESULT):
-        upload_onboarding_materials(repo_name, temp_repo_folder, ROOT_RESULT)
+    # Clone repository
+    repo_name = clone_repository(repo_url, repo_root)
+    repo_path = repo_root / repo_name
+
+    temp_folder = create_temp_repo_folder()
+
+    try:
+        analysis_files = generate_analysis(
+            repo_name=repo_name,
+            repo_path=repo_path,
+            output_dir=temp_folder,
+            depth_level=depth_level,
+        )
+
+        # Generate markdown documentation for remote repo
+        generate_markdown_docs(
+            repo_name=repo_name,
+            repo_path=repo_path,
+            repo_url=repo_url,
+            analysis_files=analysis_files,
+            output_dir=temp_folder,
+            demo_mode=True,
+        )
+
+        # Copy files to output directory if specified
+        if output_dir:
+            copy_files(temp_folder, output_dir)
+
+        # Upload if requested
+        if upload and os.path.exists(root_result):
+            upload_onboarding_materials(repo_name, temp_folder, root_result)
+        elif upload:
+            logger.warning(f"ROOT_RESULT directory '{root_result}' does not exist. Skipping upload.")
+    finally:
+        remove_temp_repo_folder(temp_folder)
+
+
+def process_local_repository(
+    repo_path: Path,
+    output_dir: Path,
+    project_name: str,
+    depth_level: int = 1,
+    component_name: str | None = None,
+    analysis_name: str | None = None,
+):
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Handle partial updates
+    if component_name and analysis_name:
+        partial_update(
+            repo_path=repo_path,
+            output_dir=output_dir,
+            project_name=project_name,
+            component_name=component_name,
+            analysis_name=analysis_name,
+            depth_level=depth_level,
+        )
     else:
-        logger.warning(
-            f"ROOT_RESULT directory '{ROOT_RESULT}' does not exist. Skipping upload of onboarding materials."
+        # Full analysis (local repo - no markdown generation)
+        generate_analysis(
+            repo_name=project_name,
+            repo_path=repo_path,
+            output_dir=output_dir,
+            depth_level=depth_level,
         )
 
 
@@ -163,52 +299,163 @@ def copy_files(temp_folder: Path, output_dir: Path):
         logger.info(f"Copied {file.name} to {dest_file}")
 
 
-if __name__ == "__main__":
-    # Initialize the prompt factory for demo.py to use bidirectional prompts
-    initialize_global_factory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+def validate_arguments(args, parser, is_local: bool):
+    # Ensure mutual exclusivity between remote and local runs
+    has_remote_repos = bool(args.repositories)
+    has_local_repo = args.local is not None
 
+    if has_remote_repos == has_local_repo:
+        parser.error("Provide either one or more remote repositories or --local, but not both.")
+
+    # Validate local repository arguments
+    if is_local and not args.project_name:
+        parser.error("--project-name is required when using --local")
+
+    # Validate partial update arguments
+    if (args.partial_component or args.partial_analysis) and not is_local:
+        parser.error("Partial updates (--partial-component, --partial-analysis) only work with local repositories")
+
+    if args.partial_component and not args.partial_analysis:
+        parser.error("--partial-analysis is required when using --partial-component")
+
+    if args.partial_analysis and not args.partial_component:
+        parser.error("--partial-component is required when using --partial-analysis")
+
+
+def define_cli_arguments(parser: argparse.ArgumentParser):
+    """
+    Adds all command-line arguments and groups to the ArgumentParser.
+    """
+    # Repository specification
+    parser.add_argument("repositories", nargs="*", help="One or more Git repository URLs to generate documentation for")
+    parser.add_argument("--local", type=Path, help="Path to a local repository")
+
+    # Output configuration
+    parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
+
+    # Local repository specific options
+    parser.add_argument("--project-name", type=str, help="Name of the project (required for local repositories)")
+
+    # Partial update options
+    parser.add_argument("--partial-component", type=str, help="Component to update (for partial updates only)")
+    parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
+
+    # Advanced options
+    parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
+    parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
+    parser.add_argument(
+        "--prompt-type",
+        choices=["bidirectional", "unidirectional"],
+        default=None,
+        help="Prompt type to use (default: bidirectional for remote, unidirectional for local)",
+    )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
+    )
+    parser.add_argument(
+        "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
+    )
+    parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
+
+
+def main():
+    """Main entry point for the unified CodeBoarding CLI."""
     parser = argparse.ArgumentParser(
-        description="Generate onboarding documentation for Git repositories",
+        description="Generate onboarding documentation for Git repositories (local or remote)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python demo.py https://github.com/user/repo1
-  python demo.py https://github.com/user/repo1 --output-dir ./docs
-  python demo.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
-  python demo.py --help
+  # Remote repositories
+  python main.py https://github.com/user/repo1
+  python main.py https://github.com/user/repo1 --output-dir ./docs
+  python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
+
+  # Local repository
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
+
+  # Partial update
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
+                 --partial-component ComponentName --partial-analysis analysis_name
+
+  # Use custom binary location
+  python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
         """,
     )
-    parser.add_argument("repositories", nargs="+", help="One or more Git repository URLs to generate documentation for")
-    parser.add_argument("--output-dir", type=Path, help="Directory to copy generated markdown files to")
-    parser.add_argument("--static-only", action="store_true", help="Run only static analysis without agents")
-    parser.add_argument("--project-name", help="Custom project name for monitoring runs")
+    define_cli_arguments(parser)
 
     args = parser.parse_args()
 
+    # Validate interdependent arguments
+    is_local = args.local is not None
+    validate_arguments(args, parser, is_local)
+
+    # Setup logging first, before any operations that might log
+    log_dir: Path | None = args.output_dir if args.output_dir else None
+    setup_logging(log_dir=log_dir)
+    logger.info("Starting CodeBoarding documentation generation...")
+
+    # Load environment from .env file if it exists
     load_dotenv()
-    validate_env_vars()
-    setup_logging()
-    logger.info("Starting up…")
 
-    for repo in tqdm(args.repositories, desc="Generating docs for repos"):
-        repo_name = get_repo_name(repo)
-        run_id = args.project_name if args.project_name else f"demo_run_{repo_name}"
+    setup_environment(args.project_root)
 
-        with monitor_execution(run_id=run_id, enabled=monitoring_enabled()) as mon:
-            mon.step(f"processing_{repo_name}")
+    if args.prompt_type:
+        prompt_type = PromptType.BIDIRECTIONAL if args.prompt_type == "bidirectional" else PromptType.UNIDIRECTIONAL
+    else:
+        prompt_type = PromptType.UNIDIRECTIONAL if is_local else PromptType.BIDIRECTIONAL
 
-            temp_repo_folder = create_temp_repo_folder()
-            try:
-                generate_docs_remote(
-                    repo,
-                    temp_repo_folder,
-                    local_dev=True,
-                    static_only=args.static_only,
-                    project_name=args.project_name,
-                )
+    initialize_global_factory(LLMType.GEMINI_FLASH, prompt_type)
 
-                # Copy markdown files to output directory if specified
-                if args.output_dir:
-                    copy_files(temp_repo_folder, args.output_dir)
-            finally:
-                remove_temp_repo_folder(temp_repo_folder)
+    # Validate environment variables (only for remote repos due to .env file - should be modified soon)
+    if not is_local:
+        validate_env_vars()
+
+    if args.binary_location:
+        update_config(args.binary_location)
+
+    if is_local:
+        process_local_repository(
+            repo_path=args.local,
+            output_dir=args.output_dir or Path("./analysis"),
+            project_name=args.project_name,
+            depth_level=args.depth_level,
+            component_name=args.partial_component,
+            analysis_name=args.partial_analysis,
+        )
+        logger.info(f"Documentation generated successfully in {args.output_dir or './analysis'}")
+    else:
+        if args.repositories:
+            if args.upload:
+                try:
+                    store_token()
+                except Exception as e:
+                    logger.warning(f"Could not store GitHub token: {e}")
+
+            for repo in tqdm(args.repositories, desc="Generating docs for repos"):
+                repo_name = get_repo_name(repo)
+                run_id = args.project_name if args.project_name else f"demo_run_{repo_name}"
+
+                with monitor_execution(run_id=run_id, enabled=monitoring_enabled()) as mon:
+                    mon.step(f"processing_{repo_name}")
+
+                    try:
+                        process_remote_repository(
+                            repo_url=repo,
+                            output_dir=args.output_dir,
+                            depth_level=args.depth_level,
+                            upload=args.upload,
+                            cache_check=not args.no_cache_check,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to process repository {repo}: {e}")
+                        continue
+
+            logger.info("All repositories processed successfully!")
+        else:
+            logger.error("No repositories specified")
+
+
+if __name__ == "__main__":
+    main()
