@@ -201,7 +201,7 @@ class LSPClient:
         """Fetches all document symbols (functions, classes, etc.) for a file."""
         params = {"textDocument": {"uri": file_uri}}
         req_id = self._send_request("textDocument/documentSymbol", params)
-        logger.info(f"Requesting document symbols for {file_uri} with ID {req_id}")
+        logger.debug(f"Requesting document symbols for {file_uri} with ID {req_id}")
         response = self._wait_for_response(req_id)
         return response.get("result", [])
 
