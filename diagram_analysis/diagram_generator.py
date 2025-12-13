@@ -173,7 +173,7 @@ class DiagramGenerator:
                 run_id = self.run_id
             else:
                 run_name = self.project_name or self.repo_name
-                run_id = generate_run_id(repo_name=run_name)
+                run_id = generate_run_id(name=run_name)
 
             monitoring_dir = get_monitoring_run_dir(run_id, create=True)
             logger.info(f"Monitoring enabled. Writing stats to {monitoring_dir}")
