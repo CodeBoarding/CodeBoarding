@@ -19,6 +19,7 @@ from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
 from agents.agent import CodeBoardingAgent
 from monitoring import StreamingStatsWriter
@@ -41,13 +42,16 @@ class DiagramGenerator:
         depth_level: int,
         static_only: bool = False,
         project_name: str | None = None,
+        run_id: str | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
         self.repo_name = repo_name
         self.output_dir = output_dir
+        self.depth_level = depth_level
         self.static_only = static_only
         self.project_name = project_name
+        self.run_id = run_id
         self.details_agent: DetailsAgent | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.planner_agent: PlannerAgent | None = None
@@ -164,23 +168,21 @@ class DiagramGenerator:
             )
 
         if monitoring_enabled():
-            # Create run directory: runs/{repo}_{timestamp}/
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_monitoring_dir = (
-                Path(os.getenv("PROJECT_ROOT", self.repo_location))
-                / "evals"
-                / "artifacts"
-                / "monitoring_results"
-                / "runs"
-            )
-            run_name = self.project_name or self.repo_name
-            monitoring_dir = base_monitoring_dir / f"{run_name}_{timestamp}"
-            monitoring_dir.mkdir(parents=True, exist_ok=True)
+            # Create run directory using unified path utilities
+            if self.run_id:
+                run_id = self.run_id
+            else:
+                run_name = self.project_name or self.repo_name
+                run_id = generate_run_id(repo_name=run_name)
+
+            monitoring_dir = get_monitoring_run_dir(run_id, create=True)
+            logger.info(f"Monitoring enabled. Writing stats to {monitoring_dir}")
 
             # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
             with open(code_stats_file, "w") as f:
                 json.dump(static_stats, f, indent=2)
+            logger.info(f"Written code_stats.json to {code_stats_file}")
 
             # Initialize streaming writer (handles timing and run_metadata.json)
             self.stats_writer = StreamingStatsWriter(
@@ -189,6 +191,7 @@ class DiagramGenerator:
                 repo_name=self.project_name or self.repo_name,
                 output_dir=str(self.output_dir),
                 start_time=analysis_start_time,
+                static_stats=static_stats,
             )
 
     def generate_analysis(self):
