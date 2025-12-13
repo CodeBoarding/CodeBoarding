@@ -311,6 +311,13 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
+    parser.add_argument(
+        "--load-env-variables",
+        action="store",
+        default=False,
+        type=bool,
+        help="Load the .env file for environment variables",
+    )
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
     parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
     parser.add_argument(
@@ -368,7 +375,7 @@ Examples:
 
     # Load environment from .env file if it exists
     # Validate environment variables (only for remote repos due to .env file - should be modified soon)
-    if not is_local:
+    if args.load_env_variables:
         load_dotenv()
         validate_env_vars()
 
