@@ -9,6 +9,7 @@ from google.api_core.exceptions import ResourceExhausted
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_core.exceptions import OutputParserException
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -89,7 +90,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
-        model_name = None
+        model_name: str | None = None
+        model: BaseChatModel
+
         if self.openai_api_key:
             model_name = self.codeboarding_model if self.codeboarding_model else "gpt-4o"
             logger.info(f"Using OpenAI LLM with model: {model_name}")

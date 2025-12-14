@@ -24,7 +24,7 @@ class MonitoringCallback(BaseCallbackHandler):
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name
         self._stats_container = stats_container
         self.log_results = log_results
-        self.model_name = None
+        self.model_name: str | None = None
         # Fallback for when running outside of a monitored context
         self._fallback_stats = RunStats()
 
