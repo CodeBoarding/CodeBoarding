@@ -18,11 +18,13 @@ class MonitoringCallback(BaseCallbackHandler):
     Captures LLM events, tags them with the current step, and updates stats.
     """
 
-    def __init__(self, stats_container: RunStats | None = None):
+    def __init__(self, stats_container: RunStats | None = None, log_results: bool = True):
         # runtime bookkeeping
         self._tool_start_times: dict[str, float] = {}  # run_id -> start_time
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name
         self._stats_container = stats_container
+        self.log_results = log_results
+        self.model_name: str | None = None
         # Fallback for when running outside of a monitored context
         self._fallback_stats = RunStats()
 
@@ -51,8 +53,9 @@ class MonitoringCallback(BaseCallbackHandler):
             self.stats.output_tokens += usage.get("completion_tokens", 0)
 
         # Log Event
-        model = response.llm_output.get("model_name") if response.llm_output else "unknown"
-        logger.info(f"LLM Usage: step={step_name} model={model} usage={usage}")
+        if self.log_results:
+            model = self.model_name or "unknown"
+            logger.info(f"LLM Usage: step={step_name} model={model} usage={usage}")
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         run_id_any = kwargs.get("run_id")

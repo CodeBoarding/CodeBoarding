@@ -9,6 +9,7 @@ from google.api_core.exceptions import ResourceExhausted
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_core.exceptions import OutputParserException
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -89,11 +90,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
+        model_name: str | None = None
+        model: BaseChatModel
+
         if self.openai_api_key:
-            model = self.codeboarding_model if self.codeboarding_model else "gpt-4o"
-            logger.info(f"Using OpenAI LLM with model: {model}")
-            return ChatOpenAI(
-                model=model,
+            model_name = self.codeboarding_model if self.codeboarding_model else "gpt-4o"
+            logger.info(f"Using OpenAI LLM with model: {model_name}")
+            model = ChatOpenAI(
+                model=model_name,
                 temperature=0,
                 max_tokens=None,  # type: ignore[call-arg]
                 timeout=None,
@@ -102,10 +106,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 base_url=self.openai_base_url,
             )
         elif self.anthropic_api_key:
-            model = self.codeboarding_model if self.codeboarding_model else "claude-3-7-sonnet-20250219"
-            logger.info(f"Using Anthropic LLM with model: {model}")
-            return ChatAnthropic(
-                model=model,  # type: ignore[call-arg]
+            model_name = self.codeboarding_model if self.codeboarding_model else "claude-3-7-sonnet-20250219"
+            logger.info(f"Using Anthropic LLM with model: {model_name}")
+            model = ChatAnthropic(
+                model=model_name,  # type: ignore[call-arg]
                 temperature=0,
                 max_tokens=8192,  # type: ignore[call-arg]
                 timeout=None,
@@ -113,10 +117,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.anthropic_api_key,  # type: ignore[arg-type]
             )
         elif self.google_api_key:
-            model = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
-            logger.info(f"Using Google Gemini LLM with model: {model}")
-            return ChatGoogleGenerativeAI(
-                model=model,
+            model_name = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
+            logger.info(f"Using Google Gemini LLM with model: {model_name}")
+            model = ChatGoogleGenerativeAI(
+                model=model_name,
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -124,22 +128,22 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.google_api_key,
             )
         elif self.aws_bearer_token:
-            model = (
+            model_name = (
                 self.codeboarding_model if self.codeboarding_model else "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
             )
-            logger.info(f"Using AWS Bedrock Converse LLM with model: {model}")
-            return ChatBedrockConverse(
-                model=model,
+            logger.info(f"Using AWS Bedrock Converse LLM with model: {model_name}")
+            model = ChatBedrockConverse(
+                model=model_name,
                 temperature=0,
                 max_tokens=4096,
                 region_name=self.aws_region,
                 credentials_profile_name=None,
             )
         elif self.cerebras_api_key:
-            model = self.codeboarding_model if self.codeboarding_model else "gpt-oss-120b"
-            logger.info(f"Using Cerebras LLM with model: {model}")
-            return ChatCerebras(
-                model=model,
+            model_name = self.codeboarding_model if self.codeboarding_model else "gpt-oss-120b"
+            logger.info(f"Using Cerebras LLM with model: {model_name}")
+            model = ChatCerebras(
+                model=model_name,
                 temperature=0,
                 max_tokens=None,
                 timeout=None,
@@ -147,14 +151,17 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.cerebras_api_key,  # type: ignore[arg-type]
             )
         elif self.ollama_base_url:
-            model = self.codeboarding_model if self.codeboarding_model else "qwen3:30b"
-            logging.info(f"Using Ollama LLM with model: {model}")
-            return ChatOllama(model=model, base_url=self.ollama_base_url, temperature=0.6)
+            model_name = self.codeboarding_model if self.codeboarding_model else "qwen3:30b"
+            logging.info(f"Using Ollama LLM with model: {model_name}")
+            model = ChatOllama(model=model_name, base_url=self.ollama_base_url, temperature=0.6)
         else:
             raise ValueError(
                 "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
                 "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
             )
+        self.agent_monitoring_callback.model_name = model_name
+        MONITORING_CALLBACK.model_name = model_name
+        return model
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method."""
