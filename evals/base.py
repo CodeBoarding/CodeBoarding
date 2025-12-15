@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from evals.schemas import EvalResult, PipelineResult, ProjectSpec, RunData
 from evals.utils import generate_system_specs
+from monitoring.paths import get_latest_run_dir
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,32 +41,9 @@ class BaseEval(ABC):
             return root
         return Path(project_root_env)
 
-    def get_latest_run_dir(self, project_name: str) -> Path | None:
-        """Find the most recent monitoring run directory for a project."""
-        # Use the standard runs directory defined in monitoring/paths.py
-        runs_dir = self.project_root / "runs"
-
-        if not runs_dir.exists():
-            return None
-
-        # Look for the project directory first (format: runs/{project_name})
-        project_run_dir = runs_dir / project_name
-
-        if not project_run_dir.exists() or not project_run_dir.is_dir():
-            return None
-
-        # Find the latest timestamped subdirectory
-        timestamps = sorted(
-            [d for d in project_run_dir.iterdir() if d.is_dir()],
-            key=lambda x: x.name,
-            reverse=True,
-        )
-
-        return timestamps[0] if timestamps else None
-
     def get_latest_run_data(self, project_name: str) -> RunData:
         """Read all monitoring data for a project from its run directory."""
-        run_dir = self.get_latest_run_dir(project_name)
+        run_dir = get_latest_run_dir(project_name)
 
         if not run_dir:
             logger.warning(f"No monitoring run found for: {project_name}")

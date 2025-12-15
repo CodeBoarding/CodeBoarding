@@ -24,18 +24,21 @@ class MonitoringCallback(BaseCallbackHandler):
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name
         self._stats_container = stats_container
         self.log_results = log_results
-        self.model_name: str | None = None
-        # Fallback for when running outside of a monitored context
-        self._fallback_stats = RunStats()
+
+    @property
+    def model_name(self) -> str | None:
+        return self.stats.model_name
+
+    @model_name.setter
+    def model_name(self, value: str | None) -> None:
+        with self.stats._lock:
+            self.stats.model_name = value
 
     @property
     def stats(self) -> RunStats:
         if self._stats_container:
             return self._stats_container
-        try:
-            return current_stats.get()
-        except LookupError:
-            return self._fallback_stats
+        return current_stats.get()
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         step_name = current_step.get()

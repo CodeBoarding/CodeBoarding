@@ -29,7 +29,6 @@ class StreamingStatsWriter:
         output_dir: str | None = None,
         interval: float = 5.0,
         start_time: float | None = None,
-        static_stats: dict | None = None,
     ):
         self.monitoring_dir = Path(monitoring_dir)
         self.llm_usage_file = self.monitoring_dir / "llm_usage.json"
@@ -37,7 +36,6 @@ class StreamingStatsWriter:
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.interval = interval
-        self.static_stats = static_stats
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._logger = logging.getLogger("monitoring.writer")
@@ -118,15 +116,12 @@ class StreamingStatsWriter:
             for name, agent in self.agents_dict.items():
                 agents_payload[name] = agent.get_monitoring_results()
 
-            if not agents_payload and not self.static_stats:
+            if not agents_payload:
                 return
 
             data = {}
             if agents_payload:
                 data["agents"] = agents_payload
-
-            if self.static_stats:
-                data["code_stats"] = self.static_stats
 
             # Atomic write
             temp_file = self.llm_usage_file.with_suffix(".tmp")

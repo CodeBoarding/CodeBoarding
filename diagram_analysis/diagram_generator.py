@@ -191,7 +191,6 @@ class DiagramGenerator:
                 repo_name=self.project_name or self.repo_name,
                 output_dir=str(self.output_dir),
                 start_time=analysis_start_time,
-                static_stats=static_stats,
             )
 
     def generate_analysis(self):
