@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def get_monitoring_base_dir() -> Path:
-    return os.getenv("PROJECT_ROOT") / "runs"
+    return Path(os.getenv("PROJECT_ROOT")) / "runs"
 
 
 def get_monitoring_run_dir(run_id: str, create: bool = True) -> Path:
