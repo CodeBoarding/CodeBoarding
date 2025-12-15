@@ -1,47 +1,42 @@
 ```mermaid
 graph LR
-    AI_Interpretation_Layer["AI Interpretation Layer"]
     Agent["Agent"]
     MetaAgent["MetaAgent"]
-    AbstractionAgent["AbstractionAgent"]
-    DetailsAgent["DetailsAgent"]
     PlannerAgent["PlannerAgent"]
-    ValidatorAgent["ValidatorAgent"]
+    Specialized_Analysis_Agents["Specialized Analysis Agents"]
+    DiffAnalyzer["DiffAnalyzer"]
+    PromptFactory["PromptFactory"]
+    CodebaseAccessTools["CodebaseAccessTools"]
+    AgentResponses["AgentResponses"]
     Unclassified["Unclassified"]
-    MetaAgent -- "inherits from" --> Agent
-    AbstractionAgent -- "inherits from" --> Agent
-    DetailsAgent -- "inherits from" --> Agent
-    PlannerAgent -- "inherits from" --> Agent
-    ValidatorAgent -- "inherits from" --> Agent
-    MetaAgent -- "orchestrates" --> AbstractionAgent
-    MetaAgent -- "orchestrates" --> DetailsAgent
     MetaAgent -- "orchestrates" --> PlannerAgent
-    MetaAgent -- "orchestrates" --> ValidatorAgent
-    AbstractionAgent -- "collaborates with" --> DetailsAgent
-    DetailsAgent -- "provides granular data to" --> AbstractionAgent
-    PlannerAgent -- "provides strategic guidance to" --> MetaAgent
-    ValidatorAgent -- "validates outputs of" --> AbstractionAgent
-    ValidatorAgent -- "validates outputs of" --> DetailsAgent
-    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
+    MetaAgent -- "orchestrates" --> Specialized_Analysis_Agents
+    PlannerAgent -- "plans execution for" --> Specialized_Analysis_Agents
+    PlannerAgent -- "receives guidance from" --> MetaAgent
+    Specialized_Analysis_Agents -- "utilizes" --> CodebaseAccessTools
+    Specialized_Analysis_Agents -- "interacts with" --> PromptFactory
+    Specialized_Analysis_Agents -- "sends responses to" --> AgentResponses
+    Specialized_Analysis_Agents -- "receives input from" --> DiffAnalyzer
+    DiffAnalyzer -- "provides input to" --> Specialized_Analysis_Agents
+    DiffAnalyzer -- "utilizes" --> CodebaseAccessTools
+    PromptFactory -- "provides prompts to" --> Specialized_Analysis_Agents
+    CodebaseAccessTools -- "provides code data to" --> Specialized_Analysis_Agents
+    CodebaseAccessTools -- "provides code data to" --> DiffAnalyzer
+    AgentResponses -- "receives raw output from" --> Specialized_Analysis_Agents
+    MetaAgent -- "inherits from" --> Agent
+    PlannerAgent -- "inherits from" --> Agent
+    Specialized_Analysis_Agents -- "inherits from" --> Agent
+    DiffAnalyzer -- "inherits from" --> Agent
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The AI Interpretation Layer subsystem is primarily defined by the `agents` package. It is the overarching core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. It acts as a multi-agent system, transforming raw LLM outputs and static analysis data into structured architectural knowledge, aligning with the project's AI-centric and pipeline-driven architectural bias.
-
-### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-The overarching core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. It acts as a multi-agent system, transforming raw LLM outputs and static analysis data into structured architectural knowledge.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`agents`</a>
-
+The AI Interpretation Layer is the core intelligence component responsible for orchestrating AI-driven analysis, interpreting LLM responses, and deriving architectural insights. It is primarily composed of various agents and their supporting utilities, all residing within the `agents` directory.
 
 ### Agent
-Serves as the foundational base class or interface for all specialized agents within this layer, defining common methods and properties for agent behavior.
+The foundational component, defining the base interface and common functionalities for all specialized agents, acting as the core orchestrator for individual AI-driven analysis tasks.
 
 
 **Related Classes/Methods**:
@@ -50,7 +45,7 @@ Serves as the foundational base class or interface for all specialized agents wi
 
 
 ### MetaAgent
-The primary orchestrator of the AI Interpretation Layer. It receives LLM responses and static analysis data, then delegates tasks to other agents to achieve comprehensive architectural insights, managing the overall workflow and interpretation strategy.
+Responsible for higher-level orchestration and coordination of multiple specialized agents, guiding the overall analysis workflow. It acts as the primary entry point for initiating complex analysis tasks.
 
 
 **Related Classes/Methods**:
@@ -58,26 +53,8 @@ The primary orchestrator of the AI Interpretation Layer. It receives LLM respons
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`MetaAgent`</a>
 
 
-### AbstractionAgent
-Responsible for synthesizing high-level architectural patterns, components, and relationships from raw LLM interpretations and static analysis data, focusing on deriving abstract insights.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`AbstractionAgent`</a>
-
-
-### DetailsAgent
-Extracts granular, specific details from LLM responses and code, complementing the AbstractionAgent by providing supporting evidence or finer-grained information.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
-
-
 ### PlannerAgent
-Determines the optimal sequence of analysis steps and the overall strategy for interpreting LLM responses, guiding the MetaAgent's orchestration.
+Determines the strategic sequence of analysis steps and the specific agents to be invoked based on the analysis goals, effectively creating an execution plan.
 
 
 **Related Classes/Methods**:
@@ -85,13 +62,53 @@ Determines the optimal sequence of analysis steps and the overall strategy for i
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`PlannerAgent`</a>
 
 
-### ValidatorAgent
-Responsible for reviewing and validating the architectural insights generated by other agents, ensuring accuracy, consistency, and completeness against static analysis data and predefined rules.
+### Specialized Analysis Agents
+A group of agents (AbstractionAgent, DetailsAgent, ValidatorAgent) that perform specific AI-driven analysis tasks: identifying high-level architectural concepts, delving into granular code details, and verifying insights against architectural principles.
 
 
 **Related Classes/Methods**:
 
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`AbstractionAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`DetailsAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`ValidatorAgent`</a>
+
+
+### DiffAnalyzer
+Analyzes code differences (e.g., from Git commits) to provide targeted input for agents, enabling incremental analysis and integration with CI/CD pipelines.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py" target="_blank" rel="noopener noreferrer">`DiffAnalyzer`</a>
+
+
+### PromptFactory
+Manages the dynamic generation and selection of appropriate prompts for interacting with various Large Language Models (LLMs), adapting to different LLM providers and analysis contexts.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`PromptFactory`</a>
+
+
+### CodebaseAccessTools
+Provides agents with the capability to programmatically access and interpret different aspects of the codebase, including source code, Control Flow Graphs, and file structures.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`read_source`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py" target="_blank" rel="noopener noreferrer">`read_cfg`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`read_file_structure`</a>
+
+
+### AgentResponses
+Handles the structured parsing, interpretation, and transformation of raw LLM outputs into actionable architectural insights or data structures.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`AgentResponses`</a>
 
 
 ### Unclassified

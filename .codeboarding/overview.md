@@ -1,21 +1,26 @@
 ```mermaid
 graph LR
+    Application_Orchestrator["Application Orchestrator"]
     Repository_Manager["Repository Manager"]
     Static_Analysis_Engine["Static Analysis Engine"]
     LLM_Prompt_Factory["LLM Prompt Factory"]
     LLM_Provider_Gateway["LLM Provider Gateway"]
     AI_Interpretation_Layer["AI Interpretation Layer"]
     Output_Generation_Engine["Output Generation Engine"]
-    User_External_Systems["User/External Systems"]
     Unclassified["Unclassified"]
+    User_External_Systems -- "Initiates Request" --> Application_Orchestrator
+    Application_Orchestrator -- "Manages Repository Access" --> Repository_Manager
+    Application_Orchestrator -- "Triggers Analysis" --> AI_Interpretation_Layer
+    Application_Orchestrator -- "Coordinates Documentation Generation" --> Output_Generation_Engine
     Repository_Manager -- "Provides Source Code" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "Delivers Analysis Data: CFG, AST, Dependencies" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "Requests Prompts with Analysis Data" --> LLM_Prompt_Factory
-    LLM_Prompt_Factory -- "Returns Formatted LLM Prompts" --> AI_Interpretation_Layer
+    Static_Analysis_Engine -- "Delivers Analysis Data" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "Requests Formatted Prompts" --> LLM_Prompt_Factory
+    LLM_Prompt_Factory -- "Returns Formatted Prompts" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "Sends LLM Queries" --> LLM_Provider_Gateway
-    LLM_Provider_Gateway -- "Returns Raw LLM Responses" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "Provides Architectural Insights: Components, Relationships" --> Output_Generation_Engine
+    LLM_Provider_Gateway -- "Returns LLM Responses" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "Provides Architectural Insights" --> Output_Generation_Engine
     Output_Generation_Engine -- "Delivers Documentation & Diagrams" --> User_External_Systems
+    click Application_Orchestrator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestrator.md" "Details"
     click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click LLM_Prompt_Factory href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Prompt_Factory.md" "Details"
@@ -28,7 +33,16 @@ graph LR
 
 ## Details
 
-The CodeBoarding system is designed to provide comprehensive code analysis and architectural insights using a combination of static analysis and AI interpretation. The Repository Manager initiates the process by providing source code to the Static Analysis Engine, which extracts critical structural and control flow data. This data is then fed into the AI Interpretation Layer, the core intelligence component. The AI Interpretation Layer leverages the LLM Prompt Factory to generate tailored prompts and interacts with various LLM Provider Gateway implementations to obtain AI responses. Finally, the Output Generation Engine transforms these AI-driven insights into human-readable documentation and visual diagrams, which are then delivered to User/External Systems.
+The system operates with the Application Orchestrator as its central control, initiated by User/External Systems. This orchestrator first interacts with the Repository Manager to access the target codebase. The core intelligence resides within the AI Interpretation Layer, which is triggered by the orchestrator to perform architectural analysis. This layer leverages the Static Analysis Engine for structural code data and dynamically generates prompts via the LLM Prompt Factory before querying external LLM Provider Gateway for insights. Once architectural insights are derived, the Output Generation Engine transforms these into consumable documentation and diagrams, which are then delivered back to User/External Systems. The orchestrator also directly coordinates with the Output Generation Engine for the final documentation output.
+
+### Application Orchestrator [[Expand]](./Application_Orchestrator.md)
+The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.py`</a>
+
 
 ### Repository Manager [[Expand]](./Repository_Manager.md)
 Manages all interactions with code repositories, including cloning, reading files, and navigating the project structure. It provides the raw source code for analysis.
@@ -74,7 +88,7 @@ Manages communication and interaction with external Large Language Model (LLM) p
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights.
+The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic.
 
 
 **Related Classes/Methods**:
@@ -100,12 +114,6 @@ Transforms architectural insights into various consumable formats, including hum
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/__init__.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/diagram_generator.py`</a>
 
-
-### User/External Systems
-Represents the end-users or other systems that consume the generated documentation and diagrams.
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

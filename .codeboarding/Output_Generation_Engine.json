@@ -1,13 +1,13 @@
 {
-  "description": "The system is structured around three core components: the AI Interpretation Layer, the Diagram Generation Engine, and the Documentation & Report Generator. The AI Interpretation Layer serves as the foundational analysis component, extracting structured architectural insights from the codebase. These insights are then consumed by both the Diagram Generation Engine to visualize the architecture and the Documentation & Report Generator to produce comprehensive human-readable documentation. The Diagram Generation Engine further provides its generated diagrams to the Documentation & Report Generator for inclusion in final reports, ensuring a cohesive and visually rich output.",
+  "description": "The system operates through a centralized Application Orchestrator that manages the end-to-end process of architectural analysis and documentation. It initiates the AI Interpretation Layer to extract insights from the codebase. These insights are then used by the Diagram Generation Engine to create visual representations. Finally, both the insights and diagrams are passed to the Documentation & Report Generator to produce comprehensive, human-readable outputs. This orchestration ensures a streamlined flow from code analysis to final documentation and diagram generation.",
   "components": [
     {
-      "name": "AI Interpretation Layer",
-      "description": "This component is responsible for analyzing the codebase to extract and generate structured architectural insights. It acts as the primary source of high-level architectural understanding, which is then consumed by other components for documentation and diagram generation. This component aligns with the \"Codebase Analysis Tool\" pattern.",
+      "name": "Application Orchestrator",
+      "description": "Manages the overall application lifecycle, coordinating the execution and data flow between the AI Interpretation Layer, Diagram Generation Engine, and Documentation & Report Generator. It acts as the central control point, initiating processes and integrating results.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents",
-          "reference_file": "agents/__init__.py",
+          "qualified_name": "main.py",
+          "reference_file": "main.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -16,8 +16,40 @@
       "can_expand": true
     },
     {
+      "name": "AI Interpretation Layer",
+      "description": "Analyzes the codebase to extract structured architectural insights and understanding. It serves as the primary intelligence source for the system.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Generation Engine",
+      "description": "Generates visual architectural diagrams from the structured insights provided by the AI Interpretation Layer, often utilizing external rendering tools.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": false
+    },
+    {
       "name": "Documentation & Report Generator",
-      "description": "This component is responsible for transforming architectural insights, potentially enriched by AI interpretation, into various human-readable documentation formats such as Markdown, HTML, MDX, and Sphinx. It also integrates visual diagrams provided by the Diagram Generation Engine into comprehensive reports. This component aligns with the \"Documentation Generator\" project type pattern.",
+      "description": "Compiles architectural insights and generated diagrams into comprehensive, human-readable documentation and reports in various formats.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.markdown",
@@ -55,24 +87,6 @@
       "can_expand": true
     },
     {
-      "name": "Diagram Generation Engine",
-      "description": "This component is dedicated to creating visual representations (diagrams) of the codebase architecture from structured architectural insights. It likely utilizes external tools or libraries, such as Mermaid.js, for rendering these diagrams. This component aligns with the \"Codebase Analysis Tool\" pattern due to its role in visualizing code structure.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "diagram_analysis.diagram_generator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/diagram_generator.py",
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/analysis_json.py"
-      ],
-      "can_expand": false
-    },
-    {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
@@ -84,24 +98,34 @@
   ],
   "components_relations": [
     {
-      "relation": "depends on",
-      "src_name": "Documentation & Report Generator",
+      "relation": "initiates analysis",
+      "src_name": "Application Orchestrator",
       "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "receives from",
-      "src_name": "Documentation & Report Generator",
+      "relation": "provides insights",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Application Orchestrator"
+    },
+    {
+      "relation": "requests diagrams",
+      "src_name": "Application Orchestrator",
       "dst_name": "Diagram Generation Engine"
     },
     {
-      "relation": "depends on",
+      "relation": "returns diagrams",
       "src_name": "Diagram Generation Engine",
-      "dst_name": "AI Interpretation Layer"
+      "dst_name": "Application Orchestrator"
     },
     {
-      "relation": "provides to",
-      "src_name": "Diagram Generation Engine",
+      "relation": "sends insights & diagrams",
+      "src_name": "Application Orchestrator",
       "dst_name": "Documentation & Report Generator"
+    },
+    {
+      "relation": "produces reports",
+      "src_name": "Documentation & Report Generator",
+      "dst_name": "Application Orchestrator"
     }
   ]
 }

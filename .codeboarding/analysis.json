@@ -1,6 +1,24 @@
 {
-  "description": "The CodeBoarding system is designed to provide comprehensive code analysis and architectural insights using a combination of static analysis and AI interpretation. The Repository Manager initiates the process by providing source code to the Static Analysis Engine, which extracts critical structural and control flow data. This data is then fed into the AI Interpretation Layer, the core intelligence component. The AI Interpretation Layer leverages the LLM Prompt Factory to generate tailored prompts and interacts with various LLM Provider Gateway implementations to obtain AI responses. Finally, the Output Generation Engine transforms these AI-driven insights into human-readable documentation and visual diagrams, which are then delivered to User/External Systems.",
+  "description": "The system operates with the Application Orchestrator as its central control, initiated by User/External Systems. This orchestrator first interacts with the Repository Manager to access the target codebase. The core intelligence resides within the AI Interpretation Layer, which is triggered by the orchestrator to perform architectural analysis. This layer leverages the Static Analysis Engine for structural code data and dynamically generates prompts via the LLM Prompt Factory before querying external LLM Provider Gateway for insights. Once architectural insights are derived, the Output Generation Engine transforms these into consumable documentation and diagrams, which are then delivered back to User/External Systems. The orchestrator also directly coordinates with the Output Generation Engine for the final documentation output.",
   "components": [
+    {
+      "name": "Application Orchestrator",
+      "description": "The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "main.py",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "local_app.py",
+        "github_action.py"
+      ],
+      "can_expand": true
+    },
     {
       "name": "Repository Manager",
       "description": "Manages all interactions with code repositories, including cloning, reading files, and navigating the project structure. It provides the raw source code for analysis.",
@@ -19,9 +37,9 @@
         }
       ],
       "assigned_files": [
-        "../../repo_utils/__init__.py",
-        "../../repo_utils/git_diff.py",
-        "../../repo_utils/errors.py"
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/errors.py"
       ],
       "can_expand": true
     },
@@ -49,16 +67,16 @@
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/__init__.py",
-        "../../static_analyzer/scanner.py",
-        "../../static_analyzer/graph.py",
-        "../../static_analyzer/programming_language.py",
-        "../../static_analyzer/reference_resolve_mixin.py",
-        "../../static_analyzer/analysis_result.py",
-        "../../static_analyzer/typescript_config_scanner.py",
-        "../../static_analyzer/lsp_client/__init__.py",
-        "../../static_analyzer/lsp_client/typescript_client.py",
-        "../../static_analyzer/lsp_client/client.py"
+        "static_analyzer/programming_language.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/lsp_client/client.py"
       ],
       "can_expand": true
     },
@@ -86,9 +104,9 @@
         }
       ],
       "assigned_files": [
-        "../../agents/prompts/__init__.py",
-        "../../agents/prompts/prompt_factory.py",
-        "../../agents/prompts/abstract_prompt_factory.py"
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/prompt_factory.py"
       ],
       "can_expand": true
     },
@@ -116,18 +134,18 @@
         }
       ],
       "assigned_files": [
-        "../../agents/prompts/claude_prompts_bidirectional.py",
-        "../../agents/prompts/gpt_prompts_unidirectional.py",
-        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "../../agents/prompts/gpt_prompts_bidirectional.py",
-        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "../../agents/prompts/claude_prompts_unidirectional.py"
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py"
       ],
       "can_expand": true
     },
     {
       "name": "AI Interpretation Layer",
-      "description": "The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights.",
+      "description": "The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic.",
       "referenced_source_code": [
         {
           "qualified_name": "agents/__init__.py",
@@ -173,28 +191,27 @@
         }
       ],
       "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/agent.py",
-        "../../agents/meta_agent.py",
-        "../../agents/abstraction_agent.py",
-        "../../agents/details_agent.py",
-        "../../agents/planner_agent.py",
-        "../../agents/validator_agent.py",
-        "main.py",
-        "../../agents/diff_analyzer.py",
-        "../../agents/agent_responses.py",
-        "../../agents/tools/read_source.py",
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/__init__.py",
-        "../../agents/tools/external_deps.py",
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_cfg.py",
-        "../../agents/tools/get_method_invocations.py",
-        "../../agents/tools/read_git_diff.py",
-        "../../agents/tools/read_file.py",
-        "../../agents/tools/utils.py",
-        "../../agents/tools/read_structure.py",
-        "../../agents/tools/read_docs.py"
+        "agents/__init__.py",
+        "agents/diff_analyzer.py",
+        "agents/details_agent.py",
+        "agents/validator_agent.py",
+        "agents/abstraction_agent.py",
+        "agents/planner_agent.py",
+        "agents/meta_agent.py",
+        "agents/agent_responses.py",
+        "agents/agent.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/utils.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py"
       ],
       "can_expand": true
     },
@@ -234,39 +251,29 @@
         }
       ],
       "assigned_files": [
-        "../../output_generators/__init__.py",
-        "../../output_generators/markdown.py",
-        "../../output_generators/html.py",
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/diagram_generator.py",
-        "../../output_generators/sphinx.py",
-        "../../output_generators/mdx.py",
-        "../../output_generators/html_template.py",
-        "../../diagram_analysis/analysis_json.py",
-        "../../diagram_analysis/version.py"
+        "output_generators/__init__.py",
+        "output_generators/sphinx.py",
+        "output_generators/mdx.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py"
       ],
       "can_expand": true
-    },
-    {
-      "name": "User/External Systems",
-      "description": "Represents the end-users or other systems that consume the generated documentation and diagrams.",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../local_app.py",
-        "../../github_action.py"
-      ],
-      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../vscode_constants.py",
-        "../../utils.py",
-        "../../setup.py",
-        "../../duckdb_crud.py",
-        "../../logging_config.py",
+        "vscode_constants.py",
+        "utils.py",
+        "setup.py",
+        "duckdb_crud.py",
+        "logging_config.py",
         "evals/base.py",
         "evals/cli.py",
         "evals/schemas.py",
@@ -287,22 +294,42 @@
   ],
   "components_relations": [
     {
+      "relation": "Initiates Request",
+      "src_name": "User/External Systems",
+      "dst_name": "Application Orchestrator"
+    },
+    {
+      "relation": "Manages Repository Access",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "Triggers Analysis",
+      "src_name": "Application Orchestrator",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Coordinates Documentation Generation",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Output Generation Engine"
+    },
+    {
       "relation": "Provides Source Code",
       "src_name": "Repository Manager",
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "Delivers Analysis Data: CFG, AST, Dependencies",
+      "relation": "Delivers Analysis Data",
       "src_name": "Static Analysis Engine",
       "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "Requests Prompts with Analysis Data",
+      "relation": "Requests Formatted Prompts",
       "src_name": "AI Interpretation Layer",
       "dst_name": "LLM Prompt Factory"
     },
     {
-      "relation": "Returns Formatted LLM Prompts",
+      "relation": "Returns Formatted Prompts",
       "src_name": "LLM Prompt Factory",
       "dst_name": "AI Interpretation Layer"
     },
@@ -312,12 +339,12 @@
       "dst_name": "LLM Provider Gateway"
     },
     {
-      "relation": "Returns Raw LLM Responses",
+      "relation": "Returns LLM Responses",
       "src_name": "LLM Provider Gateway",
       "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "Provides Architectural Insights: Components, Relationships",
+      "relation": "Provides Architectural Insights",
       "src_name": "AI Interpretation Layer",
       "dst_name": "Output Generation Engine"
     },
