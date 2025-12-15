@@ -97,5 +97,6 @@ disable_error_code = ["import-untyped", "no-any-return"]
 dev-dependencies = [
     "black==25.9.0",
     "pre-commit==3.8.0",
-    "mypy==1.19.0"
+    "mypy==1.19.0",
+    "pytest-cov==7.0.0",
 ]

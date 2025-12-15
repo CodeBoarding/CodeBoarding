@@ -107,20 +107,21 @@ def generate_rst(
             for reference in comp.referenced_source_code:
                 if not reference.reference_file:
                     continue
-                if not reference.reference_file.startswith(root_dir):
+                # Normalize paths for comparison
+                ref_file_normalized = str(Path(reference.reference_file)).replace("\\", "/")
+                root_dir_normalized = str(Path(root_dir)).replace("\\", "/")
+
+                if not ref_file_normalized.startswith(root_dir_normalized):
                     lines.append(f"* {str(reference).replace('`', '')}")
                     continue
                 url = "/".join(repo_ref.split("/")[:7])
-                ref_url = url + reference.reference_file.split(root_dir)[1]
+                ref_url = url + ref_file_normalized.split(root_dir_normalized)[1]
                 if (
                     reference.reference_start_line is not None
                     and reference.reference_end_line is not None
-                    and (
-                        not (
-                            reference.reference_start_line <= reference.reference_end_line <= 0
-                            or reference.reference_start_line == reference.reference_end_line
-                        )
-                    )
+                    and reference.reference_start_line > 0
+                    and reference.reference_end_line > 0
+                    and reference.reference_start_line < reference.reference_end_line
                 ):
                     ref_url += f"#L{reference.reference_start_line}-L{reference.reference_end_line}"
                 lines.append(f"* `{str(reference).replace('`', '')} <{ref_url}>`_")
