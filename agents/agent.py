@@ -48,7 +48,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         MonitoringMixin.__init__(self)
         self._setup_env_vars()
         self.llm = self._initialize_llm()
-        self.extractor_llm = self._initialize_llm()
+        self.extractor_llm = self._initialize_extractor_llm()
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -161,6 +161,76 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
         self.agent_monitoring_callback.model_name = model_name
         MONITORING_CALLBACK.model_name = model_name
+        return model
+
+    def _initialize_extractor_llm(self):
+        """Initialize a fast LLM for extraction tasks based on available API keys."""
+        model_name: str | None = None
+        model: BaseChatModel
+
+        if self.openai_api_key:
+            model_name = "gpt-4o-mini"
+            logger.info(f"Using OpenAI Extractor LLM with model: {model_name}")
+            model = ChatOpenAI(
+                model=model_name,
+                temperature=0,
+                max_tokens=None,  # type: ignore[call-arg]
+                timeout=None,
+                max_retries=0,
+                api_key=self.openai_api_key,  # type: ignore[arg-type]
+                base_url=self.openai_base_url,
+            )
+        elif self.anthropic_api_key:
+            model_name = "claude-3-haiku-20240307"
+            logger.info(f"Using Anthropic Extractor LLM with model: {model_name}")
+            model = ChatAnthropic(
+                model=model_name,  # type: ignore[call-arg]
+                temperature=0,
+                max_tokens=8192,  # type: ignore[call-arg]
+                timeout=None,
+                max_retries=0,
+                api_key=self.anthropic_api_key,  # type: ignore[arg-type]
+            )
+        elif self.google_api_key:
+            model_name = "gemini-2.0-flash-lite-preview-02-05"
+            logger.info(f"Using Google Gemini Extractor LLM with model: {model_name}")
+            model = ChatGoogleGenerativeAI(
+                model=model_name,
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=0,
+                api_key=self.google_api_key,
+            )
+        elif self.aws_bearer_token:
+            model_name = "us.anthropic.claude-3-haiku-20240307-v1:0"
+            logger.info(f"Using AWS Bedrock Extractor LLM with model: {model_name}")
+            model = ChatBedrockConverse(
+                model=model_name,
+                temperature=0,
+                max_tokens=4096,
+                region_name=self.aws_region,
+                credentials_profile_name=None,
+            )
+        elif self.cerebras_api_key:
+            model_name = "llama3.1-8b"
+            logger.info(f"Using Cerebras Extractor LLM with model: {model_name}")
+            model = ChatCerebras(
+                model=model_name,
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=0,
+                api_key=self.cerebras_api_key,  # type: ignore[arg-type]
+            )
+        elif self.ollama_base_url:
+            model_name = "qwen2.5:7b"
+            logger.info(f"Using Ollama Extractor LLM with model: {model_name}")
+            model = ChatOllama(model=model_name, base_url=self.ollama_base_url, temperature=0.1)
+        else:
+            logger.warning("No specific extractor configuration found, falling back to main LLM logic.")
+            return self._initialize_llm()
+
         return model
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:

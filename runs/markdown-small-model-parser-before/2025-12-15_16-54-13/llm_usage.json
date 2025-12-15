@@ -1,0 +1,116 @@
+{
+  "agents": {
+    "MetaAgent": {
+      "token_usage": {
+        "total_tokens": 14939,
+        "input_tokens": 11252,
+        "output_tokens": 1231
+      },
+      "tool_usage": {
+        "counts": {
+          "readDocs": 1,
+          "readExternalDeps": 1
+        },
+        "errors": {},
+        "avg_latency_ms": {
+          "readDocs": 1.0,
+          "readExternalDeps": 1.0
+        }
+      },
+      "model_name": "gemini-2.5-flash"
+    },
+    "DetailsAgent": {
+      "token_usage": {
+        "total_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "tool_usage": {
+        "counts": {},
+        "errors": {},
+        "avg_latency_ms": {}
+      },
+      "model_name": "gemini-2.5-flash"
+    },
+    "AbstractionAgent": {
+      "token_usage": {
+        "total_tokens": 153218,
+        "input_tokens": 105885,
+        "output_tokens": 18854
+      },
+      "tool_usage": {
+        "counts": {
+          "getPackageDependencies": 2,
+          "getFileStructure": 6,
+          "getSourceCode": 1,
+          "readFile": 14
+        },
+        "errors": {},
+        "avg_latency_ms": {
+          "getPackageDependencies": 0.0,
+          "getFileStructure": 1.8333333333333333,
+          "getSourceCode": 1.0,
+          "readFile": 4.5
+        }
+      },
+      "model_name": "gemini-2.5-flash"
+    },
+    "PlannerAgent": {
+      "token_usage": {
+        "total_tokens": 48091,
+        "input_tokens": 38147,
+        "output_tokens": 3719
+      },
+      "tool_usage": {
+        "counts": {
+          "getFileStructure": 2,
+          "getClassHierarchy": 5,
+          "getSourceCode": 4
+        },
+        "errors": {
+          "getClassHierarchy": 5
+        },
+        "avg_latency_ms": {
+          "getFileStructure": 3.0,
+          "getSourceCode": 2.25
+        }
+      },
+      "model_name": "gemini-2.5-flash"
+    },
+    "ValidatorAgent": {
+      "token_usage": {
+        "total_tokens": 8241,
+        "input_tokens": 4616,
+        "output_tokens": 838
+      },
+      "tool_usage": {
+        "counts": {},
+        "errors": {},
+        "avg_latency_ms": {}
+      },
+      "model_name": "gemini-2.5-flash"
+    },
+    "DiffAnalyzerAgent": {
+      "token_usage": {
+        "total_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "tool_usage": {
+        "counts": {},
+        "errors": {},
+        "avg_latency_ms": {}
+      },
+      "model_name": "gemini-2.5-flash"
+    }
+  },
+  "code_stats": {
+    "repo_name": "markitdown",
+    "languages": {
+      "Python": {
+        "file_count": 43,
+        "lines_of_code": 5166
+      }
+    }
+  }
+}

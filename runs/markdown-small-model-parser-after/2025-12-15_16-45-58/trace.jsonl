@@ -1,0 +1,3 @@
+{"event": "run_start", "run_id": "markdown-small-model-parser-after/2025-12-15_16-45-58", "timestamp": 1765813558.0100281}
+{"event": "phase_change", "step": "processing_markitdown", "timestamp": 1765813558.010172}
+{"event": "run_end", "run_id": "markdown-small-model-parser-after/2025-12-15_16-45-58", "timestamp": 1765813859.693621}

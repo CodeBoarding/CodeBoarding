@@ -1,0 +1,12 @@
+{
+  "repo_name": "markitdown",
+  "timestamp": "2025-12-15T15:50:59.683833+00:00",
+  "duration_seconds": 301.03,
+  "success": true,
+  "error": null,
+  "files_generated": {
+    "json": 2,
+    "markdown": 0
+  },
+  "output_dir": "temp/d63994865e94413fa5c4cde39e31b3f7"
+}
