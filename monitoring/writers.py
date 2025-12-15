@@ -89,6 +89,7 @@ class StreamingStatsWriter:
         total_input = 0
         total_output = 0
         total_tokens = 0
+        model_name = "unknown"
 
         for agent in self.agents_dict.values():
             res = agent.get_monitoring_results()
@@ -96,9 +97,16 @@ class StreamingStatsWriter:
             total_input += usage.get("input_tokens", 0)
             total_output += usage.get("output_tokens", 0)
             total_tokens += usage.get("total_tokens", 0)
+            if res.get("model_name"):
+                model_name = str(res.get("model_name"))
 
         payload = {
-            "token_usage": {"input_tokens": total_input, "output_tokens": total_output, "total_tokens": total_tokens}
+            "token_usage": {
+                "input_tokens": total_input,
+                "output_tokens": total_output,
+                "total_tokens": total_tokens,
+            },
+            "model_name": model_name,
         }
         # Print as a log message
         self._logger.info(f"TokenUsage: {json.dumps(payload)}")

@@ -42,18 +42,26 @@ class BaseEval(ABC):
 
     def get_latest_run_dir(self, project_name: str) -> Path | None:
         """Find the most recent monitoring run directory for a project."""
-        runs_dir = self.project_root / "evals/artifacts/monitoring_results/runs"
+        # Use the standard runs directory defined in monitoring/paths.py
+        runs_dir = self.project_root / "runs"
 
         if not runs_dir.exists():
             return None
 
-        matching_dirs = sorted(
-            [d for d in runs_dir.iterdir() if d.is_dir() and d.name.startswith(f"{project_name}_")],
+        # Look for the project directory first (format: runs/{project_name})
+        project_run_dir = runs_dir / project_name
+
+        if not project_run_dir.exists() or not project_run_dir.is_dir():
+            return None
+
+        # Find the latest timestamped subdirectory
+        timestamps = sorted(
+            [d for d in project_run_dir.iterdir() if d.is_dir()],
             key=lambda x: x.name,
             reverse=True,
         )
 
-        return matching_dirs[0] if matching_dirs else None
+        return timestamps[0] if timestamps else None
 
     def get_latest_run_data(self, project_name: str) -> RunData:
         """Read all monitoring data for a project from its run directory."""
@@ -108,7 +116,7 @@ class BaseEval(ABC):
 
         cmd = [
             sys.executable,
-            "demo.py",
+            "main.py",
             repo_url,
             "--output-dir",
             str(output_dir),
@@ -122,7 +130,7 @@ class BaseEval(ABC):
         try:
             result = subprocess.run(
                 cmd,
-                capture_output=True,
+                capture_output=False,
                 text=True,
                 timeout=1800,  # 30 minutes
                 env=env,

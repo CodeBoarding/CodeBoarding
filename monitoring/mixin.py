@@ -13,4 +13,6 @@ class MonitoringMixin:
 
     def get_monitoring_results(self) -> dict:
         """Return monitoring statistics."""
-        return self.agent_stats.to_dict()
+        results = self.agent_stats.to_dict()
+        results["model_name"] = self.agent_monitoring_callback.model_name
+        return results
