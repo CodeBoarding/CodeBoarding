@@ -10,38 +10,37 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, PrivateAttr, Field
+
 from monitoring.mixin import MonitoringMixin
 
 logger = logging.getLogger("monitoring")
 
 
-class StreamingStatsWriter:
+class StreamingStatsWriter(BaseModel):
     """
     Handles periodic writing of monitoring stats to a JSON file.
     Also tracks run timing and saves run_metadata.json on stop.
     """
 
-    def __init__(
-        self,
-        monitoring_dir: Path,
-        agents_dict: dict[str, MonitoringMixin],
-        repo_name: str,
-        output_dir: str | None = None,
-        interval: float = 5.0,
-        start_time: float | None = None,
-    ):
-        self.monitoring_dir = Path(monitoring_dir)
-        self.llm_usage_file = self.monitoring_dir / "llm_usage.json"
-        self.agents_dict = agents_dict
-        self.repo_name = repo_name
-        self.output_dir = output_dir
-        self.interval = interval
-        self._stop_event = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._logger = logging.getLogger("monitoring.writer")
-        self._start_time: float | None = start_time
-        self._error: str | None = None
-        self._end_time: float | None = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    monitoring_dir: Path
+    agents_dict: dict[str, MonitoringMixin]
+    repo_name: str
+    output_dir: str | None = None
+    interval: float = 5.0
+    start_time: float | None = None
+
+    _stop_event: threading.Event = PrivateAttr(default_factory=threading.Event)
+    _thread: threading.Thread | None = PrivateAttr(default=None)
+    _logger: logging.Logger = PrivateAttr(default_factory=lambda: logging.getLogger("monitoring.writer"))
+    _error: str | None = PrivateAttr(default=None)
+    _end_time: float | None = PrivateAttr(default=None)
+
+    @property
+    def llm_usage_file(self) -> Path:
+        return self.monitoring_dir / "llm_usage.json"
 
     def __enter__(self):
         self.start()
@@ -56,8 +55,8 @@ class StreamingStatsWriter:
         if self._thread is not None:
             return
 
-        if self._start_time is None:
-            self._start_time = time.time()
+        if self.start_time is None:
+            self.start_time = time.time()
         self.monitoring_dir.mkdir(parents=True, exist_ok=True)
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -136,7 +135,7 @@ class StreamingStatsWriter:
         """Save run metadata including timing information."""
         try:
             end_time = self._end_time if self._end_time else time.time()
-            duration = end_time - self._start_time if self._start_time else 0
+            duration = end_time - self.start_time if self.start_time else 0
 
             # Count output files
             json_count = 0

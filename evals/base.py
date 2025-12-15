@@ -108,7 +108,7 @@ class BaseEval(ABC):
         try:
             result = subprocess.run(
                 cmd,
-                capture_output=False,
+                capture_output=True,
                 text=True,
                 timeout=1800,  # 30 minutes
                 env=env,

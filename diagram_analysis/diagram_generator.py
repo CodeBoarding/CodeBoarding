@@ -8,6 +8,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, PrivateAttr, Field
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
@@ -32,36 +33,28 @@ from utils import monitoring_enabled
 logger = logging.getLogger(__name__)
 
 
-class DiagramGenerator:
-    def __init__(
-        self,
-        repo_location: Path,
-        temp_folder: Path,
-        repo_name: str,
-        output_dir: Path,
-        depth_level: int,
-        static_only: bool = False,
-        project_name: str | None = None,
-        run_id: str | None = None,
-    ):
-        self.repo_location = repo_location
-        self.temp_folder = temp_folder
-        self.repo_name = repo_name
-        self.output_dir = output_dir
-        self.depth_level = depth_level
-        self.static_only = static_only
-        self.project_name = project_name
-        self.run_id = run_id
-        self.details_agent: DetailsAgent | None = None
-        self.abstraction_agent: AbstractionAgent | None = None
-        self.planner_agent: PlannerAgent | None = None
-        self.validator_agent: ValidatorAgent | None = None
-        self.diff_analyzer_agent: DiffAnalyzingAgent | None = None
-        self.meta_agent: MetaAgent | None = None
-        self.meta_context = None
-        self.depth_level = depth_level
-        self._monitoring_agents: dict[str, MonitoringMixin] = {}
-        self.stats_writer: StreamingStatsWriter | None = None
+class DiagramGenerator(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    repo_location: Path
+    temp_folder: Path
+    repo_name: str
+    output_dir: Path
+    depth_level: int
+    static_only: bool = False
+    project_name: str | None = None
+    run_id: str | None = None
+
+    details_agent: DetailsAgent | None = None
+    abstraction_agent: AbstractionAgent | None = None
+    planner_agent: PlannerAgent | None = None
+    validator_agent: ValidatorAgent | None = None
+    diff_analyzer_agent: DiffAnalyzingAgent | None = None
+    meta_agent: MetaAgent | None = None
+    meta_context: Any | None = None
+
+    _monitoring_agents: dict[str, MonitoringMixin] = PrivateAttr(default_factory=dict)
+    stats_writer: StreamingStatsWriter | None = None
 
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
