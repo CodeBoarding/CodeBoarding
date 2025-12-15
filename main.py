@@ -41,35 +41,6 @@ def validate_env_vars():
         exit(2)
 
 
-def setup_environment(project_root: Path | None = None):
-    if project_root is None:
-        project_root = Path.cwd()
-
-    # Set defaults for environment variables that can be deduced
-    if not os.getenv("REPO_ROOT"):
-        repo_root = project_root / "repos"
-        os.environ["REPO_ROOT"] = str(repo_root)
-        logger.info(f"REPO_ROOT not set, using default: {repo_root}")
-
-    if not os.getenv("ROOT_RESULT"):
-        root_result = project_root / "results"
-        os.environ["ROOT_RESULT"] = str(root_result)
-        logger.info(f"ROOT_RESULT not set, using default: {root_result}")
-
-    if not os.getenv("STATIC_ANALYSIS_CONFIG"):
-        static_config = project_root / "static_analysis_config.yml"
-        os.environ["STATIC_ANALYSIS_CONFIG"] = str(static_config)
-        logger.info(f"STATIC_ANALYSIS_CONFIG not set, using default: {static_config}")
-
-    if not os.getenv("PROJECT_ROOT"):
-        os.environ["PROJECT_ROOT"] = str(project_root)
-        logger.info(f"PROJECT_ROOT not set, using default: {project_root}")
-
-    if not os.getenv("DIAGRAM_DEPTH_LEVEL"):
-        os.environ["DIAGRAM_DEPTH_LEVEL"] = "1"
-        logger.info(f"DIAGRAM_DEPTH_LEVEL not set, using default: 1")
-
-
 def onboarding_materials_exist(project_name: str) -> bool:
     generated_repo_url = f"https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main/{project_name}"
     response = requests.get(generated_repo_url)
@@ -326,12 +297,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     """
     Adds all command-line arguments and groups to the ArgumentParser.
     """
-    # Repository specification (mutually exclusive handled in validation)
-    parser.add_argument(
-        "repositories",
-        nargs="*",
-        help="One or more Git repository URLs to generate documentation for",
-    )
+    parser.add_argument("repositories", nargs="*", help="One or more Git repository URLs to generate documentation for")
     parser.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
@@ -345,6 +311,13 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
+    parser.add_argument(
+        "--load-env-variables",
+        action="store",
+        default=False,
+        type=bool,
+        help="Load the .env file for environment variables",
+    )
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
     parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
     parser.add_argument(
@@ -401,9 +374,10 @@ Examples:
     logger.info("Starting CodeBoarding documentation generation...")
 
     # Load environment from .env file if it exists
-    load_dotenv()
-
-    setup_environment(args.project_root)
+    # Validate environment variables (only for remote repos due to .env file - should be modified soon)
+    if args.load_env_variables:
+        load_dotenv()
+        validate_env_vars()
 
     if args.prompt_type:
         prompt_type = PromptType.BIDIRECTIONAL if args.prompt_type == "bidirectional" else PromptType.UNIDIRECTIONAL
@@ -411,10 +385,6 @@ Examples:
         prompt_type = PromptType.UNIDIRECTIONAL if is_local else PromptType.BIDIRECTIONAL
 
     initialize_global_factory(LLMType.GEMINI_FLASH, prompt_type)
-
-    # Validate environment variables (only for remote repos due to .env file - should be modified soon)
-    if not is_local:
-        validate_env_vars()
 
     if args.binary_location:
         update_config(args.binary_location)
