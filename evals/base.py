@@ -28,7 +28,7 @@ class BaseEval(ABC):
         self.name = name
         self.output_dir = output_dir
         self.results: list[EvalResult] = []
-        self.project_root = self._get_project_root()
+        self.project_root = os.getenv("PROJECT_ROOT")
 
     def _get_project_root(self) -> Path:
         load_dotenv()

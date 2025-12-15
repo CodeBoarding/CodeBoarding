@@ -15,14 +15,6 @@ class CFGGenerationError(Exception):
     pass
 
 
-def get_project_root() -> Path:
-    project_root_env = os.getenv("PROJECT_ROOT")
-    if project_root_env:
-        return Path(project_root_env).resolve()
-    # Fallback to current working directory
-    return Path.cwd().resolve()
-
-
 def create_temp_repo_folder():
     unique_id = uuid.uuid4().hex
     temp_dir = os.path.join("temp", unique_id)
