@@ -1,17 +1,24 @@
 ```mermaid
 graph LR
-    Application_Orchestrator["Application Orchestrator"]
+    Output_Generation_Engine["Output Generation Engine"]
+    Markdown_Generator["Markdown Generator"]
+    HTML_Generator["HTML Generator"]
+    MDX_Generator["MDX Generator"]
+    Sphinx_Generator["Sphinx Generator"]
+    Diagram_Generator["Diagram Generator"]
     AI_Interpretation_Layer["AI Interpretation Layer"]
-    Diagram_Generation_Engine["Diagram Generation Engine"]
-    Documentation_Report_Generator["Documentation & Report Generator"]
+    Job_Database["Job Database"]
+    Orchestration_Engine["Orchestration Engine"]
     Unclassified["Unclassified"]
-    Application_Orchestrator -- "initiates analysis" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "provides insights" --> Application_Orchestrator
-    Application_Orchestrator -- "requests diagrams" --> Diagram_Generation_Engine
-    Diagram_Generation_Engine -- "returns diagrams" --> Application_Orchestrator
-    Application_Orchestrator -- "sends insights & diagrams" --> Documentation_Report_Generator
-    Documentation_Report_Generator -- "produces reports" --> Application_Orchestrator
-    click Application_Orchestrator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestrator.md" "Details"
+    Output_Generation_Engine -- "delegates to" --> Markdown_Generator
+    Output_Generation_Engine -- "delegates to" --> HTML_Generator
+    Output_Generation_Engine -- "delegates to" --> MDX_Generator
+    Output_Generation_Engine -- "delegates to" --> Sphinx_Generator
+    Output_Generation_Engine -- "delegates to" --> Diagram_Generator
+    Output_Generation_Engine -- "receives input from" --> AI_Interpretation_Layer
+    Output_Generation_Engine -- "sends output to" --> Job_Database
+    Output_Generation_Engine -- "orchestrated by" --> Orchestration_Engine
+    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
 ```
 
@@ -19,28 +26,56 @@ graph LR
 
 ## Details
 
-The system operates through a centralized Application Orchestrator that manages the end-to-end process of architectural analysis and documentation. It initiates the AI Interpretation Layer to extract insights from the codebase. These insights are then used by the Diagram Generation Engine to create visual representations. Finally, both the insights and diagrams are passed to the Documentation & Report Generator to produce comprehensive, human-readable outputs. This orchestration ensures a streamlined flow from code analysis to final documentation and diagram generation.
+The Output Generation Subsystem is responsible for transforming raw architectural insights into various structured documentation and visual diagrams. At its core, the Output Generation Engine acts as an orchestrator, receiving architectural insights from an external AI Interpretation Layer. It then delegates the task of generating specific output formats to a suite of specialized generators, including the Markdown Generator, HTML Generator, MDX Generator, Sphinx Generator for diverse documentation needs, and the Diagram Generator for visual representations. Once generated, these outputs are delivered to an external Job Database for storage. The entire process within this subsystem is initiated and managed by an external Orchestration Engine, ensuring a streamlined workflow from insight to deliverable.
 
-### Application Orchestrator [[Expand]](./Application_Orchestrator.md)
-Manages the overall application lifecycle, coordinating the execution and data flow between the AI Interpretation Layer, Diagram Generation Engine, and Documentation & Report Generator. It acts as the central control point, initiating processes and integrating results.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.py`</a>
-
-
-### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Analyzes the codebase to extract structured architectural insights and understanding. It serves as the primary intelligence source for the system.
+### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
+The primary orchestrator, responsible for coordinating the generation of various documentation and diagram formats. It acts as the facade for the entire output generation process.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`diagram_analysis`</a>
 
 
-### Diagram Generation Engine
-Generates visual architectural diagrams from the structured insights provided by the AI Interpretation Layer, often utilizing external rendering tools.
+### Markdown Generator
+Specializes in generating documentation in Markdown format.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
+
+
+### HTML Generator
+Specializes in generating documentation in HTML format.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
+
+
+### MDX Generator
+Specializes in generating documentation in MDX (Markdown with JSX) format.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
+
+
+### Sphinx Generator
+Specializes in generating documentation compatible with Sphinx.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
+
+
+### Diagram Generator
+Manages the creation of various visual diagrams from architectural insights.
 
 
 **Related Classes/Methods**:
@@ -48,16 +83,31 @@ Generates visual architectural diagrams from the structured insights provided by
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator`</a>
 
 
-### Documentation & Report Generator
-Compiles architectural insights and generated diagrams into comprehensive, human-readable documentation and reports in various formats.
+### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
+An external component that provides architectural insights as input to the Output Generation Engine.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
+- `AIInterpretationLayerInterface`:1-10
+
+
+### Job Database
+An external component that receives and stores the generated documentation and diagrams.
+
+
+**Related Classes/Methods**:
+
+- `JobDatabaseInterface`
+
+
+### Orchestration Engine
+An external component responsible for triggering and managing the Output Generation Engine.
+
+
+**Related Classes/Methods**:
+
+- `OrchestrationEngineInterface`
 
 
 ### Unclassified

@@ -1,5 +1,5 @@
 {
-  "description": "The AI Interpretation Layer is the core intelligence component responsible for orchestrating AI-driven analysis, interpreting LLM responses, and deriving architectural insights. It is primarily composed of various agents and their supporting utilities, all residing within the `agents` directory.",
+  "description": "The system's architecture is centered around a hierarchy of AI agents designed for comprehensive code analysis. The MetaAgent orchestrates the overall analysis workflow, delegating tasks to the PlannerAgent which strategizes the execution sequence. Specialized Analysis Agents (AbstractionAgent, DetailsAgent, ValidatorAgent) perform the core AI-driven analysis, leveraging the CodebaseAccessTools for programmatic access to codebase information, including source code and CFGs. This access is significantly powered by an enhanced Language Server Protocol (LSP) client, improving the precision and scope of code interpretation. The DiffAnalyzer provides targeted input by analyzing code changes, while the PromptFactory dynamically generates prompts for various LLMs. Finally, AgentResponses processes and transforms raw LLM outputs into actionable architectural insights. This structure ensures a modular, extensible, and intelligent approach to code understanding and architectural analysis.",
   "components": [
     {
       "name": "Agent",
@@ -111,7 +111,7 @@
     },
     {
       "name": "CodebaseAccessTools",
-      "description": "Provides agents with the capability to programmatically access and interpret different aspects of the codebase, including source code, Control Flow Graphs, and file structures.",
+      "description": "Provides agents with the capability to programmatically access and interpret different aspects of the codebase, including source code, Control Flow Graphs, and file structures. This component has been significantly enhanced with an updated Language Server Protocol (LSP) client (`static_analyzer/lsp_client/client.py`), which is crucial for its ability to programmatically access and interpret codebase information, leading to improved performance, accuracy, or expanded capabilities in code analysis.",
       "referenced_source_code": [
         {
           "qualified_name": "read_source",
@@ -130,6 +130,12 @@
           "reference_file": "agents/tools/read_file_structure.py",
           "reference_start_line": null,
           "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
@@ -143,7 +149,7 @@
         "../../agents/tools/read_structure.py",
         "../../agents/tools/read_docs.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "AgentResponses",
@@ -168,8 +174,7 @@
       "assigned_files": [
         "../../agents/__init__.py",
         "../../agents/tools/__init__.py",
-        "../../agents/tools/external_deps.py",
-        "../../agents/tools/utils.py"
+        "../../agents/tools/external_deps.py"
       ],
       "can_expand": false
     }

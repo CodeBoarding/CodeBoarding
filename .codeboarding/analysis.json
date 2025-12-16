@@ -1,13 +1,19 @@
 {
-  "description": "The system operates with the Application Orchestrator as its central control, initiated by User/External Systems. This orchestrator first interacts with the Repository Manager to access the target codebase. The core intelligence resides within the AI Interpretation Layer, which is triggered by the orchestrator to perform architectural analysis. This layer leverages the Static Analysis Engine for structural code data and dynamically generates prompts via the LLM Prompt Factory before querying external LLM Provider Gateway for insights. Once architectural insights are derived, the Output Generation Engine transforms these into consumable documentation and diagrams, which are then delivered back to User/External Systems. The orchestrator also directly coordinates with the Output Generation Engine for the final documentation output.",
+  "description": "The system operates through a well-defined architectural flow, starting with the Application Orchestrator which serves as the central control unit, managing the overall execution, handling user requests, and coordinating the analysis and documentation generation processes. It now incorporates enhanced local execution and initialization capabilities. The Repository Manager provides the foundational raw source code by managing repository interactions. This code is then fed to the Static Analysis Engine, which performs in-depth static analysis, extracting crucial structural information, control flow graphs, and dependencies. A significant update to its LSP client now enables the delivery of richer, more detailed analysis data.\n\nThe core intelligence resides in the AI Interpretation Layer, which orchestrates AI-driven analysis, interprets responses from Large Language Models (LLMs), and derives architectural insights. This layer has been refactored for a more streamlined interaction with its internal tools. It dynamically interacts with the LLM Prompt Factory to generate tailored prompts and communicates with external LLMs via the LLM Provider Gateway to send queries and receive responses. Finally, the Output Generation Engine transforms these architectural insights into various consumable formats, including human-readable documentation and visual diagrams, with enhanced capabilities for MDX and Sphinx outputs. This comprehensive flow ensures a robust and adaptable system for architectural analysis and documentation.",
   "components": [
     {
       "name": "Application Orchestrator",
-      "description": "The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application.",
+      "description": "The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application, including enhanced local execution and initialization.",
       "referenced_source_code": [
         {
           "qualified_name": "main.py",
           "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app.py",
+          "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -45,7 +51,7 @@
     },
     {
       "name": "Static Analysis Engine",
-      "description": "Performs in-depth static analysis on the codebase to extract structural information, control flow graphs (CFG), abstract syntax trees (AST), and dependencies.",
+      "description": "Performs in-depth static analysis on the codebase to extract structural information, control flow graphs (CFG), abstract syntax trees (AST), and dependencies. It leverages an enhanced Language Server Protocol (LSP) client for gathering detailed code information, improving the quality and type of data provided for analysis.",
       "referenced_source_code": [
         {
           "qualified_name": "static_analyzer/__init__.py",
@@ -62,6 +68,12 @@
         {
           "qualified_name": "static_analyzer/graph.py",
           "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "reference_file": "static_analyzer/lsp_client/client.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -145,7 +157,7 @@
     },
     {
       "name": "AI Interpretation Layer",
-      "description": "The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic.",
+      "description": "The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic, and now features a streamlined or reorganized mechanism for agent tool interaction.",
       "referenced_source_code": [
         {
           "qualified_name": "agents/__init__.py",
@@ -209,7 +221,6 @@
         "agents/tools/get_method_invocations.py",
         "agents/tools/read_git_diff.py",
         "agents/tools/read_file.py",
-        "agents/tools/utils.py",
         "agents/tools/read_structure.py",
         "agents/tools/read_docs.py"
       ],
@@ -217,7 +228,7 @@
     },
     {
       "name": "Output Generation Engine",
-      "description": "Transforms architectural insights into various consumable formats, including human-readable documentation and visual diagrams.",
+      "description": "Transforms architectural insights into various consumable formats, including human-readable documentation and visual diagrams. It has enhanced capabilities for generating MDX and Sphinx outputs, improving flexibility and quality.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators/__init__.py",
@@ -234,6 +245,18 @@
         {
           "qualified_name": "output_generators/html.py",
           "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators/mdx.py",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators/sphinx.py",
+          "reference_file": "output_generators/sphinx.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
@@ -319,7 +342,7 @@
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "Delivers Analysis Data",
+      "relation": "Delivers Enhanced Analysis Data",
       "src_name": "Static Analysis Engine",
       "dst_name": "AI Interpretation Layer"
     },

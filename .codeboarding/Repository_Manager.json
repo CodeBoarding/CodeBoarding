@@ -1,9 +1,9 @@
 {
-  "description": "The core of this code analysis system revolves around the Repository Manager, which serves as the primary interface for all code repository operations. It is responsible for cloning, managing, and providing access to local copies of code from Remote Git Services, storing them on the Local File System. The raw code and repository data managed by the Repository Manager are then fed into two subsequent processing stages: the Static Analysis Engine, which performs automated code analysis, and the AI Interpretation Layer, which applies advanced AI/ML models for deeper insights. This architecture ensures a clear separation of concerns, with the Repository Manager handling all source code acquisition and management, enabling other components to focus on analysis and interpretation.",
+  "description": "The system is structured around a core set of components designed for comprehensive code analysis, interpretation, and visualization. The Repository Manager serves as the foundational layer, providing access to the codebase. The Static Analysis Engine then processes this code to extract structural and relational information using an enhanced Language Server Protocol (LSP) client. This static analysis data is fed into the AI Interpretation Layer for deeper, AI-driven insights. A dedicated Diagram Analysis Engine leverages both static analysis and AI interpretations to generate visual representations of the codebase. Finally, the Output Generation component is responsible for formatting and presenting all analysis results, interpretations, and diagrams in various user-friendly formats. The overall application flow is orchestrated to ensure seamless data progression and transformation across these specialized components.",
   "components": [
     {
       "name": "Repository Manager",
-      "description": "Manages the local copies of code repositories, provides access to raw source code content, facilitates navigation within the repository's file system, and handles Git-specific operations, including diff generation. It acts as the primary interface for all repository-related data and operations, feeding raw code to subsequent analysis stages. This component is fundamental for a code analysis tool, providing the essential input data.",
+      "description": "Manages local copies of code repositories, provides access to raw source code content, facilitates navigation within the repository's file system, and handles Git-specific operations, including diff generation. It acts as the primary interface for all repository-related data and operations, feeding raw code to subsequent analysis stages.",
       "referenced_source_code": [
         {
           "qualified_name": "repo_utils",
@@ -33,13 +33,19 @@
     },
     {
       "name": "Static Analysis Engine",
-      "description": "This component is responsible for performing various static code analyses on the source code provided by the Repository Manager. It identifies patterns, potential issues, and extracts structural information without executing the code.",
+      "description": "This component is responsible for performing various static code analyses on the source code provided by the Repository Manager. It utilizes an enhanced Language Server Protocol (LSP) client (static_analyzer/lsp_client/client.py) to extract symbols, generate call graphs, identify class hierarchies, and perform other structural analyses without executing the code.",
       "referenced_source_code": [
         {
-          "qualified_name": "StaticAnalysisEngine.conceptual_interface",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [],
@@ -47,13 +53,65 @@
     },
     {
       "name": "AI Interpretation Layer",
-      "description": "This component consumes the output from the Static Analysis Engine and potentially raw code from the Repository Manager to apply AI/ML models for deeper understanding, code summarization, or vulnerability prediction.",
+      "description": "This component consumes the output from the Static Analysis Engine and potentially raw code from the Repository Manager to apply AI/ML models for deeper understanding, code summarization, vulnerability prediction, and other intelligent insights. It has undergone significant refinement and feature development.",
       "referenced_source_code": [
         {
-          "qualified_name": "AIInterpretationLayer.conceptual_interface",
-          "reference_file": "<file_path>",
-          "reference_start_line": 0,
-          "reference_end_line": 0
+          "qualified_name": "agents.agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Analysis Engine",
+      "description": "This newly identified component is responsible for generating or analyzing diagrams based on the structured analysis data from the Static Analysis Engine and the interpreted insights from the AI Interpretation Layer. It aims to provide visual representations that enhance the understanding of the codebase's architecture and relationships.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis",
+          "reference_file": "diagram_analysis/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "tests.diagram_analysis.test_diagram_analysis",
+          "reference_file": "tests/diagram_analysis/test_diagram_analysis.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation",
+      "description": "This component is responsible for formatting and presenting the analysis results, AI-interpreted insights, and generated diagrams into various output formats, including HTML, MDX, and Sphinx documentation. It ensures that the system's findings are clearly and effectively communicated.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.mdx",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.sphinx",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [],
@@ -69,14 +127,84 @@
   ],
   "components_relations": [
     {
-      "relation": "provides data to",
+      "relation": "provides raw code to",
       "src_name": "Repository Manager",
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "provides data to",
+      "relation": "provides raw code to",
       "src_name": "Repository Manager",
       "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "provides repository context to",
+      "src_name": "Repository Manager",
+      "dst_name": "Diagram Analysis Engine"
+    },
+    {
+      "relation": "receives raw code from",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "provides structured analysis data to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "provides structured analysis data to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Diagram Analysis Engine"
+    },
+    {
+      "relation": "receives structured analysis data from",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "receives raw code from",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "provides interpreted insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Diagram Analysis Engine"
+    },
+    {
+      "relation": "provides interpreted insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Output Generation"
+    },
+    {
+      "relation": "receives structured analysis data from",
+      "src_name": "Diagram Analysis Engine",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "receives interpreted insights from",
+      "src_name": "Diagram Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "receives repository context from",
+      "src_name": "Diagram Analysis Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "sends diagram data to",
+      "src_name": "Diagram Analysis Engine",
+      "dst_name": "Output Generation"
+    },
+    {
+      "relation": "receives interpreted insights from",
+      "src_name": "Output Generation",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "receives diagram data from",
+      "src_name": "Output Generation",
+      "dst_name": "Diagram Analysis Engine"
     }
   ]
 }

@@ -1,47 +1,15 @@
 {
-  "description": "The system's architecture is driven by the Application Orchestrator, which manages the end-to-end process of generating architectural documentation from code repositories. It delegates the core analysis tasks to the Analysis & Diagram Generator, which in turn configures and invokes the Code Analysis Agent. This agent, the intelligent core, performs detailed code understanding and interacts with various Large Language Models through the LLM Provider Manager. The LLM Provider Manager dynamically selects and initializes specific External LLM Integrations, enabling the agent to send prompts and receive responses from different LLM services. Finally, the analysis results are returned to the Application Orchestrator for documentation generation and output. This layered approach ensures modularity, flexibility in LLM integration, and a clear separation of concerns across the system.",
+  "description": "The system's architecture is orchestrated by the Application Orchestrator, which manages the end-to-end workflow from processing local or remote repositories to generating final architectural documentation. Central to its operation is the Code Analysis Agent, an intelligent core that leverages an enhanced internal LSP Client for deep static analysis, extracting detailed code structure, call graphs, and class hierarchies. This rich code understanding, combined with insights from External LLM Integrations managed by the LLM Provider Manager, allows the agent to generate comprehensive architectural insights. These insights are then processed by the Analysis & Diagram Generator to produce structured documentation and visual diagrams, completing the analysis cycle under the guidance of the Application Orchestrator.",
   "components": [
     {
       "name": "Application Orchestrator",
-      "description": "The central control point of the application, responsible for managing the overall workflow from input (remote/local repositories) to output (analysis and documentation). It handles argument parsing, environment setup, repository cloning, and the high-level coordination of analysis and documentation generation.",
+      "description": "Manages the overall application lifecycle, handling user input, repository setup, and coordinating the analysis and documentation generation. It oversees the end-to-end workflow.",
       "referenced_source_code": [
         {
-          "qualified_name": "main:process_remote_repository",
-          "reference_file": "main.py",
+          "qualified_name": "ApplicationOrchestrator",
+          "reference_file": "ApplicationOrchestrator",
           "reference_start_line": null,
           "reference_end_line": null
-        },
-        {
-          "qualified_name": "main:process_local_repository",
-          "reference_file": "main.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "main:generate_analysis",
-          "reference_file": "main.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "main:generate_markdown_docs",
-          "reference_file": "main.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Analysis & Diagram Generator",
-      "description": "This component orchestrates the static analysis of the codebase and the generation of architectural diagrams and insights. It acts as an interface between the Application Orchestrator and the Code Analysis Agent, preparing the context and processing the results for documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "diagram_analysis.DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": 34,
-          "reference_end_line": 293
         }
       ],
       "assigned_files": [],
@@ -49,17 +17,16 @@
     },
     {
       "name": "Code Analysis Agent",
-      "description": "The intelligent core responsible for understanding the codebase, performing static analysis, and generating architectural insights. It leverages various internal tools and interacts with external LLMs to fulfill its analysis tasks.",
+      "description": "Responsible for in-depth code understanding, performing detailed static analysis using its internal LSP Client, formulating prompts for external LLMs, and generating architectural insights.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py",
+          "qualified_name": "CodeAnalysisAgent",
+          "reference_file": "CodeAnalysisAgent",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/agent.py",
         "../../agents/prompts/claude_prompts_bidirectional.py",
         "../../agents/prompts/gpt_prompts_unidirectional.py",
         "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
@@ -70,12 +37,26 @@
       "can_expand": true
     },
     {
-      "name": "LLM Provider Manager",
-      "description": "Manages the dynamic selection and initialization of different Large Language Model clients. It abstracts the complexities of integrating with various LLM providers, allowing the Code Analysis Agent to interact with a unified interface.",
+      "name": "Analysis & Diagram Generator",
+      "description": "Takes comprehensive analysis results from the Code Analysis Agent and transforms them into structured documentation and visual diagrams.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.agent.CodeBoardingAgent:_initialize_llm",
-          "reference_file": "agents/agent.py",
+          "qualified_name": "AnalysisDiagramGenerator",
+          "reference_file": "AnalysisDiagramGenerator",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "LLM Provider Manager",
+      "description": "Dynamically selects and configures the appropriate External LLM Integration based on the Code Analysis Agent's needs.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LLMProviderManager",
+          "reference_file": "LLMProviderManager",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -85,23 +66,11 @@
     },
     {
       "name": "External LLM Integrations",
-      "description": "Concrete implementations that provide the interface to specific external Large Language Models (e.g., OpenAI, Anthropic, Google Gemini). Each integration handles the unique API calls, authentication, and data formatting required for its respective LLM.",
+      "description": "Represents the various external Large Language Models (e.g., OpenAI, Anthropic, Google Gemini) that the Code Analysis Agent interacts with to send prompts and receive responses.",
       "referenced_source_code": [
         {
-          "qualified_name": "langchain_openai.ChatOpenAI",
-          "reference_file": "langchain_openai/chat_models/openai.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "langchain_anthropic.ChatAnthropic",
-          "reference_file": "langchain_anthropic/chat_models/anthropic.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "langchain_google_genai.ChatGoogleGenerativeAI",
-          "reference_file": "langchain_google_genai/chat_models/generative_ai.py",
+          "qualified_name": "ExternalLLMIntegration",
+          "reference_file": "ExternalLLMIntegration",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -119,9 +88,9 @@
   ],
   "components_relations": [
     {
-      "relation": "initiates analysis workflow",
+      "relation": "initiates analysis workflow with",
       "src_name": "Application Orchestrator",
-      "dst_name": "Analysis & Diagram Generator"
+      "dst_name": "Code Analysis Agent"
     },
     {
       "relation": "manages output of",
@@ -129,27 +98,27 @@
       "dst_name": "Analysis & Diagram Generator"
     },
     {
-      "relation": "configures and invokes analysis",
-      "src_name": "Analysis & Diagram Generator",
-      "dst_name": "Code Analysis Agent"
-    },
-    {
-      "relation": "requests LLM client",
+      "relation": "requests LLM client from",
       "src_name": "Code Analysis Agent",
       "dst_name": "LLM Provider Manager"
     },
     {
-      "relation": "instantiates and configures LLM client",
+      "relation": "instantiates and configures LLM client for",
       "src_name": "LLM Provider Manager",
       "dst_name": "External LLM Integrations"
     },
     {
-      "relation": "sends prompts and receives responses",
+      "relation": "sends prompts and receives responses from",
       "src_name": "Code Analysis Agent",
       "dst_name": "External LLM Integrations"
     },
     {
-      "relation": "returns analysis results",
+      "relation": "provides analysis results to",
+      "src_name": "Code Analysis Agent",
+      "dst_name": "Analysis & Diagram Generator"
+    },
+    {
+      "relation": "returns generated documentation and diagrams to",
       "src_name": "Analysis & Diagram Generator",
       "dst_name": "Application Orchestrator"
     }

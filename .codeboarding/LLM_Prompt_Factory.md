@@ -1,69 +1,34 @@
 ```mermaid
 graph LR
-    main_py["main.py"]
-    PromptFactory["PromptFactory"]
     AbstractPromptFactory["AbstractPromptFactory"]
-    CodeBoardingAgent["CodeBoardingAgent"]
-    StaticAnalysisTools["StaticAnalysisTools"]
+    PromptFactory["PromptFactory"]
     Unclassified["Unclassified"]
-    main_py -- "Initializes, Configures" --> PromptFactory
-    main_py -- "Orchestrates, Instantiates" --> CodeBoardingAgent
-    PromptFactory -- "Implements, Delegates" --> AbstractPromptFactory
-    PromptFactory -- "Generates Prompts for, Supplies Prompts to" --> CodeBoardingAgent
-    CodeBoardingAgent -- "Utilizes, Executes" --> StaticAnalysisTools
+    PromptFactory -- "implements" --> AbstractPromptFactory
+    PromptFactory -- "delegates prompt generation to" --> AbstractPromptFactory
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The application's architecture is centered around an AI-driven code analysis pipeline. The `main.py` component initiates the process, responsible for setting up the environment and orchestrating the core components. It initializes the `PromptFactory`, which serves as the primary orchestrator for dynamically generating and formatting LLM-optimized prompts. These prompts are then consumed by the `CodeBoardingAgent`, the central intelligence component. The `CodeBoardingAgent` leverages an `LLM` for interpretation and generation, and a suite of `StaticAnalysisTools` to gather comprehensive information about the codebase. The `AbstractPromptFactory` defines the contract for prompt generation, ensuring modularity and extensibility within the prompt generation mechanism. This design allows for a flexible and extensible system where prompt generation is decoupled from the agent's core logic, enabling dynamic adaptation to various analysis tasks and LLM types, forming the core of the "AI Interpretation Layer."
+The `agents.prompts` subsystem provides a flexible and extensible mechanism for generating LLM-specific prompts. It is centered around the `AbstractPromptFactory`, which establishes a common interface for all prompt creation logic. The `PromptFactory` serves as the concrete implementation, dynamically selecting and instantiating specialized prompt factories based on the target LLM and desired prompt characteristics. This design pattern enables the system to seamlessly integrate with diverse LLM providers and prompt variations, ensuring consistent and adaptable prompt generation throughout the application. The `PromptFactory` delegates the actual retrieval of prompt messages to the chosen concrete `AbstractPromptFactory` implementation, effectively decoupling prompt content from the prompt selection mechanism.
 
-### main.py
-The central orchestrator responsible for initializing the PromptFactory and managing the CodeBoardingAgent.
+### AbstractPromptFactory
+Defines the standardized interface and contract for all prompt generation implementations. This component ensures consistency and allows for polymorphic prompt creation strategies, aligning with the modular design pattern of the project.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py#L340-L431" target="_blank" rel="noopener noreferrer">`main`:340-431</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py#L9-L94" target="_blank" rel="noopener noreferrer">`agents.prompts.abstract_prompt_factory.AbstractPromptFactory`:9-94</a>
 
 
 ### PromptFactory
-Primary orchestrator for dynamically generating and formatting LLM-optimized prompts.
+The concrete implementation that dynamically selects, constructs, and formats prompts with contextual information for different LLM providers. It acts as the central orchestrator for prompt creation within the AI Interpretation Layer.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`PromptFactory`</a>
-
-
-### AbstractPromptFactory
-Defines the interface and contract for prompt generation, ensuring consistency and extensibility.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`AbstractPromptFactory`</a>
-
-
-### CodeBoardingAgent
-The central intelligence component that interacts with the LLM, executes tools, and processes information to perform static code analysis and generate insights.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`CodeBoardingAgent`</a>
-
-
-### StaticAnalysisTools
-A collection of specialized tools (e.g., CodeReferenceReader, GetCFGTool, FileStructureTool) used by the CodeBoardingAgent to gather information about the codebase.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py#L26-L114" target="_blank" rel="noopener noreferrer">`CodeReferenceReader`:26-114</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py#L11-L68" target="_blank" rel="noopener noreferrer">`GetCFGTool`:11-68</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py#L21-L126" target="_blank" rel="noopener noreferrer">`FileStructureTool`:21-126</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py#L33-L109" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`:33-109</a>
 
 
 ### Unclassified
