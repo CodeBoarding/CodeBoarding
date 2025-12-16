@@ -2,6 +2,7 @@
 Tests to verify Windows compatibility fixes for path handling.
 """
 
+import platform
 import unittest
 from pathlib import Path
 import os
@@ -25,11 +26,14 @@ class TestFileURIParsing(unittest.TestCase):
         windows_uri = "file:///C:/Users/user/project/file.py"
         result = uri_to_path(windows_uri)
 
-        # On Windows: C:\Users\user\project\file.py
-        # On Unix: /C:/Users/user/project/file.py (url2pathname keeps the leading slash)
-        if os.name == "nt":
+        # Expected result depends on the platform:
+        # On Windows: C:\Users\user\project\file.py (backslashes, but Path handles comparison)
+        # On Unix: /C:/Users/user/project/file.py (url2pathname adds leading slash)
+        if platform.system() == "Windows":
             expected = Path("C:/Users/user/project/file.py")
         else:
+            # On Unix systems, url2pathname will convert file:///C:/... to /C:/...
+            # This is expected behavior - the URI format isn't valid for Unix systems
             expected = Path("/C:/Users/user/project/file.py")
 
         self.assertEqual(result, expected)
@@ -39,9 +43,11 @@ class TestFileURIParsing(unittest.TestCase):
         windows_uri = "file:///C:/Users/My%20Documents/project/file.py"
         result = uri_to_path(windows_uri)
 
-        if os.name == "nt":
+        # Expected result depends on the platform
+        if platform.system() == "Windows":
             expected = Path("C:/Users/My Documents/project/file.py")
         else:
+            # On Unix systems, url2pathname will convert file:///C:/... to /C:/...
             expected = Path("/C:/Users/My Documents/project/file.py")
 
         self.assertEqual(result, expected)
