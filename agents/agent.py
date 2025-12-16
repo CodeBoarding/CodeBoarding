@@ -48,7 +48,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         MonitoringMixin.__init__(self)
         self._setup_env_vars()
         self.llm = self._initialize_llm()
-        self.extractor_llm = self._initialize_extractor_llm()
+        self.parsing_llm = self._initialize_parsing_llm()
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -87,6 +87,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         # Model selection via environment variable
         self.codeboarding_model = os.getenv("CODEBOARDING_MODEL")
+        self.parsing_model = os.getenv("PARSING_MODEL")
 
     def _initialize_llm(self):
         """Initialize LLM based on available API keys with priority order."""
@@ -163,13 +164,13 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         MONITORING_CALLBACK.model_name = model_name
         return model
 
-    def _initialize_extractor_llm(self):
+    def _initialize_parsing_llm(self):
         """Initialize a fast LLM for extraction tasks based on available API keys."""
         model_name: str | None = None
         model: BaseChatModel
 
         if self.openai_api_key:
-            model_name = "gpt-4o-mini"
+            model_name = self.parsing_model if self.parsing_model else "gpt-4o-mini"
             logger.info(f"Using OpenAI Extractor LLM with model: {model_name}")
             model = ChatOpenAI(
                 model=model_name,
@@ -181,7 +182,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 base_url=self.openai_base_url,
             )
         elif self.anthropic_api_key:
-            model_name = "claude-3-haiku-20240307"
+            model_name = self.parsing_model if self.parsing_model else "claude-3-haiku-20240307"
             logger.info(f"Using Anthropic Extractor LLM with model: {model_name}")
             model = ChatAnthropic(
                 model=model_name,  # type: ignore[call-arg]
@@ -192,7 +193,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.anthropic_api_key,  # type: ignore[arg-type]
             )
         elif self.google_api_key:
-            model_name = "gemini-2.0-flash-lite-preview-02-05"
+            model_name = self.parsing_model if self.parsing_model else "gemini-2.0-flash-lite-preview-02-05"
             logger.info(f"Using Google Gemini Extractor LLM with model: {model_name}")
             model = ChatGoogleGenerativeAI(
                 model=model_name,
@@ -203,7 +204,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.google_api_key,
             )
         elif self.aws_bearer_token:
-            model_name = "us.anthropic.claude-3-haiku-20240307-v1:0"
+            model_name = self.parsing_model if self.parsing_model else "us.anthropic.claude-3-haiku-20240307-v1:0"
             logger.info(f"Using AWS Bedrock Extractor LLM with model: {model_name}")
             model = ChatBedrockConverse(
                 model=model_name,
@@ -213,7 +214,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 credentials_profile_name=None,
             )
         elif self.cerebras_api_key:
-            model_name = "llama3.1-8b"
+            model_name = self.parsing_model if self.parsing_model else "llama3.1-8b"
             logger.info(f"Using Cerebras Extractor LLM with model: {model_name}")
             model = ChatCerebras(
                 model=model_name,
@@ -224,7 +225,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.cerebras_api_key,  # type: ignore[arg-type]
             )
         elif self.ollama_base_url:
-            model_name = "qwen2.5:7b"
+            model_name = self.parsing_model if self.parsing_model else "qwen2.5:7b"
             logger.info(f"Using Ollama Extractor LLM with model: {model_name}")
             model = ChatOllama(model=model_name, base_url=self.ollama_base_url, temperature=0.1)
         else:
@@ -277,7 +278,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             logger.error(f"Max retries reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        extractor = create_extractor(self.llm, tools=[return_type], tool_choice=return_type.__name__)
+        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
@@ -312,7 +313,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 input_variables=["adjective"],
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
-            chain = prompt | self.extractor_llm | parser
+            chain = prompt | self.parsing_llm | parser
             config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
