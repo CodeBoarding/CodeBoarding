@@ -1,13 +1,127 @@
 {
-  "description": "The user has indicated a significant architectural shift due to changes in `main.py` and `agents/agent.py`. The original analysis identified `Data Normalizer/Formatter` as the central orchestration component. However, the feedback suggests `main.py` now plays a more critical role in orchestration, and `agents/agent.py` introduces a new functional module. To address this, I need to understand the new orchestration logic in `main.py`, identify the purpose and interactions of the new module in `agents/agent.py`, re-evaluate the role of the `Data Normalizer/Formatter` in light of these changes, and update component relationships to reflect the new architecture. I will start by examining the content of `main.py` to understand its orchestration responsibilities. Then, I will investigate `agents/agent.py`.",
+  "description": "The Static Analysis Engine subsystem is responsible for performing in-depth static analysis of a codebase to extract structural and control flow information. It begins by scanning the project to identify programming languages and gather high-level metadata. Subsequently, it leverages Language Servers (LSPs) to obtain detailed code information, which is then used to construct and maintain a call graph representing the codebase's entities and their interdependencies. The primary purpose is to generate a comprehensive understanding of the code's structure and relationships, forming the basis for further analysis and documentation.",
   "components": [
+    {
+      "name": "ProjectScanner",
+      "description": "Scans the project to identify programming languages, gather code statistics (lines of code, percentages), and extract file suffixes. It acts as the initial language detector and high-level metadata extractor.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/programming_language.py",
+        "../../static_analyzer/scanner.py",
+        "../../static_analyzer/typescript_config_scanner.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "LSPClient",
+      "description": "Manages communication with Language Servers (LSPs) for various programming languages. It initiates LSP server processes, sends JSON-RPC requests for detailed code information (symbols, call hierarchy), and processes responses to extract data like symbols, call relationships, and class hierarchies.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "CallGraph",
+      "description": "Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects. It also provides functionalities to analyze and summarize these relationships, including generating clustered representations.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/reference_resolve_mixin.py",
+        "../../static_analyzer/graph.py",
+        "../../static_analyzer/analysis_result.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Node",
+      "description": "Represents a distinct code entity within the `CallGraph`, such as a class, function, or method. It encapsulates metadata like the fully qualified name, file path, and line number range.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "Node",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/graph.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Edge",
+      "description": "Represents a directed relationship or dependency between two `Node` objects in the `CallGraph`, typically indicating a method call or other structural connection.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "Edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/graph.py"
+      ],
+      "can_expand": false
+    },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/lsp_client/__init__.py"
+      ],
       "can_expand": false
     }
   ],
-  "components_relations": []
+  "components_relations": [
+    {
+      "relation": "configures",
+      "src_name": "ProjectScanner",
+      "dst_name": "LSPClient"
+    },
+    {
+      "relation": "populates",
+      "src_name": "LSPClient",
+      "dst_name": "CallGraph"
+    },
+    {
+      "relation": "creates",
+      "src_name": "LSPClient",
+      "dst_name": "Node"
+    },
+    {
+      "relation": "uses",
+      "src_name": "CallGraph",
+      "dst_name": "Node"
+    },
+    {
+      "relation": "creates",
+      "src_name": "CallGraph",
+      "dst_name": "Edge"
+    }
+  ]
 }

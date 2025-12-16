@@ -13,7 +13,7 @@ graph LR
     Application_Orchestrator -- "Triggers Analysis" --> AI_Interpretation_Layer
     Application_Orchestrator -- "Coordinates Documentation Generation" --> Output_Generation_Engine
     Repository_Manager -- "Provides Source Code" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "Delivers Analysis Data" --> AI_Interpretation_Layer
+    Static_Analysis_Engine -- "Delivers Enhanced Analysis Data" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "Requests Formatted Prompts" --> LLM_Prompt_Factory
     LLM_Prompt_Factory -- "Returns Formatted Prompts" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "Sends LLM Queries" --> LLM_Provider_Gateway
@@ -33,15 +33,18 @@ graph LR
 
 ## Details
 
-The system operates with the Application Orchestrator as its central control, initiated by User/External Systems. This orchestrator first interacts with the Repository Manager to access the target codebase. The core intelligence resides within the AI Interpretation Layer, which is triggered by the orchestrator to perform architectural analysis. This layer leverages the Static Analysis Engine for structural code data and dynamically generates prompts via the LLM Prompt Factory before querying external LLM Provider Gateway for insights. Once architectural insights are derived, the Output Generation Engine transforms these into consumable documentation and diagrams, which are then delivered back to User/External Systems. The orchestrator also directly coordinates with the Output Generation Engine for the final documentation output.
+The system operates through a well-defined architectural flow, starting with the Application Orchestrator which serves as the central control unit, managing the overall execution, handling user requests, and coordinating the analysis and documentation generation processes. It now incorporates enhanced local execution and initialization capabilities. The Repository Manager provides the foundational raw source code by managing repository interactions. This code is then fed to the Static Analysis Engine, which performs in-depth static analysis, extracting crucial structural information, control flow graphs, and dependencies. A significant update to its LSP client now enables the delivery of richer, more detailed analysis data.
+
+The core intelligence resides in the AI Interpretation Layer, which orchestrates AI-driven analysis, interprets responses from Large Language Models (LLMs), and derives architectural insights. This layer has been refactored for a more streamlined interaction with its internal tools. It dynamically interacts with the LLM Prompt Factory to generate tailored prompts and communicates with external LLMs via the LLM Provider Gateway to send queries and receive responses. Finally, the Output Generation Engine transforms these architectural insights into various consumable formats, including human-readable documentation and visual diagrams, with enhanced capabilities for MDX and Sphinx outputs. This comprehensive flow ensures a robust and adaptable system for architectural analysis and documentation.
 
 ### Application Orchestrator [[Expand]](./Application_Orchestrator.md)
-The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application.
+The central control unit that manages the overall execution flow, handling repository input, orchestrating analysis, and coordinating documentation generation. It serves as the main entry point for the application, including enhanced local execution and initialization.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py" target="_blank" rel="noopener noreferrer">`local_app.py`</a>
 
 
 ### Repository Manager [[Expand]](./Repository_Manager.md)
@@ -55,7 +58,7 @@ Manages all interactions with code repositories, including cloning, reading file
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static analysis on the codebase to extract structural information, control flow graphs (CFG), abstract syntax trees (AST), and dependencies.
+Performs in-depth static analysis on the codebase to extract structural information, control flow graphs (CFG), abstract syntax trees (AST), and dependencies. It leverages an enhanced Language Server Protocol (LSP) client for gathering detailed code information, improving the quality and type of data provided for analysis.
 
 
 **Related Classes/Methods**:
@@ -63,6 +66,7 @@ Performs in-depth static analysis on the codebase to extract structural informat
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer/__init__.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer/scanner.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer/graph.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer/lsp_client/client.py`</a>
 
 
 ### LLM Prompt Factory [[Expand]](./LLM_Prompt_Factory.md)
@@ -88,7 +92,7 @@ Manages communication and interaction with external Large Language Model (LLM) p
 
 
 ### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic.
+The core intelligence component that orchestrates AI-driven analysis, interprets LLM responses, and derives architectural insights. This layer utilizes various agents to perform its tasks, with agents/agent.py being central to its logic, and now features a streamlined or reorganized mechanism for agent tool interaction.
 
 
 **Related Classes/Methods**:
@@ -103,7 +107,7 @@ The core intelligence component that orchestrates AI-driven analysis, interprets
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Transforms architectural insights into various consumable formats, including human-readable documentation and visual diagrams.
+Transforms architectural insights into various consumable formats, including human-readable documentation and visual diagrams. It has enhanced capabilities for generating MDX and Sphinx outputs, improving flexibility and quality.
 
 
 **Related Classes/Methods**:
@@ -111,6 +115,8 @@ Transforms architectural insights into various consumable formats, including hum
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators/__init__.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators/markdown.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators/html.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators/mdx.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators/sphinx.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/__init__.py`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis/diagram_generator.py`</a>
 

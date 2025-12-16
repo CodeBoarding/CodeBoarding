@@ -1,189 +1,87 @@
 {
-  "description": "The CodeBoarding application is designed to automate the generation of onboarding documentation for both local and remote Git repositories. It operates by first setting up the command-line interface and validating environment variables. Subsequently, it acquires and manages the specified code repositories, either by cloning remote ones or processing local paths. The core functionality involves orchestrating static code analysis to extract insights, which are then used to generate comprehensive markdown documentation. Finally, the generated outputs are published to a designated directory, with an option to upload them to a remote repository, followed by the cleanup of temporary resources. This modular design ensures a clear separation of concerns, facilitating maintainability and extensibility.",
+  "description": "The CodeBoarding system operates through a centralized Application Orchestrator that manages the entire documentation generation workflow. It begins by interacting with the Repository Manager to acquire the source code, either by cloning remote repositories or processing local ones. Once the code is available, the Orchestrator directs it to the Analysis Engine, which is responsible for parsing the code, generating an intermediate representation, and performing static analysis. The results from the Analysis Engine are then fed into the AI Interpretation Layer, where AI models process the IR for semantic understanding. Finally, the Output Generation Engine takes the interpreted insights and produces comprehensive documentation. The Application Orchestrator also configures the AI Interpretation Layer, ensuring proper integration with underlying LLM providers. This modular design ensures a clear separation of concerns and a streamlined process for generating code documentation.",
   "components": [
     {
-      "name": "CLI and Environment Setup",
-      "description": "This component is responsible for defining, parsing, and validating command-line arguments and ensuring that all necessary environment variables (e.g., API keys) are correctly configured before the main application logic proceeds.",
+      "name": "Application Orchestrator",
+      "description": "Manages the overall execution pipeline and workflow. Handles initial repository input (local or remote). Orchestrates the sequence of analysis steps, including repository cloning, analysis generation, and documentation output. Serves as the main entry point for the CLI.",
       "referenced_source_code": [
         {
-          "qualified_name": "main.define_cli_arguments",
+          "qualified_name": "main",
           "reference_file": "main.py",
-          "reference_start_line": 296,
-          "reference_end_line": 337
+          "reference_start_line": 340,
+          "reference_end_line": 431
         },
         {
-          "qualified_name": "main.validate_arguments",
-          "reference_file": "main.py",
-          "reference_start_line": 273,
-          "reference_end_line": 293
-        },
-        {
-          "qualified_name": "main.validate_env_vars",
-          "reference_file": "main.py",
-          "reference_start_line": 24,
-          "reference_end_line": 41
-        },
-        {
-          "qualified_name": "os.getenv",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "main.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Repository Acquisition & Management",
-      "description": "Manages the entire lifecycle of code repositories, including cloning remote repositories, setting up and tearing down temporary working directories, and checking for the existence of previously generated documentation. It orchestrates both remote and local repository processing flows.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "main.process_remote_repository",
+          "qualified_name": "process_remote_repository",
           "reference_file": "main.py",
           "reference_start_line": 162,
           "reference_end_line": 216
         },
         {
-          "qualified_name": "main.process_local_repository",
+          "qualified_name": "process_local_repository",
           "reference_file": "main.py",
           "reference_start_line": 219,
           "reference_end_line": 247
-        },
-        {
-          "qualified_name": "main.onboarding_materials_exist",
-          "reference_file": "main.py",
-          "reference_start_line": 44,
-          "reference_end_line": 50
-        },
-        {
-          "qualified_name": "repo_utils.get_repo_name",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 87,
-          "reference_end_line": 91
-        },
-        {
-          "qualified_name": "repo_utils.clone_repository",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 94,
-          "reference_end_line": 111
-        },
-        {
-          "qualified_name": "repo_utils.get_branch",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "utils.create_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 18,
-          "reference_end_line": 22
-        },
-        {
-          "qualified_name": "utils.remove_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 25,
-          "reference_end_line": 29
-        },
-        {
-          "qualified_name": "requests",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analysis Orchestrator",
-      "description": "This component initiates and manages the static code analysis process. It delegates the actual analysis tasks to the `DiagramGenerator` and handles scenarios for both initial full analysis and subsequent partial updates of specific components.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "main.generate_analysis",
-          "reference_file": "main.py",
-          "reference_start_line": 53,
-          "reference_end_line": 66
-        },
-        {
-          "qualified_name": "main.partial_update",
-          "reference_file": "main.py",
-          "reference_start_line": 99,
-          "reference_end_line": 146
-        },
-        {
-          "qualified_name": "diagram_analysis.DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": 34,
-          "reference_end_line": 293
-        },
-        {
-          "qualified_name": "agents.agent_responses.AnalysisInsights",
-          "reference_file": "agents/agent_responses.py",
-          "reference_start_line": null,
-          "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "main.py",
+        "../../local_app.py",
         "../../github_action.py"
       ],
       "can_expand": true
     },
     {
-      "name": "Documentation Generation Orchestrator",
-      "description": "Responsible for transforming the structured insights obtained from the static analysis into user-friendly markdown documentation. It coordinates the generation of individual markdown files based on the analysis results.",
+      "name": "Repository Manager",
+      "description": "Handles fetching and managing code repositories, including cloning remote repositories and preparing local ones for analysis.",
       "referenced_source_code": [
         {
-          "qualified_name": "main.generate_markdown_docs",
-          "reference_file": "main.py",
-          "reference_start_line": 69,
-          "reference_end_line": 96
-        },
-        {
-          "qualified_name": "output_generators.markdown.generate_markdown_file",
-          "reference_file": "output_generators/markdown.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "repo_utils.get_branch",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 94,
+          "reference_end_line": 111
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "Output Publication & Cleanup",
-      "description": "Manages the final stages of the workflow, including copying all generated markdown and JSON files from temporary locations to the designated output directory and, if applicable, uploading the generated onboarding materials to a remote destination. It also handles the cleanup of temporary resources.",
+      "name": "Analysis Engine",
+      "description": "This component encapsulates the functionality previously split into \"Code Parser\", \"Intermediate Representation (IR) Generator\", and \"Static Analysis Engine\". It is responsible for transforming raw code into structured representations, generating a unified intermediate representation, and performing detailed code analysis on it.",
       "referenced_source_code": [
         {
-          "qualified_name": "main.copy_files",
+          "qualified_name": "generate_analysis",
           "reference_file": "main.py",
-          "reference_start_line": 250,
-          "reference_end_line": 270
-        },
+          "reference_start_line": 53,
+          "reference_end_line": 66
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Processes the intermediate representation for semantic understanding using AI/LLMs. It leverages the LLM Provider Gateway to interact with various language models.",
+      "referenced_source_code": [
         {
-          "qualified_name": "shutil.copy2",
-          "reference_file": ".",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
+          "qualified_name": "initialize_global_factory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 117,
+          "reference_end_line": 122
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Produces documentation and other outputs based on the analysis results.",
+      "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.upload_onboarding_materials",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 135,
-          "reference_end_line": 162
-        },
-        {
-          "qualified_name": "utils.remove_temp_repo_folder",
-          "reference_file": "utils.py",
-          "reference_start_line": 25,
-          "reference_end_line": 29
+          "qualified_name": "generate_markdown_docs",
+          "reference_file": "main.py",
+          "reference_start_line": 69,
+          "reference_end_line": 96
         }
       ],
       "assigned_files": [],
@@ -193,72 +91,40 @@
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "provides configuration to",
-      "src_name": "CLI and Environment Setup",
-      "dst_name": "Repository Acquisition & Management"
+      "relation": "initiates",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Repository Manager"
     },
     {
-      "relation": "provides configuration to",
-      "src_name": "CLI and Environment Setup",
-      "dst_name": "Static Analysis Orchestrator"
+      "relation": "directs",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Analysis Engine"
     },
     {
-      "relation": "receives configuration from",
-      "src_name": "Repository Acquisition & Management",
-      "dst_name": "CLI and Environment Setup"
+      "relation": "configures",
+      "src_name": "Application Orchestrator",
+      "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "invokes",
-      "src_name": "Repository Acquisition & Management",
-      "dst_name": "Static Analysis Orchestrator"
+      "relation": "provides to",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Output Generation Engine"
     },
     {
-      "relation": "invokes",
-      "src_name": "Repository Acquisition & Management",
-      "dst_name": "Documentation Generation Orchestrator"
+      "relation": "feeds",
+      "src_name": "Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "calls",
-      "src_name": "Repository Acquisition & Management",
-      "dst_name": "Output Publication & Cleanup"
-    },
-    {
-      "relation": "receives codebase from",
-      "src_name": "Static Analysis Orchestrator",
-      "dst_name": "Repository Acquisition & Management"
-    },
-    {
-      "relation": "produces AnalysisInsights for",
-      "src_name": "Static Analysis Orchestrator",
-      "dst_name": "Documentation Generation Orchestrator"
-    },
-    {
-      "relation": "receives AnalysisInsights from",
-      "src_name": "Documentation Generation Orchestrator",
-      "dst_name": "Static Analysis Orchestrator"
-    },
-    {
-      "relation": "produces markdown files for",
-      "src_name": "Documentation Generation Orchestrator",
-      "dst_name": "Output Publication & Cleanup"
-    },
-    {
-      "relation": "receives files from",
-      "src_name": "Output Publication & Cleanup",
-      "dst_name": "Documentation Generation Orchestrator"
-    },
-    {
-      "relation": "receives upload instructions from",
-      "src_name": "Output Publication & Cleanup",
-      "dst_name": "Repository Acquisition & Management"
+      "relation": "informs",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Output Generation Engine"
     }
   ]
 }
