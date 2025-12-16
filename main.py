@@ -57,6 +57,7 @@ def generate_analysis(
     output_dir: Path,
     depth_level: int = 1,
     run_id: str | None = None,
+    monitoring_enabled: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -65,6 +66,7 @@ def generate_analysis(
         output_dir=output_dir,
         depth_level=depth_level,
         run_id=run_id,
+        monitoring_enabled=monitoring_enabled,
     )
     return generator.generate_analysis()
 
@@ -149,7 +151,13 @@ def partial_update(
     generator.process_component(component_to_update)
 
 
-def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev: bool = False, run_id: str | None = None):
+def generate_docs_remote(
+    repo_url: str,
+    temp_repo_folder: Path,
+    local_dev: bool = False,
+    run_id: str | None = None,
+    monitoring_enabled: bool = False,
+):
     """
     Clone a git repo and generate documentation (backward compatibility wrapper used by local_app).
     """
@@ -160,6 +168,7 @@ def generate_docs_remote(repo_url: str, temp_repo_folder: Path, local_dev: bool 
         upload=not local_dev,  # Only upload if not in local dev mode
         cache_check=True,
         run_id=run_id,
+        monitoring_enabled=monitoring_enabled,
     )
 
 
@@ -170,6 +179,7 @@ def process_remote_repository(
     upload: bool = False,
     cache_check: bool = True,
     run_id: str | None = None,
+    monitoring_enabled: bool = False,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -197,6 +207,7 @@ def process_remote_repository(
             output_dir=temp_folder,
             depth_level=depth_level,
             run_id=run_id,
+            monitoring_enabled=monitoring_enabled,
         )
 
         # Generate markdown documentation for remote repo
@@ -229,6 +240,7 @@ def process_local_repository(
     depth_level: int = 1,
     component_name: str | None = None,
     analysis_name: str | None = None,
+    monitoring_enabled: bool = False,
 ):
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -250,6 +262,7 @@ def process_local_repository(
             repo_path=repo_path,
             output_dir=output_dir,
             depth_level=depth_level,
+            monitoring_enabled=monitoring_enabled,
         )
 
 
@@ -341,6 +354,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
     )
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
+    parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
 
 def main():
@@ -395,6 +409,8 @@ Examples:
     if args.binary_location:
         update_config(args.binary_location)
 
+    should_monitor = args.enable_monitoring or monitoring_enabled()
+
     if is_local:
         process_local_repository(
             repo_path=args.local,
@@ -403,6 +419,7 @@ Examples:
             depth_level=args.depth_level,
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
+            monitoring_enabled=should_monitor,
         )
         logger.info(f"Documentation generated successfully in {args.output_dir or './analysis'}")
     else:
@@ -420,23 +437,18 @@ Examples:
                 run_id = generate_run_id(base_name)
                 monitoring_dir = get_monitoring_run_dir(run_id)
 
-                with monitor_execution(
-                    run_id=run_id, output_dir=str(monitoring_dir), enabled=monitoring_enabled()
-                ) as mon:
+                with monitor_execution(run_id=run_id, output_dir=str(monitoring_dir), enabled=should_monitor) as mon:
                     mon.step(f"processing_{repo_name}")
 
-                    try:
-                        process_remote_repository(
-                            repo_url=repo,
-                            output_dir=args.output_dir,
-                            depth_level=args.depth_level,
-                            upload=args.upload,
-                            cache_check=not args.no_cache_check,
-                            run_id=run_id,
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to process repository {repo}: {e}")
-                        continue
+                    process_remote_repository(
+                        repo_url=repo,
+                        output_dir=args.output_dir,
+                        depth_level=args.depth_level,
+                        upload=args.upload,
+                        cache_check=not args.no_cache_check,
+                        run_id=run_id,
+                        monitoring_enabled=should_monitor,
+                    )
 
             logger.info("All repositories processed successfully!")
         else:

@@ -10,33 +10,38 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr, Field
-
 from monitoring.mixin import MonitoringMixin
 
 logger = logging.getLogger("monitoring")
 
 
-class StreamingStatsWriter(BaseModel):
+class StreamingStatsWriter:
     """
     Handles periodic writing of monitoring stats to a JSON file.
     Also tracks run timing and saves run_metadata.json on stop.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def __init__(
+        self,
+        monitoring_dir: Path,
+        agents_dict: dict[str, MonitoringMixin],
+        repo_name: str,
+        output_dir: str | None = None,
+        interval: float = 5.0,
+        start_time: float | None = None,
+    ):
+        self.monitoring_dir = monitoring_dir
+        self.agents_dict = agents_dict
+        self.repo_name = repo_name
+        self.output_dir = output_dir
+        self.interval = interval
+        self.start_time = start_time
 
-    monitoring_dir: Path
-    agents_dict: dict[str, MonitoringMixin]
-    repo_name: str
-    output_dir: str | None = None
-    interval: float = 5.0
-    start_time: float | None = None
-
-    _stop_event: threading.Event = PrivateAttr(default_factory=threading.Event)
-    _thread: threading.Thread | None = PrivateAttr(default=None)
-    _logger: logging.Logger = PrivateAttr(default_factory=lambda: logging.getLogger("monitoring.writer"))
-    _error: str | None = PrivateAttr(default=None)
-    _end_time: float | None = PrivateAttr(default=None)
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._logger = logging.getLogger("monitoring.writer")
+        self._error: str | None = None
+        self._end_time: float | None = None
 
     @property
     def llm_usage_file(self) -> Path:
@@ -106,7 +111,7 @@ class StreamingStatsWriter(BaseModel):
             "model_name": model_name,
         }
         # Print as a log message
-        self._logger.info(f"TokenUsage: {json.dumps(payload)}")
+        self._logger.info(f"Cumulative Token Usage: {json.dumps(payload)}")
 
     def _save_llm_usage(self):
         """Save LLM usage stats to llm_usage.json."""

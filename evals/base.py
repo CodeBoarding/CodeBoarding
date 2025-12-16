@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from evals.schemas import EvalResult, PipelineResult, ProjectSpec, RunData
 from evals.utils import generate_system_specs
 from monitoring.paths import get_latest_run_dir
+from utils import get_project_root
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,18 +29,7 @@ class BaseEval(ABC):
         self.name = name
         self.output_dir = output_dir
         self.results: list[EvalResult] = []
-        self.project_root = os.getenv("PROJECT_ROOT")
-
-    def _get_project_root(self) -> Path:
-        load_dotenv()
-        project_root_env = os.getenv("PROJECT_ROOT")
-        # Fallback to finding it relative to this file if not set
-        if not project_root_env:
-            # Assuming evals/base.py is 2 levels deep from root
-            root = Path(__file__).parent.parent
-            os.environ["PROJECT_ROOT"] = str(root)
-            return root
-        return Path(project_root_env)
+        self.project_root = get_project_root()
 
     def get_latest_run_data(self, project_name: str) -> RunData:
         """Read all monitoring data for a project from its run directory."""

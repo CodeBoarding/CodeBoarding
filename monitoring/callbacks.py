@@ -52,13 +52,13 @@ class MonitoringCallback(BaseCallbackHandler):
         # Update State
         with self.stats._lock:
             self.stats.total_tokens += usage.get("total_tokens", 0)
-            self.stats.input_tokens += usage.get("prompt_tokens", 0)
-            self.stats.output_tokens += usage.get("completion_tokens", 0)
+            self.stats.input_tokens += usage.get("input_tokens", 0)
+            self.stats.output_tokens += usage.get("output_tokens", 0)
 
         # Log Event
         if self.log_results:
             model = self.model_name or "unknown"
-            logger.info(f"LLM Usage: step={step_name} model={model} usage={usage}")
+            logger.info(f"Token Usage: step={step_name} model={model} usage={json.dumps(usage)}")
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         run_id_any = kwargs.get("run_id")
@@ -124,8 +124,8 @@ class MonitoringCallback(BaseCallbackHandler):
                 total_i = _coerce_int(total)
 
             return {
-                "prompt_tokens": prompt_i,
-                "completion_tokens": completion_i,
+                "input_tokens": prompt_i,
+                "output_tokens": completion_i,
                 "total_tokens": total_i,
             }
 

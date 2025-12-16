@@ -2,9 +2,11 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from utils import get_project_root
+
 
 def get_monitoring_base_dir() -> Path:
-    return Path(os.getenv("PROJECT_ROOT")) / "runs"
+    return get_project_root() / "runs"
 
 
 def get_monitoring_run_dir(run_id: str, create: bool = True) -> Path:

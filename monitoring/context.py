@@ -36,7 +36,14 @@ def monitor_execution(
             def end_step(self):
                 pass
 
-        yield DummyContext()
+        # Ensure current_stats is set even if monitoring is disabled
+        # This prevents LookupError in components that expect stats to be available
+        run_stats = RunStats()
+        stats_token = current_stats.set(run_stats)
+        try:
+            yield DummyContext()
+        finally:
+            current_stats.reset(stats_token)
         return
 
     # Default run_id if none provided
@@ -100,18 +107,20 @@ def monitor_execution(
         trace_logger.info(json.dumps({"event": "run_end", "run_id": run_id, "timestamp": time.time()}))
 
         # Cleanup & Save Summary (Happens automatically on exit/crash)
-        summary_file = out_path / f"summary_{run_id}.json"
+        summary_file = out_path / f"summary.json"
         try:
             with open(summary_file, "w") as f:
                 json.dump(run_stats.to_dict(), f, indent=2)
-            logger.info(f"✨ Monitoring summary saved to {summary_file}")
+            logger.debug(f"✨ Monitoring summary saved to {summary_file}")
         except Exception as e:
             logger.error(f"Failed to save monitoring summary: {e}")
 
         # Cleanup handler
         trace_logger.removeHandler(trace_handler)
         trace_handler.close()
-        logger.info(f"✨ Execution traces saved to {trace_file}")
+        logger.debug(f"✨ Execution traces saved to {trace_file}")
+
+        logger.info(f"✨ Run results saved to {out_path}")
 
         # Cleanup app.log handler
         root_logger.removeHandler(app_log_handler)
