@@ -169,13 +169,13 @@ class DiagramGenerator(BaseModel):
                 run_id = generate_run_id(name=run_name)
 
             monitoring_dir = get_monitoring_run_dir(run_id, create=True)
-            logger.info(f"Monitoring enabled. Writing stats to {monitoring_dir}")
+            logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
 
             # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
             with open(code_stats_file, "w") as f:
                 json.dump(static_stats, f, indent=2)
-            logger.info(f"Written code_stats.json to {code_stats_file}")
+            logger.debug(f"Written code_stats.json to {code_stats_file}")
 
             # Initialize streaming writer (handles timing and run_metadata.json)
             self.stats_writer = StreamingStatsWriter(
