@@ -440,15 +440,19 @@ Examples:
                 with monitor_execution(run_id=run_id, output_dir=str(monitoring_dir), enabled=should_monitor) as mon:
                     mon.step(f"processing_{repo_name}")
 
-                    process_remote_repository(
-                        repo_url=repo,
-                        output_dir=args.output_dir,
-                        depth_level=args.depth_level,
-                        upload=args.upload,
-                        cache_check=not args.no_cache_check,
-                        run_id=run_id,
-                        monitoring_enabled=should_monitor,
-                    )
+                    try:
+                        process_remote_repository(
+                            repo_url=repo,
+                            output_dir=args.output_dir,
+                            depth_level=args.depth_level,
+                            upload=args.upload,
+                            cache_check=not args.no_cache_check,
+                            run_id=run_id,
+                            monitoring_enabled=should_monitor,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to process repository {repo}: {e}")
+                        continue
 
             logger.info("All repositories processed successfully!")
         else:
