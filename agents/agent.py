@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted

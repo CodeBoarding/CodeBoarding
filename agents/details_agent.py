@@ -8,6 +8,7 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     CFGAnalysisInsights,
+    LLMBaseModel,
     ValidationInsights,
     Component,
     MetaAnalysisInsights,
@@ -62,7 +63,7 @@ class DetailsAgent(CodeBoardingAgent):
             ),
         }
 
-        self.context: dict[str, AnalysisInsights] = {}
+        self.context: dict[str, LLMBaseModel] = {}
 
     def step_subcfg(self, component: Component):
         logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
