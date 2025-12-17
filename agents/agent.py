@@ -79,6 +79,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock > Ollama
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.openai_base_url = os.getenv("OPENAI_BASE_URL")
+        self.vercel_api_key = os.getenv("VERCEL_API_KEY")
+        self.vercel_base_url = os.getenv("VERCEL_BASE_URL", "https://api.vercel.ai/v1")
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
@@ -106,6 +108,18 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.openai_api_key,  # type: ignore[arg-type]
                 base_url=self.openai_base_url,
             )
+        elif self.vercel_api_key:
+            model_name = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
+            logger.info(f"Using Vercel AI Gateway with model: {model_name}")
+            model = ChatOpenAI(
+                model=model_name,
+                temperature=0,
+                max_tokens=None,  # type: ignore[call-arg]
+                timeout=None,
+                max_retries=0,
+                api_key=self.vercel_api_key,  # type: ignore[arg-type]
+                base_url=self.vercel_base_url,
+            )
         elif self.anthropic_api_key:
             model_name = self.codeboarding_model if self.codeboarding_model else "claude-3-7-sonnet-20250219"
             logger.info(f"Using Anthropic LLM with model: {model_name}")
@@ -118,7 +132,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 api_key=self.anthropic_api_key,  # type: ignore[arg-type]
             )
         elif self.google_api_key:
-            model_name = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
+            model_name = self.codeboarding_model if self.codeboarding_model else "gemini-3-flash-preview"
             logger.info(f"Using Google Gemini LLM with model: {model_name}")
             model = ChatGoogleGenerativeAI(
                 model=model_name,

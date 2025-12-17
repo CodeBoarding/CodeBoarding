@@ -102,6 +102,7 @@ class PromptFactory:
             "gpt4": LLMType.GPT4,
             "gpt-4": LLMType.GPT4,
             "openai": LLMType.GPT4,  # Default OpenAI to GPT4
+            "vercel": LLMType.GPT4,
         }
 
         llm_type = llm_mapping.get(llm_name.lower(), LLMType.GEMINI_FLASH)

@@ -328,6 +328,10 @@ ENABLE_MONITORING=false
 # OPENAI_API_KEY=your_openai_api_key_here
 # OPENAI_BASE_URL=https://api.openai.com/v1  # Optional: Custom OpenAI endpoint
 
+# Vercel AI Gateway Configuration
+# VERCEL_API_KEY=your_vercel_api_key_here
+# VERCEL_BASE_URL=https://ai-gateway.vercel.sh/v1
+
 # Anthropic Configuration
 # ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
