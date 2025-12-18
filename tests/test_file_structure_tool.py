@@ -1,9 +1,11 @@
 import unittest
+import os
 from pathlib import Path
 
 from agents.tools import FileStructureTool
 
 
+@unittest.skipIf(not os.path.exists("./repos/django"), "Django repo not found")
 class TestFileStructureTool(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test

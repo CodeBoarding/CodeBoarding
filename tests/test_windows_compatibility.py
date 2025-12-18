@@ -4,6 +4,7 @@ Tests to verify Windows compatibility fixes for path handling.
 
 import unittest
 from pathlib import Path
+import os
 
 from static_analyzer.lsp_client.client import uri_to_path
 
@@ -25,8 +26,12 @@ class TestFileURIParsing(unittest.TestCase):
         result = uri_to_path(windows_uri)
 
         # On Windows: C:\Users\user\project\file.py
-        # On Unix: C:/Users/user/project/file.py (for testing purposes)
-        expected = Path("C:/Users/user/project/file.py")
+        # On Unix: /C:/Users/user/project/file.py (url2pathname keeps the leading slash)
+        if os.name == "nt":
+            expected = Path("C:/Users/user/project/file.py")
+        else:
+            expected = Path("/C:/Users/user/project/file.py")
+
         self.assertEqual(result, expected)
 
     def test_windows_file_uri_with_encoded_spaces(self):
@@ -34,5 +39,9 @@ class TestFileURIParsing(unittest.TestCase):
         windows_uri = "file:///C:/Users/My%20Documents/project/file.py"
         result = uri_to_path(windows_uri)
 
-        expected = Path("C:/Users/My Documents/project/file.py")
+        if os.name == "nt":
+            expected = Path("C:/Users/My Documents/project/file.py")
+        else:
+            expected = Path("/C:/Users/My Documents/project/file.py")
+
         self.assertEqual(result, expected)

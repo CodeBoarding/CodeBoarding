@@ -6,17 +6,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
-from langchain_anthropic import ChatAnthropic
-from langchain_aws import ChatBedrockConverse
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_ollama import ChatOllama
-from langchain_cerebras import ChatCerebras
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
@@ -34,6 +28,7 @@ from agents.tools import (
     ReadDocsTool,
 )
 from agents.tools.external_deps import ExternalDepsTool
+from agents.llm_config import LLM_PROVIDERS
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -47,8 +42,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self._setup_env_vars()
-        self.llm = self._initialize_llm()
-        self.parsing_llm = self._initialize_parsing_llm()
+        self.llm = self._initialize_llms(is_small_model=False)
+        self.parsing_llm = self._initialize_llms(is_small_model=True)
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -75,164 +70,48 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _setup_env_vars(self):
         load_dotenv()
-        # Check for API keys in priority order: OpenAI > Anthropic > Google > AWS Bedrock > Ollama
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
-        self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-
         # Model selection via environment variable
         self.codeboarding_model = os.getenv("CODEBOARDING_MODEL")
-        self.parsing_model = os.getenv("PARSING_MODEL")
+        self.parsing_model = os.getenv("PARSING_MODEL", None)
 
-    def _initialize_llm(self):
+    def _initialize_llms(self, is_small_model: bool = False) -> BaseChatModel:
         """Initialize LLM based on available API keys with priority order."""
-        model_name: str | None = None
-        model: BaseChatModel
+        model_env_var = self.parsing_model if is_small_model else self.codeboarding_model
 
-        if self.openai_api_key:
-            model_name = self.codeboarding_model if self.codeboarding_model else "gpt-4o"
-            logger.info(f"Using OpenAI LLM with model: {model_name}")
-            model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,  # type: ignore[call-arg]
-                timeout=None,
-                max_retries=0,
-                api_key=self.openai_api_key,  # type: ignore[arg-type]
-                base_url=self.openai_base_url,
-            )
-        elif self.anthropic_api_key:
-            model_name = self.codeboarding_model if self.codeboarding_model else "claude-3-7-sonnet-20250219"
-            logger.info(f"Using Anthropic LLM with model: {model_name}")
-            model = ChatAnthropic(
-                model=model_name,  # type: ignore[call-arg]
-                temperature=0,
-                max_tokens=8192,  # type: ignore[call-arg]
-                timeout=None,
-                max_retries=0,
-                api_key=self.anthropic_api_key,  # type: ignore[arg-type]
-            )
-        elif self.google_api_key:
-            model_name = self.codeboarding_model if self.codeboarding_model else "gemini-2.5-flash"
-            logger.info(f"Using Google Gemini LLM with model: {model_name}")
-            model = ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,
-                timeout=None,
-                max_retries=0,
-                api_key=self.google_api_key,
-            )
-        elif self.aws_bearer_token:
-            model_name = (
-                self.codeboarding_model if self.codeboarding_model else "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
-            )
-            logger.info(f"Using AWS Bedrock Converse LLM with model: {model_name}")
-            model = ChatBedrockConverse(
-                model=model_name,
-                temperature=0,
-                max_tokens=4096,
-                region_name=self.aws_region,
-                credentials_profile_name=None,
-            )
-        elif self.cerebras_api_key:
-            model_name = self.codeboarding_model if self.codeboarding_model else "gpt-oss-120b"
-            logger.info(f"Using Cerebras LLM with model: {model_name}")
-            model = ChatCerebras(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,
-                timeout=None,
-                max_retries=0,
-                api_key=self.cerebras_api_key,  # type: ignore[arg-type]
-            )
-        elif self.ollama_base_url:
-            model_name = self.codeboarding_model if self.codeboarding_model else "qwen3:30b"
-            logging.info(f"Using Ollama LLM with model: {model_name}")
-            model = ChatOllama(model=model_name, base_url=self.ollama_base_url, temperature=0.6)
-        else:
-            raise ValueError(
-                "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
-                "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
-            )
-        self.agent_monitoring_callback.model_name = model_name
-        MONITORING_CALLBACK.model_name = model_name
-        return model
+        for name, config in LLM_PROVIDERS.items():
+            api_key = config.get_api_key()
+            if not api_key:
+                continue
 
-    def _initialize_parsing_llm(self):
-        """Initialize a fast LLM for extraction tasks based on available API keys."""
-        model_name: str | None = None
-        model: BaseChatModel
+            # Determine model name
+            smart_model = config.small_model if is_small_model else config.smart_model
+            model_name = model_env_var if model_env_var else smart_model
 
-        if self.openai_api_key:
-            model_name = self.parsing_model if self.parsing_model else "gpt-4o-mini"
-            logger.info(f"Using OpenAI Extractor LLM with model: {model_name}")
-            model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,  # type: ignore[call-arg]
-                timeout=None,
-                max_retries=0,
-                api_key=self.openai_api_key,  # type: ignore[arg-type]
-                base_url=self.openai_base_url,
-            )
-        elif self.anthropic_api_key:
-            model_name = self.parsing_model if self.parsing_model else "claude-3-haiku-20240307"
-            logger.info(f"Using Anthropic Extractor LLM with model: {model_name}")
-            model = ChatAnthropic(
-                model=model_name,  # type: ignore[call-arg]
-                temperature=0,
-                max_tokens=8192,  # type: ignore[call-arg]
-                timeout=None,
-                max_retries=0,
-                api_key=self.anthropic_api_key,  # type: ignore[arg-type]
-            )
-        elif self.google_api_key:
-            model_name = self.parsing_model if self.parsing_model else "gemini-2.0-flash-lite-preview-02-05"
-            logger.info(f"Using Google Gemini Extractor LLM with model: {model_name}")
-            model = ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,
-                timeout=None,
-                max_retries=0,
-                api_key=self.google_api_key,
-            )
-        elif self.aws_bearer_token:
-            model_name = self.parsing_model if self.parsing_model else "us.anthropic.claude-3-haiku-20240307-v1:0"
-            logger.info(f"Using AWS Bedrock Extractor LLM with model: {model_name}")
-            model = ChatBedrockConverse(
-                model=model_name,
-                temperature=0,
-                max_tokens=4096,
-                region_name=self.aws_region,
-                credentials_profile_name=None,
-            )
-        elif self.cerebras_api_key:
-            model_name = self.parsing_model if self.parsing_model else "llama3.1-8b"
-            logger.info(f"Using Cerebras Extractor LLM with model: {model_name}")
-            model = ChatCerebras(
-                model=model_name,
-                temperature=0,
-                max_tokens=None,
-                timeout=None,
-                max_retries=0,
-                api_key=self.cerebras_api_key,  # type: ignore[arg-type]
-            )
-        elif self.ollama_base_url:
-            model_name = self.parsing_model if self.parsing_model else "qwen2.5:7b"
-            logger.info(f"Using Ollama Extractor LLM with model: {model_name}")
-            model = ChatOllama(model=model_name, base_url=self.ollama_base_url, temperature=0.1)
-        else:
-            logger.warning("No specific extractor configuration found, falling back to main LLM logic.")
-            return self._initialize_llm()
+            logger.info(f"Using {name.title()} {'Extractor ' if is_small_model else ''}LLM with model: {model_name}")
 
-        return model
+            # Prepare arguments
+            kwargs = {
+                "model": model_name,
+                "temperature": config.small_temperature if is_small_model else config.smart_temperature,
+            }
+
+            # Add provider-specific args
+            kwargs.update(config.get_resolved_extra_args())
+
+            # Add API key if standard (AWS and Ollama handle auth differently)
+            if name not in ["aws", "ollama"]:
+                kwargs["api_key"] = api_key
+
+            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+
+            self.agent_monitoring_callback.model_name = model_name
+            MONITORING_CALLBACK.model_name = model_name
+            return model
+
+        raise ValueError(
+            "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
+            "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
+        )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method."""

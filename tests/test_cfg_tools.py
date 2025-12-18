@@ -1,10 +1,12 @@
 import unittest
+import os
 from pathlib import Path
 
 from agents.tools import GetCFGTool, MethodInvocationsTool
 from static_analyzer import StaticAnalyzer
 
 
+@unittest.skipIf(not os.path.exists("./temp/test"), "Temp test dir not found")
 class TestCFGTools(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test

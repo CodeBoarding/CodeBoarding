@@ -1,9 +1,11 @@
 import unittest
+import os
 from pathlib import Path
 
 from agents.tools.read_file import ReadFileTool
 
 
+@unittest.skipIf(not os.path.exists("./repos/django"), "Django repo not found")
 class TestReadFileTool(unittest.TestCase):
 
     def setUp(self):

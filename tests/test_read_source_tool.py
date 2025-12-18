@@ -1,10 +1,12 @@
 import unittest
+import os
 from pathlib import Path
 
 from agents.tools import CodeReferenceReader
 from static_analyzer import StaticAnalyzer
 
 
+@unittest.skipIf(not os.path.exists("./repos/django"), "Django repo not found")
 class TestReadSourceTool(unittest.TestCase):
     def setUp(self):
         # Set up any necessary state or mocks before each test
