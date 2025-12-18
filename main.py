@@ -435,7 +435,7 @@ Examples:
 
                 base_name = args.project_name if args.project_name else repo_name
                 run_id = generate_run_id(base_name)
-                monitoring_dir = get_monitoring_run_dir(run_id)
+                monitoring_dir = get_monitoring_run_dir(run_id, create=should_monitor)
 
                 with monitor_execution(run_id=run_id, output_dir=str(monitoring_dir), enabled=should_monitor) as mon:
                     mon.step(f"processing_{repo_name}")

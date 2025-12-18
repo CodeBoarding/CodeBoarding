@@ -56,19 +56,6 @@ def monitor_execution(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Configure run-specific app.log
-    app_log_path = out_path / "app.log"
-    app_log_handler = logging.FileHandler(app_log_path)
-    app_log_handler.setLevel(logging.DEBUG)
-    app_log_formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-8s [%(name)s:%(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    app_log_handler.setFormatter(app_log_formatter)
-
-    # Add to root logger to capture all logs
-    root_logger = logging.getLogger()
-    root_logger.addHandler(app_log_handler)
-
     # Setup Streaming - use trace.jsonl in run directory
     trace_file = out_path / "trace.jsonl"
 
