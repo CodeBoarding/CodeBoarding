@@ -30,18 +30,22 @@ class StreamingStatsWriter:
         interval: float = 5.0,
         start_time: float | None = None,
     ):
-        self.monitoring_dir = Path(monitoring_dir)
-        self.llm_usage_file = self.monitoring_dir / "llm_usage.json"
+        self.monitoring_dir = monitoring_dir
         self.agents_dict = agents_dict
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.interval = interval
+        self.start_time = start_time
+
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._logger = logging.getLogger("monitoring.writer")
-        self._start_time: float | None = start_time
         self._error: str | None = None
         self._end_time: float | None = None
+
+    @property
+    def llm_usage_file(self) -> Path:
+        return self.monitoring_dir / "llm_usage.json"
 
     def __enter__(self):
         self.start()
@@ -56,8 +60,8 @@ class StreamingStatsWriter:
         if self._thread is not None:
             return
 
-        if self._start_time is None:
-            self._start_time = time.time()
+        if self.start_time is None:
+            self.start_time = time.time()
         self.monitoring_dir.mkdir(parents=True, exist_ok=True)
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -73,13 +77,41 @@ class StreamingStatsWriter:
         self._stop_event.set()
         self._thread.join(timeout=2.0)
         self._save_llm_usage()
+        self._stream_token_usage()
         self._save_run_metadata()
         self._logger.info("Stopped streaming monitoring results")
 
     def _loop(self):
         while not self._stop_event.is_set():
             self._save_llm_usage()
+            self._stream_token_usage()
             self._stop_event.wait(self.interval)
+
+    def _stream_token_usage(self):
+        total_input = 0
+        total_output = 0
+        total_tokens = 0
+        model_name = "unknown"
+
+        for agent in self.agents_dict.values():
+            res = agent.get_monitoring_results()
+            usage = res.get("token_usage", {})
+            total_input += usage.get("input_tokens", 0)
+            total_output += usage.get("output_tokens", 0)
+            total_tokens += usage.get("total_tokens", 0)
+            if res.get("model_name"):
+                model_name = str(res.get("model_name"))
+
+        payload = {
+            "token_usage": {
+                "input_tokens": total_input,
+                "output_tokens": total_output,
+                "total_tokens": total_tokens,
+            },
+            "model_name": model_name,
+        }
+        # Print as a log message
+        self._logger.info(f"Cumulative Token Usage: {json.dumps(payload)}")
 
     def _save_llm_usage(self):
         """Save LLM usage stats to llm_usage.json."""
@@ -91,7 +123,9 @@ class StreamingStatsWriter:
             if not agents_payload:
                 return
 
-            data = {"agents": agents_payload}
+            data = {}
+            if agents_payload:
+                data["agents"] = agents_payload
 
             # Atomic write
             temp_file = self.llm_usage_file.with_suffix(".tmp")
@@ -106,7 +140,7 @@ class StreamingStatsWriter:
         """Save run metadata including timing information."""
         try:
             end_time = self._end_time if self._end_time else time.time()
-            duration = end_time - self._start_time if self._start_time else 0
+            duration = end_time - self.start_time if self.start_time else 0
 
             # Count output files
             json_count = 0

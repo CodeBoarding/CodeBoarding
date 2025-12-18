@@ -34,6 +34,14 @@ def caching_enabled():
     return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
+def get_project_root() -> Path:
+    project_root_env = os.getenv("PROJECT_ROOT")
+    if project_root_env:
+        return Path(project_root_env)
+
+    return Path(__file__).resolve().parent
+
+
 def monitoring_enabled():
     print("Monitoring enabled:", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")

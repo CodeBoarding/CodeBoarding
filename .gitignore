@@ -179,6 +179,9 @@ repos/
 repos/*
 temp
 
+# Monitoring runs
+runs/
+
 .idea
 .idea/*
 static_analyzer/servers/
