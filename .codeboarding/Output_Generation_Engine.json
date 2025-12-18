@@ -1,32 +1,9 @@
 {
-  "description": "The Output Generation Subsystem is responsible for transforming raw architectural insights into various structured documentation and visual diagrams. At its core, the Output Generation Engine acts as an orchestrator, receiving architectural insights from an external AI Interpretation Layer. It then delegates the task of generating specific output formats to a suite of specialized generators, including the Markdown Generator, HTML Generator, MDX Generator, Sphinx Generator for diverse documentation needs, and the Diagram Generator for visual representations. Once generated, these outputs are delivered to an external Job Database for storage. The entire process within this subsystem is initiated and managed by an external Orchestration Engine, ensuring a streamlined workflow from insight to deliverable.",
+  "description": "The documentation and diagram generation subsystem is centered around the Diagram Core, which is responsible for processing analysis insights and producing raw diagram data. This data is then consumed by format-specific generators: the Markdown Generator for static Markdown output with Mermaid syntax, and the HTML Generator for interactive web-based documentation. The HTML Generator further relies on the HTML Template to provide the structural and stylistic foundation for the final web pages, embedding the interactive diagrams and detailed component information. This architecture ensures a clear separation of concerns between diagram data generation and output formatting, allowing for flexible and extensible documentation capabilities.",
   "components": [
     {
-      "name": "Output Generation Engine",
-      "description": "The primary orchestrator, responsible for coordinating the generation of various documentation and diagram formats. It acts as the facade for the entire output generation process.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators",
-          "reference_file": "output_generators/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "diagram_analysis",
-          "reference_file": "diagram_analysis/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/__init__.py",
-        "../../diagram_analysis/__init__.py"
-      ],
-      "can_expand": true
-    },
-    {
       "name": "Markdown Generator",
-      "description": "Specializes in generating documentation in Markdown format.",
+      "description": "Generates comprehensive documentation in Markdown format. This includes structuring detailed component descriptions, creating Mermaid graph syntax for diagrams, and linking to other generated files. It is a primary output mechanism for the tool.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.markdown",
@@ -38,11 +15,11 @@
       "assigned_files": [
         "../../output_generators/markdown.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "HTML Generator",
-      "description": "Specializes in generating documentation in HTML format.",
+      "description": "Produces interactive documentation in HTML format. It is responsible for creating the JSON data structure required for Cytoscape.js diagrams, embedding this data within an HTML template, and populating the template with structured component details and navigation links.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.html",
@@ -52,46 +29,13 @@
         }
       ],
       "assigned_files": [
-        "../../output_generators/html.py",
-        "../../output_generators/html_template.py"
+        "../../output_generators/html.py"
       ],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "MDX Generator",
-      "description": "Specializes in generating documentation in MDX (Markdown with JSX) format.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.mdx",
-          "reference_file": "output_generators/mdx.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/mdx.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Sphinx Generator",
-      "description": "Specializes in generating documentation compatible with Sphinx.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.sphinx",
-          "reference_file": "output_generators/sphinx.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/sphinx.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Diagram Generator",
-      "description": "Manages the creation of various visual diagrams from architectural insights.",
+      "name": "Diagram Core",
+      "description": "Provides the foundational logic for generating diagram data structures or syntax from analysis insights, independent of the final output format. It abstracts the complexities of different diagramming libraries (e.g., Mermaid, Cytoscape.js) and produces the raw diagram information that format-specific generators then integrate. This component is crucial for the \"visual diagrams\" aspect of the engine.",
       "referenced_source_code": [
         {
           "qualified_name": "diagram_analysis.diagram_generator",
@@ -101,103 +45,67 @@
         }
       ],
       "assigned_files": [
-        "../../diagram_analysis/analysis_json.py",
         "../../diagram_analysis/diagram_generator.py"
       ],
       "can_expand": true
     },
     {
-      "name": "AI Interpretation Layer",
-      "description": "An external component that provides architectural insights as input to the Output Generation Engine.",
+      "name": "HTML Template",
+      "description": "Defines the overall HTML structure, layout, and styling for the web-based documentation. It serves as a static foundation that the HTML Generator dynamically populates with content, including component details, descriptions, and embedded interactive diagrams.",
       "referenced_source_code": [
         {
-          "qualified_name": "AIInterpretationLayerInterface",
-          "reference_file": "file_path",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Job Database",
-      "description": "An external component that receives and stores the generated documentation and diagrams.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "JobDatabaseInterface",
-          "reference_file": "JobDatabaseInterface",
+          "qualified_name": "output_generators.html_template",
+          "reference_file": "output_generators/html_template.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../output_generators/html_template.py"
+      ],
       "can_expand": false
-    },
-    {
-      "name": "Orchestration Engine",
-      "description": "An external component responsible for triggering and managing the Output Generation Engine.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "OrchestrationEngineInterface",
-          "reference_file": "OrchestrationEngineInterface",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../diagram_analysis/version.py"
+        "../../output_generators/mdx.py",
+        "../../diagram_analysis/analysis_json.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "delegates to",
-      "src_name": "Output Generation Engine",
+      "relation": "Consumes output from",
+      "src_name": "Markdown Generator",
+      "dst_name": "Diagram Core"
+    },
+    {
+      "relation": "Depends on",
+      "src_name": "HTML Generator",
+      "dst_name": "HTML Template"
+    },
+    {
+      "relation": "Consumes output from",
+      "src_name": "HTML Generator",
+      "dst_name": "Diagram Core"
+    },
+    {
+      "relation": "Produces data for",
+      "src_name": "Diagram Core",
       "dst_name": "Markdown Generator"
     },
     {
-      "relation": "delegates to",
-      "src_name": "Output Generation Engine",
+      "relation": "Produces data for",
+      "src_name": "Diagram Core",
       "dst_name": "HTML Generator"
     },
     {
-      "relation": "delegates to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "MDX Generator"
-    },
-    {
-      "relation": "delegates to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Sphinx Generator"
-    },
-    {
-      "relation": "delegates to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Diagram Generator"
-    },
-    {
-      "relation": "receives input from",
-      "src_name": "Output Generation Engine",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "sends output to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Job Database"
-    },
-    {
-      "relation": "orchestrated by",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Orchestration Engine"
+      "relation": "Provides structure to",
+      "src_name": "HTML Template",
+      "dst_name": "HTML Generator"
     }
   ]
 }

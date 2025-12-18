@@ -1,28 +1,12 @@
 {
-  "description": "The system's architecture is centered around a hierarchy of AI agents designed for comprehensive code analysis. The MetaAgent orchestrates the overall analysis workflow, delegating tasks to the PlannerAgent which strategizes the execution sequence. Specialized Analysis Agents (AbstractionAgent, DetailsAgent, ValidatorAgent) perform the core AI-driven analysis, leveraging the CodebaseAccessTools for programmatic access to codebase information, including source code and CFGs. This access is significantly powered by an enhanced Language Server Protocol (LSP) client, improving the precision and scope of code interpretation. The DiffAnalyzer provides targeted input by analyzing code changes, while the PromptFactory dynamically generates prompts for various LLMs. Finally, AgentResponses processes and transforms raw LLM outputs into actionable architectural insights. This structure ensures a modular, extensible, and intelligent approach to code understanding and architectural analysis.",
+  "description": "The AI Interpretation Layer is orchestrated by the `meta_agent`, which directs the flow of analysis. It receives initial static analysis results, including an Intermediate Representation (IR), from the `Static Analysis Engine`. The `meta_agent` then delegates tasks to specialized agents: the `abstraction_agent` for high-level insights and the `details_agent` for granular information. Both `abstraction_agent` and `details_agent` interact with the `LLM Provider Gateway` to leverage Large Language Models for interpretation. Their generated interpretations are then passed to the `validator_agent` for quality assurance. Finally, the `validator_agent` reports its findings back to the `meta_agent`, which aggregates and synthesizes the complete interpretation before delivering it to the `Output Generation Engine` for final presentation. This architecture ensures a structured, multi-faceted approach to code analysis and interpretation.",
   "components": [
     {
-      "name": "Agent",
-      "description": "The foundational component, defining the base interface and common functionalities for all specialized agents, acting as the core orchestrator for individual AI-driven analysis tasks.",
+      "name": "meta_agent",
+      "description": "Orchestrates the overall interpretation process, invoking other agents, managing information flow, and synthesizing their outputs. It acts as the primary control point for the AI Interpretation Layer.",
       "referenced_source_code": [
         {
-          "qualified_name": "Agent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../agents/agent.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "MetaAgent",
-      "description": "Responsible for higher-level orchestration and coordination of multiple specialized agents, guiding the overall analysis workflow. It acts as the primary entry point for initiating complex analysis tasks.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "MetaAgent",
+          "qualified_name": "agents.meta_agent.MetaAgent",
           "reference_file": "agents/meta_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -34,74 +18,60 @@
       "can_expand": true
     },
     {
-      "name": "PlannerAgent",
-      "description": "Determines the strategic sequence of analysis steps and the specific agents to be invoked based on the analysis goals, effectively creating an execution plan.",
+      "name": "abstraction_agent",
+      "description": "Interprets static analysis results to identify high-level concepts, architectural patterns, and summarized insights.",
       "referenced_source_code": [
         {
-          "qualified_name": "PlannerAgent",
-          "reference_file": "agents/planner_agent.py",
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/planner_agent.py"
+        "../../agents/abstraction_agent.py"
       ],
       "can_expand": true
     },
     {
-      "name": "Specialized Analysis Agents",
-      "description": "A group of agents (AbstractionAgent, DetailsAgent, ValidatorAgent) that perform specific AI-driven analysis tasks: identifying high-level architectural concepts, delving into granular code details, and verifying insights against architectural principles.",
+      "name": "details_agent",
+      "description": "Extracts granular details, specific code characteristics, and detailed explanations from static analysis results.",
       "referenced_source_code": [
         {
-          "qualified_name": "AbstractionAgent",
-          "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "DetailsAgent",
+          "qualified_name": "agents.details_agent.DetailsAgent",
           "reference_file": "agents/details_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
-        },
+        }
+      ],
+      "assigned_files": [
+        "../../agents/details_agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "validator_agent",
+      "description": "Validates interpretations from `abstraction_agent` and `details_agent` for consistency, accuracy, and completeness.",
+      "referenced_source_code": [
         {
-          "qualified_name": "ValidatorAgent",
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
           "reference_file": "agents/validator_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../agents/details_agent.py",
-        "../../agents/validator_agent.py",
-        "../../agents/abstraction_agent.py"
+        "../../agents/validator_agent.py"
       ],
       "can_expand": true
     },
     {
-      "name": "DiffAnalyzer",
-      "description": "Analyzes code differences (e.g., from Git commits) to provide targeted input for agents, enabling incremental analysis and integration with CI/CD pipelines.",
+      "name": "Static Analysis Engine",
+      "description": "Performs static analysis on the codebase, generating an Intermediate Representation (IR) and identifying characteristics, issues, and vulnerabilities. This component implicitly includes the \"Intermediate Representation (IR) Generator\" functionality.",
       "referenced_source_code": [
         {
-          "qualified_name": "DiffAnalyzer",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../agents/diff_analyzer.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "PromptFactory",
-      "description": "Manages the dynamic generation and selection of appropriate prompts for interacting with various Large Language Models (LLMs), adapting to different LLM providers and analysis contexts.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
+          "qualified_name": "static_analyzer",
+          "reference_file": "static_analyzer/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -110,37 +80,29 @@
       "can_expand": true
     },
     {
-      "name": "CodebaseAccessTools",
-      "description": "Provides agents with the capability to programmatically access and interpret different aspects of the codebase, including source code, Control Flow Graphs, and file structures. This component has been significantly enhanced with an updated Language Server Protocol (LSP) client (`static_analyzer/lsp_client/client.py`), which is crucial for its ability to programmatically access and interpret codebase information, leading to improved performance, accuracy, or expanded capabilities in code analysis.",
+      "name": "LLM Provider Gateway",
+      "description": "Provides a standardized interface for all agents to interact with Large Language Models (LLMs) for generating interpretations. This is handled by the `llm` attribute within `CodeBoardingAgent`.",
       "referenced_source_code": [
         {
-          "qualified_name": "read_source",
-          "reference_file": "agents/tools/read_source.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "read_cfg",
-          "reference_file": "agents/tools/read_cfg.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "read_file_structure",
-          "reference_file": "agents/tools/read_file_structure.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer/lsp_client/client.py",
-          "reference_file": "static_analyzer/lsp_client/client.py",
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
       "assigned_files": [
+        "../../agents/diff_analyzer.py",
+        "../../agents/agent_responses.py",
         "../../agents/tools/read_source.py",
         "../../agents/tools/read_file_structure.py",
+        "../../agents/tools/external_deps.py",
         "../../agents/tools/read_packages.py",
         "../../agents/tools/read_cfg.py",
         "../../agents/tools/get_method_invocations.py",
@@ -149,126 +111,79 @@
         "../../agents/tools/read_structure.py",
         "../../agents/tools/read_docs.py"
       ],
-      "can_expand": true
-    },
-    {
-      "name": "AgentResponses",
-      "description": "Handles the structured parsing, interpretation, and transformation of raw LLM outputs into actionable architectural insights or data structures.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AgentResponses",
-          "reference_file": "agents/agent_responses.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../agents/agent_responses.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/tools/__init__.py",
-        "../../agents/tools/external_deps.py"
-      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
       "relation": "orchestrates",
-      "src_name": "MetaAgent",
-      "dst_name": "PlannerAgent"
+      "src_name": "meta_agent",
+      "dst_name": "abstraction_agent"
     },
     {
       "relation": "orchestrates",
-      "src_name": "MetaAgent",
-      "dst_name": "Specialized Analysis Agents"
+      "src_name": "meta_agent",
+      "dst_name": "details_agent"
     },
     {
-      "relation": "plans execution for",
-      "src_name": "PlannerAgent",
-      "dst_name": "Specialized Analysis Agents"
+      "relation": "orchestrates",
+      "src_name": "meta_agent",
+      "dst_name": "validator_agent"
     },
     {
-      "relation": "receives guidance from",
-      "src_name": "PlannerAgent",
-      "dst_name": "MetaAgent"
+      "relation": "provides results to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "meta_agent"
     },
     {
-      "relation": "utilizes",
-      "src_name": "Specialized Analysis Agents",
-      "dst_name": "CodebaseAccessTools"
+      "relation": "provides IR to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "abstraction_agent"
     },
     {
-      "relation": "interacts with",
-      "src_name": "Specialized Analysis Agents",
-      "dst_name": "PromptFactory"
+      "relation": "sends prompts to",
+      "src_name": "abstraction_agent",
+      "dst_name": "LLM Provider Gateway"
     },
     {
-      "relation": "sends responses to",
-      "src_name": "Specialized Analysis Agents",
-      "dst_name": "AgentResponses"
+      "relation": "provides interpretations to",
+      "src_name": "abstraction_agent",
+      "dst_name": "validator_agent"
     },
     {
-      "relation": "receives input from",
-      "src_name": "Specialized Analysis Agents",
-      "dst_name": "DiffAnalyzer"
+      "relation": "provides IR to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "details_agent"
     },
     {
-      "relation": "provides input to",
-      "src_name": "DiffAnalyzer",
-      "dst_name": "Specialized Analysis Agents"
+      "relation": "sends prompts to",
+      "src_name": "details_agent",
+      "dst_name": "LLM Provider Gateway"
     },
     {
-      "relation": "utilizes",
-      "src_name": "DiffAnalyzer",
-      "dst_name": "CodebaseAccessTools"
+      "relation": "provides interpretations to",
+      "src_name": "details_agent",
+      "dst_name": "validator_agent"
     },
     {
-      "relation": "provides prompts to",
-      "src_name": "PromptFactory",
-      "dst_name": "Specialized Analysis Agents"
+      "relation": "reports results to",
+      "src_name": "validator_agent",
+      "dst_name": "meta_agent"
     },
     {
-      "relation": "provides code data to",
-      "src_name": "CodebaseAccessTools",
-      "dst_name": "Specialized Analysis Agents"
+      "relation": "returns responses to",
+      "src_name": "LLM Provider Gateway",
+      "dst_name": "abstraction_agent"
     },
     {
-      "relation": "provides code data to",
-      "src_name": "CodebaseAccessTools",
-      "dst_name": "DiffAnalyzer"
+      "relation": "returns responses to",
+      "src_name": "LLM Provider Gateway",
+      "dst_name": "details_agent"
     },
     {
-      "relation": "receives raw output from",
-      "src_name": "AgentResponses",
-      "dst_name": "Specialized Analysis Agents"
-    },
-    {
-      "relation": "inherits from",
-      "src_name": "MetaAgent",
-      "dst_name": "Agent"
-    },
-    {
-      "relation": "inherits from",
-      "src_name": "PlannerAgent",
-      "dst_name": "Agent"
-    },
-    {
-      "relation": "inherits from",
-      "src_name": "Specialized Analysis Agents",
-      "dst_name": "Agent"
-    },
-    {
-      "relation": "inherits from",
-      "src_name": "DiffAnalyzer",
-      "dst_name": "Agent"
+      "relation": "returns responses to",
+      "src_name": "LLM Provider Gateway",
+      "dst_name": "meta_agent"
     }
   ]
 }

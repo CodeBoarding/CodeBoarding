@@ -1,0 +1,78 @@
+{
+  "description": "The Prompt Management Layer subsystem focuses on the dynamic creation and management of prompts for various LLMs, aligning with the 'AI Interpretation Layer' and 'Modular Design' aspects of the project. This subsystem exhibits a Factory design pattern. The AbstractPromptFactory defines the interface, which PromptFactory implements. PromptFactory then acts as the client that instantiates concrete prompt products, such as ClaudePromptsBidirectional, based on runtime conditions. This structure ensures modularity and allows for easy addition of new LLM-specific prompt implementations without modifying the core PromptFactory logic, aligning with the project's emphasis on extensibility and modular design.",
+  "components": [
+    {
+      "name": "AbstractPromptFactory",
+      "description": "Defines the abstract interface or contract for creating prompts. It establishes a common blueprint for all concrete prompt factories, ensuring consistency and extensibility in prompt generation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/prompts/abstract_prompt_factory.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory",
+      "description": "A concrete implementation of the AbstractPromptFactory. This component is responsible for the dynamic creation and selection of appropriate prompts based on the current analysis context and the target LLM. It acts as the primary orchestrator within the prompt management layer.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/prompts/prompt_factory.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "ClaudePromptsBidirectional",
+      "description": "A concrete prompt implementation specifically designed for the Claude LLM. It encapsulates the prompt templates and any specific formatting or interaction logic required for effective communication with Claude.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts.claude_prompts_bidirectional",
+          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/prompts/claude_prompts_bidirectional.py",
+        "../../agents/prompts/claude_prompts_unidirectional.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../agents/prompts/gpt_prompts_unidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_unidirectional.py"
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "is implemented by",
+      "src_name": "AbstractPromptFactory",
+      "dst_name": "PromptFactory"
+    },
+    {
+      "relation": "creates/uses",
+      "src_name": "PromptFactory",
+      "dst_name": "ClaudePromptsBidirectional"
+    }
+  ]
+}
