@@ -1,5 +1,5 @@
 {
-  "description": "The Static Analysis Engine subsystem is responsible for performing in-depth static analysis of a codebase to extract structural and control flow information. It begins by scanning the project to identify programming languages and gather high-level metadata. Subsequently, it leverages Language Servers (LSPs) to obtain detailed code information, which is then used to construct and maintain a call graph representing the codebase's entities and their interdependencies. The primary purpose is to generate a comprehensive understanding of the code's structure and relationships, forming the basis for further analysis and documentation.",
+  "description": "The system's core functionality revolves around static code analysis, orchestrated through a sequence of specialized components. The ProjectScanner initiates the process by identifying project languages and basic statistics. This information then guides the LSPClient to interact with Language Servers, extracting detailed code symbols and relationships. The CallGraph component consumes this data to construct a comprehensive control flow graph of the codebase, representing code entities and their interdependencies. A newly introduced Monitoring subsystem is deeply integrated into the application's main execution flow, observing and collecting operational metrics and events from these core components to provide insights into system performance and behavior.",
   "components": [
     {
       "name": "ProjectScanner",
@@ -38,42 +38,20 @@
     },
     {
       "name": "CallGraph",
-      "description": "Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects. It also provides functionalities to analyze and summarize these relationships, including generating clustered representations.",
+      "description": "Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects, providing functionalities to analyze and summarize these relationships.",
       "referenced_source_code": [
         {
           "qualified_name": "CallGraph",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/reference_resolve_mixin.py",
-        "../../static_analyzer/graph.py",
-        "../../static_analyzer/analysis_result.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "Node",
-      "description": "Represents a distinct code entity within the `CallGraph`, such as a class, function, or method. It encapsulates metadata like the fully qualified name, file path, and line number range.",
-      "referenced_source_code": [
+        },
         {
           "qualified_name": "Node",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/graph.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Edge",
-      "description": "Represents a directed relationship or dependency between two `Node` objects in the `CallGraph`, typically indicating a method call or other structural connection.",
-      "referenced_source_code": [
+        },
         {
           "qualified_name": "Edge",
           "reference_file": "static_analyzer/graph.py",
@@ -82,46 +60,85 @@
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/graph.py"
+        "../../static_analyzer/graph.py",
+        "../../static_analyzer/reference_resolve_mixin.py"
       ],
-      "can_expand": false
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring",
+      "description": "Manages the collection, processing, and reporting of system metrics, events, and operational data. It provides mechanisms for callbacks, context management, path tracking, statistics aggregation, and data writing, integrating into the application's core execution flow to observe system operations.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "monitoring.callbacks",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../static_analyzer/__init__.py",
-        "../../static_analyzer/lsp_client/__init__.py"
+        "../../static_analyzer/analysis_result.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "configures",
+      "relation": "identifies languages for",
       "src_name": "ProjectScanner",
       "dst_name": "LSPClient"
     },
     {
-      "relation": "populates",
+      "relation": "prepares context for",
+      "src_name": "ProjectScanner",
+      "dst_name": "LSPClient"
+    },
+    {
+      "relation": "populates with code data",
       "src_name": "LSPClient",
       "dst_name": "CallGraph"
     },
     {
-      "relation": "creates",
+      "relation": "provides symbol information to",
       "src_name": "LSPClient",
-      "dst_name": "Node"
+      "dst_name": "CallGraph"
     },
     {
-      "relation": "uses",
-      "src_name": "CallGraph",
-      "dst_name": "Node"
+      "relation": "reports scan progress to",
+      "src_name": "ProjectScanner",
+      "dst_name": "Monitoring"
     },
     {
-      "relation": "creates",
+      "relation": "provides project metadata to",
+      "src_name": "ProjectScanner",
+      "dst_name": "Monitoring"
+    },
+    {
+      "relation": "reports LSP events to",
+      "src_name": "LSPClient",
+      "dst_name": "Monitoring"
+    },
+    {
+      "relation": "provides communication metrics to",
+      "src_name": "LSPClient",
+      "dst_name": "Monitoring"
+    },
+    {
+      "relation": "reports graph events to",
       "src_name": "CallGraph",
-      "dst_name": "Edge"
+      "dst_name": "Monitoring"
+    },
+    {
+      "relation": "provides analysis data to",
+      "src_name": "CallGraph",
+      "dst_name": "Monitoring"
     }
   ]
 }

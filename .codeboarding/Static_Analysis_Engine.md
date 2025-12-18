@@ -3,21 +3,25 @@ graph LR
     ProjectScanner["ProjectScanner"]
     LSPClient["LSPClient"]
     CallGraph["CallGraph"]
-    Node["Node"]
-    Edge["Edge"]
+    Monitoring["Monitoring"]
     Unclassified["Unclassified"]
-    ProjectScanner -- "configures" --> LSPClient
-    LSPClient -- "populates" --> CallGraph
-    LSPClient -- "creates" --> Node
-    CallGraph -- "uses" --> Node
-    CallGraph -- "creates" --> Edge
+    ProjectScanner -- "identifies languages for" --> LSPClient
+    ProjectScanner -- "prepares context for" --> LSPClient
+    LSPClient -- "populates with code data" --> CallGraph
+    LSPClient -- "provides symbol information to" --> CallGraph
+    ProjectScanner -- "reports scan progress to" --> Monitoring
+    ProjectScanner -- "provides project metadata to" --> Monitoring
+    LSPClient -- "reports LSP events to" --> Monitoring
+    LSPClient -- "provides communication metrics to" --> Monitoring
+    CallGraph -- "reports graph events to" --> Monitoring
+    CallGraph -- "provides analysis data to" --> Monitoring
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The Static Analysis Engine subsystem is responsible for performing in-depth static analysis of a codebase to extract structural and control flow information. It begins by scanning the project to identify programming languages and gather high-level metadata. Subsequently, it leverages Language Servers (LSPs) to obtain detailed code information, which is then used to construct and maintain a call graph representing the codebase's entities and their interdependencies. The primary purpose is to generate a comprehensive understanding of the code's structure and relationships, forming the basis for further analysis and documentation.
+The system's core functionality revolves around static code analysis, orchestrated through a sequence of specialized components. The ProjectScanner initiates the process by identifying project languages and basic statistics. This information then guides the LSPClient to interact with Language Servers, extracting detailed code symbols and relationships. The CallGraph component consumes this data to construct a comprehensive control flow graph of the codebase, representing code entities and their interdependencies. A newly introduced Monitoring subsystem is deeply integrated into the application's main execution flow, observing and collecting operational metrics and events from these core components to provide insights into system performance and behavior.
 
 ### ProjectScanner
 Scans the project to identify programming languages, gather code statistics (lines of code, percentages), and extract file suffixes. It acts as the initial language detector and high-level metadata extractor.
@@ -38,30 +42,23 @@ Manages communication with Language Servers (LSPs) for various programming langu
 
 
 ### CallGraph
-Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects. It also provides functionalities to analyze and summarize these relationships, including generating clustered representations.
+Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects, providing functionalities to analyze and summarize these relationships.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`CallGraph`</a>
-
-
-### Node
-Represents a distinct code entity within the `CallGraph`, such as a class, function, or method. It encapsulates metadata like the fully qualified name, file path, and line number range.
-
-
-**Related Classes/Methods**:
-
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`Node`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`Edge`</a>
 
 
-### Edge
-Represents a directed relationship or dependency between two `Node` objects in the `CallGraph`, typically indicating a method call or other structural connection.
+### Monitoring
+Manages the collection, processing, and reporting of system metrics, events, and operational data. It provides mechanisms for callbacks, context management, path tracking, statistics aggregation, and data writing, integrating into the application's core execution flow to observe system operations.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`Edge`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.callbacks`</a>
 
 
 ### Unclassified

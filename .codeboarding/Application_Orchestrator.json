@@ -1,130 +1,60 @@
 {
-  "description": "The CodeBoarding system operates through a centralized Application Orchestrator that manages the entire documentation generation workflow. It begins by interacting with the Repository Manager to acquire the source code, either by cloning remote repositories or processing local ones. Once the code is available, the Orchestrator directs it to the Analysis Engine, which is responsible for parsing the code, generating an intermediate representation, and performing static analysis. The results from the Analysis Engine are then fed into the AI Interpretation Layer, where AI models process the IR for semantic understanding. Finally, the Output Generation Engine takes the interpreted insights and produces comprehensive documentation. The Application Orchestrator also configures the AI Interpretation Layer, ensuring proper integration with underlying LLM providers. This modular design ensures a clear separation of concerns and a streamlined process for generating code documentation.",
+  "description": "The Application Orchestrator subsystem acts as the central control unit, managing the entire workflow from initiating analysis to integrating results and coordinating output generation. It is primarily encapsulated within the `agents` package, utilizing `agents.planner_agent` and `agents.agent` modules. Within this subsystem, the `PlannerAgent` specializes in managing the initial planning phase of the code analysis, extending the `CodeBoardingAgent` which provides fundamental AI interaction and tool integration capabilities. This hierarchical structure enables specialized agents to coordinate workflow steps built upon a generic AI interaction layer, effectively implementing an \"Orchestration Engine\" pattern.",
   "components": [
     {
-      "name": "Application Orchestrator",
-      "description": "Manages the overall execution pipeline and workflow. Handles initial repository input (local or remote). Orchestrates the sequence of analysis steps, including repository cloning, analysis generation, and documentation output. Serves as the main entry point for the CLI.",
+      "name": "CodeBoardingAgent",
+      "description": "This is the foundational, generic AI agent within the system, serving as a core part of the \"AI Interpretation Layer.\" It provides the essential capabilities for interacting with Large Language Models (LLMs) and integrating various specialized tools to gather and process information about the codebase. Its responsibilities include LLM initialization, API key management, and robust invocation and parsing of LLM responses.",
       "referenced_source_code": [
         {
-          "qualified_name": "main",
-          "reference_file": "main.py",
-          "reference_start_line": 340,
-          "reference_end_line": 431
-        },
-        {
-          "qualified_name": "process_remote_repository",
-          "reference_file": "main.py",
-          "reference_start_line": 162,
-          "reference_end_line": 216
-        },
-        {
-          "qualified_name": "process_local_repository",
-          "reference_file": "main.py",
-          "reference_start_line": 219,
-          "reference_end_line": 247
+          "qualified_name": "agents.agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "main.py",
-        "../../local_app.py",
-        "../../github_action.py"
+        "../../agents/agent.py"
       ],
       "can_expand": true
     },
     {
-      "name": "Repository Manager",
-      "description": "Handles fetching and managing code repositories, including cloning remote repositories and preparing local ones for analysis.",
+      "name": "PlannerAgent",
+      "description": "A specialized AI agent that extends `CodeBoardingAgent` to manage the initial planning phase of the code analysis workflow. This component is central to the \"Orchestration Engine\" as it determines which components of the codebase require deeper investigation based on initial insights, thereby dictating the initial steps and direction of the analysis pipeline.",
       "referenced_source_code": [
         {
-          "qualified_name": "clone_repository",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": 94,
-          "reference_end_line": 111
+          "qualified_name": "agents.planner_agent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../agents/planner_agent.py"
+      ],
       "can_expand": true
-    },
-    {
-      "name": "Analysis Engine",
-      "description": "This component encapsulates the functionality previously split into \"Code Parser\", \"Intermediate Representation (IR) Generator\", and \"Static Analysis Engine\". It is responsible for transforming raw code into structured representations, generating a unified intermediate representation, and performing detailed code analysis on it.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "generate_analysis",
-          "reference_file": "main.py",
-          "reference_start_line": 53,
-          "reference_end_line": 66
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "AI Interpretation Layer",
-      "description": "Processes the intermediate representation for semantic understanding using AI/LLMs. It leverages the LLM Provider Gateway to interact with various language models.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "initialize_global_factory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 117,
-          "reference_end_line": 122
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Output Generation Engine",
-      "description": "Produces documentation and other outputs based on the analysis results.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "generate_markdown_docs",
-          "reference_file": "main.py",
-          "reference_start_line": 69,
-          "reference_end_line": 96
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "main.py",
+        "../../local_app.py",
+        "../../github_action.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
-      "src_name": "Application Orchestrator",
-      "dst_name": "Repository Manager"
+      "relation": "inherits from",
+      "src_name": "PlannerAgent",
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "directs",
-      "src_name": "Application Orchestrator",
-      "dst_name": "Analysis Engine"
-    },
-    {
-      "relation": "configures",
-      "src_name": "Application Orchestrator",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "provides to",
-      "src_name": "Application Orchestrator",
-      "dst_name": "Output Generation Engine"
-    },
-    {
-      "relation": "feeds",
-      "src_name": "Analysis Engine",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "informs",
-      "src_name": "AI Interpretation Layer",
-      "dst_name": "Output Generation Engine"
+      "relation": "utilizes",
+      "src_name": "PlannerAgent",
+      "dst_name": "CodeBoardingAgent"
     }
   ]
 }
