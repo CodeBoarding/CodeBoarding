@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
@@ -38,12 +39,12 @@ MONITORING_CALLBACK = MonitoringCallback()
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
+    _parsing_llm: Optional[BaseChatModel] = None
+
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
-        self._setup_env_vars()
-        self.llm = self._initialize_llms(is_small_model=False)
-        self.parsing_llm = self._initialize_llms(is_small_model=True)
+        self.llm = llm
         self.repo_dir = repo_dir
         self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
         self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
@@ -68,45 +69,45 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
-    def _setup_env_vars(self):
-        load_dotenv()
-        # Model selection via environment variable
-        self.codeboarding_model = os.getenv("CODEBOARDING_MODEL")
-        self.parsing_model = os.getenv("PARSING_MODEL", None)
+    @classmethod
+    def get_parsing_llm(cls) -> BaseChatModel:
+        """Shared access to the small model for parsing tasks."""
+        if cls._parsing_llm is None:
 
-    def _initialize_llms(self, is_small_model: bool = False) -> BaseChatModel:
+            parsing_model = os.getenv("PARSING_MODEL", None) or os.getenv("CODEBOARDING_MODEL")
+            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
+        return cls._parsing_llm
+
+    @staticmethod
+    def _static_initialize_llm(
+        model_override: Optional[str] = None, is_parsing: bool = False
+    ) -> tuple[BaseChatModel, str]:
         """Initialize LLM based on available API keys with priority order."""
-        model_env_var = self.parsing_model if is_small_model else self.codeboarding_model
-
         for name, config in LLM_PROVIDERS.items():
             api_key = config.get_api_key()
             if not api_key:
                 continue
 
             # Determine model name
-            smart_model = config.small_model if is_small_model else config.smart_model
-            model_name = model_env_var if model_env_var else smart_model
+            default_model = config.parsing_model if is_parsing else config.agent_model
+            model_name = model_override if model_override else default_model
 
-            logger.info(f"Using {name.title()} {'Extractor ' if is_small_model else ''}LLM with model: {model_name}")
+            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
 
-            # Prepare arguments
             kwargs = {
                 "model": model_name,
-                "temperature": config.small_temperature if is_small_model else config.smart_temperature,
+                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
             }
-
-            # Add provider-specific args
             kwargs.update(config.get_resolved_extra_args())
 
-            # Add API key if standard (AWS and Ollama handle auth differently)
             if name not in ["aws", "ollama"]:
                 kwargs["api_key"] = api_key
 
             model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
 
-            self.agent_monitoring_callback.model_name = model_name
+            # Update global monitoring callback
             MONITORING_CALLBACK.model_name = model_name
-            return model
+            return model, model_name
 
         raise ValueError(
             "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
@@ -157,7 +158,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             logger.error(f"Max retries reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
+        parsing_llm = self.get_parsing_llm()
+        extractor = create_extractor(parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
@@ -192,7 +194,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 input_variables=["adjective"],
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
-            chain = prompt | self.parsing_llm | parser
+            parsing_llm = self.get_parsing_llm()
+            chain = prompt | parsing_llm | parser
             config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
             return chain.invoke({"adjective": message_content}, config=config)
         except (ValidationError, OutputParserException):
@@ -202,3 +205,19 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
+
+
+class LargeModelAgent(CodeBoardingAgent):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
+        agent_model = os.getenv("AGENT_MODEL")
+        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
+        super().__init__(repo_dir, static_analysis, system_message, llm)
+        self.agent_monitoring_callback.model_name = model_name
+
+
+class SmallModelAgent(CodeBoardingAgent):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
+        parsing_model = os.getenv("PARSING_MODEL", None)
+        llm, model_name = self._static_initialize_llm(model_override=parsing_model, is_parsing=True)
+        super().__init__(repo_dir, static_analysis, system_message, llm)
+        self.agent_monitoring_callback.model_name = model_name

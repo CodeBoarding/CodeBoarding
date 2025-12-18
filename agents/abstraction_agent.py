@@ -4,7 +4,7 @@ from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
 
-from agents.agent import CodeBoardingAgent
+from agents.agent import LargeModelAgent
 from agents.agent_responses import (
     LLMBaseModel,
     AnalysisInsights,
@@ -29,7 +29,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class AbstractionAgent(CodeBoardingAgent):
+class AbstractionAgent(LargeModelAgent):
     def __init__(
         self,
         repo_dir: Path,

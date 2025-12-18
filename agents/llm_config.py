@@ -17,20 +17,20 @@ class LLMConfig:
     Configuration for LLM providers.
 
     Attributes:
-        smart_model: The "smart" model used for complex reasoning and agentic tasks.
-        small_model: The "small" model used for fast, cost-effective extraction and parsing tasks.
-        smart_temperature: Temperature for the smart model. Defaults to 0 for deterministic behavior
-                          which is crucial for code generation and reasoning.
-        small_temperature: Temperature for the small model. Defaults to 0 for deterministic behavior
+        agent_model: The "agent" model used for complex reasoning and agentic tasks.
+        parsing_model: The "parsing" model used for fast, cost-effective extraction and parsing tasks.
+        agent_temperature: Temperature for the agent model. Defaults to 0 for deterministic behavior
+                          which is crucial for code understanding and reasoning.
+        parsing_temperature: Temperature for the parsing model. Defaults to 0 for deterministic behavior
                           which is crucial for structured output extraction.
     """
 
     chat_class: Type[BaseChatModel]
     api_key_env: str
-    smart_model: str
-    small_model: str
-    smart_temperature: float = 0
-    small_temperature: float = 0
+    agent_model: str
+    parsing_model: str
+    agent_temperature: float = 0
+    parsing_temperature: float = 0
     extra_args: Dict[str, Any] = field(default_factory=dict)
 
     def get_api_key(self) -> Optional[str]:
@@ -52,8 +52,8 @@ LLM_PROVIDERS = {
     "openai": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="OPENAI_API_KEY",
-        smart_model="gpt-4o",
-        small_model="gpt-4o-mini",
+        agent_model="gpt-4o",
+        parsing_model="gpt-4o-mini",
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
             "max_tokens": None,
@@ -64,8 +64,8 @@ LLM_PROVIDERS = {
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
         api_key_env="ANTHROPIC_API_KEY",
-        smart_model="claude-3-7-sonnet-20250219",
-        small_model="claude-3-haiku-20240307",
+        agent_model="claude-3-7-sonnet-20250219",
+        parsing_model="claude-3-haiku-20240307",
         extra_args={
             "max_tokens": 8192,
             "timeout": None,
@@ -75,8 +75,8 @@ LLM_PROVIDERS = {
     "google": LLMConfig(
         chat_class=ChatGoogleGenerativeAI,
         api_key_env="GOOGLE_API_KEY",
-        smart_model="gemini-2.5-flash",
-        small_model="gemini-2.0-flash-lite-preview-02-05",
+        agent_model="gemini-2.5-flash",
+        parsing_model="gemini-2.0-flash-lite-preview-02-05",
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -86,8 +86,8 @@ LLM_PROVIDERS = {
     "aws": LLMConfig(
         chat_class=ChatBedrockConverse,
         api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
-        smart_model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-        small_model="us.anthropic.claude-3-haiku-20240307-v1:0",
+        agent_model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+        parsing_model="us.anthropic.claude-3-haiku-20240307-v1:0",
         extra_args={
             "max_tokens": 4096,
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
@@ -97,8 +97,8 @@ LLM_PROVIDERS = {
     "cerebras": LLMConfig(
         chat_class=ChatCerebras,
         api_key_env="CEREBRAS_API_KEY",
-        smart_model="gpt-oss-120b",
-        small_model="llama3.1-8b",
+        agent_model="gpt-oss-120b",
+        parsing_model="llama3.1-8b",
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -108,10 +108,10 @@ LLM_PROVIDERS = {
     "ollama": LLMConfig(
         chat_class=ChatOllama,
         api_key_env="OLLAMA_BASE_URL",  # Used for existence check
-        smart_model="qwen3:30b",
-        small_model="qwen2.5:7b",
-        smart_temperature=0.1,
-        small_temperature=0.1,
+        agent_model="qwen3:30b",
+        parsing_model="qwen2.5:7b",
+        agent_temperature=0.1,
+        parsing_temperature=0.1,
         extra_args={
             "base_url": lambda: os.getenv("OLLAMA_BASE_URL"),
         },
