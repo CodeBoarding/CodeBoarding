@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
 from static_analyzer.analysis_result import StaticAnalysisResults
+from monitoring.stats import RunStats, current_stats
 
 
 class TestResponse(BaseModel):
@@ -40,12 +41,19 @@ class TestCodeBoardingAgent(unittest.TestCase):
         )
         self.env_patcher.start()
 
+        # Set up monitoring context
+        self.run_stats = RunStats()
+        self.token = current_stats.set(self.run_stats)
+
     def tearDown(self):
         # Clean up
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.env_patcher.stop()
+
+        # Reset monitoring context
+        current_stats.reset(self.token)
 
     @patch("agents.agent.ChatOpenAI")
     @patch("agents.agent.create_react_agent")

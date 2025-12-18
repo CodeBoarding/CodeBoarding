@@ -100,3 +100,9 @@ dev-dependencies = [
     "mypy==1.19.0",
     "pytest-cov==7.0.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["repos", "build", "dist", "temp", "node_modules"]
+addopts = "--ignore=repos"
+pythonpath = "."

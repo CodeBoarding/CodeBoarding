@@ -24,18 +24,21 @@ class MonitoringCallback(BaseCallbackHandler):
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name
         self._stats_container = stats_container
         self.log_results = log_results
-        self.model_name: str | None = None
-        # Fallback for when running outside of a monitored context
-        self._fallback_stats = RunStats()
+
+    @property
+    def model_name(self) -> str | None:
+        return self.stats.model_name
+
+    @model_name.setter
+    def model_name(self, value: str | None) -> None:
+        with self.stats._lock:
+            self.stats.model_name = value
 
     @property
     def stats(self) -> RunStats:
         if self._stats_container:
             return self._stats_container
-        try:
-            return current_stats.get()
-        except LookupError:
-            return self._fallback_stats
+        return current_stats.get()
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         step_name = current_step.get()
@@ -49,13 +52,13 @@ class MonitoringCallback(BaseCallbackHandler):
         # Update State
         with self.stats._lock:
             self.stats.total_tokens += usage.get("total_tokens", 0)
-            self.stats.input_tokens += usage.get("prompt_tokens", 0)
-            self.stats.output_tokens += usage.get("completion_tokens", 0)
+            self.stats.input_tokens += usage.get("input_tokens", 0)
+            self.stats.output_tokens += usage.get("output_tokens", 0)
 
         # Log Event
         if self.log_results:
             model = self.model_name or "unknown"
-            logger.info(f"LLM Usage: step={step_name} model={model} usage={usage}")
+            logger.info(f"Token Usage: step={step_name} model={model} usage={json.dumps(usage)}")
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         run_id_any = kwargs.get("run_id")
@@ -121,8 +124,8 @@ class MonitoringCallback(BaseCallbackHandler):
                 total_i = _coerce_int(total)
 
             return {
-                "prompt_tokens": prompt_i,
-                "completion_tokens": completion_i,
+                "input_tokens": prompt_i,
+                "output_tokens": completion_i,
                 "total_tokens": total_i,
             }
 

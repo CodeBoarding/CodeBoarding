@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch, ANY
 
 from main import (
     copy_files,
@@ -112,6 +112,8 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 output_dir=output_dir,
                 depth_level=2,
+                run_id=None,
+                monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
 
@@ -336,6 +338,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 depth_level=1,
+                monitoring_enabled=False,
             )
             self.assertTrue(output_dir.exists())
 

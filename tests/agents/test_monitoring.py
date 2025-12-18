@@ -5,12 +5,14 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from monitoring import MonitoringCallback
+from monitoring.stats import RunStats
 from langchain_core.outputs import LLMResult
 
 
 class TestMonitoringCallback(unittest.TestCase):
     def setUp(self):
-        self.callback = MonitoringCallback()
+        self.stats = RunStats()
+        self.callback = MonitoringCallback(stats_container=self.stats)
 
     def test_init(self):
         # Test initialization

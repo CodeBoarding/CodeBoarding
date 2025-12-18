@@ -17,6 +17,7 @@ class RunStats:
     def reset(self):
         """Reset all statistics to initial state."""
         with self._lock:
+            self.model_name = None
             self.total_tokens = 0
             self.input_tokens = 0
             self.output_tokens = 0
@@ -28,6 +29,7 @@ class RunStats:
         """Convert stats to a dictionary representation."""
         with self._lock:
             return {
+                "model_name": self.model_name,
                 "token_usage": {
                     "total_tokens": self.total_tokens,
                     "input_tokens": self.input_tokens,
