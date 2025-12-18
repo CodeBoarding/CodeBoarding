@@ -109,10 +109,6 @@ def monitor_execution(
 
         logger.info(f"✨ Run results saved to {out_path}")
 
-        # Cleanup app.log handler
-        root_logger.removeHandler(app_log_handler)
-        app_log_handler.close()
-
         # Reset context var
         current_stats.reset(stats_token)
 
