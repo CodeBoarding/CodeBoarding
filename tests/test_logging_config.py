@@ -1,4 +1,5 @@
 import logging
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -92,6 +93,42 @@ class TestLoggingConfig(unittest.TestCase):
 
             urllib3_logger = logging.getLogger("urllib3")
             self.assertEqual(urllib3_logger.level, logging.WARNING)
+
+            self._clean_logging_handlers()
+
+    def test_setup_logging_timestamped_filename(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            setup_logging(log_filename="test.log", log_dir=temp_path)
+
+            logs_dir = temp_path / "logs"
+            log_files = list(logs_dir.glob("test_*.log"))
+
+            self.assertEqual(len(log_files), 1)
+            filename = log_files[0].name
+            # Expected format: test_YYYYMMDD_HHMMSS.log
+            self.assertTrue(filename.startswith("test_"))
+            self.assertTrue(filename.endswith(".log"))
+            self.assertEqual(len(filename), len("test_YYYYMMDD_HHMMSS.log"))
+
+            # Check _latest.log
+            latest_log = logs_dir / "_latest.log"
+            self.assertTrue(latest_log.exists())
+            if latest_log.is_symlink():
+                self.assertEqual(os.readlink(latest_log), filename)
+
+            self._clean_logging_handlers()
+
+    def test_setup_logging_default_filename_is_codeboarding(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            setup_logging(log_dir=temp_path)
+
+            logs_dir = temp_path / "logs"
+            log_files = list(logs_dir.glob("codeboarding_*.log"))
+
+            self.assertEqual(len(log_files), 1)
+            self.assertTrue(log_files[0].name.startswith("codeboarding_"))
 
             self._clean_logging_handlers()
 
