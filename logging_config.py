@@ -28,7 +28,7 @@ def setup_logging(
     else:
         log_dir_path = Path(log_dir)
 
-    logs_dir = log_dir_path / "logs"
+    logs_dir = log_dir_path
 
     # Create logs directory if it doesn't exist
     logs_dir.mkdir(parents=True, exist_ok=True)
