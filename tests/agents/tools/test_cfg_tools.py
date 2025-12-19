@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import Component
 from agents.tools import GetCFGTool, MethodInvocationsTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 
 
@@ -15,8 +17,10 @@ class TestCFGTools(unittest.TestCase):
             self.skipTest("Test repository not available")
         analyzer = StaticAnalyzer(test_repo)
         static_analysis = analyzer.analyze()
-        self.read_cfg = GetCFGTool(static_analysis)
-        self.method_tool = MethodInvocationsTool(static_analysis)
+        ignore_manager = RepoIgnoreManager(test_repo)
+        self.context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
+        self.read_cfg = GetCFGTool(context=self.context)
+        self.method_tool = MethodInvocationsTool(context=self.context)
         self.static_analysis = static_analysis
 
     def test_get_cfg_with_valid_data(self):
@@ -29,9 +33,8 @@ class TestCFGTools(unittest.TestCase):
 
     def test_get_cfg_without_static_analysis(self):
         # Test when static_analysis is None
-        mock_analysis = MagicMock()
-        tool = GetCFGTool(static_analysis=mock_analysis)
-        tool.static_analysis = None
+        context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
+        tool = GetCFGTool(context=context)
         result = tool._run()
         self.assertEqual(result, "No static analysis data available.")
 
@@ -39,12 +42,10 @@ class TestCFGTools(unittest.TestCase):
         # Test when CFG is empty or has no data
         mock_analysis = MagicMock()
         mock_analysis.get_languages.return_value = ["python"]
-        mock_cfg = MagicMock()
-        mock_cfg.nodes = []
-        mock_cfg.edges = []
         mock_analysis.get_cfg.return_value = None
 
-        tool = GetCFGTool(static_analysis=mock_analysis)
+        context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=mock_analysis)
+        tool = GetCFGTool(context=context)
         result = tool._run()
         self.assertIn("No control flow graph data available", result)
 
@@ -72,9 +73,8 @@ class TestCFGTools(unittest.TestCase):
 
     def test_component_cfg_without_static_analysis(self):
         # Test when static_analysis is None
-        mock_analysis = MagicMock()
-        tool = GetCFGTool(static_analysis=mock_analysis)
-        tool.static_analysis = None
+        context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
+        tool = GetCFGTool(context=context)
         component = Component(name="Test", description="Test component", referenced_source_code=[], assigned_files=[])
         result = tool.component_cfg(component)
         self.assertEqual(result, "No static analysis data available.")
@@ -113,7 +113,8 @@ class TestCFGTools(unittest.TestCase):
 
     def test_method_invocations_without_static_analysis(self):
         # Test when static_analysis is None
-        tool = MethodInvocationsTool(static_analysis=None)
+        context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
+        tool = MethodInvocationsTool(context=context)
         result = tool._run("some.method")
         self.assertEqual(result, "No static analysis data available.")
 

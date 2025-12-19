@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class ReadFileInput(BaseModel):
     line_number: int = Field(..., description="Line number to focus on")
 
 
-class ReadFileTool(BaseTool):
+class ReadFileTool(BaseRepoTool):
     name: str = "readFile"
     description: str = (
         "Reads specific file content around a target line number. "
@@ -26,31 +26,19 @@ class ReadFileTool(BaseTool):
     )
     args_schema: ArgsSchema | None = ReadFileInput
     return_direct: bool = False
-    cached_files: list[Path] | None = None
-    repo_dir: Path | None = None
 
-    def __init__(self, repo_dir: Path):
-        super().__init__()
-        self.cached_files = []
-        self.repo_dir = repo_dir
-        self.walk_dir(repo_dir)
-
-    def walk_dir(self, root_project_dir):
-        """
-        Walk the directory and collect all files.
-        """
-        self.cached_files = [path for path in root_project_dir.rglob("*") if path.is_file()]
-        self.cached_files.sort(key=lambda x: len(x.parts))
+    @property
+    def cached_files(self) -> list[Path]:
+        files = self.context.get_files()
+        return sorted(files, key=lambda x: len(x.parts))
 
     def _run(self, file_path: str, line_number: int) -> str:
         """
         Run the tool with the given input.
         """
-
         logger.info(f"[ReadFile Tool] Reading file {file_path} around line {line_number}")
 
         file_path_obj = Path(file_path)
-
         read_file: Path | None = None
         if self.cached_files:
             for cached_file in self.cached_files:
@@ -77,31 +65,22 @@ class ReadFileTool(BaseTool):
             lines = file.readlines()
 
         total_lines = len(lines)
-
         if line_number < 0 or line_number >= total_lines:
-            logger.error(
-                f"[ReadFile Tool] Line number {line_number} is out of range for file {file_path}. "
-                f"Total lines: {total_lines}"
-            )
+            logger.error(f"[ReadFile Tool] Line number {line_number} is out of range. Total lines: {total_lines}")
             return f"Error: Line number {line_number} is out of range (0-{total_lines - 1})"
 
-        # Calculate start and end line numbers based on the specified requirements
+        # Calculate start and end line numbers
         if line_number < 150:
             start_line = 0
             end_line = min(total_lines, 300)
         else:
-            # Center 300 lines around the specified line number
             start_line = max(0, line_number - 150)
             end_line = min(total_lines, start_line + 300)
-
-            # If we're close to the end of the file and can't get 300 lines,
-            # adjust the start line to get as many lines as possible (up to 300)
             if end_line - start_line < 300 and start_line > 0:
                 potential_start = max(0, total_lines - 300)
                 if potential_start < start_line:
                     start_line = potential_start
 
-        # Extract and number the lines
         selected_lines = lines[start_line:end_line]
         numbered_lines = [f"{i + 1 + start_line:4}:{line}" for i, line in enumerate(selected_lines)]
         content = "".join(numbered_lines)
@@ -109,16 +88,3 @@ class ReadFileTool(BaseTool):
         return (
             f"File: {file_path}\nLines {start_line}-{end_line - 1} (centered around line {line_number}):\n\n{content}"
         )
-
-    def is_subsequence(self, sub: Path, full: Path) -> bool:
-        # exclude the analysis_dir from the comparison
-        if self.repo_dir is None:
-            return False
-        sub_parts = sub.parts
-        full_parts = full.parts
-        repo_dir_parts = self.repo_dir.parts
-        full_parts = full_parts[len(repo_dir_parts) :]
-        for i in range(len(full_parts) - len(sub_parts) + 1):
-            if full_parts[i : i + len(sub_parts)] == sub_parts:
-                return True
-        return False

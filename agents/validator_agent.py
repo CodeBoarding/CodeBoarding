@@ -22,15 +22,7 @@ class ValidatorAgent(CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_validator_system_message())
         self.agent = create_react_agent(
             model=self.llm,
-            tools=[
-                self.read_source_reference,
-                self.read_packages_tool,
-                self.read_file_structure,
-                self.read_structure_tool,
-                self.read_file_tool,
-                self.read_cfg_tool,
-                self.read_method_invocations_tool,
-            ],
+            tools=self.toolkit.get_all_tools(),
         )
 
         self.valid_component_prompt = PromptTemplate(

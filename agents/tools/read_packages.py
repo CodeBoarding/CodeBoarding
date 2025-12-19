@@ -1,10 +1,8 @@
 import logging
 from typing import Optional, List
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
-from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ class NoRootPackageFoundError(Exception):
         super().__init__(self.message)
 
 
-class PackageRelationsTool(BaseTool):
+class PackageRelationsTool(BaseRepoTool):
     name: str = "getPackageDependencies"
     description: str = (
         "Retrieves package dependencies for a root package. "
@@ -37,27 +35,21 @@ class PackageRelationsTool(BaseTool):
     )
     args_schema: Optional[ArgsSchema] = PackageInput
     return_direct: bool = False
-    cached_files: Optional[List[str]] = None
-    static_analyzer: Optional[StaticAnalysisResults] = None
-
-    def __init__(self, static_analysis):
-        super().__init__()
-        self.static_analyzer = static_analysis
 
     def _run(self, root_package: str, line: int = 0) -> str:
         """
         Run the tool with the given input.
         """
-        if self.static_analyzer is None:
-            logger.error("[Package Tool] static_analyzer is not set")
-            return "Error: Static analyzer is not set."
+        if self.static_analysis is None:
+            logger.error("[Package Tool] static_analysis is not set")
+            return "Error: Static analysis is not set."
 
-        languages = self.static_analyzer.get_languages()
+        languages = self.static_analysis.get_languages()
         packages = []
         for lang in languages:
             try:
                 # Attempt to retrieve the package relations for the specified root package
-                content = self.static_analyzer.get_package_dependencies(lang)
+                content = self.static_analysis.get_package_dependencies(lang)
                 if root_package not in content:
                     packages += list(content.keys())
                     continue

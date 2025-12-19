@@ -458,6 +458,7 @@ class TestLSPClient(unittest.TestCase):
         # Create .gitignore
         gitignore = self.project_path / ".gitignore"
         gitignore.write_text("*.pyc\n__pycache__/\n")
+        client.reload_ignore_manager()
 
         spec = client.get_exclude_dirs()
 

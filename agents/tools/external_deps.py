@@ -1,9 +1,9 @@
 import logging
 from pathlib import Path
 from typing import Optional, List
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +14,7 @@ class ExternalDepsInput(BaseModel):
     pass
 
 
-# TODO @IM: This has to be fixed!
-class ExternalDepsTool(BaseTool):
+class ExternalDepsTool(BaseRepoTool):
     name: str = "readExternalDeps"
     description: str = (
         "Identifies project dependency files in the repository. "
@@ -24,7 +23,6 @@ class ExternalDepsTool(BaseTool):
     )
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
-    repo_dir: Path
 
     # Common dependency file patterns to search for
     DEPENDENCY_FILES: List[str] = [
@@ -51,9 +49,6 @@ class ExternalDepsTool(BaseTool):
         "tsconfig.json",  # TypeScript compiler configuration (not dependencies, but relevant)
     ]
 
-    def __init__(self, repo_dir: Path):
-        super().__init__(repo_dir=repo_dir)
-
     def _run(self) -> str:
         """
         Run the tool to find dependency files.
@@ -62,19 +57,23 @@ class ExternalDepsTool(BaseTool):
 
         found_files = []
 
-        # Search for dependency files in the repository
+        # Search for dependency files in the repository root
         for dep_file in self.DEPENDENCY_FILES:
             file_path = self.repo_dir / dep_file
             if file_path.exists() and file_path.is_file():
-                found_files.append(file_path)
+                if not self.ignore_manager.should_ignore(file_path):
+                    found_files.append(file_path)
 
         # Also search for requirements files in common subdirectories
         for subdir in ("requirements", "deps", "dependencies", "env"):
             subdir_path = self.repo_dir / subdir
             if subdir_path.exists() and subdir_path.is_dir():
+                if self.ignore_manager.should_ignore(subdir_path):
+                    continue
+
                 for pattern in ("*.txt", "*.yml", "*.yaml", "*.toml"):
                     for file_path in subdir_path.glob(pattern):
-                        if file_path.is_file():
+                        if file_path.is_file() and not self.ignore_manager.should_ignore(file_path):
                             found_files.append(file_path)
 
         if not found_files:

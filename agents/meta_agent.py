@@ -24,7 +24,8 @@ class MetaAgent(CodeBoardingAgent):
         )
 
         self.agent = create_react_agent(
-            model=self.llm, tools=[self.read_docs, self.external_deps_tool, self.read_file_structure]
+            model=self.llm,
+            tools=[self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure],
         )
 
     @trace

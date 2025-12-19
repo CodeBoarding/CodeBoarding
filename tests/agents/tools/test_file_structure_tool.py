@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 
 from agents.tools import FileStructureTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 
 
 class TestFileStructureTool(unittest.TestCase):
@@ -10,7 +12,9 @@ class TestFileStructureTool(unittest.TestCase):
         test_repo = Path("./test-vscode-repo")
         if not test_repo.exists():
             self.skipTest("Test repository not available")
-        self.tool = FileStructureTool(repo_dir=test_repo)
+        ignore_manager = RepoIgnoreManager(test_repo)
+        context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager)
+        self.tool = FileStructureTool(context=context)
 
     def test_file_structure(self):
         # Test the _run method with a valid directory - use root directory

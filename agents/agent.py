@@ -22,19 +22,11 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from agents.tools.base import RepoContext
+from agents.tools.toolkit import CodeBoardingToolkit
 from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
-from agents.tools import (
-    CodeReferenceReader,
-    CodeStructureTool,
-    PackageRelationsTool,
-    FileStructureTool,
-    GetCFGTool,
-    MethodInvocationsTool,
-    ReadFileTool,
-    ReadDocsTool,
-)
-from agents.tools.external_deps import ExternalDepsTool
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -51,28 +43,54 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.llm = self._initialize_llm()
         self.extractor_llm = self._initialize_llm()
         self.repo_dir = repo_dir
-        self.read_source_reference = CodeReferenceReader(static_analysis=static_analysis)
-        self.read_packages_tool = PackageRelationsTool(static_analysis=static_analysis)
-        self.read_structure_tool = CodeStructureTool(static_analysis=static_analysis)
-        self.read_file_structure = FileStructureTool(repo_dir=repo_dir)
-        self.read_cfg_tool = GetCFGTool(static_analysis=static_analysis)
-        self.read_method_invocations_tool = MethodInvocationsTool(static_analysis=static_analysis)
-        self.read_file_tool = ReadFileTool(repo_dir=repo_dir)
-        self.read_docs = ReadDocsTool(repo_dir=repo_dir)
-        self.external_deps_tool = ExternalDepsTool(repo_dir=repo_dir)
+        self.ignore_manager = RepoIgnoreManager(repo_dir)
+
+        # Initialize the professional toolkit
+        context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
+        self.toolkit = CodeBoardingToolkit(context=context)
 
         self.agent = create_react_agent(
             model=self.llm,
-            tools=[
-                self.read_source_reference,
-                self.read_file_tool,
-                self.read_file_structure,
-                self.read_structure_tool,
-                self.read_packages_tool,
-            ],
+            tools=self.toolkit.get_agent_tools(),
         )
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
+
+    @property
+    def read_source_reference(self):
+        return self.toolkit.read_source_reference
+
+    @property
+    def read_packages_tool(self):
+        return self.toolkit.read_packages
+
+    @property
+    def read_structure_tool(self):
+        return self.toolkit.read_structure
+
+    @property
+    def read_file_structure(self):
+        return self.toolkit.read_file_structure
+
+    @property
+    def read_cfg_tool(self):
+        return self.toolkit.read_cfg
+
+    @property
+    def read_method_invocations_tool(self):
+        return self.toolkit.read_method_invocations
+
+    @property
+    def read_file_tool(self):
+        return self.toolkit.read_file
+
+    @property
+    def read_docs(self):
+        return self.toolkit.read_docs
+
+    @property
+    def external_deps_tool(self):
+        return self.toolkit.external_deps
 
     def _setup_env_vars(self):
         load_dotenv()

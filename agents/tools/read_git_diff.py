@@ -1,7 +1,7 @@
 import logging
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
+from agents.tools.base import BaseRepoTool
 from repo_utils.git_diff import FileChange
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class ReadDiffInput(BaseModel):
     )
 
 
-class ReadDiffTool(BaseTool):
+class ReadDiffTool(BaseRepoTool):
     name: str = "readDiffFile"
     description: str = (
         "Reads the diff for a specified file and returns the changes made (additions and deletions). "
@@ -31,8 +31,10 @@ class ReadDiffTool(BaseTool):
     return_direct: bool = False
     diffs: list[FileChange] | None = None
 
-    def __init__(self, diffs: list[FileChange]):
-        super().__init__()
+    def __init__(self, **kwargs):
+        # Allow passing diffs via kwargs
+        diffs = kwargs.pop("diffs", None)
+        super().__init__(**kwargs)
         self.diffs = diffs
 
     def _run(self, file_path: str, line_number: int = 1) -> str:
@@ -76,7 +78,6 @@ class ReadDiffTool(BaseTool):
             all_diff_lines.append(f"+ {line}")
 
         total_diff_lines = len(all_diff_lines)
-
         if total_diff_lines == 0:
             result.append(
                 "No detailed line changes available (file may have been moved, renamed, or had binary changes)"
@@ -100,8 +101,6 @@ class ReadDiffTool(BaseTool):
             start_line = max(0, line_number - 51)  # -51 because line_number is 1-based
             end_line = min(total_diff_lines, start_line + max_lines_to_show)
 
-            # If we're close to the end and can't get max_lines_to_show lines,
-            # adjust the start line to get as many lines as possible
             if end_line - start_line < max_lines_to_show and start_line > 0:
                 potential_start = max(0, total_diff_lines - max_lines_to_show)
                 if potential_start < start_line:

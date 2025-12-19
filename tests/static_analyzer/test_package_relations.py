@@ -1,6 +1,9 @@
 import unittest
+from pathlib import Path
 
 from agents.tools.read_packages import PackageRelationsTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -16,7 +19,9 @@ class TestPackageRelationsTool(unittest.TestCase):
                 "utils": {"imports": ["json", "os"], "imported_by": ["mypackage", "tests"]},
             },
         )
-        self.tool = PackageRelationsTool(static_analysis=self.static_analysis)
+        ignore_manager = RepoIgnoreManager(Path("."))
+        context = RepoContext(repo_dir=Path("."), ignore_manager=ignore_manager, static_analysis=self.static_analysis)
+        self.tool = PackageRelationsTool(context=context)
 
     def test_get_package_dependencies(self):
         # Test retrieving package dependencies
@@ -57,9 +62,10 @@ class TestPackageRelationsTool(unittest.TestCase):
 
     def test_no_static_analyzer(self):
         # Test error when static analyzer is None
-        tool = PackageRelationsTool(static_analysis=None)
+        context = RepoContext(repo_dir=Path("."), ignore_manager=RepoIgnoreManager(Path(".")), static_analysis=None)
+        tool = PackageRelationsTool(context=context)
         result = tool._run("mypackage")
-        self.assertIn("Error: Static analyzer is not set", result)
+        self.assertIn("Error: Static analysis is not set", result)
 
     def test_package_list_in_error(self):
         # Test that error message includes available packages

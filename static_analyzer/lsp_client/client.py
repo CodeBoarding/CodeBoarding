@@ -13,6 +13,7 @@ from urllib.request import url2pathname
 import pathspec
 from tqdm import tqdm
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.graph import CallGraph, Node
 from static_analyzer.scanner import ProgrammingLanguage
 
@@ -59,7 +60,9 @@ class LSPClient:
     Language server protocol client for interacting with langservers
     """
 
-    def __init__(self, project_path: Path, language: ProgrammingLanguage):
+    def __init__(
+        self, project_path: Path, language: ProgrammingLanguage, ignore_manager: RepoIgnoreManager | None = None
+    ):
         """
         Initializes the client and starts the langserver process.
         """
@@ -83,6 +86,7 @@ class LSPClient:
         # Initialize CallGraph
         self.call_graph = CallGraph()
         self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
+        self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -343,7 +347,7 @@ class LSPClient:
         src_files = []
         for pattern in self.language_suffix_pattern:
             src_files.extend(list(self.project_path.rglob(pattern)))
-        return src_files
+        return self.filter_src_files(src_files)
 
     def _create_qualified_name(self, file_path: Path, symbol_name: str) -> str:
         """Create a fully qualified name for a symbol."""
@@ -376,8 +380,7 @@ class LSPClient:
 
         # Get source files and apply filters
         src_files = self._get_source_files()
-        spec = self.get_exclude_dirs()
-        src_files = self.filter_src_files(src_files, spec)
+        src_files = self.filter_src_files(src_files)
         total_files = len(src_files)
 
         if not src_files:
@@ -1084,33 +1087,21 @@ class LSPClient:
                 all_symbols.extend(self._get_all_symbols_recursive(symbol["children"]))
         return all_symbols
 
-    def filter_src_files(self, src_files, spec):
-        # Return files that do NOT match any of the ignore patterns AND do not have "test" in their path
-        filtered_files = []
-        for file in src_files:
-            rel_path = file.relative_to(self.project_path)
-            # Skip if matches gitignore patterns
-            if spec.match_file(rel_path):
-                continue
-            # Skip if "test" is in the path (case-insensitive)
-            if "test" in str(rel_path).lower():
-                logger.debug(f"Skipping test file: {rel_path}")
-                continue
-            # Skip if file is in a hidden directory (starts with a dot_
-            if any(part.startswith(".") for part in rel_path.parts):
-                logger.debug(f"Skipping hidden directory file: {rel_path}")
-                continue
-            filtered_files.append(file)
-        return filtered_files
+    def filter_src_files(self, src_files, spec=None):
+        """Filter source files using the centralized RepoIgnoreManager."""
+        # First use the centralized manager
+        filtered = [f for f in src_files if not self.ignore_manager.should_ignore(f)]
 
-    def get_exclude_dirs(self):
-        gitignore_path = self.project_path / ".gitignore"
-        if not gitignore_path.exists():
-            return pathspec.PathSpec.from_lines("gitwildmatch", [])
+        # Then apply the additional spec if provided (backward compatibility for tests)
+        if spec is not None:
+            filtered = [f for f in filtered if not spec.match_file(str(f))]
 
-        with gitignore_path.open() as f:
-            lines = f.readlines()
+        return filtered
 
-        # Compile .gitignore patterns using pathspec
-        spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
-        return spec
+    def reload_ignore_manager(self):
+        """Reload the ignore manager to pick up changes to .gitignore."""
+        self.ignore_manager.reload()
+
+    def get_exclude_dirs(self) -> pathspec.PathSpec:
+        """Backward compatibility for tests."""
+        return self.ignore_manager.spec

@@ -1,10 +1,8 @@
 import logging
 from typing import Optional, List
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
-from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.tools.base import BaseRepoTool
 from .read_packages import NoRootPackageFoundError
 
 logger = logging.getLogger(__name__)
@@ -14,7 +12,7 @@ class ClassQualifiedName(BaseModel):
     class_qualified_name: str = Field(description="The fully qualified name of the class, including its package.")
 
 
-class CodeStructureTool(BaseTool):
+class CodeStructureTool(BaseRepoTool):
     name: str = "getClassHierarchy"
     description: str = (
         "Retrieves class hierarchy and structure for a specific class. "
@@ -24,13 +22,7 @@ class CodeStructureTool(BaseTool):
         "Focus on main packages only - avoid utility/helper package analysis."
     )
     args_schema: Optional[ArgsSchema] = ClassQualifiedName
-    static_analysis: Optional[StaticAnalysisResults] = None
     return_direct: bool = False
-    cached_files: Optional[List[str]] = None
-
-    def __init__(self, static_analysis):
-        super().__init__()
-        self.static_analysis = static_analysis
 
     def _run(self, qualified_class_name: str) -> str:
         """
