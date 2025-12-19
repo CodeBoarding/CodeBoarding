@@ -22,13 +22,16 @@ def setup_logging(
     # Define both handlers from the beginning
     handlers = ["console", "file"]
 
-    # Determine log file location - use provided log_dir or default to current directory
+    # Determine log file location
     if log_dir is None:
-        log_dir_path = Path(".")
+        logs_dir = Path("logs")
     else:
-        log_dir_path = Path(log_dir)
-
-    logs_dir = log_dir_path
+        # If log_dir is provided, put logs in a 'logs' subdirectory
+        # unless log_dir itself is already named 'logs'
+        if log_dir.name == "logs":
+            logs_dir = log_dir
+        else:
+            logs_dir = log_dir / "logs"
 
     # Create logs directory if it doesn't exist
     logs_dir.mkdir(parents=True, exist_ok=True)
