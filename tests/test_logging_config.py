@@ -102,14 +102,14 @@ class TestLoggingConfig(unittest.TestCase):
             setup_logging(log_filename="test.log", log_dir=temp_path)
 
             logs_dir = temp_path / "logs"
-            log_files = list(logs_dir.glob("test_*.log"))
+            log_files = list(logs_dir.glob("*.log"))
+            # Filter out _latest.log
+            timestamped_files = [f for f in log_files if f.name != "_latest.log"]
 
-            self.assertEqual(len(log_files), 1)
-            filename = log_files[0].name
-            # Expected format: test_YYYYMMDD_HHMMSS.log
-            self.assertTrue(filename.startswith("test_"))
-            self.assertTrue(filename.endswith(".log"))
-            self.assertEqual(len(filename), len("test_YYYYMMDD_HHMMSS.log"))
+            self.assertEqual(len(timestamped_files), 1)
+            filename = timestamped_files[0].name
+            # Expected format: YYYYMMDD_HHMMSS.log
+            self.assertEqual(len(filename), len("YYYYMMDD_HHMMSS.log"))
 
             # Check _latest.log
             latest_log = logs_dir / "_latest.log"
@@ -119,16 +119,18 @@ class TestLoggingConfig(unittest.TestCase):
 
             self._clean_logging_handlers()
 
-    def test_setup_logging_default_filename_is_codeboarding(self):
+    def test_setup_logging_default_filename_is_timestamp(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             setup_logging(log_dir=temp_path)
 
             logs_dir = temp_path / "logs"
-            log_files = list(logs_dir.glob("codeboarding_*.log"))
+            log_files = list(logs_dir.glob("*.log"))
+            # Filter out _latest.log
+            timestamped_files = [f for f in log_files if f.name != "_latest.log"]
 
-            self.assertEqual(len(log_files), 1)
-            self.assertTrue(log_files[0].name.startswith("codeboarding_"))
+            self.assertEqual(len(timestamped_files), 1)
+            self.assertEqual(len(timestamped_files[0].name), len("YYYYMMDD_HHMMSS.log"))
 
             self._clean_logging_handlers()
 

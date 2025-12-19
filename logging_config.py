@@ -35,8 +35,7 @@ def setup_logging(
 
     # Generate timestamped filename for per-run logs
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = Path(log_filename)
-    timestamped_filename = f"{log_path.stem}_{timestamp}{log_path.suffix}"
+    timestamped_filename = f"{timestamp}.log"
 
     # Create full path for log file
     log_file_path = logs_dir / timestamped_filename
