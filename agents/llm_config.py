@@ -32,18 +32,23 @@ class LLMConfig:
     agent_temperature: float = 0
     parsing_temperature: float = 0
     extra_args: Dict[str, Any] = field(default_factory=dict)
+    alt_env_vars: list[str] = field(default_factory=list)
 
     def get_api_key(self) -> Optional[str]:
         return os.getenv(self.api_key_env)
 
+    def is_active(self) -> bool:
+        """Check if any of the environment variables (primary or alternate) are set."""
+        if os.getenv(self.api_key_env):
+            return True
+        return any(os.getenv(var) for var in self.alt_env_vars)
+
     def get_resolved_extra_args(self) -> Dict[str, Any]:
-        """Resolve extra args, executing callables (lambdas) to fetch latest env vars."""
         resolved = {}
         for k, v in self.extra_args.items():
-            if callable(v):
-                resolved[k] = v()
-            else:
-                resolved[k] = v
+            value = v() if callable(v) else v
+            if value is not None:
+                resolved[k] = value
         return resolved
 
 
@@ -54,6 +59,7 @@ LLM_PROVIDERS = {
         api_key_env="OPENAI_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
+        alt_env_vars=["OPENAI_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
             "max_tokens": None,

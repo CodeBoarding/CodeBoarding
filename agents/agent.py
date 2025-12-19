@@ -84,8 +84,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     ) -> tuple[BaseChatModel, str]:
         """Initialize LLM based on available API keys with priority order."""
         for name, config in LLM_PROVIDERS.items():
-            api_key = config.get_api_key()
-            if not api_key:
+            if not config.is_active():
                 continue
 
             # Determine model name
@@ -101,7 +100,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             kwargs.update(config.get_resolved_extra_args())
 
             if name not in ["aws", "ollama"]:
-                kwargs["api_key"] = api_key
+                api_key = config.get_api_key()
+                kwargs["api_key"] = api_key or "no-key-required"
 
             model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
 
@@ -109,9 +109,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             MONITORING_CALLBACK.model_name = model_name
             return model, model_name
 
+        # Dynamically build error message with all possible env vars
+        required_vars = []
+        for config in LLM_PROVIDERS.values():
+            required_vars.append(config.api_key_env)
+            required_vars.extend(config.alt_env_vars)
+
         raise ValueError(
-            "No valid API key found. Please set one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, "
-            "GOOGLE_API_KEY, or AWS_BEARER_TOKEN_BEDROCK"
+            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
         )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
