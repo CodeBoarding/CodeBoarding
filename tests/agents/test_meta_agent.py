@@ -26,10 +26,10 @@ class TestMetaAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
-    def test_init(self, mock_setup_env, mock_init_llm):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_init(self, mock_static_init):
         # Test initialization
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -40,11 +40,11 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
-    def test_analyze_project_metadata(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_analyze_project_metadata(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -70,11 +70,11 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIn("Python", result.technology_stack)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
-    def test_analyze_project_metadata_application(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_analyze_project_metadata_application(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata for an application
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
