@@ -4,7 +4,7 @@ from pathlib import Path
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
-from agents.agent import SmallModelAgent
+from agents.agent import LargeModelAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
 from monitoring import trace
@@ -13,7 +13,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class MetaAgent(SmallModelAgent):
+class MetaAgent(LargeModelAgent):
 
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
         super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message())
