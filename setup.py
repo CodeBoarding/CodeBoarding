@@ -340,7 +340,8 @@ ENABLE_MONITORING=false
 # Cerebras Configuration
 # CEREBRAS_API_KEY=your_cerebras_api_key_here
 
-# CODEBOARDING_MODEL=your_preferred_model_here # Optional: Specify model to use (e.g., gpt-4, claude-3-opus, gemini-2.0-flash-exp)
+# AGENT_MODEL=your_preferred_agent_model_here # Specify model to use for the main agent (e.g. gemini-3.0-flash)
+# PARSING_MODEL=your_preferred_parsing_model_here # Optional: Specify model to use for parsing the output of the main agent (e.g. gemini-2.0-flash-lite)
 
 # ============================================================================
 # OPTIONAL SERVICES

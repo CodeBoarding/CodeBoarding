@@ -4,7 +4,7 @@ import os
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 
-from agents.agent import CodeBoardingAgent
+from agents.agent import LargeModelAgent
 from agents.agent_responses import ValidationInsights, AnalysisInsights
 from agents.prompts import (
     get_component_validation_component,
@@ -17,7 +17,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class ValidatorAgent(CodeBoardingAgent):
+class ValidatorAgent(LargeModelAgent):
     def __init__(self, repo_dir, static_analysis: StaticAnalysisResults):
         super().__init__(repo_dir, static_analysis, get_validator_system_message())
         self.agent = create_react_agent(

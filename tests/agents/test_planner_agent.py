@@ -30,10 +30,10 @@ class TestPlannerAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
-    def test_init(self, mock_setup_env, mock_init_llm):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_init(self, mock_static_init):
         # Test initialization
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -42,11 +42,11 @@ class TestPlannerAgent(unittest.TestCase):
         self.assertIsNotNone(agent.expansion_prompt)
         self.assertIsNotNone(agent.agent)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
-    def test_plan_analysis_all_expandable(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_plan_analysis_all_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where all components should expand
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -96,11 +96,11 @@ class TestPlannerAgent(unittest.TestCase):
         self.assertIn(component2, result)
         self.assertEqual(mock_parse_invoke.call_count, 2)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
-    def test_plan_analysis_some_expandable(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_plan_analysis_some_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where only some components should expand
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -151,11 +151,11 @@ class TestPlannerAgent(unittest.TestCase):
         self.assertNotIn(component2, result)
         self.assertEqual(mock_parse_invoke.call_count, 2)
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
-    def test_plan_analysis_none_expandable(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_plan_analysis_none_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where no components should expand
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -190,11 +190,11 @@ class TestPlannerAgent(unittest.TestCase):
         self.assertEqual(len(result), 0)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._initialize_llm")
-    @patch("agents.agent.CodeBoardingAgent._setup_env_vars")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
-    def test_plan_analysis_empty_components(self, mock_parse_invoke, mock_setup_env, mock_init_llm):
+    def test_plan_analysis_empty_components(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis with no components
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

@@ -5,6 +5,7 @@ Tests to verify Windows compatibility fixes for path handling.
 import platform
 import unittest
 from pathlib import Path
+import os
 
 from static_analyzer.lsp_client.client import uri_to_path
 
