@@ -108,7 +108,7 @@ class BaseEval(ABC):
 
         cmd = [
             sys.executable,
-            "demo.py",
+            "main.py",
             repo_url,
             "--output-dir",
             str(output_dir),
