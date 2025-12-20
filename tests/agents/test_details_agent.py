@@ -1,7 +1,7 @@
 from typing import cast
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch, PropertyMock
 
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
@@ -90,14 +90,16 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        # Mock the read_cfg_tool
-        agent.read_cfg_tool = MagicMock()
-        agent.read_cfg_tool.component_cfg.return_value = "Mock CFG data"
+        # Mock the read_cfg_tool property
+        mock_tool = MagicMock()
+        mock_tool.component_cfg.return_value = "Mock CFG data"
+        with patch.object(DetailsAgent, "read_cfg_tool", new_callable=PropertyMock) as mock_prop:
+            mock_prop.return_value = mock_tool
 
-        agent.step_subcfg(self.test_component)
+            agent.step_subcfg(self.test_component)
 
-        self.assertIn("subcfg_insight", agent.context)
-        agent.read_cfg_tool.component_cfg.assert_called_once_with(self.test_component)
+            self.assertIn("subcfg_insight", agent.context)
+            mock_tool.component_cfg.assert_called_once_with(self.test_component)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
@@ -242,33 +244,35 @@ class TestDetailsAgent(unittest.TestCase):
         )
 
         # Mock the read_cfg_tool
-        agent.read_cfg_tool = MagicMock()
-        agent.read_cfg_tool.component_cfg.return_value = "Mock CFG data"
+        mock_tool = MagicMock()
+        mock_tool.component_cfg.return_value = "Mock CFG data"
+        with patch.object(DetailsAgent, "read_cfg_tool", new_callable=PropertyMock) as mock_prop:
+            mock_prop.return_value = mock_tool
 
-        # Mock responses for each step
-        cfg_response = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
-        )
-        structure_response = AnalysisInsights(
-            description="Structure",
-            components=[],
-            components_relations=[],
-        )
-        final_response = AnalysisInsights(
-            description="Final",
-            components=[],
-            components_relations=[],
-        )
+            # Mock responses for each step
+            cfg_response = CFGAnalysisInsights(
+                components=[],
+                components_relations=[],
+            )
+            structure_response = AnalysisInsights(
+                description="Structure",
+                components=[],
+                components_relations=[],
+            )
+            final_response = AnalysisInsights(
+                description="Final",
+                components=[],
+                components_relations=[],
+            )
 
-        mock_parse_invoke.side_effect = [cfg_response, structure_response, final_response]
-        mock_fix_ref.return_value = final_response
+            mock_parse_invoke.side_effect = [cfg_response, structure_response, final_response]
+            mock_fix_ref.return_value = final_response
 
-        result = agent.run(self.test_component)
+            result = agent.run(self.test_component)
 
-        self.assertEqual(result, final_response)
-        self.assertEqual(mock_parse_invoke.call_count, 3)
-        mock_fix_ref.assert_called_once()
+            self.assertEqual(result, final_response)
+            self.assertEqual(mock_parse_invoke.call_count, 3)
+            mock_fix_ref.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")

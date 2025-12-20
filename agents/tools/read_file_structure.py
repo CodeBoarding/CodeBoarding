@@ -1,16 +1,16 @@
 import logging
 import os
 from pathlib import Path
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
 
 class DirInput(BaseModel):
     dir: str | None = Field(
-        default=".",  # or "" if you prefer
+        default=".",
         description=(
             "Relative path to the directory whose file structure should be retrieved. "
             "Defaults to the project root if not specified (i.e., use '.' for root)."
@@ -18,7 +18,7 @@ class DirInput(BaseModel):
     )
 
 
-class FileStructureTool(BaseTool):
+class FileStructureTool(BaseRepoTool):
     name: str = "getFileStructure"
     description: str = (
         "Returns project directory structure as a tree. "
@@ -29,27 +29,12 @@ class FileStructureTool(BaseTool):
     MAX_LINES: int = 500
     args_schema: ArgsSchema | None = DirInput
     return_direct: bool = False
-    cached_dirs: list[Path] | None = None
-    repo_dir: Path | None = None
 
-    def __init__(self, repo_dir: Path):
-        super().__init__()
-        self.repo_dir = repo_dir
-        self.cached_dirs = [self.repo_dir]
-        self.walk_dir(repo_dir)
-        # Sort self.cached_dirs by depth:
-        self.cached_dirs.sort(key=lambda x: len(x.parts))
-
-    def walk_dir(self, root_project_dir: Path) -> None:
-        """
-        Walk the directory and collect all directories
-        """
-        for file in os.listdir(root_project_dir):
-            path = Path(root_project_dir) / file
-            if path.is_dir():
-                if self.cached_dirs is not None:
-                    self.cached_dirs.append(path)
-                self.walk_dir(path)
+    @property
+    def cached_dirs(self) -> list[Path]:
+        dirs = self.context.get_directories()
+        # Ensure they are sorted by depth for is_subsequence logic
+        return sorted(dirs, key=lambda x: len(x.parts))
 
     def _run(self, dir: str | None = None) -> str:
         """
@@ -58,12 +43,12 @@ class FileStructureTool(BaseTool):
         if dir == "." and self.repo_dir:
             # Start with a reasonable depth limit
             max_depth = 10
-            tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth)
+            tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth, ignore_manager=self.ignore_manager)
 
             # If we hit the line limit, try again with progressively lower depths
             while len(tree_lines) >= self.MAX_LINES and max_depth > 1:
                 max_depth -= 1
-                tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth)
+                tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth, ignore_manager=self.ignore_manager)
 
             tree_structure = "\n".join(tree_lines)
             depth_info = f" (limited to depth {max_depth})" if max_depth < 10 else ""
@@ -92,55 +77,38 @@ class FileStructureTool(BaseTool):
                         break
 
         if searching_dir is None:
-            # Try finding the dir with repo_dir without its first part
             logger.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
             cached_str = ", ".join([str(d) for d in self.cached_dirs]) if self.cached_dirs else "None"
             return f"Error: The specified directory does not exist or is empty. Available directories are: {cached_str}"
-        # now use the tree command to get the file structure
+
         logger.info(f"[File Structure Tool] Reading file structure for {searching_dir}")
 
         # Start with a reasonable depth limit
         max_depth = 10
-        tree_lines = get_tree_string(searching_dir, max_depth=max_depth)
+        tree_lines = get_tree_string(searching_dir, max_depth=max_depth, ignore_manager=self.ignore_manager)
 
         # If we hit the line limit, try again with progressively lower depths
         while len(tree_lines) >= 50000 and max_depth > 1:
             max_depth -= 1
-            tree_lines = get_tree_string(searching_dir, max_depth=max_depth, max_lines=self.MAX_LINES)
+            tree_lines = get_tree_string(
+                searching_dir, max_depth=max_depth, max_lines=self.MAX_LINES, ignore_manager=self.ignore_manager
+            )
 
         tree_structure = "\n".join(tree_lines)
         depth_info = f" (limited to depth {max_depth})" if max_depth < 10 else ""
         return f"The file tree for {dir}{depth_info} is:\n{tree_structure}"
 
-    def is_subsequence(self, sub: Path, full: Path) -> bool:
-        # exclude the analysis_dir from the comparison
-        if self.repo_dir is None:
-            return False
-        sub_parts = sub.parts
-        full_parts = full.parts
-        analysis_parts = self.repo_dir.parts
-        full_parts = full_parts[len(analysis_parts) :]
-        for i in range(len(full_parts) - len(sub_parts) + 1):
-            if full_parts[i : i + len(sub_parts)] == sub_parts:
-                return True
-        return False
-
 
 def get_tree_string(
-    startpath: Path, indent: str = "", max_depth: float = float("inf"), current_depth: int = 0, max_lines: int = 100
+    startpath: Path,
+    indent: str = "",
+    max_depth: float = float("inf"),
+    current_depth: int = 0,
+    max_lines: int = 100,
+    ignore_manager=None,
 ) -> list[str]:
     """
     Generate a tree-like string representation of the directory structure.
-
-    Args:
-        startpath: Path to start generating the tree from
-        indent: Current indentation string
-        max_depth: Maximum depth to traverse (default: unlimited)
-        current_depth: Current depth in the traversal (used internally)
-        max_lines: Maximum number of lines to generate
-
-    Returns:
-        List of strings representing the tree structure
     """
     tree_lines: list[str] = []
 
@@ -149,7 +117,8 @@ def get_tree_string(
         return tree_lines
 
     try:
-        entries = sorted([p for p in startpath.iterdir()])
+        # Filter entries using the ignore manager
+        entries = sorted([p for p in startpath.iterdir() if not (ignore_manager and ignore_manager.should_ignore(p))])
     except (PermissionError, FileNotFoundError):
         # Handle permission errors or non-existent directories
         return [indent + "└── [Error reading directory]"]
@@ -166,7 +135,12 @@ def get_tree_string(
         if entry_path.is_dir():
             extension = "    " if i == len(entries) - 1 else "│   "
             subtree = get_tree_string(
-                entry_path, indent + extension, max_depth, current_depth + 1, max_lines - len(tree_lines)
+                entry_path,
+                indent + extension,
+                max_depth,
+                current_depth + 1,
+                max_lines - len(tree_lines),
+                ignore_manager=ignore_manager,
             )
             tree_lines.extend(subtree)
 

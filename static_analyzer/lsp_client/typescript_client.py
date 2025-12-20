@@ -118,39 +118,13 @@ class TypeScriptClient(LSPClient):
         except Exception as e:
             logger.warning(f"Failed to configure TypeScript workspace: {e}")
 
-    def _get_source_files(self) -> list:
-        """Get TypeScript/JavaScript source files, excluding node_modules and dist folders."""
+    def _find_typescript_files(self) -> list:
+        """Find all TypeScript/JavaScript files in the project."""
         all_files = []
         for pattern in ["*.ts", "*.tsx", "*.js", "*.jsx"]:
             all_files.extend(list(self.project_path.rglob(pattern)))
 
-        # Filter out node_modules and dist explicitly
-        filtered_files = []
-        for file_path in all_files:
-            try:
-                rel_path = file_path.relative_to(self.project_path)
-                # Skip if any part of the path is node_modules or dist
-                if "node_modules" in rel_path.parts:
-                    logger.debug(f"Skipping node_modules file: {rel_path}")
-                    continue
-                if "dist" in rel_path.parts:
-                    logger.debug(f"Skipping dist file: {rel_path}")
-                    continue
-                filtered_files.append(file_path)
-            except ValueError:
-                # File is outside project root, include it
-                filtered_files.append(file_path)
-
-        return filtered_files
-
-    def _find_typescript_files(self) -> list:
-        """Find all TypeScript/JavaScript files in the project (including node_modules for bootstrapping)."""
-        return (
-            list(self.project_path.rglob("*.ts"))
-            + list(self.project_path.rglob("*.tsx"))
-            + list(self.project_path.rglob("*.js"))
-            + list(self.project_path.rglob("*.jsx"))
-        )
+        return self.filter_src_files(all_files)
 
     def _process_config_files(self) -> bool:
         """Process TypeScript configuration files and return True if any found."""
@@ -175,9 +149,8 @@ class TypeScriptClient(LSPClient):
     def _bootstrap_project(self, ts_files: list, config_found: bool):
         """Bootstrap TypeScript project by opening files."""
         logger.info("Opening sample files to bootstrap TypeScript project...")
-        spec = self.get_exclude_dirs()
-        filtered_ts_files = self.filter_src_files(ts_files, spec)
-        sample_files = filtered_ts_files[:3]
+        # Files are already filtered in _find_typescript_files
+        sample_files = ts_files[:3]
 
         # Open bootstrap files
         for file_path in sample_files:

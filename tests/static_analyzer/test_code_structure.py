@@ -1,6 +1,9 @@
 import unittest
+from pathlib import Path
 
 from agents.tools.read_structure import CodeStructureTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -28,7 +31,9 @@ class TestCodeStructureTool(unittest.TestCase):
                 },
             },
         )
-        self.tool = CodeStructureTool(static_analysis=self.static_analysis)
+        ignore_manager = RepoIgnoreManager(Path("."))
+        context = RepoContext(repo_dir=Path("."), ignore_manager=ignore_manager, static_analysis=self.static_analysis)
+        self.tool = CodeStructureTool(context=context)
 
     def test_get_class_hierarchy(self):
         # Test retrieving class hierarchy
@@ -74,7 +79,8 @@ class TestCodeStructureTool(unittest.TestCase):
 
     def test_no_static_analysis(self):
         # Test error when static analysis is None
-        tool = CodeStructureTool(static_analysis=None)
+        context = RepoContext(repo_dir=Path("."), ignore_manager=RepoIgnoreManager(Path(".")), static_analysis=None)
+        tool = CodeStructureTool(context=context)
         result = tool._run("myapp.models.User")
         self.assertIn("Error: Static analysis is not set", result)
 

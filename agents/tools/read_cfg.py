@@ -1,14 +1,13 @@
 import logging
-
+from typing import Optional
 from langchain_core.tools import BaseTool
-
 from agents.agent_responses import Component
-from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
 
-class GetCFGTool(BaseTool):
+class GetCFGTool(BaseRepoTool):
     name: str = "getControlFlowGraph"
     description: str = (
         "Retrieves complete project control flow graph (CFG) showing all method calls. "
@@ -17,11 +16,6 @@ class GetCFGTool(BaseTool):
         "Essential data - analyze this output thoroughly before using other tools. "
         "No input arguments required."
     )
-    static_analysis: StaticAnalysisResults | None = None
-
-    def __init__(self, static_analysis: StaticAnalysisResults):
-        super().__init__()
-        self.static_analysis = static_analysis
 
     def _run(self) -> str:
         """

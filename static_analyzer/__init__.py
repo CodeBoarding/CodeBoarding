@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
@@ -11,7 +12,9 @@ from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 logger = logging.getLogger(__name__)
 
 
-def create_clients(programming_languages: list[ProgrammingLanguage], repository_path: Path) -> list[LSPClient]:
+def create_clients(
+    programming_languages: list[ProgrammingLanguage], repository_path: Path, ignore_manager: RepoIgnoreManager
+) -> list[LSPClient]:
     clients: list[LSPClient] = []
     for pl in programming_languages:
         if not pl.is_supported_lang():
@@ -20,7 +23,7 @@ def create_clients(programming_languages: list[ProgrammingLanguage], repository_
         try:
             if pl.language.lower() in ["typescript"]:
                 # For TypeScript, scan for multiple project configurations (mono-repo support)
-                config_scanner = TypeScriptConfigScanner(repository_path)
+                config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = config_scanner.find_typescript_projects()
 
                 if typescript_projects:
@@ -29,13 +32,17 @@ def create_clients(programming_languages: list[ProgrammingLanguage], repository_
                         logger.info(
                             f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}"
                         )
-                        clients.append(TypeScriptClient(language=pl, project_path=project_path))
+                        clients.append(
+                            TypeScriptClient(language=pl, project_path=project_path, ignore_manager=ignore_manager)
+                        )
                 else:
                     # Fallback: No config files found, use repository root
                     logger.info("No TypeScript config files found, using repository root")
-                    clients.append(TypeScriptClient(language=pl, project_path=repository_path))
+                    clients.append(
+                        TypeScriptClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager)
+                    )
             else:
-                clients.append(LSPClient(language=pl, project_path=repository_path))
+                clients.append(LSPClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager))
         except RuntimeError as e:
             logger.error(f"Failed to create LSP client for {pl.language}: {e}")
     return clients
@@ -44,8 +51,9 @@ def create_clients(programming_languages: list[ProgrammingLanguage], repository_
 class StaticAnalyzer:
     def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
+        self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
-        self.clients = create_clients(programming_langs, self.repository_path)
+        self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
     def analyze(self):
         results = StaticAnalysisResults()

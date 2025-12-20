@@ -16,13 +16,7 @@ class PlannerAgent(LargeModelAgent):
         self.expansion_prompt = PromptTemplate(template=get_expansion_prompt(), input_variables=["component"])
         self.agent = create_react_agent(
             model=self.llm,
-            tools=[
-                self.read_source_reference,
-                self.read_packages_tool,
-                self.read_file_structure,
-                self.read_structure_tool,
-                self.read_file_tool,
-            ],
+            tools=self.toolkit.get_agent_tools(),
         )
 
     @trace

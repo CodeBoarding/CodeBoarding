@@ -1,6 +1,9 @@
 import unittest
+from pathlib import Path
 
 from agents.tools.read_git_diff import ReadDiffTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.git_diff import FileChange
 
 
@@ -24,7 +27,10 @@ class TestReadDiffTool(unittest.TestCase):
                 removed_lines=["import old_module"],
             ),
         ]
-        self.tool = ReadDiffTool(diffs=self.file_changes)
+        repo_dir = Path(".")
+        ignore_manager = RepoIgnoreManager(repo_dir)
+        self.context = RepoContext(repo_dir=repo_dir, ignore_manager=ignore_manager)
+        self.tool = ReadDiffTool(context=self.context, diffs=self.file_changes)
 
     def test_read_diff_basic(self):
         # Test basic diff reading
@@ -51,14 +57,14 @@ class TestReadDiffTool(unittest.TestCase):
 
     def test_read_diff_no_diffs(self):
         # Test with no diffs available
-        empty_tool = ReadDiffTool(diffs=[])
+        empty_tool = ReadDiffTool(context=self.context, diffs=[])
         content = empty_tool._run("example.py", 1)
         self.assertIn("Error: No diff information available", content)
 
     def test_read_diff_empty_changes(self):
         # Test file with no actual line changes
         empty_change = FileChange(filename="binary.bin", additions=0, deletions=0, added_lines=[], removed_lines=[])
-        tool = ReadDiffTool(diffs=[empty_change])
+        tool = ReadDiffTool(context=self.context, diffs=[empty_change])
         content = tool._run("binary.bin", 1)
         self.assertIn("No detailed line changes available", content)
 
@@ -71,7 +77,7 @@ class TestReadDiffTool(unittest.TestCase):
             added_lines=[f"line_{i}" for i in range(150)],
             removed_lines=[],
         )
-        tool = ReadDiffTool(diffs=[large_changes])
+        tool = ReadDiffTool(context=self.context, diffs=[large_changes])
         content = tool._run("large.py", 1)
         self.assertIn("DIFF TRUNCATED", content)
         self.assertIn("Showing lines", content)

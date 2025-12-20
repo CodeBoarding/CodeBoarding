@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 
 from agents.tools import CodeReferenceReader
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 
 
@@ -14,7 +16,9 @@ class TestReadSourceTool(unittest.TestCase):
 
         analyzer = StaticAnalyzer(test_repo)
         static_analysis = analyzer.analyze()
-        self.tool = CodeReferenceReader(static_analysis=static_analysis)
+        ignore_manager = RepoIgnoreManager(test_repo)
+        context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
+        self.tool = CodeReferenceReader(context=context)
 
         # Check if we have any references to work with
         if not static_analysis or len(static_analysis.get_all_source_files()) == 0:

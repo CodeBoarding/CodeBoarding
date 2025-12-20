@@ -12,7 +12,6 @@ from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
-from agents.tools.read_git_diff import ReadDiffTool
 from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils.git_diff import FileChange, get_git_diff
@@ -24,17 +23,14 @@ class DiffAnalyzingAgent(LargeModelAgent):
         self.project_name = project_name
         self.repo_dir = repo_dir
         self.prompt = PromptTemplate(template=get_diff_analysis_message(), input_variables=["analysis", "diff_data"])
-        self.read_diff_tool = ReadDiffTool(diffs=self.get_diff_data())
+        self.read_diff_tool = self.toolkit.get_read_diff_tool(diffs=self.get_diff_data())
+
+        tools = self.toolkit.get_agent_tools()
+        tools.append(self.read_diff_tool)
+
         self.agent = create_react_agent(
             model=self.llm,
-            tools=[
-                self.read_source_reference,
-                self.read_packages_tool,
-                self.read_file_structure,
-                self.read_structure_tool,
-                self.read_file_tool,
-                self.read_diff_tool,
-            ],
+            tools=tools,
         )
 
     def get_analysis(self) -> AnalysisInsights:

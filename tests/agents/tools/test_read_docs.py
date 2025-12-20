@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 
 from agents.tools.read_docs import ReadDocsTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 
 
 class TestReadDocsTool(unittest.TestCase):
@@ -11,7 +13,9 @@ class TestReadDocsTool(unittest.TestCase):
         test_repo = Path("./test-vscode-repo")
         if not test_repo.exists():
             self.skipTest("Test repository not available")
-        self.tool = ReadDocsTool(repo_dir=test_repo)
+        ignore_manager = RepoIgnoreManager(test_repo)
+        context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager)
+        self.tool = ReadDocsTool(context=context)
 
     def test_read_default_readme(self):
         # Test the _run method with no parameters
@@ -37,7 +41,10 @@ class TestReadDocsTool(unittest.TestCase):
 
     def test_readme_not_found(self):
         # Test when README.md doesn't exist (using a non-existent repo path)
-        tool_no_readme = ReadDocsTool(repo_dir=Path("/tmp/nonexistent"))
+        repo_dir = Path("/tmp/nonexistent")
+        ignore_manager = RepoIgnoreManager(repo_dir)
+        context = RepoContext(repo_dir=repo_dir, ignore_manager=ignore_manager)
+        tool_no_readme = ReadDocsTool(context=context)
         content = tool_no_readme._run()
         self.assertIsInstance(content, str)
         self.assertIn("No", content)

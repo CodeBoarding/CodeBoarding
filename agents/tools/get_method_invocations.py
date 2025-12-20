@@ -1,20 +1,17 @@
 import logging
 from typing import Optional
-
-from langchain_core.tools import BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
-from static_analyzer.analysis_result import StaticAnalysisResults
-
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
 
 class MethodInvocationsInput(BaseModel):
-    method: str = Field(description="The name of the method for which to retrieve it's immediate callees and calls. ")
+    method: str = Field(description="The name of the method for which to retrieve its immediate callees and calls.")
 
 
-class MethodInvocationsTool(BaseTool):
+class MethodInvocationsTool(BaseRepoTool):
     name: str = "getMethodInvocationsTool"
     description: str = (
         "Retrieves complete project control flow graph (CFG) in DOT format. "
@@ -23,11 +20,7 @@ class MethodInvocationsTool(BaseTool):
         "Primary data source - analyze this output before using other tools. "
         "No input arguments required."
     )
-    static_analysis: Optional[StaticAnalysisResults] = None
-
-    def __init__(self, static_analysis):
-        super().__init__()
-        self.static_analysis = static_analysis
+    args_schema: Optional[ArgsSchema] = MethodInvocationsInput
 
     def _run(self, method: str) -> str:
         """

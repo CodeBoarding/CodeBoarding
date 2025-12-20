@@ -1,11 +1,9 @@
 import logging
 from pathlib import Path
 from typing import Optional, List
-
-from langchain_core.tools import ArgsSchema, BaseTool
+from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
-from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +21,7 @@ class ModuleInput(BaseModel):
     )
 
 
-class CodeReferenceReader(BaseTool):
+class CodeReferenceReader(BaseRepoTool):
     name: str = "getSourceCode"
     description: str = (
         "Retrieves source code for specific classes, methods, or functions. "
@@ -34,13 +32,6 @@ class CodeReferenceReader(BaseTool):
     )
     args_schema: Optional[ArgsSchema] = ModuleInput
     return_direct: bool = False
-    cached_files: Optional[List[str]] = None
-    static_analysis: Optional[StaticAnalysisResults] = None
-
-    def __init__(self, static_analysis: StaticAnalysisResults):
-        super().__init__()
-        self.cached_files = []
-        self.static_analysis = static_analysis
 
     def _run(self, code_reference: str) -> str:
         """

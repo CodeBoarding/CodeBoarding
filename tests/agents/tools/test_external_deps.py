@@ -4,6 +4,8 @@ import tempfile
 import shutil
 
 from agents.tools.external_deps import ExternalDepsTool
+from agents.tools.base import RepoContext
+from repo_utils.ignore import RepoIgnoreManager
 
 
 class TestExternalDepsTool(unittest.TestCase):
@@ -11,6 +13,8 @@ class TestExternalDepsTool(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for testing
         self.temp_dir = Path(tempfile.mkdtemp())
+        self.ignore_manager = RepoIgnoreManager(self.temp_dir)
+        self.context = RepoContext(repo_dir=self.temp_dir, ignore_manager=self.ignore_manager)
 
     def tearDown(self):
         # Clean up the temporary directory
@@ -21,7 +25,7 @@ class TestExternalDepsTool(unittest.TestCase):
         (self.temp_dir / "requirements.txt").touch()
         (self.temp_dir / "setup.py").touch()
 
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("Found 2 dependency file(s)", result)
@@ -33,7 +37,7 @@ class TestExternalDepsTool(unittest.TestCase):
         (self.temp_dir / "package.json").touch()
         (self.temp_dir / "package-lock.json").touch()
 
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("Found 2 dependency file(s)", result)
@@ -47,7 +51,7 @@ class TestExternalDepsTool(unittest.TestCase):
         (req_dir / "dev.txt").touch()
         (req_dir / "test.txt").touch()
 
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("Found", result)
@@ -55,7 +59,7 @@ class TestExternalDepsTool(unittest.TestCase):
 
     def test_no_deps_found(self):
         # Test with empty directory
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("No dependency files found", result)
@@ -69,7 +73,7 @@ class TestExternalDepsTool(unittest.TestCase):
         (self.temp_dir / "Pipfile").touch()
         (self.temp_dir / "environment.yml").touch()
 
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("Found 4 dependency file(s)", result)
@@ -82,7 +86,7 @@ class TestExternalDepsTool(unittest.TestCase):
         # Test that output includes readFile tool usage suggestion
         (self.temp_dir / "requirements.txt").touch()
 
-        tool = ExternalDepsTool(repo_dir=self.temp_dir)
+        tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
         self.assertIn("To read this file:", result)
