@@ -97,6 +97,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
+
     @classmethod
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""

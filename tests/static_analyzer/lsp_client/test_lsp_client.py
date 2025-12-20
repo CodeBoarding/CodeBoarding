@@ -453,12 +453,11 @@ class TestLSPClient(unittest.TestCase):
         mock_process.stdout = Mock()
         mock_popen.return_value = mock_process
 
-        client = LSPClient(self.project_path, self.mock_language)
-
         # Create .gitignore
         gitignore = self.project_path / ".gitignore"
         gitignore.write_text("*.pyc\n__pycache__/\n")
-        client.reload_ignore_manager()
+
+        client = LSPClient(self.project_path, self.mock_language)
 
         spec = client.get_exclude_dirs()
 

@@ -1098,10 +1098,6 @@ class LSPClient:
 
         return filtered
 
-    def reload_ignore_manager(self):
-        """Reload the ignore manager to pick up changes to .gitignore."""
-        self.ignore_manager.reload()
-
     def get_exclude_dirs(self) -> pathspec.PathSpec:
         """Backward compatibility for tests."""
         return self.ignore_manager.spec
