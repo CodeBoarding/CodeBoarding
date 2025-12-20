@@ -93,7 +93,8 @@ AWS_BEARER_TOKEN_BEDROCK=
 OLLAMA_BASE_URL=
 OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
 CEREBRAS_API_KEY=
-CODEBOARDING_MODEL=                # Optional: Specify model to use (e.g., gpt-4, claude-3-opus, gemini-2.0-flash-exp)
+AGENT_MODEL=                      # Optional: Specify model to use for the main agent (e.g., gpt-4o, claude-3-7-sonnet)
+PARSING_MODEL=                    # Optional: Specify model to use for parsing tasks (e.g., gpt-4o-mini, claude-3-haiku)
 
 # Core Configuration
 CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
