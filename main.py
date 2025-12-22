@@ -31,6 +31,7 @@ def validate_env_vars():
         "AWS_BEARER_TOKEN_BEDROCK",
         "OLLAMA_BASE_URL",
         "CEREBRAS_API_KEY",
+        "VERCEL_API_KEY",
     ]
     api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
 

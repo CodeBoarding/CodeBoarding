@@ -283,11 +283,6 @@ def update_static_analysis_config():
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 
     print(f"Step: Configuration update finished: success ({updates} paths updated)")
-    # Write the updated configuration back to file
-    with open(config_path, "w") as f:
-        yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
-
-    print(f"Step: Configuration update finished: success ({updates} paths updated)")
 
 
 def init_dot_env_file():
@@ -333,6 +328,10 @@ ENABLE_MONITORING=false
 
 # Google AI Configuration
 # GOOGLE_API_KEY=your_google_api_key_here
+
+# Vercel Configuration
+# VERCEL_API_KEY=your_vercel_api_key_here
+# VERCEL_BASE_URL=https://gateway.ai.vercel.com/v1/projects/your_project_id/gateways/your_gateway_id # Optional: Custom Vercel endpoint
 
 # AWS Bedrock Configuration
 # AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here
