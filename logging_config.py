@@ -8,10 +8,10 @@ from pathlib import Path
 
 def setup_logging(
     default_level: str = "INFO",
-    log_filename: str = "codeboarding.log",
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
     log_dir: Path | None = None,
+    log_filename: str | None = None,
 ):
     """
     Configure:
@@ -36,12 +36,16 @@ def setup_logging(
     # Create logs directory if it doesn't exist
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate timestamped filename for per-run logs
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    timestamped_filename = f"{timestamp}.log"
+    # Generate filename
+    if log_filename:
+        filename = log_filename
+    else:
+        # Generate timestamped filename for per-run logs
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}.log"
 
     # Create full path for log file
-    log_file_path = logs_dir / timestamped_filename
+    log_file_path = logs_dir / filename
 
     # Basic config structure with both handlers defined upfront
     config = {
@@ -91,7 +95,7 @@ def setup_logging(
 
         # Try to create a symlink (works on Unix and Windows with Developer Mode)
         # Use relative path for portability
-        os.symlink(timestamped_filename, latest_log_path)
+        os.symlink(filename, latest_log_path)
     except (OSError, AttributeError):
         # Fallback to copying the file if symlinking fails
         try:

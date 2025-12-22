@@ -49,6 +49,7 @@ class TestLoggingConfig(unittest.TestCase):
 
             logs_dir = temp_path / "logs"
             self.assertTrue(logs_dir.exists())
+            self.assertTrue((logs_dir / "custom.log").exists())
 
             self._clean_logging_handlers()
 
@@ -99,7 +100,7 @@ class TestLoggingConfig(unittest.TestCase):
     def test_setup_logging_timestamped_filename(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            setup_logging(log_filename="test.log", log_dir=temp_path)
+            setup_logging(log_dir=temp_path)
 
             logs_dir = temp_path / "logs"
             log_files = list(logs_dir.glob("*.log"))
