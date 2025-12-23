@@ -94,7 +94,7 @@ LLM_PROVIDERS = {
     "google": LLMConfig(
         chat_class=ChatGoogleGenerativeAI,
         api_key_env="GOOGLE_API_KEY",
-        agent_model="gemini-2.0-flash",
+        agent_model="gemini-2.5-flash",
         parsing_model="gemini-2.0-flash-lite-preview-02-05",
         extra_args={
             "max_tokens": None,
