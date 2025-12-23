@@ -89,9 +89,11 @@ The `python setup.py` command creates a `.env` file if it doesn't exist with a d
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
+VERCEL_API_KEY=
 AWS_BEARER_TOKEN_BEDROCK=
 OLLAMA_BASE_URL=
 OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
+VERCEL_BASE_URL=                   # Optional: Custom Vercel endpoint
 CEREBRAS_API_KEY=
 AGENT_MODEL=                      # Optional: Specify model to use for the main agent (e.g., gpt-4o, claude-3-7-sonnet)
 PARSING_MODEL=                    # Optional: Specify model to use for parsing tasks (e.g., gpt-4o-mini, claude-3-haiku)

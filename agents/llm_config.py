@@ -67,6 +67,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "vercel": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="VERCEL_API_KEY",
+        agent_model="gemini-2.5-flash",
+        parsing_model="gemini-2.0-flash-lite",
+        alt_env_vars=["VERCEL_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
         api_key_env="ANTHROPIC_API_KEY",

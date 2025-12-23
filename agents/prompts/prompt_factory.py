@@ -29,6 +29,7 @@ class LLMType(Enum):
     CLAUDE_SONNET = "claude_sonnet"
     CLAUDE = "claude"
     GPT4 = "gpt4"  # GPT-4 family optimized prompts
+    VERCEL = "vercel"
 
 
 class PromptFactory:
@@ -52,7 +53,7 @@ class PromptFactory:
                     return ClaudeBidirectionalPromptFactory()
                 return ClaudeUnidirectionalPromptFactory()
 
-            case LLMType.GPT4:
+            case LLMType.GPT4 | LLMType.VERCEL:
                 if self.prompt_type == PromptType.BIDIRECTIONAL:
                     return GPTBidirectionalPromptFactory()
                 return GPTUnidirectionalPromptFactory()
@@ -102,6 +103,7 @@ class PromptFactory:
             "gpt4": LLMType.GPT4,
             "gpt-4": LLMType.GPT4,
             "openai": LLMType.GPT4,  # Default OpenAI to GPT4
+            "vercel": LLMType.VERCEL,
         }
 
         llm_type = llm_mapping.get(llm_name.lower(), LLMType.GEMINI_FLASH)
