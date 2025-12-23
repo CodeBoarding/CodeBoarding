@@ -1,9 +1,25 @@
 {
-  "description": "The documentation and diagram generation subsystem is centered around the Diagram Core, which is responsible for processing analysis insights and producing raw diagram data. This data is then consumed by format-specific generators: the Markdown Generator for static Markdown output with Mermaid syntax, and the HTML Generator for interactive web-based documentation. The HTML Generator further relies on the HTML Template to provide the structural and stylistic foundation for the final web pages, embedding the interactive diagrams and detailed component information. This architecture ensures a clear separation of concerns between diagram data generation and output formatting, allowing for flexible and extensible documentation capabilities.",
+  "description": "The Output Generation Engine subsystem is defined by the output_generators directory and its contained modules. It encompasses all functionality related to transforming structured architectural insights into various documentation and report formats. The Output Generation Engine acts as a central hub, coordinating various specialized generator components. Each generator is a distinct module responsible for a specific output format. This structure exemplifies a modular design where the Output Generation Engine provides a unified interface to a suite of pluggable output formatters.",
   "components": [
     {
+      "name": "Output Generation Engine",
+      "description": "The primary orchestrator for the entire output generation process. It acts as a facade, coordinating the activities of individual format-specific generators to produce diverse documentation and report types from processed architectural insights.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.__init__",
+          "reference_file": "output_generators/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../output_generators"
+      ],
+      "can_expand": true
+    },
+    {
       "name": "Markdown Generator",
-      "description": "Generates comprehensive documentation in Markdown format. This includes structuring detailed component descriptions, creating Mermaid graph syntax for diagrams, and linking to other generated files. It is a primary output mechanism for the tool.",
+      "description": "Specializes in converting structured architectural data into Markdown format, suitable for general documentation, READMEs, and simple reports.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.markdown",
@@ -12,14 +28,26 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/markdown.py"
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "MDX Generator",
+      "description": "Responsible for generating documentation in MDX (Markdown with JSX) format, enabling richer, interactive content within Markdown files.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.mdx",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
       ],
-      "can_expand": true
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "HTML Generator",
-      "description": "Produces interactive documentation in HTML format. It is responsible for creating the JSON data structure required for Cytoscape.js diagrams, embedding this data within an HTML template, and populating the template with structured component details and navigation links.",
+      "description": "Focuses on producing comprehensive documentation in HTML format, often used for web-based documentation portals or detailed reports.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.html",
@@ -28,30 +56,26 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/html.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "Diagram Core",
-      "description": "Provides the foundational logic for generating diagram data structures or syntax from analysis insights, independent of the final output format. It abstracts the complexities of different diagramming libraries (e.g., Mermaid, Cytoscape.js) and produces the raw diagram information that format-specific generators then integrate. This component is crucial for the \"visual diagrams\" aspect of the engine.",
+      "name": "Sphinx Generator",
+      "description": "Generates documentation compatible with the Sphinx documentation generator, commonly used for Python projects, supporting reStructuredText and other formats.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
+          "qualified_name": "output_generators.sphinx",
+          "reference_file": "output_generators/sphinx.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../diagram_analysis/diagram_generator.py"
-      ],
-      "can_expand": true
+      "assigned_files": [],
+      "can_expand": false
     },
     {
-      "name": "HTML Template",
-      "description": "Defines the overall HTML structure, layout, and styling for the web-based documentation. It serves as a static foundation that the HTML Generator dynamically populates with content, including component details, descriptions, and embedded interactive diagrams.",
+      "name": "HTML Template Provider",
+      "description": "Manages and provides HTML templates and potentially utility functions specifically tailored for the `HTML Generator`, ensuring consistent styling and structure.",
       "referenced_source_code": [
         {
           "qualified_name": "output_generators.html_template",
@@ -60,52 +84,42 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/html_template.py"
-      ],
-      "can_expand": false
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "../../output_generators/mdx.py",
-        "../../diagram_analysis/analysis_json.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "Consumes output from",
-      "src_name": "Markdown Generator",
-      "dst_name": "Diagram Core"
-    },
-    {
-      "relation": "Depends on",
-      "src_name": "HTML Generator",
-      "dst_name": "HTML Template"
-    },
-    {
-      "relation": "Consumes output from",
-      "src_name": "HTML Generator",
-      "dst_name": "Diagram Core"
-    },
-    {
-      "relation": "Produces data for",
-      "src_name": "Diagram Core",
+      "relation": "orchestrates",
+      "src_name": "Output Generation Engine",
       "dst_name": "Markdown Generator"
     },
     {
-      "relation": "Produces data for",
-      "src_name": "Diagram Core",
+      "relation": "orchestrates",
+      "src_name": "Output Generation Engine",
+      "dst_name": "MDX Generator"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Output Generation Engine",
       "dst_name": "HTML Generator"
     },
     {
-      "relation": "Provides structure to",
-      "src_name": "HTML Template",
-      "dst_name": "HTML Generator"
+      "relation": "orchestrates",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Sphinx Generator"
+    },
+    {
+      "relation": "uses",
+      "src_name": "HTML Generator",
+      "dst_name": "HTML Template Provider"
     }
   ]
 }

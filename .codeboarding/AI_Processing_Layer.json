@@ -1,0 +1,113 @@
+{
+  "description": "The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform a multi-stage analysis of a project. The `AbstractionAgent` initiates the process by conducting a high-level architectural analysis, identifying abstract components, and classifying files. This initial analysis then feeds into the `DetailsAgent`, which performs a more granular, in-depth examination of each identified component. Both agents rely on the `PromptFactory` for dynamic prompt generation tailored to specific LLM providers and tasks, ensuring consistent and flexible interaction with Large Language Models. The `LLMConfig` component provides a centralized configuration for these LLM interactions, managing model selection and API parameters. This structured approach allows for a comprehensive understanding of the project's architecture, from abstract components to detailed internal structures.",
+  "components": [
+    {
+      "name": "AbstractionAgent",
+      "description": "Performs initial, high-level architectural analysis of the entire project. This includes analyzing Control Flow Graphs (CFGs) and source code to identify abstract components and generate overall project insights. It also classifies files into these high-level components.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/abstraction_agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "Conducts in-depth, granular analysis of specific components identified by the AbstractionAgent. It refines the structural understanding of individual components, generates detailed documentation, and further classifies files within those components.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/details_agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory",
+      "description": "Acts as a central manager for all LLM prompts. It dynamically selects and provides the correct prompt templates based on the chosen LLM provider and the desired prompt type (e.g., bidirectional, unidirectional). This ensures consistency and flexibility in prompt management.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/prompts/prompt_factory.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "LLMConfig",
+      "description": "Provides a centralized and extensible configuration for integrating with various Large Language Model (LLM) providers. It defines the specific models to be used for different tasks (e.g., \"agent\" model for complex reasoning, \"parsing\" model for structured output), API keys, and other provider-specific parameters.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 14,
+          "reference_end_line": 52
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "AbstractionAgent",
+      "dst_name": "PromptFactory"
+    },
+    {
+      "relation": "provides prompts tailored for",
+      "src_name": "PromptFactory",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "configures its LLM interactions via",
+      "src_name": "AbstractionAgent",
+      "dst_name": "LLMConfig"
+    },
+    {
+      "relation": "generates components and high-level insights that serve as input for",
+      "src_name": "AbstractionAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "uses",
+      "src_name": "DetailsAgent",
+      "dst_name": "PromptFactory"
+    },
+    {
+      "relation": "provides prompts tailored for",
+      "src_name": "PromptFactory",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "configures its LLM interactions via",
+      "src_name": "DetailsAgent",
+      "dst_name": "LLMConfig"
+    }
+  ]
+}

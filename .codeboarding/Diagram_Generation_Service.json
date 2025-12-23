@@ -1,0 +1,55 @@
+{
+  "description": "The Diagram Generation Service subsystem is responsible for converting structured architectural data into visual diagrams, enhancing comprehension through interactive and visual representations. It takes processed data and produces a final, consumable output, potentially integrating with external tools like Mermaid.js.",
+  "components": [
+    {
+      "name": "DiagramGenerator",
+      "description": "Within the Diagram Generation Service, this component orchestrates the process of transforming structured architectural analysis data into visual diagrams. It coordinates the serialization of analysis results and manages the invocation of diagramming logic, potentially integrating with external tools like Mermaid.js to produce the final visual representations.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisToJsonConverter",
+      "description": "This utility component is responsible for serializing complex architectural analysis objects into a standardized JSON format. This conversion is a crucial preparatory step, ensuring the structured data is in a consumable format for diagramming tools and the DiagramGenerator.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "AnalysisToJsonConverter",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "depends on",
+      "src_name": "DiagramGenerator",
+      "dst_name": "AnalysisToJsonConverter"
+    },
+    {
+      "relation": "provides input to",
+      "src_name": "AnalysisToJsonConverter",
+      "dst_name": "DiagramGenerator"
+    }
+  ]
+}
