@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 
 import networkx as nx
+import networkx.algorithms.community as nx_comm
 
 logger = logging.getLogger(__name__)
 
@@ -144,28 +145,16 @@ class CallGraph:
             return components[:target_clusters], "connected_components"
 
     def _cluster_at_level(self, graph, level, target_clusters, min_cluster_size):
-        """
-        Cluster by grouping nodes at different abstraction levels.
-        """
         if level == 'method':
-            # Use original graph (method level)
             return self._cluster_with_algorithm(graph, 'louvain', target_clusters)
 
-        # Create abstracted graph
         abstracted_graph = self._create_abstracted_graph(graph, level)
         if abstracted_graph.number_of_nodes() == 0:
             return []
-
-        # Cluster the abstracted graph
         abstract_communities = self._cluster_with_algorithm(abstracted_graph, 'louvain', target_clusters)
-
-        # Map back to original nodes
         return self._map_abstract_to_original(abstract_communities, graph, level)
 
     def _create_abstracted_graph(self, graph, level):
-        """
-        Create an abstracted version of the graph by grouping nodes.
-        """
         abstracted_graph = nx.DiGraph()
         node_to_abstract = {}
 
@@ -174,11 +163,9 @@ class CallGraph:
             abstract_node = self._get_abstract_node_name(node, level)
             node_to_abstract[node] = abstract_node
 
-            # Add node attributes from original graph
             if abstract_node not in abstracted_graph:
                 abstracted_graph.add_node(abstract_node)
 
-        # Add edges between abstract nodes
         edge_weights = defaultdict(int)
         for src, dst in graph.edges():
             abstract_src = node_to_abstract[src]
@@ -187,16 +174,12 @@ class CallGraph:
             if abstract_src != abstract_dst:  # Don't add self-loops
                 edge_weights[(abstract_src, abstract_dst)] += 1
 
-        # Add weighted edges
         for (src, dst), weight in edge_weights.items():
             abstracted_graph.add_edge(src, dst, weight=weight)
 
         return abstracted_graph
 
     def _get_abstract_node_name(self, node_name, level):
-        """
-        Get the abstract node name based on the abstraction level.
-        """
         parts = node_name.split('.')
 
         if level == 'class' and len(parts) > 1:
@@ -213,9 +196,6 @@ class CallGraph:
             return node_name
 
     def _map_abstract_to_original(self, abstract_communities, original_graph, level):
-        """
-        Map abstract communities back to original node communities.
-        """
         original_communities = []
 
         for abstract_community in abstract_communities:
@@ -233,80 +213,18 @@ class CallGraph:
         return original_communities
 
     def _cluster_with_algorithm(self, graph, algorithm, target_clusters):
-        """
-        Apply specific clustering algorithm.
-        """
         if algorithm == 'louvain':
-            try:
-                import networkx.algorithms.community as nx_comm
-                return list(nx_comm.louvain_communities(graph))
-            except ImportError:
-                # Fallback to greedy modularity
-                return list(nx.community.greedy_modularity_communities(graph))
-
+            return list(nx_comm.louvain_communities(graph))
         elif algorithm == 'greedy_modularity':
             return list(nx.community.greedy_modularity_communities(graph))
-
         elif algorithm == 'leiden':
-            try:
-                # Leiden is not in standard networkx, fallback to louvain
-                import networkx.algorithms.community as nx_comm
-                return list(nx_comm.louvain_communities(graph))
-            except ImportError:
-                return list(nx.community.greedy_modularity_communities(graph))
-
-        elif algorithm == 'spectral':
-            try:
-                from sklearn.cluster import SpectralClustering
-                import numpy as np
-
-                # Convert to adjacency matrix
-                adj_matrix = nx.adjacency_matrix(graph).todense()
-                if adj_matrix.shape[0] < target_clusters:
-                    target_clusters = max(2, adj_matrix.shape[0] // 2)
-
-                clustering = SpectralClustering(n_clusters=target_clusters, random_state=42)
-                labels = clustering.fit_predict(adj_matrix)
-
-                # Group nodes by cluster labels
-                communities = defaultdict(set)
-                for i, node in enumerate(graph.nodes()):
-                    communities[labels[i]].add(node)
-
-                return list(communities.values())
-            except ImportError:
-                return list(nx.community.greedy_modularity_communities(graph))
-
-        elif algorithm == 'hierarchical':
-            try:
-                from sklearn.cluster import AgglomerativeClustering
-                import numpy as np
-
-                # Convert to adjacency matrix
-                adj_matrix = nx.adjacency_matrix(graph).todense()
-                if adj_matrix.shape[0] < target_clusters:
-                    target_clusters = max(2, adj_matrix.shape[0] // 2)
-
-                clustering = AgglomerativeClustering(n_clusters=target_clusters)
-                labels = clustering.fit_predict(adj_matrix)
-
-                # Group nodes by cluster labels
-                communities = defaultdict(set)
-                for i, node in enumerate(graph.nodes()):
-                    communities[labels[i]].add(node)
-
-                return list(communities.values())
-            except ImportError:
-                return list(nx.community.greedy_modularity_communities(graph))
-
+            return list(nx_comm.louvain_communities(graph))
         else:
             # Default to greedy modularity
+            logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
             return list(nx.community.greedy_modularity_communities(graph))
 
     def _balance_clusters(self, graph, initial_communities, target_clusters, min_cluster_size):
-        """
-        Post-process clusters to achieve better balance.
-        """
         # Sort communities by size (largest first)
         sorted_communities = sorted(initial_communities, key=len, reverse=True)
 
@@ -315,8 +233,8 @@ class CallGraph:
         singletons = []
         small_clusters = []
 
-        max_cluster_size = max(10,
-                               graph.number_of_nodes() // target_clusters * 3)  # Allow clusters up to 3x average size
+        # Allow clusters up to 3x average size
+        max_cluster_size = max(10, graph.number_of_nodes() // target_clusters * 3)
 
         for community in sorted_communities:
             if len(community) == 1:
@@ -343,9 +261,6 @@ class CallGraph:
         return significant_clusters
 
     def _split_large_cluster(self, graph, large_cluster, max_size):
-        """
-        Split a large cluster into smaller sub-clusters.
-        """
         if len(large_cluster) <= max_size:
             return [large_cluster]
 
@@ -371,9 +286,6 @@ class CallGraph:
         return [set(cluster_list[:mid]), set(cluster_list[mid:])]
 
     def _merge_small_clusters(self, graph, small_clusters, min_cluster_size):
-        """
-        Merge small clusters and singletons based on connectivity.
-        """
         if not small_clusters:
             return []
 
@@ -383,7 +295,6 @@ class CallGraph:
         while remaining:
             current_cluster = set(remaining.pop(0))
 
-            # Try to merge with other small clusters that have connections
             merged_any = True
             while merged_any and len(current_cluster) < min_cluster_size * 3:
                 merged_any = False
@@ -413,9 +324,6 @@ class CallGraph:
         return merged_clusters
 
     def _is_good_clustering(self, communities, target_clusters, min_cluster_size, total_nodes):
-        """
-        Evaluate if a clustering result is good enough.
-        """
         if not communities:
             return False
 
@@ -427,7 +335,7 @@ class CallGraph:
 
         # Check if we're in a reasonable range of target clusters
         cluster_count = len(valid_clusters)
-        if cluster_count < max(2, target_clusters // 6):  # At least 1/6 of target (was 1/4)
+        if cluster_count < max(2, target_clusters // 6):  # At least 1/6 of target
             return False
 
         if cluster_count > target_clusters * 2:  # Not more than 2x target
@@ -437,12 +345,11 @@ class CallGraph:
         covered_nodes = sum(len(c) for c in valid_clusters)
         coverage = covered_nodes / total_nodes if total_nodes > 0 else 0
 
-        if coverage < 0.4:  # At least 40% of nodes should be clustered (was 60%)
+        if coverage < 0.75:  # At least 75% of nodes should be clustered
             return False
 
-        # Check for reasonable size distribution (avoid too many singletons or giant clusters)
         singleton_count = sum(1 for c in communities if len(c) == 1)
-        if singleton_count > total_nodes * 0.8:  # More than 80% singletons is bad (was 60%)
+        if singleton_count > total_nodes * 0.6:  # More than 80% singletons is bad (was 60%)
             return False
 
         # Check for giant clusters that dominate - be more lenient for small graphs
@@ -511,7 +418,6 @@ class CallGraph:
 
     @staticmethod
     def __non_cluster_str(graph_x, top_nodes) -> str:
-        # Add Non-clustered edges
         non_cluster_edges = []
         for src, dst in graph_x.edges():
             # Edge is non-clustered if at least one node is outside top clusters
