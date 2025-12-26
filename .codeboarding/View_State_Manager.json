@@ -1,0 +1,150 @@
+{
+  "description": "The architectural analysis of the visualization subsystem reveals a decoupled, event-driven design centered on state synchronization and real-time workspace tracking. The system utilizes an abstract orchestration layer to standardize diagram behavior while allowing specialized providers to manage distinct UI contexts (sidebar vs. main panel). By separating state management from file-system tracking, the architecture achieves high responsiveness, ensuring that selection updates and Git metadata flow independently to the relevant view components.",
+  "components": [
+    {
+      "name": "View Orchestration Engine",
+      "description": "An abstract base class (`BaseDiagramProvider`) that standardizes message handling, service subscriptions, and the merging of hierarchical analysis data with workspace metadata.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "BaseDiagramProvider",
+          "reference_file": "backend/BaseDiagramProvider.ts",
+          "reference_start_line": 13,
+          "reference_end_line": 603
+        },
+        {
+          "qualified_name": "resolveWorkspacePath",
+          "reference_file": "backend/utils/workspace-utils.ts",
+          "reference_start_line": 38,
+          "reference_end_line": 50
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Global State Manager",
+      "description": "A central service (`StateManager`) implementing the Observer pattern to track node selections, analysis IDs, and execution states across the extension.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "StateManager",
+          "reference_file": "backend/extension.ts",
+          "reference_start_line": 23,
+          "reference_end_line": 23
+        },
+        {
+          "qualified_name": "StateManager.onStateChange",
+          "reference_file": "backend/services/StateManager.ts",
+          "reference_start_line": 71,
+          "reference_end_line": 81
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Sidebar Diagram Controller",
+      "description": "Manages the `WebviewView` in the VS Code sidebar (`DiagramViewProvider`), handling compact diagram visualization and primary interaction hooks.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "DiagramViewProvider",
+          "reference_file": "backend/DiagramViewProvider.ts",
+          "reference_start_line": 7,
+          "reference_end_line": 157
+        }
+      ],
+      "assigned_files": [
+        "backend/DiagramViewProvider.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Full-Tab Panel Controller",
+      "description": "Manages `WebviewPanel` instances (`DiagramPanelProvider`) for maximized diagrams, coordinating active state and resource disposal.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "DiagramPanelProvider",
+          "reference_file": "backend/DiagramPanelProvider.ts",
+          "reference_start_line": 10,
+          "reference_end_line": 159
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Metadata & Details Provider",
+      "description": "Specifically manages the architectural details view (`DetailsViewProvider`), rendering AI summaries, dependency lists, and Git status for selected nodes.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "DetailsViewProvider",
+          "reference_file": "backend/DetailsViewProvider.ts",
+          "reference_start_line": 17,
+          "reference_end_line": 945
+        }
+      ],
+      "assigned_files": [
+        "backend/DetailsViewProvider.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Workspace Change Tracker",
+      "description": "Monitors the file system and Git status (`FileTrackingService`) to provide real-time updates (Modified/Added/Deleted) directly to view providers.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "FileTrackingService",
+          "reference_file": "backend/services/FileTrackingService.ts",
+          "reference_start_line": 16,
+          "reference_end_line": 326
+        }
+      ],
+      "assigned_files": [
+        "backend/services/FileTrackingService.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [
+        "backend/extension.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Pushes state updates to",
+      "src_name": "Global State Manager",
+      "dst_name": "View Orchestration Engine"
+    },
+    {
+      "relation": "Supplies status metadata to",
+      "src_name": "Workspace Change Tracker",
+      "dst_name": "View Orchestration Engine"
+    },
+    {
+      "relation": "Injects file metadata into",
+      "src_name": "Workspace Change Tracker",
+      "dst_name": "Metadata & Details Provider"
+    },
+    {
+      "relation": "Synchronizes selection for",
+      "src_name": "Global State Manager",
+      "dst_name": "Metadata & Details Provider"
+    },
+    {
+      "relation": "Overrides visibility of",
+      "src_name": "Full-Tab Panel Controller",
+      "dst_name": "Sidebar Diagram Controller"
+    }
+  ]
+}

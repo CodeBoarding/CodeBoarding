@@ -1,0 +1,180 @@
+{
+  "description": "The `static_analyzer` subsystem in `CodeBoarding` is a structured pipeline designed to perform high-fidelity semantic analysis of codebases by leveraging the Language Server Protocol (LSP). It transitions from high-level repository state management and language detection to deep, symbol-level extraction, eventually aggregating findings into a unified schema for subsequent AI-driven interpretation.",
+  "components": [
+    {
+      "name": "Git Lifecycle Manager",
+      "description": "Manages the local lifecycle of the target repository. It handles cloning from remote sources and checking out specific branches to ensure the analyzer operates on a stable, predictable filesystem state.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 95,
+          "reference_end_line": 111
+        },
+        {
+          "qualified_name": "repo_utils.checkout_repo",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 115,
+          "reference_end_line": 123
+        }
+      ],
+      "assigned_files": [
+        "../../repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Analysis Pipeline Orchestrator",
+      "description": "The central entry point that coordinates the static analysis lifecycle. It sequences the phases from initial filesystem scanning to the execution of language-specific LSP clients, managing the aggregation of all semantic metadata.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.StaticAnalyzer",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": 51,
+          "reference_end_line": 75
+        },
+        {
+          "qualified_name": "static_analyzer.StaticAnalyzer.analyze",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": 58,
+          "reference_end_line": 75
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Technology & Volume Profiler",
+      "description": "Utilizes external tools (Tokei) to profile the repository's composition. It identifies the primary programming languages and their relative volumes, which determines which LSP clients should be initialized.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 13,
+          "reference_end_line": 67
+        },
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner.scan",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 17,
+          "reference_end_line": 67
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Semantic Extraction Client (LSP)",
+      "description": "Implements a JSON-RPC client to communicate with Language Servers. It is responsible for starting server processes and querying them for fine-grained symbols, document structures, and call relationships (incoming/outgoing calls).",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 58,
+          "reference_end_line": 1102
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.start",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 91,
+          "reference_end_line": 101
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/lsp_client/client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Workspace Configuration Resolver",
+      "description": "Specialized scanner for identifying project-level configuration files (like `tsconfig.json`). This allows the system to correctly handle monorepos by identifying internal project boundaries and creating discrete analysis sessions for each.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": 10,
+          "reference_end_line": 54
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Exclusion & Noise Filter",
+      "description": "A centralized manager that interprets `.gitignore` files and hardcoded defaults to exclude dependencies, build artifacts, and hidden directories from the analysis scope, preventing semantic noise.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": 8,
+          "reference_end_line": 92
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Extraction Results Schema",
+      "description": "The primary data container that organizes extracted metadata into a queryable structure. It stores class hierarchies, package dependencies, and Call Graphs (CFG) for use by downstream interpretation agents.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": 4,
+          "reference_end_line": 175
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Provides local path to",
+      "src_name": "Git Lifecycle Manager",
+      "dst_name": "Analysis Pipeline Orchestrator"
+    },
+    {
+      "relation": "Triggers language scan via",
+      "src_name": "Analysis Pipeline Orchestrator",
+      "dst_name": "Technology & Volume Profiler"
+    },
+    {
+      "relation": "Resolves sub-projects using",
+      "src_name": "Analysis Pipeline Orchestrator",
+      "dst_name": "Workspace Configuration Resolver"
+    },
+    {
+      "relation": "Instantiates and runs",
+      "src_name": "Analysis Pipeline Orchestrator",
+      "dst_name": "Semantic Extraction Client (LSP)"
+    },
+    {
+      "relation": "Consults exclusion rules in",
+      "src_name": "Semantic Extraction Client (LSP)",
+      "dst_name": "Exclusion & Noise Filter"
+    },
+    {
+      "relation": "Populates metadata into",
+      "src_name": "Semantic Extraction Client (LSP)",
+      "dst_name": "Extraction Results Schema"
+    }
+  ]
+}

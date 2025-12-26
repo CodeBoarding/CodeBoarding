@@ -1,0 +1,163 @@
+{
+  "description": "The subsystem follows a Service-Oriented pattern tailored for VS Code's extension host. The core flow is governed by a reactive state synchronization model: the `Extension Lifecycle Orchestrator` initializes services in a strictly ordered sequence, starting with the `Binary Management Service` to ensure local processing capabilities. Once active, the `Analysis Orchestrator` executes the heavy-lifting static analysis via external binaries, while the `Global State Synchronizer` maintains a single source of truth (`StateManager`). This state is then propagated to the `Diagram View Controller` and `DetailsViewProvider` via an event-driven observer pattern, ensuring that the graph visualization and detail panels remain consistent regardless of whether the user interacts with the sidebar or a maximized editor panel.",
+  "components": [
+    {
+      "name": "Extension Lifecycle Orchestrator",
+      "description": "The central entry point that manages the dependency injection and initialization order of all extension services.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.extension.activate",
+          "reference_file": "backend/extension.ts",
+          "reference_start_line": 18,
+          "reference_end_line": 165
+        },
+        {
+          "qualified_name": "backend.extension.deactivate",
+          "reference_file": "backend/extension.ts",
+          "reference_start_line": 168,
+          "reference_end_line": 168
+        }
+      ],
+      "assigned_files": [
+        "backend/extension.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Binary Management Service",
+      "description": "Implements the local-first bias by downloading platform-specific binaries and managing execution permissions.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.services.ExecutableManager.ExecutableManager",
+          "reference_file": "backend/services/ExecutableManager.ts",
+          "reference_start_line": 27,
+          "reference_end_line": 259
+        },
+        {
+          "qualified_name": "backend.services.BinaryDownloadService.BinaryDownloadService",
+          "reference_file": "backend/services/BinaryDownloadService.ts",
+          "reference_start_line": 13,
+          "reference_end_line": 274
+        }
+      ],
+      "assigned_files": [
+        "backend/services/ExecutableManager.ts"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Analysis Orchestrator",
+      "description": "Coordinates the execution of static analysis processes and handles LLM usage tracking/quota management.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.services.AnalysisService.AnalysisService",
+          "reference_file": "backend/services/AnalysisService.ts",
+          "reference_start_line": 18,
+          "reference_end_line": 199
+        },
+        {
+          "qualified_name": "backend.services.AnalysisRunner.AnalysisRunner",
+          "reference_file": "backend/services/AnalysisRunner.ts",
+          "reference_start_line": 19,
+          "reference_end_line": 643
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Global State Synchronizer",
+      "description": "Provides a centralized, event-driven state store that bridges disparate UI components like the sidebar and webview panels.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.services.StateManager.StateManager",
+          "reference_file": "backend/services/StateManager.ts",
+          "reference_start_line": 45,
+          "reference_end_line": 331
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Command & View Bridge",
+      "description": "An abstract layer handling webview messaging, theme synchronization, and Git status enrichment for graph nodes.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.BaseDiagramProvider.BaseDiagramProvider",
+          "reference_file": "backend/BaseDiagramProvider.ts",
+          "reference_start_line": 13,
+          "reference_end_line": 603
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram View Controller",
+      "description": "Manages the specific lifecycles of VS Code `WebviewView` (sidebar) and `WebviewPanel` (editor) instances.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "backend.DiagramViewProvider.DiagramViewProvider",
+          "reference_file": "backend/DiagramViewProvider.ts",
+          "reference_start_line": 7,
+          "reference_end_line": 157
+        },
+        {
+          "qualified_name": "backend.DiagramPanelProvider.DiagramPanelProvider",
+          "reference_file": "backend/DiagramPanelProvider.ts",
+          "reference_start_line": 10,
+          "reference_end_line": 159
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initializes",
+      "src_name": "Extension Lifecycle Orchestrator",
+      "dst_name": "Global State Synchronizer"
+    },
+    {
+      "relation": "configures execution for",
+      "src_name": "Binary Management Service",
+      "dst_name": "Analysis Orchestrator"
+    },
+    {
+      "relation": "updates",
+      "src_name": "Analysis Orchestrator",
+      "dst_name": "Global State Synchronizer"
+    },
+    {
+      "relation": "notifies",
+      "src_name": "Global State Synchronizer",
+      "dst_name": "Command & View Bridge"
+    },
+    {
+      "relation": "specialized by",
+      "src_name": "Command & View Bridge",
+      "dst_name": "Diagram View Controller"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "Extension Lifecycle Orchestrator",
+      "dst_name": "Binary Management Service"
+    }
+  ]
+}

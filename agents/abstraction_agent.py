@@ -236,21 +236,28 @@ class AbstractionAgent(LargeModelAgent):
 
         return file_to_clusters
 
-    def _match_file_to_component(
+    def _match_file_to_components(
         self,
         file_path: str,
         components: list[Component],
         file_to_clusters: Dict[str, Set[int]]
-    ) -> Optional[Component]:
+    ) -> list[Component]:
         """
-        Match a file to a component deterministically.
+        Match a file to ALL components it belongs to deterministically.
+
+        A file can belong to multiple components since:
+        - Shared utilities may be used by multiple components
+        - Files can contain code referenced by different components
 
         Matching logic:
         1. If file contains a key_entity from component -> match
         2. If file's clusters overlap with component.source_cluster_ids -> match
         3. Otherwise -> no match (goes to Unclassified)
+
+        Returns: List of all matching components (can be empty)
         """
         file_clusters = file_to_clusters.get(file_path, set())
+        matched_components = []
 
         for component in components:
             if component.name == "Unclassified":
@@ -263,14 +270,75 @@ class AbstractionAgent(LargeModelAgent):
                     ref_file_norm = os.path.normpath(key_entity.reference_file)
                     file_path_norm = os.path.normpath(file_path)
                     if file_path_norm.endswith(ref_file_norm) or ref_file_norm in file_path_norm:
-                        return component
+                        matched_components.append(component)
+                        break  # Don't need to check other key_entities for this component
 
             # Check 2: Do file's clusters overlap with component's clusters?
-            if file_clusters and component.source_cluster_ids:
+            # Only check if not already matched via key_entities
+            if component not in matched_components and file_clusters and component.source_cluster_ids:
                 if any(cluster_id in component.source_cluster_ids for cluster_id in file_clusters):
-                    return component
+                    matched_components.append(component)
 
-        return None
+        return matched_components
+
+    def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
+        """
+        Ensure that key_entities are unique across components.
+
+        If a key_entity (identified by qualified_name) appears in multiple components,
+        keep it only in the component where it's most relevant:
+        1. If it's in the component's assigned_files -> keep it there (highest priority)
+        2. Otherwise, keep it in the first component that references it
+
+        This prevents confusion in documentation where the same class/method
+        is listed as a "key entity" for multiple components.
+        """
+        logger.info(f"[AbstractionAgent] Ensuring key_entities are unique across components")
+
+        # Track which qualified_names we've seen and where
+        seen_entities: Dict[str, Component] = {}
+
+        for component in analysis.components:
+            if component.name == "Unclassified":
+                continue
+
+            entities_to_remove = []
+
+            for key_entity in component.key_entities:
+                qname = key_entity.qualified_name
+
+                if qname in seen_entities:
+                    # Already assigned to another component
+                    original_component = seen_entities[qname]
+
+                    # Decide which component should keep this entity
+                    # Priority: Keep it in the component where the file is assigned
+                    ref_file = key_entity.reference_file
+
+                    current_has_file = ref_file and any(
+                        ref_file in assigned_file for assigned_file in component.assigned_files
+                    )
+                    original_has_file = ref_file and any(
+                        ref_file in assigned_file for assigned_file in original_component.assigned_files
+                    )
+
+                    if current_has_file and not original_has_file:
+                        # Move to current component (remove from original)
+                        original_component.key_entities = [
+                            e for e in original_component.key_entities if e.qualified_name != qname
+                        ]
+                        seen_entities[qname] = component
+                        logger.debug(f"[AbstractionAgent] Moved key_entity '{qname}' from {original_component.name} to {component.name}")
+                    else:
+                        # Keep in original component (remove from current)
+                        entities_to_remove.append(key_entity)
+                        logger.debug(f"[AbstractionAgent] Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})")
+                else:
+                    # First time seeing this entity
+                    seen_entities[qname] = component
+
+            # Remove duplicates from current component
+            component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
     @trace
     def classify_files(self, analysis: AnalysisInsights):
@@ -302,16 +370,18 @@ class AbstractionAgent(LargeModelAgent):
         # Build file-to-cluster mapping for deterministic classification
         file_to_clusters = self._build_file_cluster_mapping()
 
-        # Classify each file
+        # Classify each file - a file can belong to multiple components
         for file_path in all_files:
-            matched_component = self._match_file_to_component(
+            matched_components = self._match_file_to_components(
                 file_path,
                 analysis.components,
                 file_to_clusters
             )
 
-            if matched_component:
-                matched_component.assigned_files.append(file_path)
+            if matched_components:
+                # Add file to ALL matching components
+                for component in matched_components:
+                    component.assigned_files.append(file_path)
             else:
                 # Add to Unclassified
                 unclassified = next(c for c in analysis.components if c.name == "Unclassified")
@@ -336,4 +406,5 @@ class AbstractionAgent(LargeModelAgent):
         self.analyze_clusters()  # Step 1: Understand clusters
         analysis = self.generate_analysis()  # Step 2: Create final components
         analysis = self.fix_source_code_reference_lines(analysis)
+        self._ensure_unique_key_entities(analysis)  # Step 3: Ensure key_entities are unique
         return analysis

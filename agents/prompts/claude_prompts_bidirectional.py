@@ -25,6 +25,65 @@ Focus on:
 - Architectural patterns that help new developers understand the system quickly
 </thinking>"""
 
+CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
+
+Project Context:
+{meta_context}
+
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Instructions:
+1. For each cluster shown above, provide:
+   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
+   - A short descriptive name (2-4 words)
+   - One sentence explaining what this cluster does
+
+2. Focus on the {project_type} architectural patterns
+3. Give semantic meaning to the clusters based on the method names and call patterns
+
+Output only the cluster interpretations. Keep descriptions concise."""
+
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
+
+Project Context:
+{meta_context}
+
+Cluster Analysis:
+{cluster_analysis}
+
+Instructions:
+1. Review the cluster interpretations above
+2. Decide which clusters should be merged into components
+3. For each component, specify which cluster_ids it includes
+4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+5. Define relationships between components
+
+Guidelines for {project_type} projects:
+- Aim for 5-8 final components
+- Merge related clusters that serve a common purpose
+- Each component should have clear boundaries
+- Include only architecturally significant relationships
+
+Required outputs:
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each with:
+  * name: Clear component name
+  * description: What this component does
+  * source_cluster_ids: Which cluster IDs belong to this component
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair
+
+Note: assigned_files will be populated later via deterministic file classification.
+
+Constraints:
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation"""
+
+
 CFG_MESSAGE = """Analyze Control Flow Graph for {project_name} with comprehensive diagram generation optimization.
 
 <context>
@@ -187,7 +246,14 @@ The goal is to document control flow, dependencies, and interfaces for architect
 2. If interaction details are unclear, you MUST use getClassHierarchy
 3. Document control flow, dependencies, and interfaces for architectural understanding
 4. Focus on core subsystem functionality only
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+</output_requirements>"""
 
 ENHANCE_STRUCTURE_MESSAGE = """Enhance component analysis: {component}
 
@@ -204,12 +270,21 @@ The goal is to validate and improve the component analysis for better developer 
 3. Validate organization, identify gaps, and improve documentation
 4. Focus on architectural patterns from the {project_type} context
 5. Work primarily with provided insights
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return enhanced analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Ensure all key_entities have both qualified_name AND reference_file populated
+</output_requirements>"""
 
 DETAILS_MESSAGE = """Provide component analysis: {component}
 
 <context>
 Context: {meta_context}
+Analysis so far: {insight_so_far}
 
 The goal is to create comprehensive component documentation that helps developers understand its role, capabilities, and how to work with it effectively.
 </context>
@@ -219,7 +294,16 @@ The goal is to create comprehensive component documentation that helps developer
 2. Document internal organization, capabilities, interfaces, and development insights
 3. Use {project_type} patterns as reference for architectural decisions
 4. Focus on information that helps developers understand and modify this component
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return final analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does (1-2 sentences)
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
+- Component relationships showing how subcomponents interact
+</output_requirements>"""
 
 PLANNER_SYSTEM_MESSAGE = """You evaluate components for detailed analysis based on complexity and significance.
 
@@ -384,6 +468,12 @@ class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
+
+    def get_cluster_analysis_message(self) -> str:
+        return CLUSTER_ANALYSIS_MESSAGE
+
+    def get_final_analysis_message(self) -> str:
+        return FINAL_ANALYSIS_MESSAGE
 
     def get_cfg_message(self) -> str:
         return CFG_MESSAGE

@@ -236,7 +236,10 @@ Instructions:
 
 Required outputs:
 - Subsystem modules/functions from CFG
-- Components with clear responsibilities
+- Components with clear responsibilities. Each component must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
 - Component interactions (max 10 components, 2 relationships per pair)
 - Justification based on {project_type} patterns
 
@@ -256,7 +259,11 @@ Instructions:
 
 Required outputs:
 - Validated component abstractions from existing insights
-- Refinements based on {project_type} patterns
+- Refinements based on {project_type} patterns. Each component must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * Ensure all key_entities have both qualified_name AND reference_file populated
 - Confirmed component source files and relationships
 
 Work primarily with provided insights."""
@@ -274,7 +281,11 @@ No tools required - use provided analysis summary only.
 
 Required outputs:
 1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns
+2. Max 8 components following {project_type} patterns. Each component must include:
+   * name: Clear subcomponent name
+   * description: What this subcomponent does (1-2 sentences)
+   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+   * CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
 3. Clear component descriptions and source files
 4. Component interactions (max 2 relationships per component pair)
 
