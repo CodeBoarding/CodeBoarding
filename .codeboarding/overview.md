@@ -7,7 +7,7 @@ graph LR
     Diagram_Generation_Service["Diagram Generation Service"]
     Unclassified["Unclassified"]
     Orchestration_Engine -- "initiates code analysis in" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "provides structured code data to" --> AI_Processing_Layer
+    Static_Analysis_Engine -- "provides clustered architectural components to" --> AI_Processing_Layer
     AI_Processing_Layer -- "sends interpreted architectural data to" --> Output_Generation_Engine
     Output_Generation_Engine -- "provides diagram data to" --> Diagram_Generation_Service
     Orchestration_Engine -- "triggers the interpretation phase in" --> AI_Processing_Layer
@@ -23,7 +23,7 @@ graph LR
 
 ## Details
 
-The CodeBoarding project is structured around a pipeline that orchestrates code analysis, AI-driven interpretation, and documentation/diagram generation. The Orchestration Engine initiates and manages this entire process, delegating tasks to specialized components. The Static Analysis Engine first processes the raw source code to generate structural representations like CFGs. This data is then fed into the AI Processing Layer, which leverages LLMs to derive high-level architectural insights. These insights are subsequently transformed into various documentation formats by the Output Generation Engine and visual diagrams by the Diagram Generation Service. This modular design ensures clear separation of concerns and a streamlined flow from raw code to comprehensive architectural documentation and visualizations.
+The system operates through a pipeline orchestrated by the `Orchestration Engine`. This engine first activates the `Static Analysis Engine`, which is responsible for parsing source code, generating Control Flow Graphs (CFGs), and critically, applying advanced adaptive clustering algorithms to abstract these CFGs into logical architectural components. These refined, clustered components are then passed to the `AI Processing Layer`, where Large Language Models interpret them to derive architectural insights and identify relationships. Subsequently, the `Output Generation Engine` takes these insights and formats them into various outputs, including data specifically structured for the `Diagram Generation Service`, which visualizes the architecture. This re-engineered `Static Analysis Engine` plays a pivotal role in transforming raw code into actionable architectural representations, significantly enhancing the overall analysis quality.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
 The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.
@@ -36,12 +36,13 @@ The central control unit managing the entire code analysis and documentation gen
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Responsible for parsing source code, building Abstract Syntax Trees (ASTs), and generating Control Flow Graphs (CFGs) and other structural code representations. It provides the foundational, raw code structure data.
+Responsible for parsing source code, building Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and applying adaptive clustering algorithms to abstract these graphs into logical architectural components. It provides structured, clustered code representations.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer" target="_blank" rel="noopener noreferrer">`static_analyzer/`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer/graph.py`</a>
 
 
 ### AI Processing Layer [[Expand]](./AI_Processing_Layer.md)

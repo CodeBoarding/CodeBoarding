@@ -1,33 +1,37 @@
 {
-  "description": "The Diagram Generation Service subsystem is responsible for converting structured architectural data into visual diagrams, enhancing comprehension through interactive and visual representations. It takes processed data and produces a final, consumable output, potentially integrating with external tools like Mermaid.js.",
+  "description": "The Diagram Generation Service subsystem is encapsulated within the diagram_analysis package. Its primary function is to transform structured architectural data into visual diagrams, enhancing comprehension through interactive representations.",
   "components": [
     {
-      "name": "DiagramGenerator",
-      "description": "Within the Diagram Generation Service, this component orchestrates the process of transforming structured architectural analysis data into visual diagrams. It coordinates the serialization of analysis results and manages the invocation of diagramming logic, potentially integrating with external tools like Mermaid.js to produce the final visual representations.",
+      "name": "diagram_analysis.analysis_json",
+      "description": "This component is responsible for processing and structuring raw architectural data into a standardized, machine-readable format (likely JSON). It acts as a crucial data preparation layer, ensuring that the input for diagram generation is consistent and well-formed.",
       "referenced_source_code": [
         {
-          "qualified_name": "DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "AnalysisToJsonConverter",
-      "description": "This utility component is responsible for serializing complex architectural analysis objects into a standardized JSON format. This conversion is a crucial preparatory step, ensuring the structured data is in a consumable format for diagramming tools and the DiagramGenerator.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AnalysisToJsonConverter",
+          "qualified_name": "diagram_analysis.analysis_json",
           "reference_file": "diagram_analysis/analysis_json.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "diagram_analysis.diagram_generator",
+      "description": "This is the core engine of the subsystem, tasked with taking the structured architectural data (prepared by analysis_json) and transforming it into a visual diagram format. It likely leverages external tools like Mermaid.js for rendering the visual output.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/diagram_generator.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
@@ -42,14 +46,14 @@
   ],
   "components_relations": [
     {
-      "relation": "depends on",
-      "src_name": "DiagramGenerator",
-      "dst_name": "AnalysisToJsonConverter"
+      "relation": "provides data to",
+      "src_name": "diagram_analysis.analysis_json",
+      "dst_name": "diagram_analysis.diagram_generator"
     },
     {
-      "relation": "provides input to",
-      "src_name": "AnalysisToJsonConverter",
-      "dst_name": "DiagramGenerator"
+      "relation": "consumes data from",
+      "src_name": "diagram_analysis.diagram_generator",
+      "dst_name": "diagram_analysis.analysis_json"
     }
   ]
 }

@@ -1,17 +1,20 @@
 ```mermaid
 graph LR
     Output_Generation_Engine["Output Generation Engine"]
+    HTML_Generator["HTML Generator"]
+    HTML_Template_Processor["HTML Template Processor"]
     Markdown_Generator["Markdown Generator"]
     MDX_Generator["MDX Generator"]
-    HTML_Generator["HTML Generator"]
     Sphinx_Generator["Sphinx Generator"]
-    HTML_Template_Provider["HTML Template Provider"]
     Unclassified["Unclassified"]
-    Output_Generation_Engine -- "orchestrates" --> Markdown_Generator
-    Output_Generation_Engine -- "orchestrates" --> MDX_Generator
-    Output_Generation_Engine -- "orchestrates" --> HTML_Generator
-    Output_Generation_Engine -- "orchestrates" --> Sphinx_Generator
-    HTML_Generator -- "uses" --> HTML_Template_Provider
+    Orchestration_Engine -- "sends interpreted results to" --> Output_Generation_Engine
+    Output_Generation_Engine -- "dispatches data to" --> HTML_Generator
+    Output_Generation_Engine -- "dispatches data to" --> Markdown_Generator
+    Output_Generation_Engine -- "dispatches data to" --> MDX_Generator
+    Output_Generation_Engine -- "dispatches data to" --> Sphinx_Generator
+    Output_Generation_Engine -- "delivers formatted documentation to" --> API_Service
+    HTML_Generator -- "utilizes" --> HTML_Template_Processor
+    HTML_Template_Processor -- "provides templating services to" --> HTML_Generator
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
 
@@ -19,19 +22,37 @@ graph LR
 
 ## Details
 
-The Output Generation Engine subsystem is defined by the output_generators directory and its contained modules. It encompasses all functionality related to transforming structured architectural insights into various documentation and report formats. The Output Generation Engine acts as a central hub, coordinating various specialized generator components. Each generator is a distinct module responsible for a specific output format. This structure exemplifies a modular design where the Output Generation Engine provides a unified interface to a suite of pluggable output formatters.
+The Output Generation Engine subsystem is responsible for converting interpreted architectural results into a variety of documentation formats. It acts as a central dispatcher, receiving processed data from an external Orchestration Engine and routing it to specialized generators for HTML, Markdown, MDX, and Sphinx formats. The generated documentation is then delivered to an external API Service. Within the subsystem, the HTML Generator leverages an HTML Template Processor to ensure consistent and structured HTML output. This design promotes modularity, allowing for easy extension with new output formats and maintaining a clear separation of concerns between content generation and formatting.
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-The primary orchestrator for the entire output generation process. It acts as a facade, coordinating the activities of individual format-specific generators to produce diverse documentation and report types from processed architectural insights.
+The primary entry point for the subsystem, coordinating the selection and execution of specific format generators based on the desired output type. It receives processed insights and dispatches them to the appropriate internal generator.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators.__init__`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
+
+
+### HTML Generator
+Responsible for transforming architectural insights into well-structured HTML documentation. It leverages templates for consistent presentation.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
+
+
+### HTML Template Processor
+Manages and applies HTML templates to the data provided by the HTML Generator, ensuring consistent styling and structure across HTML outputs.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html_template.py" target="_blank" rel="noopener noreferrer">`output_generators.html_template`</a>
 
 
 ### Markdown Generator
-Specializes in converting structured architectural data into Markdown format, suitable for general documentation, READMEs, and simple reports.
+Converts architectural insights into standard Markdown format, suitable for various platforms and easy readability.
 
 
 **Related Classes/Methods**:
@@ -40,7 +61,7 @@ Specializes in converting structured architectural data into Markdown format, su
 
 
 ### MDX Generator
-Responsible for generating documentation in MDX (Markdown with JSX) format, enabling richer, interactive content within Markdown files.
+Generates documentation in MDX format, combining Markdown with JSX for interactive and dynamic content.
 
 
 **Related Classes/Methods**:
@@ -48,31 +69,13 @@ Responsible for generating documentation in MDX (Markdown with JSX) format, enab
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
 
 
-### HTML Generator
-Focuses on producing comprehensive documentation in HTML format, often used for web-based documentation portals or detailed reports.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
-
-
 ### Sphinx Generator
-Generates documentation compatible with the Sphinx documentation generator, commonly used for Python projects, supporting reStructuredText and other formats.
+Produces documentation compatible with the Sphinx documentation generator, often used for Python projects.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
-
-
-### HTML Template Provider
-Manages and provides HTML templates and potentially utility functions specifically tailored for the `HTML Generator`, ensuring consistent styling and structure.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html_template.py" target="_blank" rel="noopener noreferrer">`output_generators.html_template`</a>
 
 
 ### Unclassified

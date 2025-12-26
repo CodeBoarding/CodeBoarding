@@ -1,59 +1,59 @@
 ```mermaid
 graph LR
-    AbstractionAgent["AbstractionAgent"]
-    DetailsAgent["DetailsAgent"]
-    PromptFactory["PromptFactory"]
-    LLMConfig["LLMConfig"]
+    Query_Processor["Query Processor"]
+    Language_Model_Interface["Language Model Interface"]
+    Tool_Executor["Tool Executor"]
+    Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
-    AbstractionAgent -- "uses" --> PromptFactory
-    PromptFactory -- "provides prompts tailored for" --> AbstractionAgent
-    AbstractionAgent -- "configures its LLM interactions via" --> LLMConfig
-    AbstractionAgent -- "generates components and high-level insights that serve as input for" --> DetailsAgent
-    DetailsAgent -- "uses" --> PromptFactory
-    PromptFactory -- "provides prompts tailored for" --> DetailsAgent
-    DetailsAgent -- "configures its LLM interactions via" --> LLMConfig
+    Query_Processor -- "sends queries to" --> Language_Model_Interface
+    Language_Model_Interface -- "receives output from" --> Tool_Executor
+    Tool_Executor -- "invokes" --> Tool
+    Tool_Executor -- "sends results to" --> Response_Formatter
+    Response_Formatter -- "returns formatted response from" --> Query_Processor
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The core of the system revolves around two primary agents, `AbstractionAgent` and `DetailsAgent`, which collaboratively perform a multi-stage analysis of a project. The `AbstractionAgent` initiates the process by conducting a high-level architectural analysis, identifying abstract components, and classifying files. This initial analysis then feeds into the `DetailsAgent`, which performs a more granular, in-depth examination of each identified component. Both agents rely on the `PromptFactory` for dynamic prompt generation tailored to specific LLM providers and tasks, ensuring consistent and flexible interaction with Large Language Models. The `LLMConfig` component provides a centralized configuration for these LLM interactions, managing model selection and API parameters. This structured approach allows for a comprehensive understanding of the project's architecture, from abstract components to detailed internal structures.
+This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and interacts with external tools. The main flow involves receiving a query, parsing it, invoking a language model to determine the appropriate action, executing that action (which might involve using a tool), and finally formatting and returning the response to the user. Its purpose is to provide a flexible and extensible framework for building AI-powered applications that can understand and act upon user requests.
 
-### AbstractionAgent
-Performs initial, high-level architectural analysis of the entire project. This includes analyzing Control Flow Graphs (CFGs) and source code to identify abstract components and generate overall project insights. It also classifies files into these high-level components.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
-
-
-### DetailsAgent
-Conducts in-depth, granular analysis of specific components identified by the AbstractionAgent. It refines the structural understanding of individual components, generates detailed documentation, and further classifies files within those components.
+### Query Processor
+Handles incoming user queries, including parsing and initial validation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent.DetailsAgent`</a>
+- `QueryParser:parse`
 
 
-### PromptFactory
-Acts as a central manager for all LLM prompts. It dynamically selects and provides the correct prompt templates based on the chosen LLM provider and the desired prompt type (e.g., bidirectional, unidirectional). This ensures consistency and flexibility in prompt management.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-
-
-### LLMConfig
-Provides a centralized and extensible configuration for integrating with various Large Language Model (LLM) providers. It defines the specific models to be used for different tasks (e.g., "agent" model for complex reasoning, "parsing" model for structured output), API keys, and other provider-specific parameters.
+### Language Model Interface
+Manages interactions with the underlying language model, sending prompts and receiving generated text.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L14-L52" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLMConfig`:14-52</a>
+- `LLMClient:send_prompt`
+- `LLMClient:receive_response`
+
+
+### Tool Executor
+Executes specific tools based on the language model's output, handling tool invocation and result retrieval.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py" target="_blank" rel="noopener noreferrer">`ToolRegistry:get_tool`</a>
+- `Tool:execute`
+
+
+### Response Formatter
+Formats the final response to be sent back to the user, potentially combining information from the language model and tool outputs.
+
+
+**Related Classes/Methods**:
+
+- `ResponseBuilder:build`
 
 
 ### Unclassified
