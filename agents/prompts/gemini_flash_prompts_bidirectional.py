@@ -19,6 +19,27 @@ Your analysis must include:
 
 Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
 
+CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
+
+Project Context:
+{meta_context}
+
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Instructions:
+1. For each cluster shown above, provide:
+   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
+   - A short descriptive name (2-4 words)
+   - One sentence explaining what this cluster does
+
+2. Focus on the {project_type} architectural patterns
+3. Give semantic meaning to the clusters based on the method names and call patterns
+
+Output only the cluster interpretations. Keep descriptions concise."""
+
 CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}` with diagram generation in mind.
 
 Project Context:
@@ -75,6 +96,43 @@ Now you have to classify each of the file projects into one of the components. H
 You can use the readFile tool to read the file content if you need more information to classify the file correctly. Please take a look at the file content before making a decision especially if you don't find it relevant to the already related files in the component.
 If you can't find a relevant component for the file, classify it as part of the "Unclassified" component.
 """
+
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
+
+Project Context:
+{meta_context}
+
+Cluster Analysis:
+{cluster_analysis}
+
+Instructions:
+1. Review the cluster interpretations above
+2. Decide which clusters should be merged into components
+3. For each component, specify which cluster_ids it includes
+4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+5. Define relationships between components
+
+Guidelines for {project_type} projects:
+- Aim for 5-8 final components
+- Merge related clusters that serve a common purpose
+- Each component should have clear boundaries
+- Include only architecturally significant relationships
+
+Required outputs:
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each with:
+  * name: Clear component name
+  * description: What this component does
+  * source_cluster_ids: Which cluster IDs belong to this component
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair
+
+Note: assigned_files will be populated later via deterministic file classification.
+
+Constraints:
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation"""
 
 CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}` optimized for representing the flow.
 
@@ -371,6 +429,12 @@ class GeminiFlashBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
+
+    def get_cluster_analysis_message(self) -> str:
+        return CLUSTER_ANALYSIS_MESSAGE
+
+    def get_final_analysis_message(self) -> str:
+        return FINAL_ANALYSIS_MESSAGE
 
     def get_cfg_message(self) -> str:
         return CFG_MESSAGE

@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Set
 
 from langchain_core.prompts import PromptTemplate
 
@@ -65,10 +66,71 @@ class DetailsAgent(LargeModelAgent):
 
         self.context: dict[str, LLMBaseModel] = {}
 
+    def _extract_clusters_from_string(self, cluster_str: str, cluster_ids: Set[int]) -> str:
+        """
+        Parse cluster string and extract only specified cluster IDs.
+        This is deterministic - no LLM call needed!
+        """
+        lines = cluster_str.split('\n')
+        result_lines = []
+        include_current = False
+
+        for line in lines:
+            # Check if this is a cluster header: "Cluster N (...)"
+            if line.startswith("Cluster "):
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        cluster_num = int(parts[1])
+                        include_current = cluster_num in cluster_ids
+                    except ValueError:
+                        include_current = False
+
+            if include_current:
+                result_lines.append(line)
+
+        return '\n'.join(result_lines)
+
+    def _extract_relevant_cfg(self, component: Component) -> str:
+        """
+        Extract CFG clusters relevant to this component.
+        Uses component.source_cluster_ids for deterministic filtering.
+        """
+        if not component.source_cluster_ids:
+            logger.warning(f"[DetailsAgent] Component {component.name} has no source_cluster_ids, using fallback")
+            # Fallback to old method if no cluster IDs
+            return self.read_cfg_tool.component_cfg(component)  # type: ignore[return-value]
+
+        cluster_ids = set(component.source_cluster_ids)
+        cfg_lines = []
+
+        for lang in self.static_analysis.get_languages():
+            cfg = self.static_analysis.get_cfg(lang)
+            cluster_str = cfg.to_cluster_string()
+
+            # Extract only requested clusters
+            filtered_clusters = self._extract_clusters_from_string(cluster_str, cluster_ids)
+
+            if filtered_clusters:
+                cfg_lines.append(f"\n## {lang.capitalize()} - Component CFG\n")
+                cfg_lines.append(filtered_clusters)
+                cfg_lines.append("\n")
+
+        result = "".join(cfg_lines)
+        if not result.strip():
+            logger.warning(f"[DetailsAgent] No CFG found for component {component.name}, cluster IDs: {cluster_ids}")
+            return "No relevant CFG clusters found for this component."
+
+        return result
+
     def step_subcfg(self, component: Component):
-        logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
-        # Now lets filter the cfg:
-        self.context["subcfg_insight"] = self.read_cfg_tool.component_cfg(component)  # type: ignore[assignment]
+        """
+        Extract relevant CFG based on component's source_cluster_ids.
+        NO LLM call - pure deterministic filtering!
+        """
+        logger.info(f"[DetailsAgent] Filtering CFG for {component.name} using cluster IDs: {component.source_cluster_ids}")
+        filtered_cfg = self._extract_relevant_cfg(component)
+        self.context["subcfg_insight"] = filtered_cfg
 
     @trace
     def step_cfg(self, component: Component):
@@ -155,7 +217,8 @@ class DetailsAgent(LargeModelAgent):
             Component(
                 name="Unclassified",
                 description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-                referenced_source_code=[],
+                key_entities=[],
+                source_cluster_ids=[],
             )
         )
         component_str = "\n".join([component.llm_str() for component in analysis.components])
