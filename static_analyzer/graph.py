@@ -53,7 +53,7 @@ class ClusteringConfig:
 class Node:
     # Node type constants
     METHOD_TYPE = 6
-    
+
     def __init__(
         self, fully_qualified_name: str, node_type: str, file_path: str, line_start: int, line_end: int
     ) -> None:
