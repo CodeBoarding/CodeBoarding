@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent import CodeBoardingAgent, LargeModelAgent, SmallModelAgent
+from agents.agent import CodeBoardingAgent, LargeModelAgent
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
