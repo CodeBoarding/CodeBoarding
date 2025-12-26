@@ -45,8 +45,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
     def test_add_and_get_cfg(self):
         # Test CFG storage and retrieval
         cfg = CallGraph()
-        node1 = Node("test.func1", "function", "test.py", 1, 5)
-        node2 = Node("test.func2", "function", "test.py", 6, 10)
+        node1 = Node("test.func1", 12, "test.py", 1, 5)
+        node2 = Node("test.func2", 12, "test.py", 6, 10)
         cfg.add_node(node1)
         cfg.add_node(node2)
         cfg.add_edge("test.func1", "test.func2")
@@ -79,8 +79,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_add_and_get_references(self):
         # Test source code references with case-insensitive lookup
-        node1 = Node("MyClass.method", "method", "test.py", 1, 5)
-        node2 = Node("utils.helper", "function", "utils.py", 10, 15)
+        node1 = Node("MyClass.method", 6, "test.py", 1, 5)
+        node2 = Node("utils.helper", 12, "utils.py", 10, 15)
         self.results.add_references("python", [node1, node2])
 
         # Test case-insensitive retrieval
@@ -92,7 +92,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_get_reference_not_found(self):
         # Test error when reference not found
-        node = Node("MyClass.method", "method", "test.py", 1, 5)
+        node = Node("MyClass.method", 6, "test.py", 1, 5)
         self.results.add_references("python", [node])
 
         with self.assertRaises(ValueError) as context:
@@ -101,7 +101,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_get_reference_file_path_error(self):
         # Test file path detection
-        node = Node("mymodule.file.Class", "class", "mymodule/file.py", 1, 5)
+        node = Node("mymodule.file.Class", 5, "mymodule/file.py", 1, 5)
         self.results.add_references("python", [node])
 
         with self.assertRaises(FileExistsError) as context:
@@ -110,7 +110,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_get_loose_reference(self):
         # Test loose reference matching
-        node = Node("mypackage.module.MyClass.method", "method", "test.py", 1, 5)
+        node = Node("mypackage.module.MyClass.method", 6, "test.py", 1, 5)
         self.results.add_references("python", [node])
 
         # Should match by suffix
@@ -121,7 +121,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_get_loose_reference_unique_substring(self):
         # Test loose reference with unique substring
-        node = Node("mypackage.unique_function", "function", "test.py", 1, 5)
+        node = Node("mypackage.unique_function", 12, "test.py", 1, 5)
         self.results.add_references("python", [node])
 
         message, retrieved = self.results.get_loose_reference("python", "unique")
@@ -131,7 +131,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_get_loose_reference_not_found(self):
         # Test when no loose match found
-        node = Node("mypackage.module.Class", "class", "test.py", 1, 5)
+        node = Node("mypackage.module.Class", 5, "test.py", 1, 5)
         self.results.add_references("python", [node])
 
         message, retrieved = self.results.get_loose_reference("python", "nonexistent")
