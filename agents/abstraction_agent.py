@@ -74,7 +74,7 @@ class AbstractionAgent(LargeModelAgent):
         elif len(programming_langs) == 0:
             logger.warning(f"[AbstractionAgent] No programming languages detected for project: {self.project_name}")
             community_strs += "No programming languages detected.\n"
-        
+
         # Generate visualizations for each language
         for pl in programming_langs:
             cfg = self.static_analysis.get_cfg(pl)

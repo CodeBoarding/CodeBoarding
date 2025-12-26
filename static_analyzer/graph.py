@@ -10,34 +10,35 @@ logger = logging.getLogger(__name__)
 
 class ClusteringConfig:
     """Configuration constants for graph clustering algorithms.
-    
-    These values are based on empirical testing with codebases ranging from 
+
+    These values are based on empirical testing with codebases ranging from
     100-10,000 nodes. They balance clustering quality with computational efficiency.
     """
+
     # Default clustering parameters - chosen to work well for typical codebases (500-2000 nodes)
     DEFAULT_TARGET_CLUSTERS = 20  # Sweet spot for human comprehension and LLM context
     DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
-    
+
     # Quality thresholds for determining "good" clustering
     MIN_COVERAGE_RATIO = 0.75  # At least 75% of nodes should be in meaningful clusters
     MAX_SINGLETON_RATIO = 0.6  # No more than 60% singleton clusters (indicates poor clustering)
     MIN_CLUSTER_COUNT_RATIO = 6  # Minimum clusters = target_clusters // 6 (avoid too few clusters)
     MAX_CLUSTER_COUNT_MULTIPLIER = 2  # Maximum clusters = target_clusters * 2
-    
+
     # Cluster size constraints
     SMALL_GRAPH_MAX_CLUSTER_RATIO = 0.6  # For graphs < 50 nodes, max cluster can be 60% of total
     LARGE_GRAPH_MAX_CLUSTER_RATIO = 0.4  # For larger graphs, max cluster should be 40% of total
     MAX_SIZE_TO_AVG_RATIO = 8  # Largest cluster shouldn't be more than 8x average size
     SMALL_GRAPH_THRESHOLD = 50  # Threshold between "small" and "large" graphs
-    
+
     # Cluster balancing parameters
     MIN_CLUSTER_SIZE_MULTIPLIER = 3  # When merging, stop at min_size * 3 to avoid oversized clusters
     MAX_CLUSTER_SIZE_MULTIPLIER = 3  # Max cluster size = (total_nodes // target_clusters) * 3
     MIN_MAX_CLUSTER_SIZE = 10  # Absolute minimum for max cluster size
-    
+
     # Display limits
     MAX_DISPLAY_CLUSTERS = 25  # Maximum clusters to show in output (readability limit)
-    
+
     # Language-specific delimiters for qualified names
     DEFAULT_DELIMITER = "."  # Works for Python, Java, C#
     DELIMITER_MAP = {
@@ -45,13 +46,14 @@ class ClusteringConfig:
         "go": ".",
         "php": "\\",  # PHP uses backslash for namespaces
         "typescript": ".",
-        "javascript": "."
+        "javascript": ".",
     }
 
 
 class Node:
-    def __init__(self, fully_qualified_name: str, node_type: str, file_path: str, line_start: int,
-                 line_end: int) -> None:
+    def __init__(
+        self, fully_qualified_name: str, node_type: str, file_path: str, line_start: int, line_end: int
+    ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path
         self.line_start = line_start
@@ -59,7 +61,7 @@ class Node:
         self.type = node_type
         self.methods_called_by_me: set[str] = set()
 
-    def added_method_called_by_me(self, node: 'Node') -> None:
+    def added_method_called_by_me(self, node: "Node") -> None:
         if isinstance(node, Node):
             self.methods_called_by_me.add(node.fully_qualified_name)
         else:
@@ -88,8 +90,9 @@ class Edge:
 
 
 class CallGraph:
-    def __init__(self, nodes: Dict[str, Node] | None = None, edges: List[Edge] | None = None, 
-                 language: str = "python") -> None:
+    def __init__(
+        self, nodes: Dict[str, Node] | None = None, edges: List[Edge] | None = None, language: str = "python"
+    ) -> None:
         self.nodes = nodes if nodes is not None else {}
         self.edges = edges if edges is not None else []
         self._edge_set: Set[Tuple[str, str]] = set()
@@ -136,9 +139,9 @@ class CallGraph:
             return summary
 
         communities, strategy_used = self._adaptive_clustering(
-            cfg_graph_x, 
-            target_clusters=ClusteringConfig.DEFAULT_TARGET_CLUSTERS, 
-            min_cluster_size=ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE
+            cfg_graph_x,
+            target_clusters=ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
+            min_cluster_size=ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
         )
 
         if not communities:
@@ -153,28 +156,32 @@ class CallGraph:
         non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes)
         return cluster_str + non_cluster_str
 
-    def _adaptive_clustering(self, graph: nx.DiGraph, target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS, 
-                           min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE) -> Tuple[List[Set[str]], str]:
+    def _adaptive_clustering(
+        self,
+        graph: nx.DiGraph,
+        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
+        min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
+    ) -> Tuple[List[Set[str]], str]:
         """
         Adaptive clustering strategy that tries multiple algorithms in order of preference.
-        
+
         Algorithm selection rationale:
         1. Connectivity-based (louvain, leiden, greedy_modularity): Best for finding natural communities
            - Louvain: Fast, good quality, works well for medium-sized graphs
-           - Leiden: Higher quality than Louvain but slower, good for complex structures  
+           - Leiden: Higher quality than Louvain but slower, good for complex structures
            - Greedy modularity: Reliable fallback, deterministic results
-        
+
         2. Structural-based (method, class level): When connectivity fails, use code structure
            - Method level: Fine-grained clustering based on call patterns
            - Class level: Coarser clustering, good for object-oriented codebases
-        
+
         3. Balanced fallback: Force balance when structure-based approaches fail
-        
+
         4. Connected components: Last resort when all else fails
-        
+
         The order prioritizes algorithms that scale well with codebase size:
         - Small codebases (<500 nodes): All algorithms work well
-        - Medium codebases (500-5000 nodes): Louvain/Leiden preferred  
+        - Medium codebases (500-5000 nodes): Louvain/Leiden preferred
         - Large codebases (>5000 nodes): Greedy modularity may be too slow, structural approaches preferred
         """
         total_nodes = graph.number_of_nodes()
@@ -192,7 +199,7 @@ class CallGraph:
                 continue
 
         # Phase 2: Try structural-based clustering (use code structure when connectivity fails)
-        for level in ['method', 'class']:
+        for level in ["method", "class"]:
             try:
                 communities = self._cluster_at_level(graph, level, target_clusters, min_cluster_size)
                 if self._is_good_clustering(communities, target_clusters, min_cluster_size, total_nodes):
@@ -215,35 +222,37 @@ class CallGraph:
     def _get_algorithm_priority_by_size(self, total_nodes: int) -> List[str]:
         """
         Prioritize algorithms based on graph size for optimal performance/quality tradeoff.
-        
+
         Small graphs: All algorithms work well, prefer quality (leiden > louvain > greedy)
-        Medium graphs: Balance quality and speed (louvain > leiden > greedy) 
+        Medium graphs: Balance quality and speed (louvain > leiden > greedy)
         Large graphs: Prefer speed (louvain > greedy, skip leiden due to memory usage)
         """
         if total_nodes < 500:
-            return ['leiden', 'louvain', 'greedy_modularity']
+            return ["leiden", "louvain", "greedy_modularity"]
         elif total_nodes < 5000:
-            return ['louvain', 'leiden', 'greedy_modularity'] 
+            return ["louvain", "leiden", "greedy_modularity"]
         else:
-            return ['louvain', 'greedy_modularity']  # Skip leiden for very large graphs
+            return ["louvain", "greedy_modularity"]  # Skip leiden for very large graphs
 
-    def _cluster_at_level(self, graph: nx.DiGraph, level: str, target_clusters: int, min_cluster_size: int) -> List[Set[str]]:
+    def _cluster_at_level(
+        self, graph: nx.DiGraph, level: str, target_clusters: int, min_cluster_size: int
+    ) -> List[Set[str]]:
         """
         Cluster at different structural levels (method/class/file/package).
-        
-        This is different from connectivity-based clustering because it uses the hierarchical 
+
+        This is different from connectivity-based clustering because it uses the hierarchical
         structure of the code rather than just call relationships. When connectivity algorithms
         fail to find good communities, structural clustering can still group related code.
         """
-        if level == 'method':
+        if level == "method":
             # Method level is the same as direct connectivity clustering
-            return self._cluster_with_algorithm(graph, 'louvain', target_clusters)
+            return self._cluster_with_algorithm(graph, "louvain", target_clusters)
 
         # For higher levels, create abstracted graph and map back
         abstracted_graph = self._create_abstracted_graph(graph, level)
         if abstracted_graph.number_of_nodes() == 0:
             return []
-        abstract_communities = self._cluster_with_algorithm(abstracted_graph, 'louvain', target_clusters)
+        abstract_communities = self._cluster_with_algorithm(abstracted_graph, "louvain", target_clusters)
         return self._map_abstract_to_original(abstract_communities, graph, level)
 
     def _create_abstracted_graph(self, graph: nx.DiGraph, level: str) -> nx.DiGraph:
@@ -273,23 +282,25 @@ class CallGraph:
     def _get_abstract_node_name(self, node_name: str, level: str) -> str:
         parts = node_name.split(self.delimiter)
 
-        if level == 'class' and len(parts) > 1:
+        if level == "class" and len(parts) > 1:
             return self.delimiter.join(parts[:-1])
-        elif level == 'file' and len(parts) > 2:
+        elif level == "file" and len(parts) > 2:
             return self.delimiter.join(parts[:-2])
-        elif level == 'package' and len(parts) > 3:
+        elif level == "package" and len(parts) > 3:
             return parts[0]
         else:
             return node_name
 
-    def _map_abstract_to_original(self, abstract_communities: List[Set[str]], original_graph: nx.DiGraph, level: str) -> List[Set[str]]:
+    def _map_abstract_to_original(
+        self, abstract_communities: List[Set[str]], original_graph: nx.DiGraph, level: str
+    ) -> List[Set[str]]:
         """
         Map abstract communities back to original nodes efficiently using lookup table.
-        
+
         Performance improvement: O(N) instead of O(N²) by building reverse mapping first.
         """
         original_communities: List[Set[str]] = []
-        
+
         # Build reverse mapping: abstract_node -> [original_nodes] (O(N) preprocessing)
         abstract_to_original: Dict[str, List[str]] = defaultdict(list)
         for original_node in original_graph.nodes():
@@ -299,7 +310,7 @@ class CallGraph:
         # Map communities using lookup table (O(N) mapping)
         for abstract_community in abstract_communities:
             original_community: Set[str] = set()
-            
+
             for abstract_node in abstract_community:
                 original_community.update(abstract_to_original[abstract_node])
 
@@ -309,18 +320,19 @@ class CallGraph:
         return original_communities
 
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str, target_clusters: int) -> list[set[str]]:
-        if algorithm == 'louvain':
+        if algorithm == "louvain":
             return list(nx_comm.louvain_communities(graph))
-        elif algorithm == 'greedy_modularity':
+        elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
-        elif algorithm == 'leiden':
+        elif algorithm == "leiden":
             return list(nx_comm.louvain_communities(graph))
         else:
             logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
             return list(nx.community.greedy_modularity_communities(graph))
 
-    def _balance_clusters(self, graph: nx.DiGraph, initial_communities: List[Set[str]], target_clusters: int,
-                          min_cluster_size: int) -> List[Set[str]]:
+    def _balance_clusters(
+        self, graph: nx.DiGraph, initial_communities: List[Set[str]], target_clusters: int, min_cluster_size: int
+    ) -> List[Set[str]]:
         sorted_communities = sorted(initial_communities, key=len, reverse=True)
 
         significant_clusters: List[Set[str]] = []
@@ -329,8 +341,8 @@ class CallGraph:
 
         # Calculate max cluster size to prevent oversized clusters
         max_cluster_size = max(
-            ClusteringConfig.MIN_MAX_CLUSTER_SIZE, 
-            graph.number_of_nodes() // target_clusters * ClusteringConfig.MAX_CLUSTER_SIZE_MULTIPLIER
+            ClusteringConfig.MIN_MAX_CLUSTER_SIZE,
+            graph.number_of_nodes() // target_clusters * ClusteringConfig.MAX_CLUSTER_SIZE_MULTIPLIER,
         )
 
         for community in sorted_communities:
@@ -344,8 +356,9 @@ class CallGraph:
             else:
                 significant_clusters.append(community)
 
-        merged_small = self._merge_small_clusters(graph, small_clusters + [set([s]) for s in singletons],
-                                                  min_cluster_size)
+        merged_small = self._merge_small_clusters(
+            graph, small_clusters + [set([s]) for s in singletons], min_cluster_size
+        )
         significant_clusters.extend(merged_small)
 
         if len(significant_clusters) > target_clusters:
@@ -357,12 +370,12 @@ class CallGraph:
     def _split_large_cluster(self, graph: nx.DiGraph, large_cluster: Set[str], max_size: int) -> List[Set[str]]:
         """
         Split oversized clusters using graph structure rather than arbitrary division.
-        
+
         Strategy:
         1. Try community detection within the cluster (preserves natural groupings)
-        2. Fall back to connected components (preserves connectivity)  
+        2. Fall back to connected components (preserves connectivity)
         3. Last resort: balanced binary split (when structure doesn't help)
-        
+
         This approach is much better than naive binary splitting because it respects
         the underlying graph structure and relationships between nodes.
         """
@@ -394,7 +407,9 @@ class CallGraph:
         mid = len(cluster_list) // 2
         return [set(cluster_list[:mid]), set(cluster_list[mid:])]
 
-    def _merge_small_clusters(self, graph: nx.DiGraph, small_clusters: List[Set[str]], min_cluster_size: int) -> List[Set[str]]:
+    def _merge_small_clusters(
+        self, graph: nx.DiGraph, small_clusters: List[Set[str]], min_cluster_size: int
+    ) -> List[Set[str]]:
         if not small_clusters:
             return []
 
@@ -433,18 +448,19 @@ class CallGraph:
 
         return merged_clusters
 
-    def _is_good_clustering(self, communities: List[Set[str]], target_clusters: int, min_cluster_size: int,
-                            total_nodes: int) -> bool:
+    def _is_good_clustering(
+        self, communities: List[Set[str]], target_clusters: int, min_cluster_size: int, total_nodes: int
+    ) -> bool:
         """
         Determine if a clustering result meets quality criteria.
-        
+
         A "good" clustering should:
         1. Have meaningful clusters (not too many singletons)
         2. Cover most nodes in the graph (high coverage)
         3. Have reasonable number of clusters (not too few or too many)
         4. Avoid oversized clusters that dominate the graph
         5. Have balanced cluster sizes (largest not too much bigger than average)
-        
+
         These criteria are based on empirical testing with various codebases and
         aim to produce clusterings that are useful for human understanding and LLM processing.
         """
@@ -480,9 +496,11 @@ class CallGraph:
 
         largest_cluster_size = max(len(c) for c in valid_clusters)
         # Cluster size check: largest cluster shouldn't dominate (varies by graph size)
-        max_cluster_ratio = (ClusteringConfig.SMALL_GRAPH_MAX_CLUSTER_RATIO 
-                           if total_nodes < ClusteringConfig.SMALL_GRAPH_THRESHOLD 
-                           else ClusteringConfig.LARGE_GRAPH_MAX_CLUSTER_RATIO)
+        max_cluster_ratio = (
+            ClusteringConfig.SMALL_GRAPH_MAX_CLUSTER_RATIO
+            if total_nodes < ClusteringConfig.SMALL_GRAPH_THRESHOLD
+            else ClusteringConfig.LARGE_GRAPH_MAX_CLUSTER_RATIO
+        )
         if largest_cluster_size > total_nodes * max_cluster_ratio:
             return False
 
@@ -495,7 +513,8 @@ class CallGraph:
             return False
 
         logger.info(
-            f"Good clustering found: {cluster_count} clusters, {coverage:.2%} coverage, {singleton_count} singletons, largest: {largest_cluster_size}")
+            f"Good clustering found: {cluster_count} clusters, {coverage:.2%} coverage, {singleton_count} singletons, largest: {largest_cluster_size}"
+        )
         return True
 
     @staticmethod
@@ -504,7 +523,7 @@ class CallGraph:
         top_communities = sorted(valid_communities, key=len, reverse=True)
 
         # Limit display to avoid overwhelming output
-        display_communities = top_communities[:ClusteringConfig.MAX_DISPLAY_CLUSTERS]
+        display_communities = top_communities[: ClusteringConfig.MAX_DISPLAY_CLUSTERS]
 
         communities_str = f"Cluster Definitions ({len(display_communities)} clusters shown):\n\n"
         for idx, community in enumerate(display_communities, start=1):

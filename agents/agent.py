@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
 from monitoring.stats import RunStats
+
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 
