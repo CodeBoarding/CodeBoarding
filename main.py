@@ -334,7 +334,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--load-env-variables",
         action="store_true",
-        default=False,
         help="Load the .env file for environment variables",
     )
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
