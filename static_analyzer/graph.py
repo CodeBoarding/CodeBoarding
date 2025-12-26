@@ -51,6 +51,9 @@ class ClusteringConfig:
 
 
 class Node:
+    # Node type constants
+    METHOD_TYPE = 6
+    
     def __init__(
         self, fully_qualified_name: str, node_type: str, file_path: str, line_start: int, line_end: int
     ) -> None:
@@ -209,6 +212,8 @@ class CallGraph:
                 continue
 
         # Phase 3: Balanced fallback (force reasonable clustering when structure fails)
+        # NOTE: This re-uses greedy_modularity from Phase 1, but applies _balance_clusters()
+        # to force compliance with size/count constraints when raw algorithm output isn't "good enough"
         try:
             initial_communities = list(nx.community.greedy_modularity_communities(graph))
             balanced_communities = self._balance_clusters(graph, initial_communities, target_clusters, min_cluster_size)
@@ -602,7 +607,7 @@ class CallGraph:
         for _, node in self.nodes.items():
             if node in skip_nodes:
                 continue
-            if node.type == 6 and node.methods_called_by_me:
+            if node.type == Node.METHOD_TYPE and node.methods_called_by_me:
                 parts = node.fully_qualified_name.split(self.delimiter)
                 if len(parts) > 1:
                     class_name = self.delimiter.join(parts[:-1])
