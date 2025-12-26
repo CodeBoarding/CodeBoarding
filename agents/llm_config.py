@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field
-from typing import Type, Dict, Any, Optional, Callable
+from typing import Type, Dict, Any, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
@@ -9,6 +9,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
+
+
+# Default provider configuration
+DEFAULT_PROVIDER = "google"
+DEFAULT_API_KEY_ENV = "DEFAULT_GOOGLE_API_KEY"
 
 
 @dataclass

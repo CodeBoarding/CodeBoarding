@@ -16,7 +16,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.llm_config import LLM_PROVIDERS
+from agents.llm_config import LLM_PROVIDERS, DEFAULT_PROVIDER, DEFAULT_API_KEY_ENV
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from monitoring.callbacks import MonitoringCallback
@@ -112,41 +112,58 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         model_override: Optional[str] = None, is_parsing: bool = False
     ) -> tuple[BaseChatModel, str]:
         """Initialize LLM based on available API keys with priority order."""
+
+        # Check if any provider is active, otherwise use default
+        active_provider = None
         for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
+            if config.is_active():
+                active_provider = (name, config)
+                break
 
-            # Determine model name
-            default_model = config.parsing_model if is_parsing else config.agent_model
-            model_name = model_override if model_override else default_model
+        # If no active provider found, check for default provider
+        if not active_provider and os.getenv(DEFAULT_API_KEY_ENV):
+            if DEFAULT_PROVIDER in LLM_PROVIDERS:
+                active_provider = (DEFAULT_PROVIDER, LLM_PROVIDERS[DEFAULT_PROVIDER])
 
-            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
+        # If still no provider, raise error
+        if not active_provider:
+            required_vars = []
+            for config in LLM_PROVIDERS.values():
+                required_vars.append(config.api_key_env)
+                required_vars.extend(config.alt_env_vars)
+            required_vars.append(DEFAULT_API_KEY_ENV)
 
-            kwargs = {
-                "model": model_name,
-                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
-            }
-            kwargs.update(config.get_resolved_extra_args())
+            raise ValueError(
+                f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
+            )
 
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
+        # Initialize the active provider
+        name, config = active_provider
 
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        # Determine model name
+        default_model = config.parsing_model if is_parsing else config.agent_model
+        model_name = model_override if model_override else default_model
 
-            # Update global monitoring callback
-            MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
+        logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
 
-        # Dynamically build error message with all possible env vars
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
+        kwargs = {
+            "model": model_name,
+            "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
 
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
+        if name not in ["aws", "ollama"]:
+            # Check if using default provider
+            api_key = config.get_api_key()
+            if not api_key and name == DEFAULT_PROVIDER:
+                api_key = os.getenv(DEFAULT_API_KEY_ENV)
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+
+        # Update global monitoring callback
+        MONITORING_CALLBACK.model_name = model_name
+        return model, model_name
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method."""
