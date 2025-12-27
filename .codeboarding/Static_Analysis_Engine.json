@@ -1,174 +1,152 @@
 {
-  "description": "The analysis subsystem follows a Mediated Execution Architecture, where the Analysis Orchestrator acts as a central hub connecting user-facing actions to low-level system operations. The execution flow begins with environment preparation, where the Asset Lifecycle Manager ensures binary availability and the Runtime Environment Provider prepares the process context. The Process Execution Manager then handles the lifecycle of the external analysis core, feeding usage data back for license validation via the AWS Communication Service. Post-execution, the Analysis Data Manager utilizes the Graph Transformation Engine to normalize the complex codebase structure into a render-ready graph format, ensuring a decoupled relationship between raw analysis output and the final visualization.",
+  "description": "The static analysis subsystem is designed to transform raw source code into structured Control Flow Graphs (CFGs) for subsequent architectural analysis. At its core, the `LSP Client` leverages external Language Servers to acquire comprehensive parsed information, including Abstract Syntax Trees (ASTs) and symbolic references, thereby centralizing complex parsing. This parsed information is then utilized by the `Reference Resolver` to accurately identify and resolve all symbolic connections within the codebase. For the generation of CFGs, the `Graph Builder` critically depends on the ASTs supplied by the `LSP Client` and the resolved references from the `Reference Resolver`. The `Scanner` performs lexical analysis, primarily for configuration files, under the guidance of `Programming Language Support`, which also provides essential language-specific configurations to both the `Scanner` and the `Graph Builder`. All resulting analysis artifacts, including the generated CFGs, are managed and made accessible through the `Analysis Result Handler`. This integrated approach ensures a robust and language-aware pipeline for deep code understanding.",
   "components": [
     {
-      "name": "Analysis Orchestrator",
-      "description": "Primary Facade; manages the end-to-end lifecycle of codebase analysis, from triggering executions to providing processed data for visualization.",
+      "name": "Scanner",
+      "description": "Performs lexical analysis, breaking down source code into a stream of tokens. It handles language-specific tokenization, with specialized handling for configuration files (e.g., TypeScript).",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.AnalysisService:AnalysisService",
-          "reference_file": "backend/services/AnalysisService.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "scanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "typescript_config_scanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "backend/services/AnalysisService.ts"
+        "../../static_analyzer/scanner.py",
+        "../../static_analyzer/typescript_config_scanner.py"
       ],
-      "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "Process Execution Manager",
-      "description": "Execution Handler; spawns the core analysis binary, monitors stdout for progress/token usage, and manages process termination.",
+      "name": "LSP Client",
+      "description": "Facilitates communication with Language Servers (e.g., TypeScript Language Server) to obtain rich parsed information, including Abstract Syntax Trees (ASTs), symbol tables, and references. This component offloads complex parsing logic to external language services, providing the primary source of ASTs for graph generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.AnalysisRunner:AnalysisRunner",
-          "reference_file": "backend/services/AnalysisRunner.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
-        }
-      ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Runtime Environment Provider",
-      "description": "Context Manager; resolves platform-specific paths for binaries and injects required API keys and license hashes into the environment.",
-      "referenced_source_code": [
+          "qualified_name": "client",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
-          "qualified_name": "backend.services.ExecutableManager:ExecutableManager",
-          "reference_file": "backend/services/ExecutableManager.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "typescript_client",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "backend/services/ExecutableManager.ts"
+        "../../static_analyzer/lsp_client/typescript_client.py",
+        "../../static_analyzer/lsp_client/client.py"
       ],
-      "source_cluster_ids": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "Asset Lifecycle Manager",
-      "description": "Provisioning Service; handles the lazy-loading and validation of external binaries (`codeboarding_core`, `tokei`, `gopls`) from remote repositories.",
+      "name": "Reference Resolver",
+      "description": "Resolves symbolic references within the code, utilizing parsed information from the LSP Client to ensure all connections between code elements are correctly identified. This is crucial for accurate graph generation and component identification.",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.BinaryDownloadService:BinaryDownloadService",
-          "reference_file": "backend/services/BinaryDownloadService.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "reference_resolve_mixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../static_analyzer/reference_resolve_mixin.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Identity & License Service",
-      "description": "Fingerprinting Engine; generates hardware-based device IDs and orchestrates local license state management.",
+      "name": "Graph Builder",
+      "description": "Generates Control Flow Graphs (CFGs) from the ASTs provided by the LSP Client and the resolved references from the Reference Resolver. This is a critical step in understanding program execution flow and preparing the code for architectural clustering.",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.LicenseService:LicenseService",
-          "reference_file": "backend/services/LicenseService.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "graph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../static_analyzer/graph.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "AWS Communication Service",
-      "description": "API Gateway; handles secure remote communication with AWS Lambda proxies for license validation and analytics event transmission.",
+      "name": "Programming Language Support",
+      "description": "Manages language-specific configurations, rules, and utilities, enabling the static analysis engine to support multiple programming languages effectively. It provides the necessary context for tokenization, parsing, and graph generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.AWSCommunicationService:AWSCommunicationService",
-          "reference_file": "backend/services/AWSCommunicationService.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "programming_language",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": false
+      "assigned_files": [
+        "../../static_analyzer/programming_language.py"
+      ],
+      "can_expand": true
     },
     {
-      "name": "Analysis Data Manager",
-      "description": "Persistence Layer; coordinates reading and writing of analysis JSON artifacts and manages the synchronization of data with the application state.",
+      "name": "Analysis Result Handler",
+      "description": "Defines and manages the data structures used to store the various outputs of the static analysis process, including ASTs, CFGs, and the final clustered component representations. It acts as the interface for consuming analysis results.",
       "referenced_source_code": [
         {
-          "qualified_name": "backend.services.AnalysisDataManager:AnalysisDataManager",
-          "reference_file": "backend/services/AnalysisDataManager.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
+          "qualified_name": "analysis_result",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": false
-    },
-    {
-      "name": "Graph Transformation Engine",
-      "description": "Data Pipeline; transforms raw hierarchical analysis results into flattened Node and Edge structures suitable for React Flow rendering.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "backend.services.GraphDataProcessor:GraphDataProcessor",
-          "reference_file": "backend/services/GraphDataProcessor.ts",
-          "reference_start_line": -1,
-          "reference_end_line": -1
-        }
+      "assigned_files": [
+        "../../static_analyzer/analysis_result.py"
       ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
-      "source_cluster_ids": [],
+      "assigned_files": [
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/lsp_client/__init__.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
-      "src_name": "Analysis Orchestrator",
-      "dst_name": "Process Execution Manager"
+      "relation": "provides parsed information to",
+      "src_name": "LSP Client",
+      "dst_name": "Reference Resolver"
     },
     {
-      "relation": "configures via",
-      "src_name": "Process Execution Manager",
-      "dst_name": "Runtime Environment Provider"
+      "relation": "provides ASTs to",
+      "src_name": "LSP Client",
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "depends on",
-      "src_name": "Runtime Environment Provider",
-      "dst_name": "Identity & License Service"
+      "relation": "integrates resolved references with",
+      "src_name": "Reference Resolver",
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "validates with",
-      "src_name": "Identity & License Service",
-      "dst_name": "AWS Communication Service"
+      "relation": "provides configurations to",
+      "src_name": "Programming Language Support",
+      "dst_name": "Scanner"
     },
     {
-      "relation": "provisions",
-      "src_name": "Asset Lifecycle Manager",
-      "dst_name": "Runtime Environment Provider"
-    },
-    {
-      "relation": "loads data via",
-      "src_name": "Analysis Orchestrator",
-      "dst_name": "Analysis Data Manager"
-    },
-    {
-      "relation": "processes with",
-      "src_name": "Analysis Data Manager",
-      "dst_name": "Graph Transformation Engine"
+      "relation": "provides configurations to",
+      "src_name": "Programming Language Support",
+      "dst_name": "Graph Builder"
     }
   ]
 }

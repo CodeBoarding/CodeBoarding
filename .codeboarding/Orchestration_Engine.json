@@ -1,0 +1,183 @@
+{
+  "description": "The system is designed around a central `Orchestration Engine` that drives the entire code analysis and documentation generation workflow. External requests are handled by the `API Service`, which initiates jobs within the `Orchestration Engine`. The `Orchestration Engine` first leverages the `Repository Manager` to acquire the target codebase and then dispatches it to the `Static Analysis Engine` for initial processing. The results are then fed into the `AI Interpretation Layer`, an intelligent component that utilizes specialized `MetaAgent` and `PlannerAgent` sub-components to derive architectural insights and formulate a detailed analysis strategy. Throughout this pipeline, the `Job Database` maintains a persistent record of job statuses and metadata. Upon completion, the `Orchestration Engine` compiles the final documentation and delivers it back through the `API Service`, providing a comprehensive and automated solution for understanding and documenting software projects.",
+  "components": [
+    {
+      "name": "Orchestration Engine",
+      "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "main.generate_analysis",
+          "reference_file": "main.py",
+          "reference_start_line": 55,
+          "reference_end_line": 72
+        }
+      ],
+      "assigned_files": [
+        "main.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "API Service",
+      "description": "Handles external job requests and delivers final documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "local_app.start_generation_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Database",
+      "description": "Stores and manages job status and metadata.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "duckdb_crud.update_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Responsible for fetching code from repositories.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Performs static analysis on the provided code.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.scanner.StaticAnalysisEngine.analyze_code",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like MetaAgent and PlannerAgent. This layer is orchestrated by the `DiagramGenerator`.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "MetaAgent",
+      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent.analyze_metadata",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 31,
+          "reference_end_line": 40
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "PlannerAgent",
+      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent.generate_plan",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": 22,
+          "reference_end_line": 33
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates",
+      "src_name": "API Service",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "manages job status in",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "instructs",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "sends code to",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "forwards results to",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "returns insights to",
+      "src_name": "MetaAgent",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "returns plan to",
+      "src_name": "PlannerAgent",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "sends insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "delivers documentation via",
+      "src_name": "Orchestration Engine",
+      "dst_name": "API Service"
+    }
+  ]
+}

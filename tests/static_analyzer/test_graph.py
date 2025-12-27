@@ -60,7 +60,7 @@ class TestNode(unittest.TestCase):
         caller = Node("module.caller", 12, "/file.py", 1, 10)
 
         with self.assertRaises(ValueError) as context:
-            caller.added_method_called_by_me("invalid_string")
+            caller.added_method_called_by_me("invalid_string")  # type: ignore[arg-type]
 
         self.assertIn("Expected a Node instance", str(context.exception))
 
@@ -336,7 +336,7 @@ class TestCallGraph(unittest.TestCase):
         # Test LLM string for large graph (exceeds size limit)
         graph = CallGraph()
 
-        # Create many method nodes (type 6)
+        # Create many method nodes (type "6")
         for i in range(50):
             node = Node(f"class{i % 5}.ClassA.method{i}", 6, "/file.py", i * 10, i * 10 + 5)
             graph.add_node(node)
