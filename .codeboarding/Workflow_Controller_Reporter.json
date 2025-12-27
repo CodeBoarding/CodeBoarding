@@ -1,0 +1,184 @@
+{
+  "description": "The CodeBoarding subsystem is designed as an agentic documentation pipeline that bridges static analysis with LLM-powered synthesis. It features a dual-entry architecture: a CLI engine for local developer workflows and an asynchronous FastAPI gateway for managing remote documentation jobs. Central to the system is an orchestration layer that sequences repository cloning, agent-based code abstraction, and multi-format report generation. Runtime integrity and cost tracking are managed by a specialized execution monitor that streams telemetry to local storage, while job states are persisted in a lightweight DuckDB backend. The final output is delivered via two specialized generators: one producing static Markdown with Mermaid diagrams for source control integration, and another creating interactive HTML reports with dynamic dependency graphs via a dedicated GitHub Action logic module.",
+  "components": [
+    {
+      "name": "CLI & Orchestration Engine",
+      "description": "The primary entry point for manual and automated workflows, coordinating repository cloning, agent-driven synthesis, and documentation sequencing. It strictly handles the Markdown generation path for local and direct remote executions.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "main.process_remote_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 175,
+          "reference_end_line": 233
+        },
+        {
+          "qualified_name": "main.generate_analysis",
+          "reference_file": "main.py",
+          "reference_start_line": 54,
+          "reference_end_line": 71
+        }
+      ],
+      "assigned_files": [
+        "../../main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Asynchronous API Gateway",
+      "description": "A FastAPI-powered server managing long-running documentation jobs. It handles job queuing, background task delegation, and provides a multi-format output path (HTML, MDX, RST) via integrated GitHub Action logic.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "local_app.app",
+          "reference_file": "local_app.py",
+          "reference_start_line": 46,
+          "reference_end_line": 46
+        },
+        {
+          "qualified_name": "local_app.generate_onboarding",
+          "reference_file": "local_app.py",
+          "reference_start_line": 94,
+          "reference_end_line": 185
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Persistence Layer",
+      "description": "A DuckDB-backed storage layer that maintains the state and lifecycle of documentation jobs, including repository URLs, timestamps, and completion status.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "duckdb_crud.insert_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 48,
+          "reference_end_line": 64
+        },
+        {
+          "qualified_name": "duckdb_crud.update_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 67,
+          "reference_end_line": 76
+        },
+        {
+          "qualified_name": "duckdb_crud.init_db",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 15,
+          "reference_end_line": 44
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Execution Monitor",
+      "description": "A runtime telemetry system that captures LLM token consumption, tool usage, and execution timing. It persists metrics to flat JSON files (e.g., `llm_usage.json`) independently of the job database.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "monitoring.context.monitor_execution",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": 17,
+          "reference_end_line": 112
+        },
+        {
+          "qualified_name": "monitoring.stats.RunStats",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": 9,
+          "reference_end_line": 45
+        },
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": 17,
+          "reference_end_line": 171
+        }
+      ],
+      "assigned_files": [
+        "../../monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Markdown Documentation Generator",
+      "description": "Transforms synthesized code abstractions into structured Markdown reports with embedded Mermaid.js diagrams for static architectural visualization.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown_file",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": 103,
+          "reference_end_line": 116
+        },
+        {
+          "qualified_name": "output_generators.markdown.generated_mermaid_str",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": 9,
+          "reference_end_line": 40
+        }
+      ],
+      "assigned_files": [
+        "../../output_generators/markdown.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Interactive HTML Reporter",
+      "description": "Generates dynamic web-based reports featuring interactive Cytoscape.js graphs and cross-linked entity details, primarily utilized by the API and CI/CD workflows.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.html.generate_html_file",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": 124,
+          "reference_end_line": 140
+        },
+        {
+          "qualified_name": "output_generators.html.generate_cytoscape_data",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": 11,
+          "reference_end_line": 57
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Wraps the agentic synthesis process with context managers to capture real-time telemetry.",
+      "src_name": "CLI & Orchestration Engine",
+      "dst_name": "Execution Monitor"
+    },
+    {
+      "relation": "Manages job lifecycle states and metadata within the persistence layer.",
+      "src_name": "Asynchronous API Gateway",
+      "dst_name": "Job Persistence Layer"
+    },
+    {
+      "relation": "Sequences the transformation of synthesized insights into static Markdown documentation.",
+      "src_name": "CLI & Orchestration Engine",
+      "dst_name": "Markdown Documentation Generator"
+    },
+    {
+      "relation": "Triggers the generation of dynamic web reports via specialized background tasks.",
+      "src_name": "Asynchronous API Gateway",
+      "dst_name": "Interactive HTML Reporter"
+    },
+    {
+      "relation": "Delegates core repository processing and analysis to the orchestration engine's logic.",
+      "src_name": "Asynchronous API Gateway",
+      "dst_name": "CLI & Orchestration Engine"
+    }
+  ]
+}

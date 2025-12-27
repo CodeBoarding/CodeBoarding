@@ -85,27 +85,63 @@ class Relation(LLMBaseModel):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
 
+class ClusterComponent(LLMBaseModel):
+    """LLM's interpretation of a CFG cluster"""
+
+    cluster_id: int = Field(description="The cluster ID from the CFG analysis (e.g., 1, 2, 3)")
+    name: str = Field(description="Descriptive name for this cluster/component (2-4 words)")
+    description: str = Field(description="One sentence explaining what this cluster does")
+
+    def llm_str(self):
+        return f"**Cluster {self.cluster_id}: {self.name}**\n   {self.description}"
+
+
+class ClusterAnalysis(LLMBaseModel):
+    """Analysis of CFG clusters - maps cluster IDs to components"""
+
+    cluster_components: list[ClusterComponent] = Field(
+        description="Interpretation of each cluster. Use cluster_id to reference clusters from the CFG."
+    )
+
+    def llm_str(self):
+        if not self.cluster_components:
+            return "No clusters analyzed."
+        title = "# Cluster-Based Components\n"
+        body = "\n".join(cc.llm_str() for cc in self.cluster_components)
+        return title + body
+
+
 class Component(LLMBaseModel):
     """Structured representation of an abstract component derived from the static analysis"""
 
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
-    referenced_source_code: list[SourceCodeReference] = Field(
-        description="A list of source code names of referenced methods and classes to the component. THIS CANNOT BE EMPTY."
+
+    # LLM picks these: The MOST IMPORTANT/critical methods and classes
+    key_entities: list[SourceCodeReference] = Field(
+        description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
+
+    # Deterministic from static analysis: ALL files belonging to this component
     assigned_files: list[str] = Field(
-        description="A list of source code names of files assigned to the component.",
+        description="All source files assigned to this component (populated deterministically).",
         default_factory=list,
         exclude=True,
+    )
+
+    # Track source clusters (LLM specifies these)
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from the CFG analysis that this component encompasses.",
+        default_factory=list,
     )
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
         qn = ""
-        if self.referenced_source_code:
-            qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q.llm_str()}`" for q in self.referenced_source_code)
+        if self.key_entities:
+            qn += "   - *Key Entities*: "
+            qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
         return "\n".join([n, d, qn]).strip()
 
 
