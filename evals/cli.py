@@ -5,6 +5,8 @@ import sys
 from typing import Any, Tuple
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Ensure we can import from parent directory if run as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -33,6 +35,9 @@ def parse_args():
 
 
 def main():
+    # Load environment variables from .env file
+    load_dotenv()
+
     args = parse_args()
 
     # Ensure output directory exists
