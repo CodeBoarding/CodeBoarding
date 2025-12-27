@@ -1,7 +1,6 @@
 import logging
 import os
 from pathlib import Path
-from typing import Set
 
 from langchain_core.prompts import PromptTemplate
 
@@ -24,13 +23,14 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
+from agents.cluster_methods_mixin import ClusterMethodsMixin
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 
-class DetailsAgent(LargeModelAgent):
+class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
     def __init__(
         self,
         repo_dir: Path,
@@ -65,31 +65,6 @@ class DetailsAgent(LargeModelAgent):
         }
 
         self.context: dict[str, LLMBaseModel] = {}
-
-    def _extract_clusters_from_string(self, cluster_str: str, cluster_ids: Set[int]) -> str:
-        """
-        Parse cluster string and extract only specified cluster IDs.
-        This is deterministic - no LLM call needed!
-        """
-        lines = cluster_str.split('\n')
-        result_lines = []
-        include_current = False
-
-        for line in lines:
-            # Check if this is a cluster header: "Cluster N (...)"
-            if line.startswith("Cluster "):
-                parts = line.split()
-                if len(parts) >= 2:
-                    try:
-                        cluster_num = int(parts[1])
-                        include_current = cluster_num in cluster_ids
-                    except ValueError:
-                        include_current = False
-
-            if include_current:
-                result_lines.append(line)
-
-        return '\n'.join(result_lines)
 
     def _extract_relevant_cfg(self, component: Component) -> str:
         """
