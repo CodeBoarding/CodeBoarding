@@ -1,0 +1,59 @@
+{
+  "description": "The Diagram Generation Service subsystem is encapsulated within the diagram_analysis package. Its primary function is to transform structured architectural data into visual diagrams, enhancing comprehension through interactive representations.",
+  "components": [
+    {
+      "name": "diagram_analysis.analysis_json",
+      "description": "This component is responsible for processing and structuring raw architectural data into a standardized, machine-readable format (likely JSON). It acts as a crucial data preparation layer, ensuring that the input for diagram generation is consistent and well-formed.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.analysis_json",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/analysis_json.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "diagram_analysis.diagram_generator",
+      "description": "This is the core engine of the subsystem, tasked with taking the structured architectural data (prepared by analysis_json) and transforming it into a visual diagram format. It likely leverages external tools like Mermaid.js for rendering the visual output.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/diagram_generator.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides data to",
+      "src_name": "diagram_analysis.analysis_json",
+      "dst_name": "diagram_analysis.diagram_generator"
+    },
+    {
+      "relation": "consumes data from",
+      "src_name": "diagram_analysis.diagram_generator",
+      "dst_name": "diagram_analysis.analysis_json"
+    }
+  ]
+}

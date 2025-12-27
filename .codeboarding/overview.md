@@ -1,92 +1,78 @@
 ```mermaid
 graph LR
-    Application_Orchestrator["Application Orchestrator"]
+    Orchestration_Engine["Orchestration Engine"]
     Static_Analysis_Engine["Static Analysis Engine"]
-    Prompt_Management_Layer["Prompt Management Layer"]
-    AI_Interpretation_Layer["AI Interpretation Layer"]
+    AI_Processing_Layer["AI Processing Layer"]
     Output_Generation_Engine["Output Generation Engine"]
-    External_LLM_Services["External LLM Services"]
+    Diagram_Generation_Service["Diagram Generation Service"]
     Unclassified["Unclassified"]
-    Application_Orchestrator -- "initiates and receives results from" --> Static_Analysis_Engine
-    Application_Orchestrator -- "requests and receives prompts from" --> Prompt_Management_Layer
-    Application_Orchestrator -- "sends data for interpretation to and receives insights from" --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- "sends requests to and receives responses from" --> External_LLM_Services
-    Application_Orchestrator -- "provides final data to" --> Output_Generation_Engine
-    click Application_Orchestrator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestrator.md" "Details"
+    Orchestration_Engine -- "initiates code analysis in" --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "provides clustered architectural components to" --> AI_Processing_Layer
+    AI_Processing_Layer -- "sends interpreted architectural data to" --> Output_Generation_Engine
+    Output_Generation_Engine -- "provides diagram data to" --> Diagram_Generation_Service
+    Orchestration_Engine -- "triggers the interpretation phase in" --> AI_Processing_Layer
+    Orchestration_Engine -- "commands output generation from" --> Output_Generation_Engine
+    click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
-    click Prompt_Management_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Management_Layer.md" "Details"
-    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
+    click AI_Processing_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Processing_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
-    click External_LLM_Services href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/External_LLM_Services.md" "Details"
+    click Diagram_Generation_Service href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Diagram_Generation_Service.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The CodeBoarding project is an AI-driven code analysis and documentation system. The Application Orchestrator manages the overall workflow, initiating static code analysis, generating prompts, and coordinating AI interpretation. The Static Analysis Engine provides code insights, which the AI Interpretation Layer processes using External LLM Services. The Prompt Management Layer optimizes LLM interactions, and the Output Generation Engine creates documentation and diagrams from the processed insights. This modular design ensures efficient processing and flexible integration with various AI models.
+The system operates through a pipeline orchestrated by the `Orchestration Engine`. This engine first activates the `Static Analysis Engine`, which is responsible for parsing source code, generating Control Flow Graphs (CFGs), and critically, applying advanced adaptive clustering algorithms to abstract these CFGs into logical architectural components. These refined, clustered components are then passed to the `AI Processing Layer`, where Large Language Models interpret them to derive architectural insights and identify relationships. Subsequently, the `Output Generation Engine` takes these insights and formats them into various outputs, including data specifically structured for the `Diagram Generation Service`, which visualizes the architecture. This re-engineered `Static Analysis Engine` plays a pivotal role in transforming raw code into actionable architectural representations, significantly enhancing the overall analysis quality.
 
-### Application Orchestrator [[Expand]](./Application_Orchestrator.md)
-The central control unit managing the entire workflow, from initiating analysis to integrating results and coordinating output generation.
+### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
+The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents/meta_agent.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents/planner_agent.py`</a>
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs in-depth static code analysis across multiple languages, extracting structural and semantic information.
+Responsible for parsing source code, building Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and applying adaptive clustering algorithms to abstract these graphs into logical architectural components. It provides structured, clustered code representations.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.client`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer" target="_blank" rel="noopener noreferrer">`static_analyzer/`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer/graph.py`</a>
 
 
-### Prompt Management Layer [[Expand]](./Prompt_Management_Layer.md)
-Dynamically creates, selects, and contextualizes prompts for various LLMs based on the analysis phase.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/abstract_prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.abstract_prompt_factory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`agents.prompts.claude_prompts_bidirectional`</a>
-
-
-### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
-Interprets static analysis results using LLMs, processing responses to extract insights, classifications, and explanations.
+### AI Processing Layer [[Expand]](./AI_Processing_Layer.md)
+This integrated layer processes structured code data using Large Language Models (LLMs) to derive architectural insights, identify components, and understand relationships. It includes prompt generation and management, and handles interactions with various LLM providers.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`agents.validator_agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents/abstraction_agent.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents/details_agent.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents/prompts/prompt_factory.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents/llm_config.py`</a>
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Transforms interpreted analysis results into human-readable documentation and visual diagrams.
+Takes the structured architectural insights from the AI Processing Layer and formats them into various output types, such as documentation files (Markdown, JSON), reports, or raw data suitable for diagram generation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators" target="_blank" rel="noopener noreferrer">`output_generators/`</a>
 
 
-### External LLM Services [[Expand]](./External_LLM_Services.md)
-Represents the various third-party Large Language Model services (e.g., OpenAI, Anthropic, Google Gemini) integrated with the system.
+### Diagram Generation Service [[Expand]](./Diagram_Generation_Service.md)
+Specializes in converting structured architectural data into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.
 
 
 **Related Classes/Methods**:
 
-- `ExternalLLMServiceAPI`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis" target="_blank" rel="noopener noreferrer">`diagram_analysis/`</a>
 
 
 ### Unclassified

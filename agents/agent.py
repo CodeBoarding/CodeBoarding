@@ -27,7 +27,10 @@ from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
 
-MONITORING_CALLBACK = MonitoringCallback()
+# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
+from monitoring.stats import RunStats
+
+MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
@@ -262,13 +265,5 @@ class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
         llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
-        super().__init__(repo_dir, static_analysis, system_message, llm)
-        self.agent_monitoring_callback.model_name = model_name
-
-
-class SmallModelAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
-        parsing_model = os.getenv("PARSING_MODEL", None)
-        llm, model_name = self._static_initialize_llm(model_override=parsing_model, is_parsing=True)
         super().__init__(repo_dir, static_analysis, system_message, llm)
         self.agent_monitoring_callback.model_name = model_name

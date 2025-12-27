@@ -1,35 +1,40 @@
 ```mermaid
 graph LR
-    Markdown_Generator["Markdown Generator"]
+    Output_Generation_Engine["Output Generation Engine"]
     HTML_Generator["HTML Generator"]
-    Diagram_Core["Diagram Core"]
-    HTML_Template["HTML Template"]
+    HTML_Template_Processor["HTML Template Processor"]
+    Markdown_Generator["Markdown Generator"]
+    MDX_Generator["MDX Generator"]
+    Sphinx_Generator["Sphinx Generator"]
     Unclassified["Unclassified"]
-    Markdown_Generator -- "Consumes output from" --> Diagram_Core
-    HTML_Generator -- "Depends on" --> HTML_Template
-    HTML_Generator -- "Consumes output from" --> Diagram_Core
-    Diagram_Core -- "Produces data for" --> Markdown_Generator
-    Diagram_Core -- "Produces data for" --> HTML_Generator
-    HTML_Template -- "Provides structure to" --> HTML_Generator
+    Orchestration_Engine -- "sends interpreted results to" --> Output_Generation_Engine
+    Output_Generation_Engine -- "dispatches data to" --> HTML_Generator
+    Output_Generation_Engine -- "dispatches data to" --> Markdown_Generator
+    Output_Generation_Engine -- "dispatches data to" --> MDX_Generator
+    Output_Generation_Engine -- "dispatches data to" --> Sphinx_Generator
+    Output_Generation_Engine -- "delivers formatted documentation to" --> API_Service
+    HTML_Generator -- "utilizes" --> HTML_Template_Processor
+    HTML_Template_Processor -- "provides templating services to" --> HTML_Generator
+    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The documentation and diagram generation subsystem is centered around the Diagram Core, which is responsible for processing analysis insights and producing raw diagram data. This data is then consumed by format-specific generators: the Markdown Generator for static Markdown output with Mermaid syntax, and the HTML Generator for interactive web-based documentation. The HTML Generator further relies on the HTML Template to provide the structural and stylistic foundation for the final web pages, embedding the interactive diagrams and detailed component information. This architecture ensures a clear separation of concerns between diagram data generation and output formatting, allowing for flexible and extensible documentation capabilities.
+The Output Generation Engine subsystem is responsible for converting interpreted architectural results into a variety of documentation formats. It acts as a central dispatcher, receiving processed data from an external Orchestration Engine and routing it to specialized generators for HTML, Markdown, MDX, and Sphinx formats. The generated documentation is then delivered to an external API Service. Within the subsystem, the HTML Generator leverages an HTML Template Processor to ensure consistent and structured HTML output. This design promotes modularity, allowing for easy extension with new output formats and maintaining a clear separation of concerns between content generation and formatting.
 
-### Markdown Generator
-Generates comprehensive documentation in Markdown format. This includes structuring detailed component descriptions, creating Mermaid graph syntax for diagrams, and linking to other generated files. It is a primary output mechanism for the tool.
+### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
+The primary entry point for the subsystem, coordinating the selection and execution of specific format generators based on the desired output type. It receives processed insights and dispatches them to the appropriate internal generator.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
 
 
 ### HTML Generator
-Produces interactive documentation in HTML format. It is responsible for creating the JSON data structure required for Cytoscape.js diagrams, embedding this data within an HTML template, and populating the template with structured component details and navigation links.
+Responsible for transforming architectural insights into well-structured HTML documentation. It leverages templates for consistent presentation.
 
 
 **Related Classes/Methods**:
@@ -37,22 +42,40 @@ Produces interactive documentation in HTML format. It is responsible for creatin
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
 
 
-### Diagram Core
-Provides the foundational logic for generating diagram data structures or syntax from analysis insights, independent of the final output format. It abstracts the complexities of different diagramming libraries (e.g., Mermaid, Cytoscape.js) and produces the raw diagram information that format-specific generators then integrate. This component is crucial for the "visual diagrams" aspect of the engine.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator`</a>
-
-
-### HTML Template
-Defines the overall HTML structure, layout, and styling for the web-based documentation. It serves as a static foundation that the HTML Generator dynamically populates with content, including component details, descriptions, and embedded interactive diagrams.
+### HTML Template Processor
+Manages and applies HTML templates to the data provided by the HTML Generator, ensuring consistent styling and structure across HTML outputs.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html_template.py" target="_blank" rel="noopener noreferrer">`output_generators.html_template`</a>
+
+
+### Markdown Generator
+Converts architectural insights into standard Markdown format, suitable for various platforms and easy readability.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
+
+
+### MDX Generator
+Generates documentation in MDX format, combining Markdown with JSX for interactive and dynamic content.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
+
+
+### Sphinx Generator
+Produces documentation compatible with the Sphinx documentation generator, often used for Python projects.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
 
 
 ### Unclassified

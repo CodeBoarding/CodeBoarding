@@ -1,31 +1,42 @@
 {
-  "description": "The system's core functionality revolves around static code analysis, orchestrated through a sequence of specialized components. The ProjectScanner initiates the process by identifying project languages and basic statistics. This information then guides the LSPClient to interact with Language Servers, extracting detailed code symbols and relationships. The CallGraph component consumes this data to construct a comprehensive control flow graph of the codebase, representing code entities and their interdependencies. A newly introduced Monitoring subsystem is deeply integrated into the application's main execution flow, observing and collecting operational metrics and events from these core components to provide insights into system performance and behavior.",
+  "description": "The static analysis subsystem is designed to transform raw source code into structured Control Flow Graphs (CFGs) for subsequent architectural analysis. At its core, the `LSP Client` leverages external Language Servers to acquire comprehensive parsed information, including Abstract Syntax Trees (ASTs) and symbolic references, thereby centralizing complex parsing. This parsed information is then utilized by the `Reference Resolver` to accurately identify and resolve all symbolic connections within the codebase. For the generation of CFGs, the `Graph Builder` critically depends on the ASTs supplied by the `LSP Client` and the resolved references from the `Reference Resolver`. The `Scanner` performs lexical analysis, primarily for configuration files, under the guidance of `Programming Language Support`, which also provides essential language-specific configurations to both the `Scanner` and the `Graph Builder`. All resulting analysis artifacts, including the generated CFGs, are managed and made accessible through the `Analysis Result Handler`. This integrated approach ensures a robust and language-aware pipeline for deep code understanding.",
   "components": [
     {
-      "name": "ProjectScanner",
-      "description": "Scans the project to identify programming languages, gather code statistics (lines of code, percentages), and extract file suffixes. It acts as the initial language detector and high-level metadata extractor.",
+      "name": "Scanner",
+      "description": "Performs lexical analysis, breaking down source code into a stream of tokens. It handles language-specific tokenization, with specialized handling for configuration files (e.g., TypeScript).",
       "referenced_source_code": [
         {
-          "qualified_name": "ProjectScanner",
+          "qualified_name": "scanner",
           "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "typescript_config_scanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/programming_language.py",
         "../../static_analyzer/scanner.py",
         "../../static_analyzer/typescript_config_scanner.py"
       ],
       "can_expand": true
     },
     {
-      "name": "LSPClient",
-      "description": "Manages communication with Language Servers (LSPs) for various programming languages. It initiates LSP server processes, sends JSON-RPC requests for detailed code information (symbols, call hierarchy), and processes responses to extract data like symbols, call relationships, and class hierarchies.",
+      "name": "LSP Client",
+      "description": "Facilitates communication with Language Servers (e.g., TypeScript Language Server) to obtain rich parsed information, including Abstract Syntax Trees (ASTs), symbol tables, and references. This component offloads complex parsing logic to external language services, providing the primary source of ASTs for graph generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "LSPClient",
+          "qualified_name": "client",
           "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "typescript_client",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -37,46 +48,67 @@
       "can_expand": true
     },
     {
-      "name": "CallGraph",
-      "description": "Constructs and maintains the control flow graph (CFG) of the codebase. It stores code elements as `Node` objects and their interdependencies as `Edge` objects, providing functionalities to analyze and summarize these relationships.",
+      "name": "Reference Resolver",
+      "description": "Resolves symbolic references within the code, utilizing parsed information from the LSP Client to ensure all connections between code elements are correctly identified. This is crucial for accurate graph generation and component identification.",
       "referenced_source_code": [
         {
-          "qualified_name": "CallGraph",
-          "reference_file": "static_analyzer/graph.py",
+          "qualified_name": "reference_resolve_mixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
           "reference_start_line": null,
           "reference_end_line": null
-        },
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/reference_resolve_mixin.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Graph Builder",
+      "description": "Generates Control Flow Graphs (CFGs) from the ASTs provided by the LSP Client and the resolved references from the Reference Resolver. This is a critical step in understanding program execution flow and preparing the code for architectural clustering.",
+      "referenced_source_code": [
         {
-          "qualified_name": "Node",
-          "reference_file": "static_analyzer/graph.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "Edge",
+          "qualified_name": "graph",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "../../static_analyzer/graph.py",
-        "../../static_analyzer/reference_resolve_mixin.py"
+        "../../static_analyzer/graph.py"
       ],
       "can_expand": true
     },
     {
-      "name": "Monitoring",
-      "description": "Manages the collection, processing, and reporting of system metrics, events, and operational data. It provides mechanisms for callbacks, context management, path tracking, statistics aggregation, and data writing, integrating into the application's core execution flow to observe system operations.",
+      "name": "Programming Language Support",
+      "description": "Manages language-specific configurations, rules, and utilities, enabling the static analysis engine to support multiple programming languages effectively. It provides the necessary context for tokenization, parsing, and graph generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "monitoring.callbacks",
-          "reference_file": "monitoring/callbacks.py",
+          "qualified_name": "programming_language",
+          "reference_file": "static_analyzer/programming_language.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../static_analyzer/programming_language.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Result Handler",
+      "description": "Defines and manages the data structures used to store the various outputs of the static analysis process, including ASTs, CFGs, and the final clustered component representations. It acts as the interface for consuming analysis results.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "analysis_result",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../static_analyzer/analysis_result.py"
+      ],
       "can_expand": true
     },
     {
@@ -84,61 +116,37 @@
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../static_analyzer/analysis_result.py"
+        "../../static_analyzer/__init__.py",
+        "../../static_analyzer/lsp_client/__init__.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "identifies languages for",
-      "src_name": "ProjectScanner",
-      "dst_name": "LSPClient"
+      "relation": "provides parsed information to",
+      "src_name": "LSP Client",
+      "dst_name": "Reference Resolver"
     },
     {
-      "relation": "prepares context for",
-      "src_name": "ProjectScanner",
-      "dst_name": "LSPClient"
+      "relation": "provides ASTs to",
+      "src_name": "LSP Client",
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "populates with code data",
-      "src_name": "LSPClient",
-      "dst_name": "CallGraph"
+      "relation": "integrates resolved references with",
+      "src_name": "Reference Resolver",
+      "dst_name": "Graph Builder"
     },
     {
-      "relation": "provides symbol information to",
-      "src_name": "LSPClient",
-      "dst_name": "CallGraph"
+      "relation": "provides configurations to",
+      "src_name": "Programming Language Support",
+      "dst_name": "Scanner"
     },
     {
-      "relation": "reports scan progress to",
-      "src_name": "ProjectScanner",
-      "dst_name": "Monitoring"
-    },
-    {
-      "relation": "provides project metadata to",
-      "src_name": "ProjectScanner",
-      "dst_name": "Monitoring"
-    },
-    {
-      "relation": "reports LSP events to",
-      "src_name": "LSPClient",
-      "dst_name": "Monitoring"
-    },
-    {
-      "relation": "provides communication metrics to",
-      "src_name": "LSPClient",
-      "dst_name": "Monitoring"
-    },
-    {
-      "relation": "reports graph events to",
-      "src_name": "CallGraph",
-      "dst_name": "Monitoring"
-    },
-    {
-      "relation": "provides analysis data to",
-      "src_name": "CallGraph",
-      "dst_name": "Monitoring"
+      "relation": "provides configurations to",
+      "src_name": "Programming Language Support",
+      "dst_name": "Graph Builder"
     }
   ]
 }

@@ -31,6 +31,7 @@ def validate_env_vars():
         "AWS_BEARER_TOKEN_BEDROCK",
         "OLLAMA_BASE_URL",
         "CEREBRAS_API_KEY",
+        "VERCEL_API_KEY",
     ]
     api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
 
@@ -332,9 +333,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     # Advanced options
     parser.add_argument(
         "--load-env-variables",
-        action="store",
-        default=False,
-        type=bool,
+        action="store_true",
         help="Load the .env file for environment variables",
     )
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
