@@ -11,11 +11,7 @@
           "reference_start_line": 55,
           "reference_end_line": 72
         }
-      ],
-      "assigned_files": [
-        "main.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "API Service",
@@ -27,9 +23,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Database",
@@ -41,9 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Repository Manager",
@@ -55,9 +47,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -69,9 +59,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "AI Interpretation Layer",
@@ -83,9 +71,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "MetaAgent",
@@ -97,9 +83,7 @@
           "reference_start_line": 31,
           "reference_end_line": 40
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "PlannerAgent",
@@ -111,16 +95,12 @@
           "reference_start_line": 22,
           "reference_end_line": 33
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
