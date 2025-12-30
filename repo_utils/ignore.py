@@ -30,12 +30,12 @@ class RepoIgnoreManager:
 
     # Build artifacts and minified files that should be ignored
     DEFAULT_IGNORED_FILE_PATTERNS = [
-        "*.bundle.js",      # Webpack/bundler output
+        "*.bundle.js",  # Webpack/bundler output
         "*.bundle.js.map",  # Source maps for bundles
-        "*.min.js",         # Minified JavaScript
-        "*.min.css",        # Minified CSS
-        "*.chunk.js",       # Code-split chunks
-        "*.chunk.js.map",   # Source maps for chunks
+        "*.min.js",  # Minified JavaScript
+        "*.min.css",  # Minified CSS
+        "*.chunk.js",  # Code-split chunks
+        "*.chunk.js.map",  # Source maps for chunks
     ]
 
     def __init__(self, repo_root: Path):
