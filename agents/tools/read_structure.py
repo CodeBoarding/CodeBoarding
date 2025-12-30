@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, List
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
@@ -21,7 +20,7 @@ class CodeStructureTool(BaseRepoTool):
         "Use only when CFG data is insufficient for understanding component boundaries. "
         "Focus on main packages only - avoid utility/helper package analysis."
     )
-    args_schema: Optional[ArgsSchema] = ClassQualifiedName
+    args_schema: ArgsSchema | None = ClassQualifiedName
     return_direct: bool = False
 
     def _run(self, class_qualified_name: str) -> str:
