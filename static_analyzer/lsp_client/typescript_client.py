@@ -64,7 +64,8 @@ class TypeScriptClient(LSPClient):
         params = self._customize_initialization_params(params)
 
         init_id = self._send_request("initialize", params)
-        response = self._wait_for_response(init_id)
+        # Use longer timeout for initialization as it may involve full workspace indexing
+        response = self._wait_for_response(init_id, timeout=360)
 
         if "error" in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
