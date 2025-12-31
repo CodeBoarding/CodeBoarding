@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, List
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
@@ -21,10 +20,10 @@ class CodeStructureTool(BaseRepoTool):
         "Use only when CFG data is insufficient for understanding component boundaries. "
         "Focus on main packages only - avoid utility/helper package analysis."
     )
-    args_schema: Optional[ArgsSchema] = ClassQualifiedName
+    args_schema: ArgsSchema | None = ClassQualifiedName
     return_direct: bool = False
 
-    def _run(self, qualified_class_name: str) -> str:
+    def _run(self, class_qualified_name: str) -> str:
         """
         Run the tool with the given input.
         """
@@ -37,14 +36,14 @@ class CodeStructureTool(BaseRepoTool):
             try:
                 # Attempt to retrieve the class hierarchy for the specified qualified class name
                 content = self.static_analysis.get_hierarchy(lang)
-                if qualified_class_name not in content:
+                if class_qualified_name not in content:
                     continue
                 return (
-                    f"Class {qualified_class_name} has superclasses: "
-                    f"{content[qualified_class_name]['superclasses']} and subclasses: "
-                    f"{content[qualified_class_name]['subclasses']}\n"
+                    f"Class {class_qualified_name} has superclasses: "
+                    f"{content[class_qualified_name]['superclasses']} and subclasses: "
+                    f"{content[class_qualified_name]['subclasses']}\n"
                 )
             except NoRootPackageFoundError as e:
                 logger.error(f"Error retrieving class hierarchy: {e.message}")
                 continue
-        return f"No class hierarchy found for {qualified_class_name}. Double check if the qualified name is correct with the getSourceCode tool."
+        return f"No class hierarchy found for {class_qualified_name}. Double check if the qualified name is correct with the getSourceCode tool."
