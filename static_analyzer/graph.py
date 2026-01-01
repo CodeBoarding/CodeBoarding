@@ -55,7 +55,7 @@ class Node:
     METHOD_TYPE = 6
 
     def __init__(
-        self, fully_qualified_name: str, node_type: str, file_path: str, line_start: int, line_end: int
+        self, fully_qualified_name: str, node_type: int, file_path: str, line_start: int, line_end: int
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path

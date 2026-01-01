@@ -64,7 +64,7 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
             ),
         }
 
-        self.context: dict[str, LLMBaseModel] = {}
+        self.context: dict[str, LLMBaseModel | str] = {}
 
     def _extract_relevant_cfg(self, component: Component) -> str:
         """
@@ -99,16 +99,14 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         return result
 
     def step_subcfg(self, component: Component):
-        """
-        Extract relevant CFG based on component's source_cluster_ids.
-        NO LLM call - pure deterministic filtering!
-        """
-        logger.info(f"[DetailsAgent] Filtering CFG for {component.name} using cluster IDs: {component.source_cluster_ids}")
+        logger.info(
+            f"[DetailsAgent] Filtering CFG for {component.name} using cluster IDs: {component.source_cluster_ids}"
+        )
         filtered_cfg = self._extract_relevant_cfg(component)
         self.context["subcfg_insight"] = filtered_cfg
 
     @trace
-    def step_cfg(self, component: Component):
+    def step_cfg(self, component: Component) -> CFGAnalysisInsights:
         logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
@@ -125,13 +123,17 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         return parsed
 
     @trace
-    def step_enhance_structure(self, component: Component):
+    def step_enhance_structure(self, component: Component) -> AnalysisInsights:
         logger.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         cfg_insight = self.context.get("cfg_insight")
-        cfg_insight_str = cfg_insight.llm_str() if cfg_insight else "No CFG insight available."
+        cfg_insight_str = (
+            cfg_insight.llm_str()
+            if cfg_insight and isinstance(cfg_insight, LLMBaseModel)
+            else "No CFG insight available."
+        )
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
             insight_so_far=cfg_insight_str,
@@ -144,13 +146,17 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         return parsed
 
     @trace
-    def step_analysis(self, component: Component):
+    def step_analysis(self, component: Component) -> AnalysisInsights:
         logger.info("[DetailsAgent] Generating details documentation")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        structure_insight = self.context["structure_insight"]
+        insight_str = (
+            structure_insight.llm_str() if isinstance(structure_insight, LLMBaseModel) else str(structure_insight)
+        )
         prompt = self.prompts["final_analysis"].format(
-            insight_so_far=self.context["structure_insight"].llm_str(),
+            insight_so_far=insight_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -158,21 +164,13 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         return self._parse_invoke(prompt, AnalysisInsights)
 
     @trace
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
+    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights) -> AnalysisInsights:
         logger.info(f"[DetailsAgent] Applying feedback to analysis for project: {self.project_name}")
         prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
     def run(self, component: Component):
-        """
-        Run the details analysis for the given component.
-        This method should execute the steps in order and return the final analysis.
-        """
         logger.info(f"Processing component: {component.name}")
         self.step_subcfg(component)
         self.step_cfg(component)
@@ -182,10 +180,6 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
 
     @trace
     def classify_files(self, component: Component, analysis: AnalysisInsights):
-        """
-        Classify the component using the LLM.
-        This method should return a string representing the classification.
-        """
         logger.info(f"[DetailsAgent] Classifying component {component.name} based on assigned files")
         all_files = component.assigned_files
         analysis.components.append(

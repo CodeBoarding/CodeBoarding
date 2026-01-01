@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    CFGAnalysisInsights,
+    ClusterAnalysis,
     Component,
     MetaAnalysisInsights,
     SourceCodeReference,
@@ -65,16 +65,14 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(agent.project_name, self.project_name)
         self.assertEqual(agent.meta_context, self.mock_meta_context)
-        self.assertIn("cfg", agent.prompts)
-        self.assertIn("source", agent.prompts)
+        self.assertIn("analyze_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
-        self.assertIn("classification", agent.prompts)
         self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_single_language(self, mock_parse_invoke, mock_static_init):
-        # Test step_cfg with single language
+    def test_analyze_clusters_single_language(self, mock_parse_invoke, mock_static_init):
+        # Test analyze_clusters with single language
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
@@ -83,22 +81,21 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        mock_response = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
+        mock_response = ClusterAnalysis(
+            cluster_components=[],
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.step_cfg()
+        result = agent.analyze_clusters()
 
         self.assertEqual(result, mock_response)
-        self.assertIn("cfg_insight", agent.context)
+        self.assertIn("cluster_analysis", agent.context)
         mock_parse_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_multiple_languages(self, mock_parse_invoke, mock_static_init):
-        # Test step_cfg with multiple languages
+    def test_analyze_clusters_multiple_languages(self, mock_parse_invoke, mock_static_init):
+        # Test analyze_clusters with multiple languages
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
@@ -109,21 +106,20 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        mock_response = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
+        mock_response = ClusterAnalysis(
+            cluster_components=[],
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.step_cfg()
+        result = agent.analyze_clusters()
 
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_no_languages(self, mock_parse_invoke, mock_static_init):
-        # Test step_cfg with no languages detected
+    def test_analyze_clusters_no_languages(self, mock_parse_invoke, mock_static_init):
+        # Test analyze_clusters with no languages detected
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = []
 
@@ -134,46 +130,14 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        mock_response = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
+        mock_response = ClusterAnalysis(
+            cluster_components=[],
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.step_cfg()
+        result = agent.analyze_clusters()
 
         self.assertEqual(result, mock_response)
-
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_source(self, mock_parse_invoke, mock_static_init):
-        # Test step_source
-        mock_static_init.return_value = (MagicMock(), "test-model")
-        agent = AbstractionAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-        )
-
-        # Add some context
-        cfg_insight = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
-        )
-        agent.context["cfg_insight"] = cfg_insight
-
-        mock_response = AnalysisInsights(
-            description="Test source analysis",
-            components=[],
-            components_relations=[],
-        )
-        mock_parse_invoke.return_value = mock_response
-
-        result = agent.step_source()
-
-        self.assertEqual(result, mock_response)
-        self.assertIn("source", agent.context)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
@@ -187,19 +151,11 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        # Add context
-        cfg_insight = AnalysisInsights(
-            description="CFG insight",
-            components=[],
-            components_relations=[],
+        # Add cluster analysis context
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[],
         )
-        source_insight = AnalysisInsights(
-            description="Source insight",
-            components=[],
-            components_relations=[],
-        )
-        agent.context["cfg_insight"] = cfg_insight
-        agent.context["source"] = source_insight
+        agent.context["cluster_analysis"] = cluster_analysis
 
         mock_response = AnalysisInsights(
             description="Final analysis",
@@ -250,12 +206,18 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_fix_ref.assert_called_once_with(updated_analysis)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_parse_invoke, mock_static_init):
-        # Test classify_files
+    def test_classify_files(self, mock_relpath, mock_exists, mock_static_init):
+        # Test classify_files (now deterministic, no LLM call)
         mock_static_init.return_value = (MagicMock(), "test-model")
+
+        # Mock the static analysis to return our test files
+        self.mock_static_analysis.get_all_source_files.return_value = [
+            str(self.repo_dir / "test_file.py"),
+            str(self.repo_dir / "another_file.py"),
+        ]
+
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -263,11 +225,9 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        from agents.agent_responses import ComponentFiles, FileClassification
-
-        ref = SourceCodeReference(
+        key_entity = SourceCodeReference(
             qualified_name="test.TestClass",
-            reference_file="test.py",
+            reference_file="test_file.py",
             reference_start_line=1,
             reference_end_line=10,
         )
@@ -275,7 +235,8 @@ class TestAbstractionAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[key_entity],
+            source_cluster_ids=[1, 2],
         )
 
         analysis = AnalysisInsights(
@@ -284,23 +245,15 @@ class TestAbstractionAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        # Mock file classification response
-        mock_classification = ComponentFiles(
-            file_paths=[
-                FileClassification(file_path="test_file.py", component_name="TestComponent"),
-                FileClassification(file_path="another_file.py", component_name="Unclassified"),
-            ]
-        )
-        mock_parse_invoke.return_value = mock_classification
         mock_exists.return_value = True
-        mock_relpath.side_effect = lambda path, start: path
+        mock_relpath.side_effect = lambda path, start: Path(path).name
 
         agent.classify_files(analysis)
 
         # Check that Unclassified component was added
         self.assertTrue(any(c.name == "Unclassified" for c in analysis.components))
 
-        # Check that files were assigned
+        # Check that files were assigned to TestComponent (since key_entity matches test_file.py)
         self.assertTrue(len(component.assigned_files) > 0)
 
 

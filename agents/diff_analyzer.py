@@ -102,7 +102,9 @@ class DiffAnalyzingAgent(LargeModelAgent):
         except FileNotFoundError:
             # Old analysis format - can't load it, regenerate from scratch
             logger.info("[DiffAnalyzingAgent] Incompatible analysis schema, regenerating from scratch")
-            return UpdateAnalysis(update_degree=10, feedback="Incompatible analysis schema detected, regenerating from scratch")
+            return UpdateAnalysis(
+                update_degree=10, feedback="Incompatible analysis schema detected, regenerating from scratch"
+            )
         diff_data = self.get_diff_data()
         if not diff_data:
             logger.info("[DiffAnalyzingAgent] No relevant code differences found")

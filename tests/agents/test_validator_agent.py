@@ -65,7 +65,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(
@@ -105,7 +105,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         relation = Relation(
@@ -143,7 +143,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[],
+            key_entities=[],
         )
 
         analysis = AnalysisInsights(
@@ -177,7 +177,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(
@@ -212,7 +212,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(
@@ -256,7 +256,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(
@@ -300,7 +300,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(

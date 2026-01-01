@@ -39,13 +39,13 @@ class TestMDXOutput(unittest.TestCase):
         self.component1 = Component(
             name="Component1",
             description="First test component",
-            referenced_source_code=[self.ref1],
+            key_entities=[self.ref1],
         )
 
         self.component2 = Component(
             name="Component2",
             description="Second test component",
-            referenced_source_code=[self.ref2],
+            key_entities=[self.ref2],
         )
 
         self.relation = Relation(
@@ -216,7 +216,7 @@ class TestMDXOutput(unittest.TestCase):
         component_no_ref = Component(
             name="NoRefComponent",
             description="Component with no references",
-            referenced_source_code=[],
+            key_entities=[],
         )
 
         analysis_no_ref = AnalysisInsights(
@@ -265,7 +265,7 @@ class TestMDXOutput(unittest.TestCase):
         component = Component(
             name="TestComp",
             description="Test",
-            referenced_source_code=[ref_no_lines],
+            key_entities=[ref_no_lines],
         )
 
         analysis = AnalysisInsights(

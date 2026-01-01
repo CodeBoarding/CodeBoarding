@@ -1,18 +1,18 @@
 # End-to-End Pipeline Evaluation
 
-**Generated:** 2025-12-27T00:05:32.012040+00:00
+**Generated:** 2025-12-27T14:15:51.644096+00:00
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Total Tokens | Tool Calls |
 |---------|----------|--------|----------|--------------|------------|
-| markitdown | Python | ✅ Success | 356.2 | 808,081 | 69 |
-| codeboarding | Python | ✅ Success | 315.7 | 497,793 | 46 |
-| django | Python | ❌ Failed | 1800.0 | 0 | 0 |
+| markitdown | Python | ✅ Success | 390.4 | 1,653,294 | 72 |
+| codeboarding | Python | ✅ Success | 6135.0 | 1,003,690 | 71 |
+| django | Python | ❌ Failed | 6789.6 | 0 | 0 |
 
 **Success:** 2/3
-**Total Tokens:** 1,305,874
-**Total Tool Calls:** 115
+**Total Tokens:** 2,656,984
+**Total Tool Calls:** 143
 
 ## Generated Top-Level Diagrams
 
@@ -20,39 +20,36 @@
 
 ```mermaid
 graph LR
-    Access_Protocol_Layer["Access & Protocol Layer"]
-    MarkItDown_Core_Orchestrator["MarkItDown Core Orchestrator"]
-    Office_Layout_Engines["Office & Layout Engines"]
-    Binary_Cloud_Assisted_Parsers["Binary & Cloud-Assisted Parsers"]
-    Web_Multimodal_Services["Web & Multimodal Services"]
-    Data_Analysis_Translators["Data & Analysis Translators"]
-    Mathematical_Syntax_Engine["Mathematical Syntax Engine"]
+    Client_Integration_Interfaces["Client & Integration Interfaces"]
+    MarkItDown_Orchestration_Core["MarkItDown Orchestration Core"]
+    Office_Document_Processors["Office & Document Processors"]
+    Web_AI_Intelligence_Subsystem["Web & AI Intelligence Subsystem"]
+    Mathematical_Translation_Engine["Mathematical Translation Engine"]
     Unclassified["Unclassified"]
-    Access_Protocol_Layer -- "Triggers conversion pipeline by passing streams/URIs to the engine." --> MarkItDown_Core_Orchestrator
-    MarkItDown_Core_Orchestrator -- "Delegates structural conversion tasks for Office and EPUB formats." --> Office_Layout_Engines
-    MarkItDown_Core_Orchestrator -- "Offloads complex binary parsing and cloud extraction tasks." --> Binary_Cloud_Assisted_Parsers
-    MarkItDown_Core_Orchestrator -- "Manages media transcription and web content scraping requests." --> Web_Multimodal_Services
-    MarkItDown_Core_Orchestrator -- "Routes tabular and notebook data for structured text extraction." --> Data_Analysis_Translators
-    Office_Layout_Engines -- "Invokes math translation utilities to convert OMML to LaTeX." --> Mathematical_Syntax_Engine
+    Client_Integration_Interfaces -- "Initiates conversion requests with local paths or URIs" --> MarkItDown_Orchestration_Core
+    MarkItDown_Orchestration_Core -- "Dispatches binary streams to specialized parsing modules" --> Office_Document_Processors
+    MarkItDown_Orchestration_Core -- "Routes web content and media for intelligent transformation" --> Web_AI_Intelligence_Subsystem
+    Office_Document_Processors -- "Delegates embedded formula conversion (OMML to LaTeX)" --> Mathematical_Translation_Engine
+    Office_Document_Processors -- "Re-invokes orchestrator for nested/recursive content processing" --> MarkItDown_Orchestration_Core
+    Web_AI_Intelligence_Subsystem -- "Utilizes shared LLM configuration for caption generation" --> MarkItDown_Orchestration_Core
 ```
 
 ### codeboarding
 
 ```mermaid
 graph LR
-    Pipeline_Orchestrator["Pipeline Orchestrator"]
-    Static_Fact_Extractor["Static Fact Extractor"]
-    Repository_CFG_Manager["Repository & CFG Manager"]
-    Cognitive_Agent_Fleet["Cognitive Agent Fleet"]
-    Intelligence_Prompt_Infra["Intelligence & Prompt Infra"]
-    Runtime_Tools_Monitoring["Runtime Tools & Monitoring"]
+    Pipeline_Orchestration_Subsystem["Pipeline & Orchestration Subsystem"]
+    Static_Analysis_Context_Engine["Static Analysis & Context Engine"]
+    Agent_Reasoning_Intelligence_Core["Agent Reasoning & Intelligence Core"]
+    Autonomous_Analysis_Toolset["Autonomous Analysis Toolset"]
+    Documentation_Diagram_Generator["Documentation & Diagram Generator"]
     Unclassified["Unclassified"]
-    Pipeline_Orchestrator -- "Triggers the initial scanning phase to populate the analysis result cache by invoking LSP clients." --> Static_Fact_Extractor
-    Pipeline_Orchestrator -- "Coordinates the agentic workflow, passing analysis results to synthesize high-level documentation." --> Cognitive_Agent_Fleet
-    Static_Fact_Extractor -- "Persists extracted symbols and call graphs into structured models for later retrieval and cross-referencing." --> Repository_CFG_Manager
-    Cognitive_Agent_Fleet -- "Uses the toolkit and monitoring callbacks to dynamically explore source files and track agent progress." --> Runtime_Tools_Monitoring
-    Cognitive_Agent_Fleet -- "Requests context-aware prompts and validates structured LLM outputs against Pydantic schemas." --> Intelligence_Prompt_Infra
-    Runtime_Tools_Monitoring -- "Provides agents with read access to the physical file system and the logical CFG graph nodes." --> Repository_CFG_Manager
+    Pipeline_Orchestration_Subsystem -- "Triggers initial codebase scanning and populates the CallGraph to establish the ground truth." --> Static_Analysis_Context_Engine
+    Static_Analysis_Context_Engine -- "Provides high-fidelity symbol and hierarchy context for tools in the CodeBoardingToolkit." --> Autonomous_Analysis_Toolset
+    Autonomous_Analysis_Toolset -- "Inherits base ReAct logic and LLM provider abstractions to perform complex reasoning tasks." --> Agent_Reasoning_Intelligence_Core
+    Agent_Reasoning_Intelligence_Core -- "Streams execution events, token usage, and performance metrics for real-time monitoring." --> Pipeline_Orchestration_Subsystem
+    Autonomous_Analysis_Toolset -- "Executes deep-dive queries to refine architectural findings based on specific code structures." --> Static_Analysis_Context_Engine
+    Pipeline_Orchestration_Subsystem -- "Directs the final rendering of discovered insights into human-readable documentation and visual diagrams." --> Documentation_Diagram_Generator
 ```
 
 ### django

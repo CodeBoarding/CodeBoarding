@@ -48,7 +48,7 @@ class ClusterMethodsMixin:
         Parse cluster string and extract only specified cluster IDs.
         This is deterministic - no LLM call needed!
         """
-        lines = cluster_str.split('\n')
+        lines = cluster_str.split("\n")
         result_lines = []
         include_current = False
 
@@ -66,7 +66,7 @@ class ClusterMethodsMixin:
             if include_current:
                 result_lines.append(line)
 
-        return '\n'.join(result_lines)
+        return "\n".join(result_lines)
 
     def _build_file_cluster_mapping(self) -> dict[str, set[int]]:
         """
@@ -96,17 +96,14 @@ class ClusterMethodsMixin:
                     # Get file path for this node
                     if node_name in nx_graph.nodes:
                         node_data = nx_graph.nodes[node_name]
-                        file_path = node_data.get('file_path')
+                        file_path = node_data.get("file_path")
                         if file_path:
                             file_to_clusters[file_path].add(cluster_id)
 
         return file_to_clusters
 
     def _match_file_to_components(
-        self,
-        file_path: str,
-        components: list[Component],
-        file_to_clusters: dict[str, set[int]]
+        self, file_path: str, components: list[Component], file_to_clusters: dict[str, set[int]]
     ) -> list[Component]:
         """
         Match a file to ALL components it belongs to deterministically.
@@ -194,11 +191,15 @@ class ClusterMethodsMixin:
                             e for e in original_component.key_entities if e.qualified_name != qname
                         ]
                         seen_entities[qname] = component
-                        logger.debug(f"[ClusterMethodsMixin] Moved key_entity '{qname}' from {original_component.name} to {component.name}")
+                        logger.debug(
+                            f"[ClusterMethodsMixin] Moved key_entity '{qname}' from {original_component.name} to {component.name}"
+                        )
                     else:
                         # Keep in original component (remove from current)
                         entities_to_remove.append(key_entity)
-                        logger.debug(f"[ClusterMethodsMixin] Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})")
+                        logger.debug(
+                            f"[ClusterMethodsMixin] Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
+                        )
                 else:
                     # First time seeing this entity
                     seen_entities[qname] = component

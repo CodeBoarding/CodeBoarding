@@ -44,7 +44,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         self.prompts = {
             "analyze_clusters": PromptTemplate(
                 template=get_cluster_analysis_message(),
-                input_variables=["project_name", "cfg_clusters", "meta_context", "project_type"]
+                input_variables=["project_name", "cfg_clusters", "meta_context", "project_type"],
             ),
             "final_analysis": PromptTemplate(
                 template=get_final_analysis_message(),
@@ -54,11 +54,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         }
 
     @trace
-    def analyze_clusters(self):
-        """
-        Step 1: Analyze CFG clusters and give them semantic meaning.
-        LLM sees cluster definitions and assigns names/descriptions.
-        """
+    def analyze_clusters(self) -> ClusterAnalysis:
         logger.info(f"[AbstractionAgent] Analyzing CFG clusters for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -81,11 +77,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         return cluster_analysis
 
     @trace
-    def generate_analysis(self):
-        """
-        Step 2: Synthesize final components from cluster analysis.
-        This is where clusters get merged/refined into final components.
-        """
+    def generate_analysis(self) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final analysis for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -104,11 +96,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         return self._parse_invoke(prompt, AnalysisInsights)
 
     @trace
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
+    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
         prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
         analysis = self._parse_invoke(prompt, AnalysisInsights)
@@ -137,27 +125,17 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
             )
         )
 
-        # Reset assigned_files for all components
         for comp in analysis.components:
             comp.assigned_files = []
 
-        # Build file-to-cluster mapping for deterministic classification
         file_to_clusters = self._build_file_cluster_mapping()
-
-        # Classify each file - a file can belong to multiple components
         for file_path in all_files:
-            matched_components = self._match_file_to_components(
-                file_path,
-                analysis.components,
-                file_to_clusters
-            )
+            matched_components = self._match_file_to_components(file_path, analysis.components, file_to_clusters)
 
             if matched_components:
-                # Add file to ALL matching components
                 for component in matched_components:
                     component.assigned_files.append(file_path)
             else:
-                # Add to Unclassified
                 unclassified = next(c for c in analysis.components if c.name == "Unclassified")
                 unclassified.assigned_files.append(file_path)
 
@@ -176,7 +154,6 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         logger.info(f"[AbstractionAgent] Classified {len(all_files)} files into {len(analysis.components)} components")
 
     def run(self):
-        """New simplified two-step flow"""
         self.analyze_clusters()  # Step 1: Understand clusters
         analysis = self.generate_analysis()  # Step 2: Create final components
         analysis = self.fix_source_code_reference_lines(analysis)

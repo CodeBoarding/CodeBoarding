@@ -100,7 +100,7 @@ class BaseEval(ABC):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=1800,  # 30 minutes
+                timeout=3600,  # 1 hour
                 env=env,
                 cwd=self.project_root,
             )
@@ -117,7 +117,7 @@ class BaseEval(ABC):
         except subprocess.TimeoutExpired:
             return PipelineResult(
                 success=False,
-                stderr="Pipeline timed out (30 minutes)",
+                stderr="Pipeline timed out (1 hour)",
                 pipeline_duration=time.time() - start_time,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
