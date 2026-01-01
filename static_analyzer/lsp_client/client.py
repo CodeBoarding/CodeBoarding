@@ -165,7 +165,7 @@ class LSPClient:
                     logger.error(f"Error reading from server: {e}")
                 break
 
-    def _wait_for_response(self, message_id: int, timeout: int = 360):
+    def _wait_for_response(self, message_id: int, timeout: int = 60):
         """Waits for a response with a specific message ID to arrive."""
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -193,7 +193,8 @@ class LSPClient:
             "workspace": {"applyEdit": True, "workspaceEdit": {"documentChanges": True}},
         }
         init_id = self._send_request("initialize", params)
-        response = self._wait_for_response(init_id)
+        # Use longer timeout for initialization as it may involve full workspace indexing
+        response = self._wait_for_response(init_id, timeout=360)
 
         if "error" in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
@@ -708,7 +709,8 @@ class LSPClient:
         try:
             params = {"query": ""}
             req_id = self._send_request("workspace/symbol", params)
-            response = self._wait_for_response(req_id)
+            # Use longer timeout for workspace-wide symbol search
+            response = self._wait_for_response(req_id, timeout=360)
 
             if "error" in response:
                 error_msg = response["error"]
