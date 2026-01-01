@@ -1,5 +1,5 @@
 {
-  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and interacts with external tools. The main flow involves receiving a query, parsing it, invoking a language model to determine the appropriate action, executing that action (which might involve using a tool), and finally formatting and returning the response to the user. Its purpose is to provide a flexible and extensible framework for building AI-powered applications that can understand and act upon user requests.",
+  "description": "The system operates through a clear, sequential flow beginning with the Query Processor handling incoming user requests. These requests are then forwarded to the Language Model Interface, which manages communication with the underlying language model to generate responses or identify necessary actions. Based on the language model's output, the Tool Executor dynamically selects and invokes external tools to gather additional information or perform specific operations. The results from these tools, along with the language model's output, are then consolidated and structured by the Response Formatter to create a coherent and user-friendly final response. This response is ultimately delivered back to the user via the Query Processor. Supporting these core functions, the Unclassified component encompasses various utility functions, external libraries, and project configuration elements, including new capabilities for managing repository ignore patterns, which contribute to the overall system's functionality and maintainability without directly participating in the primary query-response workflow.",
   "components": [
     {
       "name": "Query Processor",
@@ -7,11 +7,13 @@
       "referenced_source_code": [
         {
           "qualified_name": "QueryParser:parse",
-          "reference_file": "query_processor.py",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Language Model Interface",
@@ -19,17 +21,29 @@
       "referenced_source_code": [
         {
           "qualified_name": "LLMClient:send_prompt",
-          "reference_file": "llm_interface.py",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
           "qualified_name": "LLMClient:receive_response",
-          "reference_file": "llm_interface.py",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "agents/llm_config.py",
+        "../../agents/prompts/claude_prompts_bidirectional.py",
+        "../../agents/prompts/gpt_prompts_unidirectional.py",
+        "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "../../agents/prompts/abstract_prompt_factory.py",
+        "../../agents/prompts/gpt_prompts_bidirectional.py",
+        "../../agents/prompts/prompt_factory.py",
+        "../../agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "../../agents/prompts/claude_prompts_unidirectional.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Tool Executor",
@@ -43,11 +57,25 @@
         },
         {
           "qualified_name": "Tool:execute",
-          "reference_file": "tool_executor.py",
+          "reference_file": "Tool:execute",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/tools/read_source.py",
+        "../../agents/tools/read_file_structure.py",
+        "../../agents/tools/external_deps.py",
+        "agents/tools/base.py",
+        "../../agents/tools/read_packages.py",
+        "../../agents/tools/read_cfg.py",
+        "../../agents/tools/get_method_invocations.py",
+        "../../agents/tools/read_git_diff.py",
+        "../../agents/tools/read_file.py",
+        "../../agents/tools/read_structure.py",
+        "../../agents/tools/read_docs.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Response Formatter",
@@ -55,16 +83,42 @@
       "referenced_source_code": [
         {
           "qualified_name": "ResponseBuilder:build",
-          "reference_file": "response_formatter.py",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files, utility functions, and external dependencies, now including repository ignore pattern handling and reflecting project configuration updates.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.ignore",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/diff_analyzer.py",
+        "../../agents/details_agent.py",
+        "../../agents/validator_agent.py",
+        "../../agents/abstraction_agent.py",
+        "../../agents/agent_responses.py",
+        "../../agents/agent.py",
+        "../../repo_utils/git_diff.py"
+      ],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
@@ -74,7 +128,7 @@
       "dst_name": "Language Model Interface"
     },
     {
-      "relation": "receives output from",
+      "relation": "provides output to",
       "src_name": "Language Model Interface",
       "dst_name": "Tool Executor"
     },
@@ -89,7 +143,7 @@
       "dst_name": "Response Formatter"
     },
     {
-      "relation": "returns formatted response from",
+      "relation": "returns formatted response to",
       "src_name": "Response Formatter",
       "dst_name": "Query Processor"
     }

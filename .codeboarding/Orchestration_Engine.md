@@ -12,7 +12,7 @@ graph LR
     API_Service -- "initiates" --> Orchestration_Engine
     Orchestration_Engine -- "manages job status in" --> Job_Database
     Orchestration_Engine -- "instructs" --> Repository_Manager
-    Orchestration_Engine -- "sends code to" --> Static_Analysis_Engine
+    Repository_Manager -- "provides filtered code to" --> Static_Analysis_Engine
     Orchestration_Engine -- "forwards results to" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "utilizes" --> MetaAgent
     AI_Interpretation_Layer -- "utilizes" --> PlannerAgent
@@ -28,7 +28,7 @@ graph LR
 
 ## Details
 
-The system is designed around a central `Orchestration Engine` that drives the entire code analysis and documentation generation workflow. External requests are handled by the `API Service`, which initiates jobs within the `Orchestration Engine`. The `Orchestration Engine` first leverages the `Repository Manager` to acquire the target codebase and then dispatches it to the `Static Analysis Engine` for initial processing. The results are then fed into the `AI Interpretation Layer`, an intelligent component that utilizes specialized `MetaAgent` and `PlannerAgent` sub-components to derive architectural insights and formulate a detailed analysis strategy. Throughout this pipeline, the `Job Database` maintains a persistent record of job statuses and metadata. Upon completion, the `Orchestration Engine` compiles the final documentation and delivers it back through the `API Service`, providing a comprehensive and automated solution for understanding and documenting software projects.
+The system operates with the `Orchestration Engine` as its central control, initiating and managing the entire code analysis and documentation generation workflow. External requests are handled by the `API Service`, which triggers the `Orchestration Engine`. The `Orchestration Engine` interacts with the `Job Database` to maintain job status and metadata. It instructs the `Repository Manager` to fetch code, which now includes filtering files based on ignore patterns. The `Repository Manager` then provides this filtered code to the `Static Analysis Engine` for detailed analysis. The results are forwarded to the `AI Interpretation Layer`, where specialized agents like the `MetaAgent` and `PlannerAgent` collaborate to interpret the analysis and generate insights. Finally, the `Orchestration Engine` receives these insights and delivers the generated documentation back through the `API Service`.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
 The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.
@@ -58,16 +58,17 @@ Stores and manages job status and metadata.
 
 
 ### Repository Manager
-Responsible for fetching code from repositories.
+Responsible for fetching code from repositories and managing file and directory exclusions based on `.gitignore` patterns and default ignored paths.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L8-L107" target="_blank" rel="noopener noreferrer">`repo_utils.ignore.RepoIgnoreManager`:8-107</a>
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs static analysis on the provided code.
+Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.
 
 
 **Related Classes/Methods**:
