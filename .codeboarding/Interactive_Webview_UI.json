@@ -1,0 +1,156 @@
+{
+  "description": "The CodeBoarding UI subsystem follows a state-driven orchestration pattern centered around a main `Bridge Controller`. This controller acts as the single source of truth, receiving raw architecture data from the VS Code backend and distributing it to two major sibling branches: the `Graph Orchestrator` for the interactive visualization and the `Instructional Overlay` for user guidance. The `Graph Orchestrator` encapsulates the complexity of the React Flow environment, delegating heavy computational tasks like coordinate layout to the `Layout Engine` and topological safety checks to the `Graph Integrity Guard`. Rendering is offloaded to specialized `Node` and `Edge` renderers, ensuring a clear separation between the graph's logical structure and its visual representation within the VS Code theme.",
+  "components": [
+    {
+      "name": "Bridge Controller",
+      "description": "The primary state manager and message handler for the webview. It deserializes architectural data from the VS Code host, manages the visibility of UI overlays, and propagates reactive state (nodes, edges, theme) to its child components.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CodeBoardingApp",
+          "reference_file": "webview-ui/src/components/MockCodeBoardingApp.tsx",
+          "reference_start_line": 6,
+          "reference_end_line": 83
+        }
+      ],
+      "assigned_files": [
+        "webview-ui/src/components/MockCodeBoardingApp.tsx"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Graph Orchestrator",
+      "description": "Coordinates the React Flow visualization lifecycle. It manages the processing of raw node/edge data into renderable formats and orchestrates the timing of layout calculations and topological validations.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CodeBoardingGraphViewer",
+          "reference_file": "webview-ui/src/components/CodeBoardingGraphViewer.tsx",
+          "reference_start_line": 109,
+          "reference_end_line": 427
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Layout Engine",
+      "description": "A deterministic layout service utilizing ELK.js (Eclipse Layout Kernel) to compute hierarchical node coordinates and complex edge routing paths (splines) based on architectural containment.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "runLayout",
+          "reference_file": "webview-ui/src/components/CodeBoardingGraphViewer.tsx",
+          "reference_start_line": 166,
+          "reference_end_line": 262
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Graph Integrity Guard",
+      "description": "Implements cycle detection using Depth-First Search (DFS) to identify backward edges in the dependency graph, preventing layout instability and visually highlighting circular relationships.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "detectBackwardEdges",
+          "reference_file": "webview-ui/src/utils/cycle-detector.ts",
+          "reference_start_line": 13,
+          "reference_end_line": 45
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Visual Node Renderer",
+      "description": "Specialized React component for rendering architectural entities (Classes, Modules, Files). It handles status indicators like Git change markers and selection highlights.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CustomNode",
+          "reference_file": "webview-ui/src/components/CustomNode.tsx",
+          "reference_start_line": 8,
+          "reference_end_line": 120
+        }
+      ],
+      "assigned_files": [
+        "webview-ui/src/components/CustomNode.tsx"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Visual Edge Renderer",
+      "description": "Manages the rendering of relationship paths between nodes, supporting interactive labels and specialized styling for containment versus dependency relationships.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "CustomEdge",
+          "reference_file": "webview-ui/src/components/CustomEdge.tsx",
+          "reference_start_line": 9,
+          "reference_end_line": 166
+        }
+      ],
+      "assigned_files": [
+        "webview-ui/src/components/CustomEdge.tsx"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Instructional Overlay",
+      "description": "A contextual UI layer that provides navigation hints and keyboard shortcuts (e.g., holding 'H' for help). Its lifecycle and visibility are managed independently of the graph state.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "HelpOverlay",
+          "reference_file": "webview-ui/src/components/HelpOverlay.tsx",
+          "reference_start_line": 12,
+          "reference_end_line": 72
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Synchronizes architectural state and theme-aware CSS variables for the visualization.",
+      "src_name": "Bridge Controller",
+      "dst_name": "Graph Orchestrator"
+    },
+    {
+      "relation": "Manages the contextual visibility of navigation shortcuts and instructional hints.",
+      "src_name": "Bridge Controller",
+      "dst_name": "Instructional Overlay"
+    },
+    {
+      "relation": "Triggers hierarchical coordinate calculation using ELK.js whenever the graph topology changes.",
+      "src_name": "Graph Orchestrator",
+      "dst_name": "Layout Engine"
+    },
+    {
+      "relation": "Validates graph topology to detect cycles that require specialized \"backward edge\" rendering.",
+      "src_name": "Graph Orchestrator",
+      "dst_name": "Graph Integrity Guard"
+    },
+    {
+      "relation": "Delegates the rendering of specific architectural entities and their status indicators.",
+      "src_name": "Graph Orchestrator",
+      "dst_name": "Visual Node Renderer"
+    },
+    {
+      "relation": "Delegates the drawing of dependency paths and relationship labels.",
+      "src_name": "Graph Orchestrator",
+      "dst_name": "Visual Edge Renderer"
+    }
+  ]
+}

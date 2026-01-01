@@ -63,9 +63,9 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
     for comp in insights.components:
         detail_lines.append(component_header(comp.name, linked_files))
         detail_lines.append(f"{comp.description}")
-        if comp.referenced_source_code:
+        if comp.key_entities:
             qn_list = []
-            for reference in comp.referenced_source_code:
+            for reference in comp.key_entities:
                 print(reference.reference_file, root_dir)
                 if not reference.reference_file:
                     continue

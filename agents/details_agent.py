@@ -23,13 +23,14 @@ from agents.prompts import (
     get_feedback_message,
     get_classification_message,
 )
+from agents.cluster_methods_mixin import ClusterMethodsMixin
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 
-class DetailsAgent(LargeModelAgent):
+class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
     def __init__(
         self,
         repo_dir: Path,
@@ -63,15 +64,49 @@ class DetailsAgent(LargeModelAgent):
             ),
         }
 
-        self.context: dict[str, LLMBaseModel] = {}
+        self.context: dict[str, LLMBaseModel | str] = {}
+
+    def _extract_relevant_cfg(self, component: Component) -> str:
+        """
+        Extract CFG clusters relevant to this component.
+        Uses component.source_cluster_ids for deterministic filtering.
+        """
+        if not component.source_cluster_ids:
+            logger.warning(f"[DetailsAgent] Component {component.name} has no source_cluster_ids, using fallback")
+            # Fallback to old method if no cluster IDs
+            return self.read_cfg_tool.component_cfg(component)  # type: ignore[return-value]
+
+        cluster_ids = set(component.source_cluster_ids)
+        cfg_lines = []
+
+        for lang in self.static_analysis.get_languages():
+            cfg = self.static_analysis.get_cfg(lang)
+            cluster_str = cfg.to_cluster_string()
+
+            # Extract only requested clusters
+            filtered_clusters = self._extract_clusters_from_string(cluster_str, cluster_ids)
+
+            if filtered_clusters:
+                cfg_lines.append(f"\n## {lang.capitalize()} - Component CFG\n")
+                cfg_lines.append(filtered_clusters)
+                cfg_lines.append("\n")
+
+        result = "".join(cfg_lines)
+        if not result.strip():
+            logger.warning(f"[DetailsAgent] No CFG found for component {component.name}, cluster IDs: {cluster_ids}")
+            return "No relevant CFG clusters found for this component."
+
+        return result
 
     def step_subcfg(self, component: Component):
-        logger.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
-        # Now lets filter the cfg:
-        self.context["subcfg_insight"] = self.read_cfg_tool.component_cfg(component)  # type: ignore[assignment]
+        logger.info(
+            f"[DetailsAgent] Filtering CFG for {component.name} using cluster IDs: {component.source_cluster_ids}"
+        )
+        filtered_cfg = self._extract_relevant_cfg(component)
+        self.context["subcfg_insight"] = filtered_cfg
 
     @trace
-    def step_cfg(self, component: Component):
+    def step_cfg(self, component: Component) -> CFGAnalysisInsights:
         logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
@@ -88,13 +123,17 @@ class DetailsAgent(LargeModelAgent):
         return parsed
 
     @trace
-    def step_enhance_structure(self, component: Component):
+    def step_enhance_structure(self, component: Component) -> AnalysisInsights:
         logger.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         cfg_insight = self.context.get("cfg_insight")
-        cfg_insight_str = cfg_insight.llm_str() if cfg_insight else "No CFG insight available."
+        cfg_insight_str = (
+            cfg_insight.llm_str()
+            if cfg_insight and isinstance(cfg_insight, LLMBaseModel)
+            else "No CFG insight available."
+        )
         prompt = self.prompts["structure"].format(
             project_name=self.project_name,
             insight_so_far=cfg_insight_str,
@@ -107,13 +146,17 @@ class DetailsAgent(LargeModelAgent):
         return parsed
 
     @trace
-    def step_analysis(self, component: Component):
+    def step_analysis(self, component: Component) -> AnalysisInsights:
         logger.info("[DetailsAgent] Generating details documentation")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        structure_insight = self.context["structure_insight"]
+        insight_str = (
+            structure_insight.llm_str() if isinstance(structure_insight, LLMBaseModel) else str(structure_insight)
+        )
         prompt = self.prompts["final_analysis"].format(
-            insight_so_far=self.context["structure_insight"].llm_str(),
+            insight_so_far=insight_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -121,21 +164,13 @@ class DetailsAgent(LargeModelAgent):
         return self._parse_invoke(prompt, AnalysisInsights)
 
     @trace
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
+    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights) -> AnalysisInsights:
         logger.info(f"[DetailsAgent] Applying feedback to analysis for project: {self.project_name}")
         prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
     def run(self, component: Component):
-        """
-        Run the details analysis for the given component.
-        This method should execute the steps in order and return the final analysis.
-        """
         logger.info(f"Processing component: {component.name}")
         self.step_subcfg(component)
         self.step_cfg(component)
@@ -145,17 +180,14 @@ class DetailsAgent(LargeModelAgent):
 
     @trace
     def classify_files(self, component: Component, analysis: AnalysisInsights):
-        """
-        Classify the component using the LLM.
-        This method should return a string representing the classification.
-        """
         logger.info(f"[DetailsAgent] Classifying component {component.name} based on assigned files")
         all_files = component.assigned_files
         analysis.components.append(
             Component(
                 name="Unclassified",
                 description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-                referenced_source_code=[],
+                key_entities=[],
+                source_cluster_ids=[],
             )
         )
         component_str = "\n".join([component.llm_str() for component in analysis.components])
