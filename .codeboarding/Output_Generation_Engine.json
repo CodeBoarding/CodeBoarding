@@ -1,13 +1,13 @@
 {
-  "description": "The system's architecture is structured around a pipeline that begins with the Static Analyzer. This component is responsible for in-depth code analysis, leveraging an LSP Client for language-specific insights and an Ignore Utility to precisely control the scope of its operations. The \"interpreted results\" from the Static Analyzer are then passed to the Orchestration Engine, which acts as an intermediary, preparing the data for the final output stage. The Output Generation Engine serves as the central coordinator for documentation generation, dispatching the processed insights to various specialized generators, including the HTML Generator, Markdown Generator, MDX Generator, and Sphinx Generator. The HTML Generator further relies on an HTML Template Processor to ensure consistent styling and structure in its output. This modular design ensures a clear separation of concerns, from code analysis and scope management to the final rendering of diverse documentation formats.",
+  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
   "components": [
     {
-      "name": "Static Analyzer",
-      "description": "Responsible for analyzing source code and generating \"interpreted results.\" It integrates with LSP clients for language-specific analysis and uses an ignore mechanism to control the scope of its operations.",
+      "name": "Query Processor",
+      "description": "Handles incoming user queries and prepares them for further processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.core.Analyzer",
-          "reference_file": "",
+          "qualified_name": "QueryHandler.process",
+          "reference_file": "query_handler.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -16,12 +16,12 @@
       "can_expand": true
     },
     {
-      "name": "LSP Client",
-      "description": "Facilitates communication between the Static Analyzer and Language Server Protocols to perform detailed code analysis.",
+      "name": "Information Retriever",
+      "description": "Fetches relevant information based on the processed query from a knowledge base.",
       "referenced_source_code": [
         {
-          "qualified_name": "lsp_client.client.LSPClient",
-          "reference_file": "static_analyzer/lsp_client/client.py",
+          "qualified_name": "KnowledgeBase.retrieve",
+          "reference_file": "knowledge_base.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -30,12 +30,12 @@
       "can_expand": true
     },
     {
-      "name": "Ignore Utility",
-      "description": "Manages rules for including or excluding files and directories from the Static Analyzer's processing scope.",
+      "name": "Response Generator",
+      "description": "Utilizes a language model to generate a natural language response.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.ignore.IgnoreUtility",
-          "reference_file": "repo_utils/ignore.py",
+          "qualified_name": "LanguageModel.generate_response",
+          "reference_file": "language_model.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -44,156 +44,64 @@
       "can_expand": false
     },
     {
-      "name": "Orchestration Engine",
-      "description": "Receives \"interpreted results\" from the Static Analyzer, performs further processing, and prepares them for output generation.",
+      "name": "History Logger",
+      "description": "Stores the user query and the generated response for future reference.",
       "referenced_source_code": [
         {
-          "qualified_name": "orchestration.engine.OrchestrationEngine",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
+          "qualified_name": "InteractionLogger.log",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": 16,
+          "reference_end_line": 166
         }
       ],
       "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Output Generation Engine",
-      "description": "The primary entry point for the subsystem, coordinating the selection and execution of specific format generators based on the desired output type.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generation.engine.OutputGenerationEngine",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "HTML Generator",
-      "description": "Transforms architectural insights into well-structured HTML documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "html_generator.generator.HTMLGenerator",
-          "reference_file": "output_generators/html.py",
-          "reference_start_line": 61,
-          "reference_end_line": 122
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/html.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "HTML Template Processor",
-      "description": "Manages and applies HTML templates to the data provided by the HTML Generator.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "html_template_processor.processor.HTMLTemplateProcessor",
-          "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/html_template.py"
-      ],
       "can_expand": false
-    },
-    {
-      "name": "Markdown/MDX/Sphinx Generators",
-      "description": "Convert architectural insights into Markdown, MDX, or Sphinx-compatible formats.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "format_generators.unified.UnifiedGenerator",
-          "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/sphinx.py",
-        "../../output_generators/mdx.py",
-        "../../output_generators/markdown.py"
-      ],
-      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../output_generators/__init__.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "processes code using",
-      "src_name": "Static Analyzer",
-      "dst_name": "LSP Client"
+      "relation": "sends query to",
+      "src_name": "Query Processor",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "controls scope with",
-      "src_name": "Static Analyzer",
-      "dst_name": "Ignore Utility"
+      "relation": "sends info to",
+      "src_name": "Information Retriever",
+      "dst_name": "Response Generator"
     },
     {
-      "relation": "sends interpreted results to",
-      "src_name": "Static Analyzer",
-      "dst_name": "Orchestration Engine"
+      "relation": "sends response to",
+      "src_name": "Response Generator",
+      "dst_name": "History Logger"
     },
     {
-      "relation": "provides analysis to",
-      "src_name": "LSP Client",
-      "dst_name": "Static Analyzer"
+      "relation": "receives query from",
+      "src_name": "Information Retriever",
+      "dst_name": "Query Processor"
     },
     {
-      "relation": "defines scope for",
-      "src_name": "Ignore Utility",
-      "dst_name": "Static Analyzer"
+      "relation": "receives info from",
+      "src_name": "Response Generator",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "receives results from",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Static Analyzer"
-    },
-    {
-      "relation": "sends processed results to",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Output Generation Engine"
-    },
-    {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "HTML Generator"
-    },
-    {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Markdown/MDX/Sphinx Generators"
-    },
-    {
-      "relation": "receives processed results from",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "utilizes",
-      "src_name": "HTML Generator",
-      "dst_name": "HTML Template Processor"
-    },
-    {
-      "relation": "provides templating services to",
-      "src_name": "HTML Template Processor",
-      "dst_name": "HTML Generator"
-    },
-    {
-      "relation": "receives data from",
-      "src_name": "Markdown/MDX/Sphinx Generators",
-      "dst_name": "Output Generation Engine"
+      "relation": "receives response from",
+      "src_name": "History Logger",
+      "dst_name": "Response Generator"
     }
   ]
 }

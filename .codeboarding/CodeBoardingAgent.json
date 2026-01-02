@@ -1,0 +1,172 @@
+{
+  "description": "The CodeBoarding system is designed around a central `CodeBoardingAgent` that orchestrates the entire code analysis and documentation workflow. External requests are received via an `API Service`, which initiates the agent's operations. The `CodeBoardingAgent` first interacts with the `Repository Manager` to fetch source code. This code is then processed by the `Static Analysis Engine` for foundational analysis, with results subsequently interpreted by the `AI Processing Layer` using LLMs to derive high-level insights. Finally, the `Output Generation Engine` formats these insights into various documentation outputs. Throughout this process, the `CodeBoardingAgent` maintains job state and data integrity by interacting with a `Job Database` and utilizes a `CodeBoardingToolkit` for specialized analytical tasks.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent",
+      "description": "The primary orchestrator for all code analysis and documentation generation tasks. It manages the overall workflow, delegates specific analytical and generative tasks, and coordinates the sequence of operations from code retrieval to final documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/__init__.py",
+        "../../agents/diff_analyzer.py",
+        "../../agents/validator_agent.py",
+        "../../agents/agent_responses.py",
+        "../../agents/agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "API Service",
+      "description": "The external entry point for analysis requests, responsible for receiving user commands and initiating the code analysis workflow within the system.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "conceptual.APIService",
+          "reference_file": "<file_path>",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Manages the fetching and preparation of source code from various repositories, making it available for subsequent analysis steps.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.RepositoryManager",
+          "reference_file": "repo_utils.py",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Performs foundational code analysis, extracting structural, syntactic, and semantic information from the source code.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.scanner.StaticAnalysisEngine",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Processing Layer",
+      "description": "Utilizes Large Language Models (LLMs) to interpret the results from the Static Analysis Engine, generating higher-level insights, summaries, and contextual understanding of the code.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "conceptual.AIProcessingLayer",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Formats the interpreted data and insights into various desired documentation outputs, such as Markdown, diagrams (e.g., Mermaid.js), or other structured formats.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.OutputGenerationEngine",
+          "reference_file": "output_generators/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Database",
+      "description": "Persists the state of ongoing analysis jobs, stores intermediate results, and archives final documentation, ensuring job tracking and data integrity.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "conceptual.JobDatabase",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingToolkit",
+      "description": "Provides a collection of specialized tools and utilities that the CodeBoardingAgent leverages to perform specific operations, enhancing its capabilities.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates request for",
+      "src_name": "API Service",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "instructs to fetch code",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "delegates analysis to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "sends analysis results to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AI Processing Layer"
+    },
+    {
+      "relation": "directs to generate documentation",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "updates job status in",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "retrieves job status from",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "CodeBoardingToolkit"
+    }
+  ]
+}

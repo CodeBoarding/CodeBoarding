@@ -1,15 +1,15 @@
 {
-  "description": "The system operates with the `Orchestration Engine` as its central control, initiating and managing the entire code analysis and documentation generation workflow. External requests are handled by the `API Service`, which triggers the `Orchestration Engine`. The `Orchestration Engine` interacts with the `Job Database` to maintain job status and metadata. It instructs the `Repository Manager` to fetch code, which now includes filtering files based on ignore patterns. The `Repository Manager` then provides this filtered code to the `Static Analysis Engine` for detailed analysis. The results are forwarded to the `AI Interpretation Layer`, where specialized agents like the `MetaAgent` and `PlannerAgent` collaborate to interpret the analysis and generate insights. Finally, the `Orchestration Engine` receives these insights and delivers the generated documentation back through the `API Service`.",
+  "description": "The system's architecture is centered around an `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. It interfaces with an `API Service` for job initiation and delivery, and a `Job Database` for status management. Code acquisition and filtering are handled by the `Repository Manager`, which then feeds into the `Static Analysis Engine` for initial code analysis. The core intelligence resides in the `AI Interpretation Layer`, which, leveraging a recently updated agent framework, employs specialized `MetaAgent` and `PlannerAgent` components to derive architectural insights and strategic analysis plans from the static analysis results. These insights are then relayed back to the `Orchestration Engine` for final documentation generation and delivery.",
   "components": [
     {
       "name": "Orchestration Engine",
       "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "main.generate_analysis",
-          "reference_file": "main.py",
-          "reference_start_line": 55,
-          "reference_end_line": 72
+          "qualified_name": "Orchestration Engine",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
@@ -22,8 +22,8 @@
       "description": "Handles external job requests and delivers final documentation.",
       "referenced_source_code": [
         {
-          "qualified_name": "local_app.start_generation_job",
-          "reference_file": "local_app.py",
+          "qualified_name": "API Service",
+          "reference_file": "API Service",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -38,30 +38,24 @@
       "description": "Stores and manages job status and metadata.",
       "referenced_source_code": [
         {
-          "qualified_name": "duckdb_crud.update_job",
-          "reference_file": "duckdb_crud.py",
+          "qualified_name": "Job Database",
+          "reference_file": "Job Database",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Repository Manager",
       "description": "Responsible for fetching code from repositories and managing file and directory exclusions based on `.gitignore` patterns and default ignored paths.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.clone_repository",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
-          "reference_file": "repo_utils/ignore.py",
-          "reference_start_line": 8,
-          "reference_end_line": 107
+          "qualified_name": "Repository Manager",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ],
       "assigned_files": [],
@@ -72,22 +66,22 @@
       "description": "Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer.scanner.StaticAnalysisEngine.analyze_code",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "Static Analysis Engine",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ],
       "assigned_files": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "AI Interpretation Layer",
-      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like MetaAgent and PlannerAgent. This layer is orchestrated by the `DiagramGenerator`.",
+      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent` and `PlannerAgent`. This layer is now built upon a significantly modified agent framework, impacting the internal workings and interactions of its constituent agents.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
-          "reference_file": "diagram_analysis/diagram_generator.py",
+          "qualified_name": "AI Interpretation Layer",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -97,13 +91,13 @@
     },
     {
       "name": "MetaAgent",
-      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation.",
+      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py`.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.meta_agent.MetaAgent.analyze_metadata",
-          "reference_file": "agents/meta_agent.py",
-          "reference_start_line": 31,
-          "reference_end_line": 40
+          "qualified_name": "MetaAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
@@ -113,13 +107,13 @@
     },
     {
       "name": "PlannerAgent",
-      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope.",
+      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py`.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents.planner_agent.PlannerAgent.generate_plan",
-          "reference_file": "agents/planner_agent.py",
-          "reference_start_line": 22,
-          "reference_end_line": 33
+          "qualified_name": "PlannerAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
       ],
       "assigned_files": [
@@ -131,7 +125,9 @@
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../github_action.py"
+      ],
       "can_expand": false
     }
   ],
@@ -142,7 +138,7 @@
       "dst_name": "Orchestration Engine"
     },
     {
-      "relation": "manages job status in",
+      "relation": "manages",
       "src_name": "Orchestration Engine",
       "dst_name": "Job Database"
     },
@@ -190,6 +186,21 @@
       "relation": "delivers documentation via",
       "src_name": "Orchestration Engine",
       "dst_name": "API Service"
+    },
+    {
+      "relation": "stores data for",
+      "src_name": "Job Database",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "provides status to",
+      "src_name": "Job Database",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "provides results to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
     }
   ]
 }

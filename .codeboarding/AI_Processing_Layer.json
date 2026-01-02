@@ -1,5 +1,5 @@
 {
-  "description": "The system operates through a clear, sequential flow beginning with the Query Processor handling incoming user requests. These requests are then forwarded to the Language Model Interface, which manages communication with the underlying language model to generate responses or identify necessary actions. Based on the language model's output, the Tool Executor dynamically selects and invokes external tools to gather additional information or perform specific operations. The results from these tools, along with the language model's output, are then consolidated and structured by the Response Formatter to create a coherent and user-friendly final response. This response is ultimately delivered back to the user via the Query Processor. Supporting these core functions, the Unclassified component encompasses various utility functions, external libraries, and project configuration elements, including new capabilities for managing repository ignore patterns, which contribute to the overall system's functionality and maintainability without directly participating in the primary query-response workflow.",
+  "description": "The system's core architecture revolves around processing user queries through a sequence of specialized components. The Query Processor initiates the flow by parsing incoming requests. These parsed queries are then forwarded to the Language Model Interface, which handles communication with the underlying language model. The output from the language model, which may include instructions for tool usage, is then managed by the Tool Executor. This component is responsible for orchestrating the invocation of various tools, incorporating sophisticated decision-making and execution logic. Finally, the Response Formatter aggregates and structures the information from both the language model and tool executions to construct a coherent and user-friendly response, which is then returned to the Query Processor. This design ensures a clear separation of concerns, enabling efficient and adaptable query processing and tool integration.",
   "components": [
     {
       "name": "Query Processor",
@@ -21,7 +21,7 @@
       "referenced_source_code": [
         {
           "qualified_name": "LLMClient:send_prompt",
-          "reference_file": "",
+          "reference_file": "LLMClient:send_prompt",
           "reference_start_line": null,
           "reference_end_line": null
         },
@@ -34,6 +34,9 @@
       ],
       "assigned_files": [
         "agents/llm_config.py",
+        "../../agents/details_agent.py",
+        "../../agents/abstraction_agent.py",
+        "../../agents/prompts/__init__.py",
         "../../agents/prompts/claude_prompts_bidirectional.py",
         "../../agents/prompts/gpt_prompts_unidirectional.py",
         "../../agents/prompts/gemini_flash_prompts_bidirectional.py",
@@ -47,7 +50,7 @@
     },
     {
       "name": "Tool Executor",
-      "description": "Executes specific tools based on the language model's output, handling tool invocation and result retrieval.",
+      "description": "Orchestrates the execution of specific tools, incorporating complex decision-making and execution flows based on the language model's output. It manages tool invocation, result retrieval, and potentially iterative processing or re-prompting.",
       "referenced_source_code": [
         {
           "qualified_name": "ToolRegistry:get_tool",
@@ -57,60 +60,26 @@
         },
         {
           "qualified_name": "Tool:execute",
-          "reference_file": "Tool:execute",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../agents/tools/read_source.py",
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/external_deps.py",
-        "agents/tools/base.py",
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_cfg.py",
-        "../../agents/tools/get_method_invocations.py",
-        "../../agents/tools/read_git_diff.py",
-        "../../agents/tools/read_file.py",
-        "../../agents/tools/read_structure.py",
-        "../../agents/tools/read_docs.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "Response Formatter",
-      "description": "Formats the final response to be sent back to the user, potentially combining information from the language model and tool outputs.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ResponseBuilder:build",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "agents/tools/base.py",
+          "reference_start_line": 57,
+          "reference_end_line": 96
         }
       ],
       "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files, utility functions, and external dependencies, now including repository ignore pattern handling and reflecting project configuration updates.",
+      "name": "Response Formatter",
+      "description": "Formats the final response to be sent back to the user, combining information from the language model and tool outputs.",
       "referenced_source_code": [
         {
-          "qualified_name": "repo_utils.ignore",
-          "reference_file": "repo_utils/ignore.py",
+          "qualified_name": "ResponseBuilder:build",
+          "reference_file": "ResponseBuilder:build",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../agents/diff_analyzer.py",
-        "../../agents/details_agent.py",
-        "../../agents/validator_agent.py",
-        "../../agents/abstraction_agent.py",
-        "../../agents/agent_responses.py",
-        "../../agents/agent.py",
-        "../../repo_utils/git_diff.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
@@ -123,27 +92,22 @@
   ],
   "components_relations": [
     {
-      "relation": "sends queries to",
+      "relation": "sends parsed queries to",
       "src_name": "Query Processor",
       "dst_name": "Language Model Interface"
     },
     {
-      "relation": "provides output to",
+      "relation": "provides model output to",
       "src_name": "Language Model Interface",
       "dst_name": "Tool Executor"
     },
     {
-      "relation": "invokes",
-      "src_name": "Tool Executor",
-      "dst_name": "Tool"
-    },
-    {
-      "relation": "sends results to",
+      "relation": "forwards execution results and model outputs to",
       "src_name": "Tool Executor",
       "dst_name": "Response Formatter"
     },
     {
-      "relation": "returns formatted response to",
+      "relation": "returns the final formatted response to",
       "src_name": "Response Formatter",
       "dst_name": "Query Processor"
     }
