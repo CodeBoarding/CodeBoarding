@@ -49,7 +49,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.test_component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
             assigned_files=["test.py", "test_utils.py"],
         )
 
@@ -293,7 +293,7 @@ class TestDetailsAgent(unittest.TestCase):
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
-            referenced_source_code=[],
+            key_entities=[],
         )
 
         analysis = AnalysisInsights(

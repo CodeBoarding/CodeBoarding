@@ -29,6 +29,65 @@ Meta: {meta_context}
 - Interactive diagram elements
 - Documentation for quick developer onboarding"""
 
+CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
+
+Project Context:
+{meta_context}
+
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Instructions:
+1. For each cluster shown above, provide:
+   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
+   - A short descriptive name (2-4 words)
+   - One sentence explaining what this cluster does
+
+2. Focus on the {project_type} architectural patterns
+3. Give semantic meaning to the clusters based on the method names and call patterns
+
+Output only the cluster interpretations. Keep descriptions concise."""
+
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
+
+Project Context:
+{meta_context}
+
+Cluster Analysis:
+{cluster_analysis}
+
+Instructions:
+1. Review the cluster interpretations above
+2. Decide which clusters should be merged into components
+3. For each component, specify which cluster_ids it includes
+4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+5. Define relationships between components
+
+Guidelines for {project_type} projects:
+- Aim for 5-8 final components
+- Merge related clusters that serve a common purpose
+- Each component should have clear boundaries
+- Include only architecturally significant relationships
+
+Required outputs:
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each with:
+  * name: Clear component name
+  * description: What this component does
+  * source_cluster_ids: Which cluster IDs belong to this component
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair
+
+Note: assigned_files will be populated later via deterministic file classification.
+
+Constraints:
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation"""
+
+
 CFG_MESSAGE = """Analyze the Control Flow Graph (CFG) for {project_name} to create a clear architectural overview.
 
 **Task:** Extract architectural components and relationships from the provided CFG data.
@@ -252,6 +311,12 @@ CFG Data: {cfg_str}
    - Key integration points
 4. Focus on core subsystem functionality only
 
+**Output Requirements:**
+- Return analysis with subcomponents. Each subcomponent must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+
 **Goal:** Provide architectural understanding that helps developers work effectively with this component."""
 
 ENHANCE_STRUCTURE_MESSAGE = """Enhance component analysis for: {component}
@@ -275,7 +340,13 @@ Current Structure: {insight_so_far}
 
 **Goal:** Refined component analysis with validated structure and complete relationships.
 
-**Output:** Enhanced component documentation with corrections and additions."""
+**Output:** Enhanced component documentation with:
+- Each subcomponent must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * Ensure all key_entities have both qualified_name AND reference_file populated
+- Corrections and additions"""
 
 DETAILS_MESSAGE = """Create detailed documentation for component: {component}
 
@@ -293,7 +364,11 @@ Current Insights: {insight_so_far}
    - `getPackageDependencies` - for package structure
 3. **Document:**
    - Component purpose and responsibilities
-   - Internal structure and subcomponents
+   - Internal structure and subcomponents. Each subcomponent must include:
+     * name: Clear subcomponent name
+     * description: What this subcomponent does (1-2 sentences)
+     * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+     * CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
    - Key interfaces and API surface
    - Relationships with other components
    - Design patterns and architectural decisions
@@ -573,6 +648,12 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
+
+    def get_cluster_analysis_message(self) -> str:
+        return CLUSTER_ANALYSIS_MESSAGE
+
+    def get_final_analysis_message(self) -> str:
+        return FINAL_ANALYSIS_MESSAGE
 
     def get_cfg_message(self) -> str:
         return CFG_MESSAGE

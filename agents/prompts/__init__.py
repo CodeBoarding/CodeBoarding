@@ -20,6 +20,8 @@ from .prompt_factory import (
 # Import all the convenience functions for backward compatibility
 from .prompt_factory import (
     get_system_message,
+    get_cluster_analysis_message,
+    get_final_analysis_message,
     get_cfg_message,
     get_source_message,
     get_classification_message,
@@ -71,6 +73,8 @@ __all__ = [
     "get_prompt",
     # Convenience functions
     "get_system_message",
+    "get_cluster_analysis_message",
+    "get_final_analysis_message",
     "get_cfg_message",
     "get_source_message",
     "get_classification_message",
@@ -93,6 +97,8 @@ __all__ = [
     "get_file_classification_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
+    "CLUSTER_ANALYSIS_MESSAGE",
+    "FINAL_ANALYSIS_MESSAGE",
     "CFG_MESSAGE",
     "SOURCE_MESSAGE",
     "CLASSIFICATION_MESSAGE",

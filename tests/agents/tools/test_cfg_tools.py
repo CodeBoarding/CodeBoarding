@@ -54,7 +54,7 @@ class TestCFGTools(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component for CFG testing",
-            referenced_source_code=[],
+            key_entities=[],
             assigned_files=[],
         )
 
@@ -75,7 +75,7 @@ class TestCFGTools(unittest.TestCase):
         # Test when static_analysis is None
         context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
         tool = GetCFGTool(context=context)
-        component = Component(name="Test", description="Test component", referenced_source_code=[], assigned_files=[])
+        component = Component(name="Test", description="Test component", key_entities=[], assigned_files=[])
         result = tool.component_cfg(component)
         self.assertEqual(result, "No static analysis data available.")
 
@@ -84,7 +84,7 @@ class TestCFGTools(unittest.TestCase):
         component = Component(
             name="EmptyComponent",
             description="Empty test component",
-            referenced_source_code=[],
+            key_entities=[],
             assigned_files=["nonexistent.py"],
         )
         result = self.read_cfg.component_cfg(component)
