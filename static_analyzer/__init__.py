@@ -5,9 +5,11 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
+from static_analyzer.lsp_client.java_client import JavaClient
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from static_analyzer.java_config_scanner import JavaConfigScanner
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,28 @@ def create_clients(
                     clients.append(
                         TypeScriptClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager)
                     )
+            elif pl.language.lower() == "java":
+                # For Java, scan for multiple project configurations (Maven, Gradle, etc.)
+                config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
+                java_projects = config_scanner.scan()
+
+                if java_projects:
+                    # Create a separate client for each Java project found
+                    for project_config in java_projects:
+                        logger.info(
+                            f"Creating Java client for {project_config.build_system} project at: "
+                            f"{project_config.root.relative_to(repository_path)}"
+                        )
+                        clients.append(
+                            JavaClient(
+                                project_path=project_config.root,
+                                language=pl,
+                                project_config=project_config,
+                                ignore_manager=ignore_manager,
+                            )
+                        )
+                else:
+                    logger.info("No Java projects detected")
             else:
                 clients.append(LSPClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager))
         except RuntimeError as e:
@@ -61,6 +85,10 @@ class StaticAnalyzer:
             try:
                 logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
                 client.start()
+
+                # Java-specific: wait for JDTLS to import the project
+                if isinstance(client, JavaClient):
+                    client.wait_for_import(timeout=300)  # 5 minute timeout
 
                 analysis = client.build_static_analysis()
 
