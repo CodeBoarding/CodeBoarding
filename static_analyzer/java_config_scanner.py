@@ -97,7 +97,7 @@ class JavaConfigScanner:
 
     def _find_gradle_projects(self) -> List[Path]:
         """Find all directories containing settings.gradle."""
-        gradle_roots = []
+        gradle_roots: list[Path] = []
 
         # settings.gradle indicates a project root
         gradle_roots.extend(p.parent for p in self.repo_path.rglob("settings.gradle") if p.is_file())
@@ -132,10 +132,11 @@ class JavaConfigScanner:
                 # Multi-module project
                 module_paths = []
                 for module in modules_elem.findall("maven:module", ns) or modules_elem.findall("module"):
-                    module_name = module.text.strip()
-                    module_path = pom_dir / module_name
-                    if module_path.exists():
-                        module_paths.append(module_path)
+                    if module.text is not None:
+                        module_name = module.text.strip()
+                        module_path = pom_dir / module_name
+                        if module_path.exists():
+                            module_paths.append(module_path)
 
                 return JavaProjectConfig(pom_dir, "maven", is_multi_module=True, modules=module_paths)
             else:

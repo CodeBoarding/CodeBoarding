@@ -44,12 +44,12 @@ class JavaClient(LSPClient):
             jdtls_root: Path to JDTLS installation (if None, will try to detect from config)
         """
         self.project_config = project_config
-        self.workspace_dir = None  # Will be created in start()
+        self.workspace_dir: Optional[Path] = None  # Will be created in start()
         self.temp_workspace = True
 
         # Try to get jdtls_root from language config first, then from parameter
         if jdtls_root is not None:
-            self.jdtls_root = jdtls_root
+            self.jdtls_root: Optional[Path] = jdtls_root
         else:
             # Get from language config_extra
             jdtls_root_str = language.config_extra.get("jdtls_root")
@@ -64,7 +64,7 @@ class JavaClient(LSPClient):
         # Track import status
         self.import_complete = False
         self.import_errors: List[str] = []
-        self.java_home = None  # Will be detected in start()
+        self.java_home: Optional[Path] = None  # Will be detected in start()
 
     def start(self):
         """Start the JDTLS server with proper command construction."""
@@ -166,13 +166,13 @@ class JavaClient(LSPClient):
         """
         # Detect available JDKs for multi-version support
         jdks = detect_java_installations()
-        runtimes = []
+        runtimes: List[Dict[str, str | bool]] = []
 
         for jdk in jdks[:5]:  # Limit to 5 most recent
             java_cmd = jdk / "bin" / "java"
             version = get_java_version(str(java_cmd))
             if version > 0:
-                runtime_entry = {
+                runtime_entry: Dict[str, str | bool] = {
                     "name": f"JavaSE-{version}",
                     "path": str(jdk),
                 }

@@ -93,6 +93,7 @@ class TestJavaClient(unittest.TestCase):
 
         # Should have created workspace directory
         self.assertIsNotNone(client.workspace_dir)
+        assert client.workspace_dir is not None  # Type narrowing for mypy
         self.assertTrue(client.workspace_dir.exists())
 
         # Should have found Java

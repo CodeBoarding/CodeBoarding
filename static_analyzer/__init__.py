@@ -25,8 +25,8 @@ def create_clients(
         try:
             if pl.language.lower() in ["typescript"]:
                 # For TypeScript, scan for multiple project configurations (mono-repo support)
-                config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
-                typescript_projects = config_scanner.find_typescript_projects()
+                ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
+                typescript_projects = ts_config_scanner.find_typescript_projects()
 
                 if typescript_projects:
                     # Create a separate client for each TypeScript project found
@@ -45,8 +45,8 @@ def create_clients(
                     )
             elif pl.language.lower() == "java":
                 # For Java, scan for multiple project configurations (Maven, Gradle, etc.)
-                config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
-                java_projects = config_scanner.scan()
+                java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
+                java_projects = java_config_scanner.scan()
 
                 if java_projects:
                     # Create a separate client for each Java project found
