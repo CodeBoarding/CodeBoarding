@@ -26,6 +26,7 @@ class TestJavaClient(unittest.TestCase):
         self.mock_language.get_server_parameters.return_value = ["java", "-jar", "jdtls.jar"]
         self.mock_language.get_suffix_pattern.return_value = ["*.java"]
         self.mock_language.get_language_id.return_value = "java"
+        self.mock_language.config_extra = {}
 
         # Create mock ignore manager
         self.mock_ignore_manager = Mock(spec=RepoIgnoreManager)
