@@ -12,6 +12,10 @@ from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 class ConcreteReferenceResolver(ReferenceResolverMixin):
     """Concrete implementation for testing the mixin"""
 
+    def __init__(self, repo_dir, static_analysis):
+        super().__init__(repo_dir, static_analysis)
+        self.mock_parse_invoke = Mock()
+
     def _parse_invoke(self, prompt, type):
         """Implementation of abstract method for testing"""
         return self.mock_parse_invoke(prompt, type)
@@ -37,7 +41,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         # Create resolver instance
         self.resolver = ConcreteReferenceResolver(repo_dir=self.repo_dir, static_analysis=self.mock_static_analysis)
-        self.resolver.mock_parse_invoke = Mock()
 
     def tearDown(self):
         # Clean up
@@ -61,7 +64,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             description="Test",
             referenced_source_code=[reference],
             assigned_files=["test.py"],
-            can_expand=False,
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -177,6 +179,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.assertTrue(result)
         # Should find via the file_ref pattern
         self.assertIsNotNone(reference.reference_file)
+        assert reference.reference_file is not None
         self.assertTrue(reference.reference_file.endswith("module.file"))
 
     def test_try_qualified_name_as_path_full_path_match(self):
@@ -197,6 +200,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.assertTrue(result)
         # Should find the directory path
         self.assertIsNotNone(reference.reference_file)
+        assert reference.reference_file is not None
         self.assertTrue(reference.reference_file.endswith("nested/deep/module"))
 
     def test_llm_resolution_with_relative_path(self):
@@ -233,6 +237,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.resolver._try_llm_resolution(reference, "unique_test", ["unique_test.py"])
 
         # Should find the file recursively and convert to absolute path
+        assert reference.reference_file is not None
         self.assertTrue(reference.reference_file.endswith("unique_test.py"))
         self.assertTrue(os.path.isabs(reference.reference_file))
         self.assertTrue(os.path.exists(reference.reference_file))
@@ -280,7 +285,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             description="Test",
             referenced_source_code=[reference],
             assigned_files=["test.py"],
-            can_expand=False,
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -305,7 +309,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             description="Test",
             referenced_source_code=[reference],
             assigned_files=[],
-            can_expand=False,
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -354,7 +357,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             description="Test",
             referenced_source_code=[reference],
             assigned_files=["test.py"],
-            can_expand=False,
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
