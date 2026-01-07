@@ -62,12 +62,12 @@
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../output_generators/__init__.py",
-        "../../output_generators/sphinx.py",
-        "../../output_generators/mdx.py",
-        "../../output_generators/html.py",
-        "../../output_generators/html_template.py",
-        "../../output_generators/markdown.py"
+        "output_generators/__init__.py",
+        "output_generators/sphinx.py",
+        "output_generators/mdx.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py"
       ],
       "can_expand": false
     }

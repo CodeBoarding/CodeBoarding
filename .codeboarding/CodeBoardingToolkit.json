@@ -13,7 +13,7 @@
         }
       ],
       "assigned_files": [
-        "../../agents/agent.py"
+        "agents/agent.py"
       ],
       "can_expand": true
     },
@@ -30,18 +30,18 @@
       ],
       "assigned_files": [
         "agents/tools/toolkit.py",
-        "../../agents/tools/read_source.py",
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/__init__.py",
-        "../../agents/tools/external_deps.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
         "agents/tools/base.py",
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_cfg.py",
-        "../../agents/tools/get_method_invocations.py",
-        "../../agents/tools/read_git_diff.py",
-        "../../agents/tools/read_file.py",
-        "../../agents/tools/read_structure.py",
-        "../../agents/tools/read_docs.py"
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py"
       ],
       "can_expand": true
     },

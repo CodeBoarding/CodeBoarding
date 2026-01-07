@@ -65,12 +65,21 @@ class ValidatorAgent(LargeModelAgent):
                         f"Retry finding the proper source code reference via `getSourceCode` tool or if it is a file reference validate with `readFile`."
                     )
                     continue
+
+                # Normalize reference file to absolute path for comparison
+                # (references may be relative after _relative_paths() conversion)
+                ref_file_abs = (
+                    ref.reference_file
+                    if os.path.isabs(ref.reference_file)
+                    else os.path.join(self.repo_dir, ref.reference_file)
+                )
+
                 # Now validate the actual reference
                 no_code_reference = True
                 for lang in self.static_analysis.get_languages():
                     try:
                         node = self.static_analysis.get_reference(lang, ref.qualified_name)
-                        if node.file_path != ref.reference_file:
+                        if node.file_path != ref_file_abs:
                             info.append(
                                 f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "
                                 f"Expected: '{node.file_path}' (Lines: {node.line_start, node.line_end}), but found: '{ref.reference_file}' (Lines: {ref.reference_start_line, ref.reference_end_line}). "
@@ -82,7 +91,7 @@ class ValidatorAgent(LargeModelAgent):
                     except ValueError:
                         continue
                     except FileExistsError:
-                        if os.path.exists(ref.reference_file):
+                        if os.path.exists(ref_file_abs):
                             no_code_reference = False
                             break
                 if no_code_reference:  # check if it is a file reference
@@ -93,7 +102,7 @@ class ValidatorAgent(LargeModelAgent):
                     paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
                     for path in paths:
                         if os.path.exists(path):
-                            if ref.reference_file != path and (not ref.reference_file.startswith(path)):
+                            if ref_file_abs != path and (not ref_file_abs.startswith(path)):
                                 info.append(
                                     f"Component {component.name} has an incorrect reference: '{ref.llm_str()}'. "
                                     f"Expected: '{path}', but found: '{ref.reference_file}'. "
@@ -101,7 +110,7 @@ class ValidatorAgent(LargeModelAgent):
                                 )
                             else:
                                 break
-                if not os.path.exists(ref.reference_file):
+                if not os.path.exists(ref_file_abs):
                     info.append(
                         f"Component {component.name} has {ref.qualified_name} as an incorrect reference: '{ref.llm_str()}'. "
                         f"{ref.qualified_name} is INCORRECT reference, there is no such module or function/class/method in the project. Please reconsider by using `getSourceCode` tool to find the correct reference or validate with `readFile` tool if it is a file reference."

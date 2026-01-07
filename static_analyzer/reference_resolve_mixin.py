@@ -137,6 +137,24 @@ class ReferenceResolverMixin(abc.ABC):
             reference.reference_start_line = file_assignment.start_line
             reference.reference_end_line = file_assignment.end_line
 
+            # Normalize the path if it's not absolute and doesn't exist
+            if reference.reference_file and not os.path.isabs(reference.reference_file):
+                # Try as relative path from repo root
+                abs_path = os.path.join(self.repo_dir, reference.reference_file)
+                if os.path.exists(abs_path):
+                    reference.reference_file = abs_path
+                else:
+                    # File might be just a filename - search for it recursively
+                    from pathlib import Path
+
+                    matches = list(Path(self.repo_dir).rglob(os.path.basename(reference.reference_file)))
+                    if matches:
+                        # Use the first match (convert to absolute path)
+                        reference.reference_file = str(matches[0])
+                        logger.info(
+                            f"[Reference Resolution] Found file '{os.path.basename(reference.reference_file)}' at {reference.reference_file}"
+                        )
+
             if reference.reference_file is None:
                 logger.error(
                     f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language."
