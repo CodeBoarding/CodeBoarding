@@ -323,6 +323,110 @@ class TestValidatorAgent(unittest.TestCase):
         # Should be valid because file exists
         self.assertTrue(result.is_valid)
 
+    @patch("os.path.exists")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_relative_path_comparison(self, mock_static_init, mock_exists):
+        """Test that validator correctly compares relative reference paths with absolute static analysis paths"""
+        mock_static_init.return_value = (MagicMock(), "test-model")
+        agent = ValidatorAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+        )
+
+        # Reference has relative path (as converted by _relative_paths())
+        ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file="test.py",  # Relative path
+            reference_start_line=1,
+            reference_end_line=10,
+        )
+
+        component = Component(
+            name="TestComponent",
+            description="Test component",
+            referenced_source_code=[ref],
+        )
+
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[component],
+            components_relations=[],
+        )
+
+        # Static analysis returns absolute path
+        mock_node = MagicMock()
+        mock_node.file_path = str(self.repo_dir / "test.py")  # Absolute path
+        mock_node.line_start = 1
+        mock_node.line_end = 10
+        mock_node.qualified_name = "test.TestClass"
+
+        self.mock_static_analysis.get_languages.return_value = ["python"]
+        self.mock_static_analysis.get_reference.return_value = mock_node
+        self.mock_static_analysis.get_reference.side_effect = None
+
+        # Mock exists to return True for the absolute path
+        mock_exists.side_effect = lambda path: str(path) == str(self.repo_dir / "test.py")
+
+        result = agent.validate_references(analysis)
+
+        # Should be valid because paths match after normalization
+        self.assertIsInstance(result, ValidationInsights)
+        self.assertTrue(result.is_valid)
+
+    @patch("os.path.exists")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_incorrect_path_after_normalization(self, mock_static_init, mock_exists):
+        """Test that validator detects incorrect paths even with relative/absolute path mismatches"""
+        mock_static_init.return_value = (MagicMock(), "test-model")
+        agent = ValidatorAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+        )
+
+        # Reference has relative path pointing to wrong file
+        ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file="wrong.py",  # Wrong relative path
+            reference_start_line=1,
+            reference_end_line=10,
+        )
+
+        component = Component(
+            name="TestComponent",
+            description="Test component",
+            referenced_source_code=[ref],
+        )
+
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[component],
+            components_relations=[],
+        )
+
+        # Static analysis returns absolute path to correct file
+        mock_node = MagicMock()
+        mock_node.file_path = str(self.repo_dir / "test.py")  # Absolute path to correct file
+        mock_node.line_start = 1
+        mock_node.line_end = 10
+        mock_node.qualified_name = "test.TestClass"
+
+        self.mock_static_analysis.get_languages.return_value = ["python"]
+        self.mock_static_analysis.get_reference.return_value = mock_node
+        self.mock_static_analysis.get_reference.side_effect = None
+
+        # Mock exists
+        mock_exists.side_effect = lambda path: str(path) in [
+            str(self.repo_dir / "test.py"),
+            str(self.repo_dir / "wrong.py"),
+        ]
+
+        result = agent.validate_references(analysis)
+
+        # Should be invalid because paths don't match (wrong.py != test.py)
+        self.assertIsInstance(result, ValidationInsights)
+        self.assertFalse(result.is_valid)
+        self.assertIn("incorrect source references", result.additional_info)
+
 
 if __name__ == "__main__":
     unittest.main()
