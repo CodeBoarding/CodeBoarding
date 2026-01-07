@@ -222,8 +222,9 @@ class TestValidatorAgent(unittest.TestCase):
         )
 
         # Mock get_reference to return a node
+        # Note: Static analysis returns absolute paths, while references may be relative after _relative_paths()
         mock_node = MagicMock()
-        mock_node.file_path = "test.py"
+        mock_node.file_path = str(self.repo_dir / "test.py")  # Absolute path as returned by static analysis
         mock_node.line_start = 1
         mock_node.line_end = 10
         mock_node.qualified_name = "test.TestClass"
