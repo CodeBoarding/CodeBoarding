@@ -436,11 +436,17 @@ class LSPClient:
                 for future in as_completed(future_to_file):
                     file_path = future_to_file[future]
                     try:
-                        result = future.result()
+                        # Add timeout to prevent infinite blocking if worker thread hangs
+                        # 5 minutes should be more than enough for any single file
+                        result = future.result(timeout=300)
                         if result.error:
                             logger.error(f"Error processing {file_path}: {result.error}")
                         else:
                             successful_results.append(result)
+                    except TimeoutError:
+                        logger.error(
+                            f"Timeout (300s) processing {file_path} - worker thread may be hung on LSP request"
+                        )
                     except Exception as e:
                         logger.error(f"Exception processing {file_path}: {e}")
                     finally:
