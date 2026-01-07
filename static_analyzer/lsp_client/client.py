@@ -159,6 +159,8 @@ class LSPClient:
                 else:  # It's a notification from the server
                     with self._lock:
                         self._notifications.append(response)
+                    # Process notification immediately
+                    self._handle_notification(response)
 
             except (IOError, ValueError) as e:
                 if not self._shutdown_flag.is_set():
@@ -174,6 +176,23 @@ class LSPClient:
                     return self._responses.pop(message_id)
             time.sleep(0.01)
         raise TimeoutError(f"Timed out waiting for response to message {message_id}, after {timeout} seconds.")
+
+    def _handle_notification(self, notification: dict):
+        """
+        Process a notification from the LSP server.
+
+        Subclasses can override handle_notification() to process specific notifications.
+        This method extracts the method and params and calls the subclass handler if available.
+        """
+        method = notification.get("method", "")
+        params = notification.get("params", {})
+
+        # Call subclass handler if it exists
+        if hasattr(self, "handle_notification"):
+            try:
+                self.handle_notification(method, params)
+            except Exception as e:
+                logger.debug(f"Error in notification handler for {method}: {e}")
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
@@ -417,11 +436,17 @@ class LSPClient:
                 for future in as_completed(future_to_file):
                     file_path = future_to_file[future]
                     try:
-                        result = future.result()
+                        # Add timeout to prevent infinite blocking if worker thread hangs
+                        # 5 minutes should be more than enough for any single file
+                        result = future.result(timeout=300)
                         if result.error:
                             logger.error(f"Error processing {file_path}: {result.error}")
                         else:
                             successful_results.append(result)
+                    except TimeoutError:
+                        logger.error(
+                            f"Timeout (300s) processing {file_path} - worker thread may be hung on LSP request"
+                        )
                     except Exception as e:
                         logger.error(f"Exception processing {file_path}: {e}")
                     finally:

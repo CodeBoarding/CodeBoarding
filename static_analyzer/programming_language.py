@@ -13,6 +13,7 @@ class ProgrammingLanguage:
         suffixes: list[str],
         server_commands: list[str] | None = None,
         lsp_server_key: str | None = None,
+        config_extra: dict | None = None,
     ):
         self.language = language
         self.size = size
@@ -21,6 +22,8 @@ class ProgrammingLanguage:
         self.server_commands = server_commands
         # group related languages (e.g., JS, TSX, JSX -> typescript) to the same language server
         self.lsp_server_key = lsp_server_key or language.lower()
+        # Store extra config like jdtls_root for Java
+        self.config_extra = config_extra or {}
 
     def get_suffix_pattern(self) -> list[str]:
         """Generate and return pattern for the file suffixes, to use in .rglob(pattern)"""
@@ -101,11 +104,18 @@ class ProgrammingLanguageBuilder:
 
         server_commands: list | None = None
         config_suffixes: Set[str] = set()
+        config_extra: dict = {}
 
         if lsp_server_key and lsp_server_key in self.lsp_configs:
             config = self.lsp_configs[lsp_server_key]
             server_commands = config.get("command")
             config_suffixes = set(config.get("file_extensions", []))
+
+            # Extract extra config (e.g., jdtls_root for Java)
+            extra_keys = ["jdtls_root"]
+            for key in extra_keys:
+                if key in config:
+                    config_extra[key] = config[key]
 
         # Merge suffixes from tokei and config
         all_suffixes = file_suffixes | config_suffixes
@@ -117,6 +127,7 @@ class ProgrammingLanguageBuilder:
             suffixes=list(all_suffixes),
             server_commands=server_commands,
             lsp_server_key=lsp_server_key,
+            config_extra=config_extra,
         )
 
     def get_supported_extensions(self) -> Set[str]:

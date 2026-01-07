@@ -41,6 +41,15 @@ def update_command_paths(bin_dir):
                     or find_runnable(bin_dir, "intelephense", "node_modules")
                     or cmd[0]
                 )
+            elif key == "java":
+                # Find JDTLS root directory
+                jdtls_dir = os.path.join(bin_dir, "jdtls")
+                if os.path.exists(jdtls_dir):
+                    # Store the JDTLS root path for JavaClient to use
+                    # The actual command will be constructed dynamically in JavaClient
+                    value["jdtls_root"] = jdtls_dir
+                    # Keep command as "java" - it will be constructed by JavaClient
+                    cmd[0] = "java"
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -91,6 +100,13 @@ VSCODE_CONFIG = {
             "languages": ["php"],
             "file_extensions": [".php"],
             "install_commands": "npm install intelephense",
+        },
+        "java": {
+            "name": "Eclipse JDT Language Server",
+            "command": ["java"],  # Placeholder - will be resolved by update_command_paths()
+            "languages": ["java"],
+            "file_extensions": [".java"],
+            "install_commands": "null",
         },
     },
     "tools": {

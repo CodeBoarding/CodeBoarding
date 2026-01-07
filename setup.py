@@ -156,6 +156,56 @@ def download_file_from_gdrive(file_id, destination):
     return response.status_code == 200
 
 
+def download_jdtls():
+    """Download and extract JDTLS from Eclipse."""
+    print("Step: JDTLS download started")
+
+    import requests
+    import tarfile
+
+    servers_dir = Path("static_analyzer/servers")
+    jdtls_dir = servers_dir / "jdtls"
+
+    # Use a stable milestone version of JDTLS
+    # This URL points to a recent stable release
+    jdtls_url = "https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz"
+    jdtls_archive = servers_dir / "jdtls.tar.gz"
+
+    try:
+        # Download JDTLS if not already present
+        if not jdtls_dir.exists():
+            print("  Downloading JDTLS from Eclipse...")
+            response = requests.get(jdtls_url, stream=True, timeout=300)
+            response.raise_for_status()
+
+            with open(jdtls_archive, "wb") as f:
+                for chunk in response.iter_content(chunk_size=32768):
+                    if chunk:
+                        f.write(chunk)
+
+            print("  Extracting JDTLS...")
+            jdtls_dir.mkdir(parents=True, exist_ok=True)
+
+            with tarfile.open(jdtls_archive, "r:gz") as tar:
+                tar.extractall(path=jdtls_dir)
+
+            # Clean up archive
+            jdtls_archive.unlink()
+
+            print("Step: JDTLS download finished: success")
+        else:
+            print("Step: JDTLS download finished: already exists")
+
+        return True
+
+    except Exception as e:
+        print(f"Step: JDTLS download finished: failure - {e}")
+        print("  You can manually download JDTLS from:")
+        print("  https://download.eclipse.org/jdtls/milestones/")
+        print("  and extract to static_analyzer/servers/jdtls/")
+        return False
+
+
 def download_binary_from_gdrive():
     """Download binaries from Google Drive."""
     print("Step: Binary download started")
@@ -256,6 +306,7 @@ def update_static_analysis_config():
         ("intelephense", True, [("lsp_servers", "php")]),
         ("gopls", False, [("lsp_servers", "go")]),
         ("tokei", False, [("tools", "tokei")]),
+        # Java is handled differently as it isn't an executable
     ]
 
     for binary, is_node, targets in server_definitions:
@@ -277,6 +328,12 @@ def update_static_analysis_config():
 
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
+
+    # Update JDTLS configuration
+    jdtls_dir = servers_dir / "jdtls"
+    if jdtls_dir.exists() and "lsp_servers" in config and "java" in config["lsp_servers"]:
+        config["lsp_servers"]["java"]["jdtls_root"] = str(jdtls_dir)
+        updates += 1
 
     # Write the updated configuration back to file
     with open(config_path, "w") as f:
@@ -434,10 +491,13 @@ if __name__ == "__main__":
     # Step 3: Download binary from Google Drive
     download_binary_from_gdrive()
 
-    # Step 4: Update configuration file with absolute paths
+    # Step 4: Download JDTLS for Java support
+    download_jdtls()
+
+    # Step 5: Update configuration file with absolute paths
     update_static_analysis_config()
 
-    # Step 5: Initialize .env file
+    # Step 6: Initialize .env file
     init_dot_env_file()
 
     # Step 6: Install pre-commit hooks
