@@ -65,6 +65,7 @@ class JavaClient(LSPClient):
         self.import_complete = False
         self.import_errors: List[str] = []
         self.java_home: Optional[Path] = None  # Will be detected in start()
+        self.workspace_indexed = False  # Track if workspace symbols are available
 
     def start(self):
         """Start the JDTLS server with proper command construction."""
@@ -277,27 +278,101 @@ class JavaClient(LSPClient):
         # Validate project loaded
         self._validate_project_loaded()
 
-    def _validate_project_loaded(self):
-        """Verify project loaded successfully."""
-        try:
-            # Test workspace/symbol request
-            params = {"query": ""}
-            req_id = self._send_request("workspace/symbol", params)
-            response = self._wait_for_response(req_id)
+    def _validate_project_loaded(self, max_wait: int = 60):
+        """
+        Verify project loaded successfully by polling workspace symbols.
 
-            if "error" in response:
-                logger.warning(f"Project validation failed: {response['error']}")
-                return
+        JDTLS may take additional time after import to index the workspace.
+        This method polls workspace/symbol until symbols are available or timeout.
 
-            symbols = response.get("result", [])
+        Args:
+            max_wait: Maximum time to wait for symbols in seconds (default: 60s)
+        """
+        logger.info("Validating project is fully indexed...")
+        start = time.time()
+        last_log = start
 
-            if not symbols:
-                logger.warning("No workspace symbols found - project may not be fully loaded")
-            else:
-                logger.info(f"Project loaded successfully ({len(symbols)} symbols indexed)")
+        while time.time() - start < max_wait:
+            try:
+                # Test workspace/symbol request
+                params = {"query": ""}
+                req_id = self._send_request("workspace/symbol", params)
+                response = self._wait_for_response(req_id, timeout=10)
 
-        except Exception as e:
-            logger.warning(f"Project validation failed: {e}")
+                if "error" in response:
+                    logger.debug(f"workspace/symbol error: {response['error']}")
+                    time.sleep(2)
+                    continue
+
+                symbols = response.get("result", [])
+
+                if symbols:
+                    self.workspace_indexed = True
+                    logger.info(f"Project loaded and indexed successfully ({len(symbols)} symbols available)")
+                    return True
+
+                # Log progress every 10 seconds
+                elapsed = time.time() - start
+                if time.time() - last_log >= 10:
+                    logger.info(f"Waiting for workspace indexing... ({int(elapsed)}s elapsed)")
+                    last_log = time.time()
+
+                time.sleep(2)
+
+            except Exception as e:
+                logger.debug(f"Error checking workspace symbols: {e}")
+                time.sleep(2)
+
+        # Timeout reached
+        logger.warning(
+            f"No workspace symbols found after {max_wait}s - project may not be fully indexed. "
+            "Continuing with file-by-file analysis."
+        )
+        return False
+
+    def _get_all_classes_in_workspace(self) -> list:
+        """
+        Get all class symbols in workspace with retry for JDTLS.
+
+        If workspace isn't indexed yet, retry for up to 30 seconds.
+        """
+        # If we know workspace is indexed, use base implementation
+        if self.workspace_indexed:
+            return super()._get_all_classes_in_workspace()
+
+        # Otherwise, retry for a short time
+        logger.info("Workspace symbols not yet available, retrying...")
+        max_wait = 30
+        start = time.time()
+
+        while time.time() - start < max_wait:
+            try:
+                params = {"query": ""}
+                req_id = self._send_request("workspace/symbol", params)
+                response = self._wait_for_response(req_id, timeout=10)
+
+                if "error" in response:
+                    logger.debug(f"workspace/symbol error: {response['error']}")
+                    time.sleep(2)
+                    continue
+
+                symbols = response.get("result", [])
+                if symbols:
+                    self.workspace_indexed = True
+                    # Filter for class symbols (kind 5)
+                    classes = [s for s in symbols if s.get("kind") == 5]
+                    logger.info(f"Found {len(classes)} class symbols via workspace/symbol")
+                    return classes
+
+                time.sleep(2)
+
+            except Exception as e:
+                logger.debug(f"Error getting workspace symbols: {e}")
+                time.sleep(2)
+
+        # Timeout - return empty list and let file-by-file analysis handle it
+        logger.warning("Workspace symbols still not available after retry. Proceeding with file-by-file analysis.")
+        return []
 
     def handle_notification(self, method: str, params: dict):
         """
@@ -307,16 +382,40 @@ class JavaClient(LSPClient):
         """
         # Track language/status notifications for import progress
         if method == "language/status":
-            if params.get("type") == "Started":
-                logger.debug("JDTLS: Project import started")
-            elif params.get("type") == "ProjectStatus" and params.get("message") == "OK":
-                self.import_complete = True
-                logger.debug("JDTLS: Project import complete")
+            status_type = params.get("type", "")
+            message = params.get("message", "")
 
-        # Track progress notifications
+            logger.debug(f"JDTLS status: type={status_type}, message={message}")
+
+            if status_type == "Started":
+                logger.debug("JDTLS: Project import started")
+            elif status_type == "ProjectStatus":
+                # ProjectStatus with "OK" means import is complete
+                if message == "OK":
+                    self.import_complete = True
+                    logger.info("JDTLS: Project import complete (ProjectStatus OK)")
+            elif status_type == "ServiceReady":
+                # ServiceReady can also indicate readiness
+                self.import_complete = True
+                logger.info("JDTLS: Service ready")
+
+        # Track progress notifications - these show build/import progress
         elif method == "$/progress":
-            if "message" in params:
-                logger.debug(f"JDTLS: {params['message']}")
+            value = params.get("value", {})
+            if isinstance(value, dict):
+                kind = value.get("kind", "")
+                message = value.get("message", "")
+                if message:
+                    logger.debug(f"JDTLS progress: {message}")
+                # "end" kind often signals completion
+                if kind == "end" and "import" in message.lower():
+                    logger.debug(f"JDTLS: Import progress completed - {message}")
+
+        # Alternative: language/progressReport (Maven/Gradle specific)
+        elif method == "language/progressReport":
+            status = params.get("complete", False)
+            if status:
+                logger.debug("JDTLS: Build/import progress report complete")
 
         # Track diagnostics for import errors
         elif method == "textDocument/publishDiagnostics":

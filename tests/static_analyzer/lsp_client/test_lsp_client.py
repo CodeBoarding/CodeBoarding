@@ -1715,6 +1715,51 @@ def main():
         # Should handle exception and continue
         self.assertIsNone(result.error)
 
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_handle_notification_base_method(self, mock_popen):
+        """Test base _handle_notification method."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Test notification without handler - should not crash
+        notification = {"method": "window/logMessage", "params": {"message": "Test log"}}
+        client._handle_notification(notification)  # Should not raise
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_handle_notification_calls_subclass_handler(self, mock_popen):
+        """Test that _handle_notification calls subclass handler if available."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Add a mock handler to the client
+        client.handle_notification = Mock()
+
+        # Test notification
+        notification = {"method": "textDocument/publishDiagnostics", "params": {"diagnostics": []}}
+        client._handle_notification(notification)
+
+        # Should call the handler
+        client.handle_notification.assert_called_once_with("textDocument/publishDiagnostics", {"diagnostics": []})
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_handle_notification_handles_handler_exception(self, mock_popen):
+        """Test that _handle_notification handles exceptions in subclass handler."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Add a handler that raises an exception
+        client.handle_notification = Mock(side_effect=Exception("Handler error"))
+
+        # Test notification - should not propagate exception
+        notification = {"method": "test/notification", "params": {}}
+        client._handle_notification(notification)  # Should not raise
+
 
 if __name__ == "__main__":
     unittest.main()
