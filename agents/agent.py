@@ -106,7 +106,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         """Shared access to the small model for parsing tasks."""
         if cls._parsing_llm is None:
 
-            parsing_model = os.getenv("PARSING_MODEL", None) or os.getenv("CODEBOARDING_MODEL")
+            parsing_model = os.getenv("PARSING_MODEL", None)
             cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
         return cls._parsing_llm
 
