@@ -1,150 +1,107 @@
 {
-  "description": "The Output Generation Engine subsystem is responsible for converting interpreted architectural results into a variety of documentation formats. It acts as a central dispatcher, receiving processed data from an external Orchestration Engine and routing it to specialized generators for HTML, Markdown, MDX, and Sphinx formats. The generated documentation is then delivered to an external API Service. Within the subsystem, the HTML Generator leverages an HTML Template Processor to ensure consistent and structured HTML output. This design promotes modularity, allowing for easy extension with new output formats and maintaining a clear separation of concerns between content generation and formatting.",
+  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
   "components": [
     {
-      "name": "Output Generation Engine",
-      "description": "The primary entry point for the subsystem, coordinating the selection and execution of specific format generators based on the desired output type. It receives processed insights and dispatches them to the appropriate internal generator.",
+      "name": "Query Processor",
+      "description": "Handles incoming user queries and prepares them for further processing.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators",
-          "reference_file": "output_generators/__init__.py",
+          "qualified_name": "QueryHandler.process",
+          "reference_file": "query_handler.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/__init__.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "HTML Generator",
-      "description": "Responsible for transforming architectural insights into well-structured HTML documentation. It leverages templates for consistent presentation.",
+      "name": "Information Retriever",
+      "description": "Fetches relevant information based on the processed query from a knowledge base.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html",
-          "reference_file": "output_generators/html.py",
+          "qualified_name": "KnowledgeBase.retrieve",
+          "reference_file": "knowledge_base.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/html.py"
-      ],
+      "assigned_files": [],
       "can_expand": true
     },
     {
-      "name": "HTML Template Processor",
-      "description": "Manages and applies HTML templates to the data provided by the HTML Generator, ensuring consistent styling and structure across HTML outputs.",
+      "name": "Response Generator",
+      "description": "Utilizes a language model to generate a natural language response.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.html_template",
-          "reference_file": "output_generators/html_template.py",
+          "qualified_name": "LanguageModel.generate_response",
+          "reference_file": "language_model.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "../../output_generators/html_template.py"
-      ],
-      "can_expand": true
-    },
-    {
-      "name": "Markdown Generator",
-      "description": "Converts architectural insights into standard Markdown format, suitable for various platforms and easy readability.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.markdown",
-          "reference_file": "output_generators/markdown.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/markdown.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
-      "name": "MDX Generator",
-      "description": "Generates documentation in MDX format, combining Markdown with JSX for interactive and dynamic content.",
+      "name": "History Logger",
+      "description": "Stores the user query and the generated response for future reference.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators.mdx",
-          "reference_file": "output_generators/mdx.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "InteractionLogger.log",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": 16,
+          "reference_end_line": 166
         }
       ],
-      "assigned_files": [
-        "../../output_generators/mdx.py"
-      ],
-      "can_expand": false
-    },
-    {
-      "name": "Sphinx Generator",
-      "description": "Produces documentation compatible with the Sphinx documentation generator, often used for Python projects.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "output_generators.sphinx",
-          "reference_file": "output_generators/sphinx.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "../../output_generators/sphinx.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../output_generators/__init__.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
+      ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "sends interpreted results to",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Output Generation Engine"
+      "relation": "sends query to",
+      "src_name": "Query Processor",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "HTML Generator"
+      "relation": "sends info to",
+      "src_name": "Information Retriever",
+      "dst_name": "Response Generator"
     },
     {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Markdown Generator"
+      "relation": "sends response to",
+      "src_name": "Response Generator",
+      "dst_name": "History Logger"
     },
     {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "MDX Generator"
+      "relation": "receives query from",
+      "src_name": "Information Retriever",
+      "dst_name": "Query Processor"
     },
     {
-      "relation": "dispatches data to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "Sphinx Generator"
+      "relation": "receives info from",
+      "src_name": "Response Generator",
+      "dst_name": "Information Retriever"
     },
     {
-      "relation": "delivers formatted documentation to",
-      "src_name": "Output Generation Engine",
-      "dst_name": "API Service"
-    },
-    {
-      "relation": "utilizes",
-      "src_name": "HTML Generator",
-      "dst_name": "HTML Template Processor"
-    },
-    {
-      "relation": "provides templating services to",
-      "src_name": "HTML Template Processor",
-      "dst_name": "HTML Generator"
+      "relation": "receives response from",
+      "src_name": "History Logger",
+      "dst_name": "Response Generator"
     }
   ]
 }

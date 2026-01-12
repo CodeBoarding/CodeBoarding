@@ -1,5 +1,5 @@
 {
-  "description": "The Diagram Generation Service subsystem is encapsulated within the diagram_analysis package. Its primary function is to transform structured architectural data into visual diagrams, enhancing comprehension through interactive representations.",
+  "description": "The system's architecture is centered around the `diagram_analysis` subsystem, which comprises `analysis_json` for data preparation and `diagram_generator` for visual output. A newly integrated `agents` component introduces intelligent agent capabilities, exhibiting a strong, bidirectional interaction with the `diagram_analysis` components. The `analysis_json` component processes raw architectural data into a structured format, which is then consumed by the `diagram_generator` to create visual representations. The `agents` component, responsible for agent behavior and orchestration, either provides input to the diagram generation process or leverages the diagram analysis for its operations, indicating a tightly coupled relationship for enhanced system understanding and control.",
   "components": [
     {
       "name": "diagram_analysis.analysis_json",
@@ -13,13 +13,14 @@
         }
       ],
       "assigned_files": [
+        "../../diagram_analysis/__init__.py",
         "../../diagram_analysis/analysis_json.py"
       ],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "diagram_analysis.diagram_generator",
-      "description": "This is the core engine of the subsystem, tasked with taking the structured architectural data (prepared by analysis_json) and transforming it into a visual diagram format. It likely leverages external tools like Mermaid.js for rendering the visual output.",
+      "description": "This is the core engine of the subsystem, tasked with taking the structured architectural data (prepared by `analysis_json`) and transforming it into a visual diagram format. It likely leverages external tools like Mermaid.js for rendering the visual output. It also interacts with the `agents` component, potentially to visualize agent-related information or to be driven by agent decisions.",
       "referenced_source_code": [
         {
           "qualified_name": "diagram_analysis.diagram_generator",
@@ -34,13 +35,40 @@
       "can_expand": true
     },
     {
+      "name": "agents",
+      "description": "This component encapsulates the core logic for various agents within the system. It defines agent behavior, manages their state, and orchestrates their interactions. It leverages `langchain_core` for foundational AI functionalities and interacts with `diagram_analysis` for visualization or analysis purposes, potentially providing data to or receiving instructions from the diagram generation process.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "This component serves as a placeholder for all unclassified files, utility functions, and external libraries/dependencies that support the primary components but are not central to the core architectural flow.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "unclassified.code",
+          "reference_file": "<file_path>",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": false
+    },
+    {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/version.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
@@ -54,6 +82,16 @@
       "relation": "consumes data from",
       "src_name": "diagram_analysis.diagram_generator",
       "dst_name": "diagram_analysis.analysis_json"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "diagram_analysis.diagram_generator",
+      "dst_name": "agents"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "agents",
+      "dst_name": "diagram_analysis.diagram_generator"
     }
   ]
 }

@@ -358,8 +358,8 @@ ENABLE_MONITORING=false
 # ============================================================================
 # NOTES
 # ============================================================================
-# 
-# Tip: Our experience has shown that using Google Gemini-2.5-Pro yields 
+#
+# Tip: Our experience has shown that using Google Gemini-2.5-Pro yields
 #         the best results for complex diagram generation tasks.
 #
 # Configuration: After setup, verify paths in static_analysis_config.yml
@@ -378,6 +378,45 @@ ENABLE_MONITORING=false
 
     except Exception as e:
         print(f"Step: .env file creation finished: failure - {e}")
+
+
+def install_pre_commit_hooks():
+    """Install pre-commit hooks for code formatting and linting (optional for contributors)."""
+    pre_commit_config = Path(".pre-commit-config.yaml")
+    if not pre_commit_config.exists():
+        return
+
+    try:
+        # Check if pre-commit is installed (only available with dev dependencies)
+        result = subprocess.run(
+            [sys.executable, "-m", "pre_commit", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            # Pre-commit not installed - this is fine for regular users
+            return
+
+        print("Step: pre-commit hooks installation started")
+
+        # Install pre-commit hooks
+        subprocess.run(
+            [sys.executable, "-m", "pre_commit", "install"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        print("Step: pre-commit hooks installation finished: success")
+
+    except subprocess.CalledProcessError:
+        # Silently skip if installation fails
+        pass
+    except Exception:
+        # Silently skip if any other error occurs
+        pass
 
 
 if __name__ == "__main__":
@@ -400,6 +439,9 @@ if __name__ == "__main__":
 
     # Step 5: Initialize .env file
     init_dot_env_file()
+
+    # Step 6: Install pre-commit hooks
+    install_pre_commit_hooks()
 
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")

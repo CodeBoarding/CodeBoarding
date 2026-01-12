@@ -1,81 +1,58 @@
 ```mermaid
 graph LR
-    Output_Generation_Engine["Output Generation Engine"]
-    HTML_Generator["HTML Generator"]
-    HTML_Template_Processor["HTML Template Processor"]
-    Markdown_Generator["Markdown Generator"]
-    MDX_Generator["MDX Generator"]
-    Sphinx_Generator["Sphinx Generator"]
+    Query_Processor["Query Processor"]
+    Information_Retriever["Information Retriever"]
+    Response_Generator["Response Generator"]
+    History_Logger["History Logger"]
     Unclassified["Unclassified"]
-    Orchestration_Engine -- "sends interpreted results to" --> Output_Generation_Engine
-    Output_Generation_Engine -- "dispatches data to" --> HTML_Generator
-    Output_Generation_Engine -- "dispatches data to" --> Markdown_Generator
-    Output_Generation_Engine -- "dispatches data to" --> MDX_Generator
-    Output_Generation_Engine -- "dispatches data to" --> Sphinx_Generator
-    Output_Generation_Engine -- "delivers formatted documentation to" --> API_Service
-    HTML_Generator -- "utilizes" --> HTML_Template_Processor
-    HTML_Template_Processor -- "provides templating services to" --> HTML_Generator
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    Query_Processor -- "sends query to" --> Information_Retriever
+    Information_Retriever -- "sends info to" --> Response_Generator
+    Response_Generator -- "sends response to" --> History_Logger
+    Information_Retriever -- "receives query from" --> Query_Processor
+    Response_Generator -- "receives info from" --> Information_Retriever
+    History_Logger -- "receives response from" --> Response_Generator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The Output Generation Engine subsystem is responsible for converting interpreted architectural results into a variety of documentation formats. It acts as a central dispatcher, receiving processed data from an external Orchestration Engine and routing it to specialized generators for HTML, Markdown, MDX, and Sphinx formats. The generated documentation is then delivered to an external API Service. Within the subsystem, the HTML Generator leverages an HTML Template Processor to ensure consistent and structured HTML output. This design promotes modularity, allowing for easy extension with new output formats and maintaining a clear separation of concerns between content generation and formatting.
+This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-The primary entry point for the subsystem, coordinating the selection and execution of specific format generators based on the desired output type. It receives processed insights and dispatches them to the appropriate internal generator.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
-
-
-### HTML Generator
-Responsible for transforming architectural insights into well-structured HTML documentation. It leverages templates for consistent presentation.
+### Query Processor
+Handles incoming user queries and prepares them for further processing.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html`</a>
+- `QueryHandler.process`
 
 
-### HTML Template Processor
-Manages and applies HTML templates to the data provided by the HTML Generator, ensuring consistent styling and structure across HTML outputs.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html_template.py" target="_blank" rel="noopener noreferrer">`output_generators.html_template`</a>
-
-
-### Markdown Generator
-Converts architectural insights into standard Markdown format, suitable for various platforms and easy readability.
+### Information Retriever
+Fetches relevant information based on the processed query from a knowledge base.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown`</a>
+- `KnowledgeBase.retrieve`
 
 
-### MDX Generator
-Generates documentation in MDX format, combining Markdown with JSX for interactive and dynamic content.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx`</a>
-
-
-### Sphinx Generator
-Produces documentation compatible with the Sphinx documentation generator, often used for Python projects.
+### Response Generator
+Utilizes a language model to generate a natural language response.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx`</a>
+- `LanguageModel.generate_response`
+
+
+### History Logger
+Stores the user query and the generated response for future reference.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py#L16-L166" target="_blank" rel="noopener noreferrer">`InteractionLogger.log`:16-166</a>
 
 
 ### Unclassified

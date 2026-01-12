@@ -1,24 +1,33 @@
 {
-  "description": "The static analysis subsystem is designed to transform raw source code into structured Control Flow Graphs (CFGs) for subsequent architectural analysis. At its core, the `LSP Client` leverages external Language Servers to acquire comprehensive parsed information, including Abstract Syntax Trees (ASTs) and symbolic references, thereby centralizing complex parsing. This parsed information is then utilized by the `Reference Resolver` to accurately identify and resolve all symbolic connections within the codebase. For the generation of CFGs, the `Graph Builder` critically depends on the ASTs supplied by the `LSP Client` and the resolved references from the `Reference Resolver`. The `Scanner` performs lexical analysis, primarily for configuration files, under the guidance of `Programming Language Support`, which also provides essential language-specific configurations to both the `Scanner` and the `Graph Builder`. All resulting analysis artifacts, including the generated CFGs, are managed and made accessible through the `Analysis Result Handler`. This integrated approach ensures a robust and language-aware pipeline for deep code understanding.",
+  "description": "The system's core functionality revolves around the Agent component, which orchestrates code analysis and interaction. The process begins with the Scanner performing lexical analysis on files, with its scope refined by the RepoIgnoreManager. The LSP Client then provides detailed parsed information, including ASTs, which are used by the Reference Resolver to link symbolic references. Both ASTs and resolved references are fed into the Graph Builder to construct Control Flow Graphs. The Programming Language Support component provides essential language-specific configurations throughout these stages. All generated analysis data is managed by the Analysis Result Handler, which then provides StaticAnalysisResults to the Agent. The Agent utilizes these results, along with a CodeBoardingToolkit (which interacts with the LSP Client, Reference Resolver, and Graph Builder indirectly), and an external LLM to process prompts, perform actions, and generate intelligent responses, effectively driving the code understanding and interaction workflow.",
   "components": [
     {
-      "name": "Scanner",
-      "description": "Performs lexical analysis, breaking down source code into a stream of tokens. It handles language-specific tokenization, with specialized handling for configuration files (e.g., TypeScript).",
+      "name": "Agent",
+      "description": "The `Agent` component, specifically `CodeBoardingAgent`, acts as the central orchestrator. It leverages static analysis results and a toolkit of specialized tools to interact with the codebase, process information using an LLM, and generate responses. It manages the overall workflow, including prompt processing, tool invocation, and response parsing.",
       "referenced_source_code": [
         {
-          "qualified_name": "scanner",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 36,
+          "reference_end_line": 341
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Scanner",
+      "description": "The `Scanner` initiates the process with lexical analysis, potentially on a filtered set of files determined by the `RepoIgnoreManager`.",
+      "referenced_source_code": [
         {
-          "qualified_name": "typescript_config_scanner",
-          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "qualified_name": "Scanner",
+          "reference_file": "static_analyzer/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "../../static_analyzer/__init__.py",
         "../../static_analyzer/scanner.py",
         "../../static_analyzer/typescript_config_scanner.py"
       ],
@@ -26,22 +35,17 @@
     },
     {
       "name": "LSP Client",
-      "description": "Facilitates communication with Language Servers (e.g., TypeScript Language Server) to obtain rich parsed information, including Abstract Syntax Trees (ASTs), symbol tables, and references. This component offloads complex parsing logic to external language services, providing the primary source of ASTs for graph generation.",
+      "description": "The `LSP Client` then provides rich parsed information, including Abstract Syntax Trees (ASTs), by interacting with external Language Servers.",
       "referenced_source_code": [
         {
-          "qualified_name": "client",
+          "qualified_name": "LSPClient",
           "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "typescript_client",
-          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 58,
+          "reference_end_line": 1105
         }
       ],
       "assigned_files": [
+        "../../static_analyzer/lsp_client/__init__.py",
         "../../static_analyzer/lsp_client/typescript_client.py",
         "../../static_analyzer/lsp_client/client.py"
       ],
@@ -49,13 +53,13 @@
     },
     {
       "name": "Reference Resolver",
-      "description": "Resolves symbolic references within the code, utilizing parsed information from the LSP Client to ensure all connections between code elements are correctly identified. This is crucial for accurate graph generation and component identification.",
+      "description": "This parsed data is crucial for the `Reference Resolver` to identify and link symbolic references within the code.",
       "referenced_source_code": [
         {
-          "qualified_name": "reference_resolve_mixin",
+          "qualified_name": "ReferenceResolver",
           "reference_file": "static_analyzer/reference_resolve_mixin.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 15,
+          "reference_end_line": 151
         }
       ],
       "assigned_files": [
@@ -65,11 +69,11 @@
     },
     {
       "name": "Graph Builder",
-      "description": "Generates Control Flow Graphs (CFGs) from the ASTs provided by the LSP Client and the resolved references from the Reference Resolver. This is a critical step in understanding program execution flow and preparing the code for architectural clustering.",
+      "description": "Both the ASTs from the `LSP Client` and the resolved references from the `Reference Resolver` feed into the `Graph Builder`, which constructs Control Flow Graphs (CFGs).",
       "referenced_source_code": [
         {
-          "qualified_name": "graph",
-          "reference_file": "static_analyzer/graph.py",
+          "qualified_name": "GraphBuilder",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -81,11 +85,11 @@
     },
     {
       "name": "Programming Language Support",
-      "description": "Manages language-specific configurations, rules, and utilities, enabling the static analysis engine to support multiple programming languages effectively. It provides the necessary context for tokenization, parsing, and graph generation.",
+      "description": "Throughout this process, the `Programming Language Support` component provides language-specific configurations and rules, ensuring accurate analysis.",
       "referenced_source_code": [
         {
-          "qualified_name": "programming_language",
-          "reference_file": "static_analyzer/programming_language.py",
+          "qualified_name": "ProgrammingLanguageSupport",
+          "reference_file": "ProgrammingLanguageSupport",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -97,11 +101,11 @@
     },
     {
       "name": "Analysis Result Handler",
-      "description": "Defines and manages the data structures used to store the various outputs of the static analysis process, including ASTs, CFGs, and the final clustered component representations. It acts as the interface for consuming analysis results.",
+      "description": "The `Analysis Result Handler` manages and stores the various outputs, such as CFGs and other static analysis results, making them accessible for further processing or consumption.",
       "referenced_source_code": [
         {
-          "qualified_name": "analysis_result",
-          "reference_file": "static_analyzer/analysis_result.py",
+          "qualified_name": "AnalysisResultHandler",
+          "reference_file": "AnalysisResultHandler",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -112,21 +116,82 @@
       "can_expand": true
     },
     {
+      "name": "RepoIgnoreManager",
+      "description": "The `RepoIgnoreManager` handles the logic for ignoring files and directories based on project-specific configurations, influencing the scope of analysis for other components.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": 8,
+          "reference_end_line": 107
+        }
+      ],
+      "assigned_files": [
+        "../../repo_utils/__init__.py",
+        "repo_utils/ignore.py"
+      ],
+      "can_expand": false
+    },
+    {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../static_analyzer/__init__.py",
-        "../../static_analyzer/lsp_client/__init__.py"
+        "../../repo_utils/git_diff.py"
       ],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "provides parsed information to",
-      "src_name": "LSP Client",
+      "relation": "consumes",
+      "src_name": "Agent",
+      "dst_name": "Analysis Result Handler"
+    },
+    {
+      "relation": "utilizes indirectly",
+      "src_name": "Agent",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "utilizes indirectly",
+      "src_name": "Agent",
       "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "utilizes indirectly",
+      "src_name": "Agent",
+      "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "Agent",
+      "dst_name": "External LLM"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Agent",
+      "dst_name": "RepoIgnoreManager"
+    },
+    {
+      "relation": "provides input to",
+      "src_name": "Scanner",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Scanner",
+      "dst_name": "Programming Language Support"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Scanner",
+      "dst_name": "RepoIgnoreManager"
+    },
+    {
+      "relation": "receives input from",
+      "src_name": "LSP Client",
+      "dst_name": "Scanner"
     },
     {
       "relation": "provides ASTs to",
@@ -134,9 +199,39 @@
       "dst_name": "Graph Builder"
     },
     {
+      "relation": "provides parsed information to",
+      "src_name": "LSP Client",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "receives parsed information from",
+      "src_name": "Reference Resolver",
+      "dst_name": "LSP Client"
+    },
+    {
       "relation": "integrates resolved references with",
       "src_name": "Reference Resolver",
       "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "receives ASTs from",
+      "src_name": "Graph Builder",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "receives resolved references from",
+      "src_name": "Graph Builder",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Graph Builder",
+      "dst_name": "Programming Language Support"
+    },
+    {
+      "relation": "provides CFGs to",
+      "src_name": "Graph Builder",
+      "dst_name": "Analysis Result Handler"
     },
     {
       "relation": "provides configurations to",
@@ -147,6 +242,26 @@
       "relation": "provides configurations to",
       "src_name": "Programming Language Support",
       "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "receives CFGs from",
+      "src_name": "Analysis Result Handler",
+      "dst_name": "Graph Builder"
+    },
+    {
+      "relation": "provides StaticAnalysisResults to",
+      "src_name": "Analysis Result Handler",
+      "dst_name": "Agent"
+    },
+    {
+      "relation": "provides file filtering rules to",
+      "src_name": "RepoIgnoreManager",
+      "dst_name": "Scanner"
+    },
+    {
+      "relation": "used by",
+      "src_name": "RepoIgnoreManager",
+      "dst_name": "Agent"
     }
   ]
 }

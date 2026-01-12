@@ -225,7 +225,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(result, "Success")
         # Should have retried
         self.assertEqual(mock_agent_executor.invoke.call_count, 2)
-        mock_sleep.assert_called_with(60)
+        mock_sleep.assert_called_with(30)
 
     @patch("agents.agent.create_react_agent")
     @patch("time.sleep")

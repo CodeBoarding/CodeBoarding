@@ -28,6 +28,16 @@ class RepoIgnoreManager:
         "tests",
     }
 
+    # Build artifacts and minified files that should be ignored
+    DEFAULT_IGNORED_FILE_PATTERNS = [
+        "*.bundle.js",  # Webpack/bundler output
+        "*.bundle.js.map",  # Source maps for bundles
+        "*.min.js",  # Minified JavaScript
+        "*.min.css",  # Minified CSS
+        "*.chunk.js",  # Code-split chunks
+        "*.chunk.js.map",  # Source maps for chunks
+    ]
+
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root.resolve()
         self.reload()
@@ -51,6 +61,10 @@ class RepoIgnoreManager:
         # Always add default ignored directories as patterns
         for d in self.DEFAULT_IGNORED_DIRS:
             patterns.append(f"{d}/\n")
+
+        # Add default ignored file patterns (build artifacts, minified files, etc.)
+        for pattern in self.DEFAULT_IGNORED_FILE_PATTERNS:
+            patterns.append(f"{pattern}\n")
 
         return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 

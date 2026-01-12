@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, List
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
@@ -33,10 +32,10 @@ class PackageRelationsTool(BaseRepoTool):
         "Use only for primary project packages, not for detailed exploration. "
         "Prefer analyzing CFG data before using this tool."
     )
-    args_schema: Optional[ArgsSchema] = PackageInput
+    args_schema: ArgsSchema | None = PackageInput
     return_direct: bool = False
 
-    def _run(self, root_package: str, line: int = 0) -> str:
+    def _run(self, root_package: str) -> str:
         """
         Run the tool with the given input.
         """

@@ -152,18 +152,34 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
-        """Unified agent invocation method."""
+        """Unified agent invocation method with timeout and exponential backoff.
+
+        Uses exponential backoff based on total attempts, with different multipliers
+        for different error types. This ensures backoff increases appropriately even
+        when errors alternate between types.
+        """
         max_retries = 5
-        for _ in range(max_retries):
+
+        for attempt in range(max_retries):
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
                 callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
 
-                response = self.agent.invoke(
-                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                    config={"callbacks": callback_list, "recursion_limit": 40},
+                # Timeout: 5 minutes for first attempt, 10 minutes for retries
+                timeout_seconds = 300 if attempt == 0 else 600
+
+                logger.info(
+                    f"Starting agent.invoke() [attempt {attempt + 1}/{max_retries}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
+                )
+
+                response = self._invoke_with_timeout(
+                    timeout_seconds=timeout_seconds, callback_list=callback_list, prompt=prompt
+                )
+
+                logger.info(
+                    f"Completed agent.invoke() - message count: {len(response['messages'])}, last message type: {type(response['messages'][-1])}"
                 )
 
                 agent_response = response["messages"][-1]
@@ -178,21 +194,92 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                         ]
                     )
 
-            except (ResourceExhausted, Exception) as e:
-                logger.error(f"Resource exhausted, retrying... in 60 seconds: Type({type(e)}) {e}")
-                time.sleep(60)  # Wait before retrying
+            except TimeoutError as e:
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 10s * 2^attempt (10s, 20s, 40s, 80s)
+                    delay = min(10 * (2**attempt), 120)
+                    logger.warning(
+                        f"Agent invocation timed out after {timeout_seconds}s, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Agent invocation timed out after {timeout_seconds}s on final attempt")
+                    raise
+
+            except ResourceExhausted as e:
+                if attempt < max_retries - 1:
+                    # Longer backoff for rate limits: 30s * 2^attempt (30s, 60s, 120s, 240s)
+                    delay = min(30 * (2**attempt), 300)
+                    logger.warning(
+                        f"ResourceExhausted (rate limit): {e}\n"
+                        f"Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Max retries ({max_retries}) reached. ResourceExhausted: {e}")
+                    raise
+
+            except Exception as e:
+                # Other errors (network, parsing, etc.) get standard exponential backoff
+                if attempt < max_retries - 1:
+                    delay = min(10 * (2**attempt), 120)
+                    logger.warning(
+                        f"Agent error: {type(e).__name__}: {e}, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                # On final attempt, fall through to return error message below
 
         logger.error("Max retries reached. Failed to get response from the agent.")
         return "Could not get response from the agent."
+
+    def _invoke_with_timeout(self, timeout_seconds: int, callback_list: list, prompt: str):
+        """Invoke agent with a timeout using threading."""
+        import threading
+        from queue import Queue, Empty
+
+        result_queue: Queue = Queue()
+        exception_queue: Queue = Queue()
+
+        def invoke_target():
+            try:
+                response = self.agent.invoke(
+                    {"messages": [self.system_message, HumanMessage(content=prompt)]},
+                    config={"callbacks": callback_list, "recursion_limit": 40},
+                )
+                result_queue.put(response)
+            except Exception as e:
+                exception_queue.put(e)
+
+        thread = threading.Thread(target=invoke_target, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout_seconds)
+
+        if thread.is_alive():
+            # Thread is still running - timeout occurred
+            logger.error(f"Agent invoke thread still running after {timeout_seconds}s timeout")
+            raise TimeoutError(f"Agent invocation exceeded {timeout_seconds}s timeout")
+
+        # Check for exceptions
+        try:
+            exception = exception_queue.get_nowait()
+            raise exception
+        except Empty:
+            pass
+
+        # Get result
+        try:
+            return result_queue.get_nowait()
+        except Empty:
+            raise RuntimeError("Agent invocation completed but no result was returned")
 
     def _parse_invoke(self, prompt, type):
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
-    def _parse_response(self, prompt, response, return_type, max_retries=5):
-        if max_retries == 0:
-            logger.error(f"Max retries reached for parsing response: {response}")
+    def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
+        if attempt >= max_retries:
+            logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
         parsing_llm = self.get_parsing_llm()
@@ -212,12 +299,22 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             return self._try_parse(response, parser)
         except IndexError as e:
             # try to parse with the json parser if possible
-            logger.error(f"IndexError while parsing response: {response}, Error: {e}")
-            return self._parse_response(prompt, response, return_type, max_retries - 1)
+            logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
+            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except ResourceExhausted as e:
-            logger.error(f"Resource exhausted or parsing error, retrying... in 60 seconds: Type({type(e)}) {e}")
-            time.sleep(60)
-            return self._parse_response(prompt, response, return_type, max_retries - 1)
+            # Parsing uses exponential backoff for rate limits
+            if attempt < max_retries - 1:
+                # Exponential backoff: 30s * 2^attempt, capped at 300s
+                delay = min(30 * (2**attempt), 300)
+                logger.warning(
+                    f"ResourceExhausted during parsing (rate limit): {e}\n"
+                    f"Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                )
+                time.sleep(delay)
+                return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
+            else:
+                logger.error(f"Resource exhausted on final parsing attempt: {e}")
+                raise
 
     def _try_parse(self, message_content, parser):
         try:

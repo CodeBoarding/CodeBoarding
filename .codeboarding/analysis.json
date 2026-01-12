@@ -1,46 +1,65 @@
 {
-  "description": "The system operates through a pipeline orchestrated by the `Orchestration Engine`. This engine first activates the `Static Analysis Engine`, which is responsible for parsing source code, generating Control Flow Graphs (CFGs), and critically, applying advanced adaptive clustering algorithms to abstract these CFGs into logical architectural components. These refined, clustered components are then passed to the `AI Processing Layer`, where Large Language Models interpret them to derive architectural insights and identify relationships. Subsequently, the `Output Generation Engine` takes these insights and formats them into various outputs, including data specifically structured for the `Diagram Generation Service`, which visualizes the architecture. This re-engineered `Static Analysis Engine` plays a pivotal role in transforming raw code into actionable architectural representations, significantly enhancing the overall analysis quality.",
+  "description": "The system's architecture is centered around the CodeBoardingAgent, which acts as the primary orchestrator for all code analysis and documentation generation tasks. The Orchestration Engine initiates and manages the overall workflow, delegating specific analytical and generative tasks to the CodeBoardingAgent. This agent, in turn, leverages the Static Analysis Engine for structured code data and utilizes an integrated CodeBoardingToolkit to perform detailed code inspections. For intelligent interpretation and content generation, the CodeBoardingAgent interacts directly with various LLM Providers, forming the core of the AI Processing Layer. Finally, the processed insights are passed to the Output Generation Engine and subsequently to the Diagram Generation Service for comprehensive documentation and visual representation.",
   "components": [
     {
       "name": "Orchestration Engine",
-      "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.",
+      "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation, primarily by delegating to the `CodeBoardingAgent`.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents/meta_agent.py",
+          "qualified_name": "agents.meta_agent.MetaAgent",
           "reference_file": "agents/meta_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "agents/planner_agent.py",
+          "qualified_name": "agents.planner_agent.PlannerAgent",
           "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "main.py"
+        "main.py",
+        "local_app.py",
+        "github_action.py",
+        "agents/planner_agent.py",
+        "agents/meta_agent.py"
       ],
       "can_expand": true
     },
     {
       "name": "Static Analysis Engine",
-      "description": "Responsible for parsing source code, building Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and applying adaptive clustering algorithms to abstract these graphs into logical architectural components. It provides structured, clustered code representations.",
+      "description": "Responsible for parsing source code, building Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and applying adaptive clustering algorithms to abstract these graphs into logical architectural components. It now also incorporates a filtering mechanism to refine the scope of code analysis based on ignore rules, providing structured, clustered, and filtered code representations.",
       "referenced_source_code": [
         {
-          "qualified_name": "static_analyzer/",
+          "qualified_name": "static_analyzer",
           "reference_file": "static_analyzer",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "static_analyzer/graph.py",
+          "qualified_name": "static_analyzer.graph.Graph",
           "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils/ignore.py",
+          "reference_file": "repo_utils/ignore.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/ignore.py",
         "static_analyzer/programming_language.py",
         "static_analyzer/__init__.py",
         "static_analyzer/reference_resolve_mixin.py",
@@ -56,57 +75,43 @@
     },
     {
       "name": "AI Processing Layer",
-      "description": "This integrated layer processes structured code data using Large Language Models (LLMs) to derive architectural insights, identify components, and understand relationships. It includes prompt generation and management, and handles interactions with various LLM providers.",
+      "description": "This integrated layer processes structured code data using Large Language Models (LLMs) to derive architectural insights, identify components, and understand relationships. It relies on the `CodeBoardingAgent` for prompt generation, LLM interaction, and response parsing.",
       "referenced_source_code": [
         {
-          "qualified_name": "agents/abstraction_agent.py",
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
           "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "agents/details_agent.py",
+          "qualified_name": "agents.details_agent.DetailsAgent",
           "reference_file": "agents/details_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "agents/prompts/prompt_factory.py",
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
           "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "agents/llm_config.py",
+          "qualified_name": "agents.llm_config.LLMConfig",
           "reference_file": "agents/llm_config.py",
+          "reference_start_line": 14,
+          "reference_end_line": 52
+        },
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
         "agents/llm_config.py",
-        "agents/__init__.py",
-        "agents/diff_analyzer.py",
         "agents/details_agent.py",
-        "agents/validator_agent.py",
         "agents/abstraction_agent.py",
-        "agents/planner_agent.py",
-        "agents/meta_agent.py",
-        "agents/agent_responses.py",
-        "agents/agent.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/__init__.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/base.py",
-        "agents/tools/toolkit.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_file.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py",
         "agents/prompts/__init__.py",
         "agents/prompts/claude_prompts_bidirectional.py",
         "agents/prompts/gpt_prompts_unidirectional.py",
@@ -124,7 +129,7 @@
       "description": "Takes the structured architectural insights from the AI Processing Layer and formats them into various output types, such as documentation files (Markdown, JSON), reports, or raw data suitable for diagram generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "output_generators/",
+          "qualified_name": "output_generators",
           "reference_file": "output_generators",
           "reference_start_line": null,
           "reference_end_line": null
@@ -145,7 +150,7 @@
       "description": "Specializes in converting structured architectural data into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis/",
+          "qualified_name": "diagram_analysis",
           "reference_file": "diagram_analysis",
           "reference_start_line": null,
           "reference_end_line": null
@@ -160,21 +165,87 @@
       "can_expand": true
     },
     {
+      "name": "CodeBoardingAgent",
+      "description": "The primary orchestrator for all code analysis and documentation generation tasks, managing the overall workflow and delegating specific analytical and generative tasks. It leverages the Static Analysis Engine, utilizes the CodeBoardingToolkit, and interacts with LLM Providers.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/__init__.py",
+        "agents/diff_analyzer.py",
+        "agents/validator_agent.py",
+        "agents/agent_responses.py",
+        "agents/agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingToolkit",
+      "description": "An integrated toolkit utilized by the CodeBoardingAgent to perform detailed code inspections.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/base.py",
+        "agents/tools/toolkit.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Providers",
+      "description": "Provides Large Language Models for intelligent interpretation and content generation, interacting with the CodeBoardingAgent as part of the AI Processing Layer.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 14,
+          "reference_end_line": 52
+        }
+      ],
+      "assigned_files": [
+        ""
+      ],
+      "can_expand": false
+    },
+    {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
+      "referenced_source_code": [
+        {
+          "qualified_name": "utils.helpers",
+          "reference_file": "utils.helpers",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
       "assigned_files": [
         "vscode_constants.py",
         "utils.py",
         "setup.py",
-        "local_app.py",
-        "github_action.py",
         "duckdb_crud.py",
         "logging_config.py",
-        "repo_utils/__init__.py",
-        "repo_utils/git_diff.py",
         "repo_utils/errors.py",
-        "repo_utils/ignore.py",
         "evals/base.py",
         "evals/cli.py",
         "evals/schemas.py",
@@ -192,17 +263,39 @@
         "monitoring/writers.py"
       ],
       "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates code analysis in",
+      "relation": "delegates tasks to",
       "src_name": "Orchestration Engine",
-      "dst_name": "Static Analysis Engine"
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "provides clustered architectural components to",
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "CodeBoardingToolkit"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "LLM Providers"
+    },
+    {
+      "relation": "provides data to",
       "src_name": "Static Analysis Engine",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "powers",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "AI Processing Layer"
     },
     {
@@ -214,16 +307,6 @@
       "relation": "provides diagram data to",
       "src_name": "Output Generation Engine",
       "dst_name": "Diagram Generation Service"
-    },
-    {
-      "relation": "triggers the interpretation phase in",
-      "src_name": "Orchestration Engine",
-      "dst_name": "AI Processing Layer"
-    },
-    {
-      "relation": "commands output generation from",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Output Generation Engine"
     }
   ]
 }

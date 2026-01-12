@@ -10,9 +10,9 @@ graph LR
     PlannerAgent["PlannerAgent"]
     Unclassified["Unclassified"]
     API_Service -- "initiates" --> Orchestration_Engine
-    Orchestration_Engine -- "manages job status in" --> Job_Database
+    Orchestration_Engine -- "manages" --> Job_Database
     Orchestration_Engine -- "instructs" --> Repository_Manager
-    Orchestration_Engine -- "sends code to" --> Static_Analysis_Engine
+    Repository_Manager -- "provides filtered code to" --> Static_Analysis_Engine
     Orchestration_Engine -- "forwards results to" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "utilizes" --> MetaAgent
     AI_Interpretation_Layer -- "utilizes" --> PlannerAgent
@@ -20,6 +20,9 @@ graph LR
     PlannerAgent -- "returns plan to" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "sends insights to" --> Orchestration_Engine
     Orchestration_Engine -- "delivers documentation via" --> API_Service
+    Job_Database -- "stores data for" --> Orchestration_Engine
+    Job_Database -- "provides status to" --> Orchestration_Engine
+    Static_Analysis_Engine -- "provides results to" --> AI_Interpretation_Layer
     click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
 ```
@@ -28,7 +31,7 @@ graph LR
 
 ## Details
 
-The system is designed around a central `Orchestration Engine` that drives the entire code analysis and documentation generation workflow. External requests are handled by the `API Service`, which initiates jobs within the `Orchestration Engine`. The `Orchestration Engine` first leverages the `Repository Manager` to acquire the target codebase and then dispatches it to the `Static Analysis Engine` for initial processing. The results are then fed into the `AI Interpretation Layer`, an intelligent component that utilizes specialized `MetaAgent` and `PlannerAgent` sub-components to derive architectural insights and formulate a detailed analysis strategy. Throughout this pipeline, the `Job Database` maintains a persistent record of job statuses and metadata. Upon completion, the `Orchestration Engine` compiles the final documentation and delivers it back through the `API Service`, providing a comprehensive and automated solution for understanding and documenting software projects.
+The system's architecture is centered around an `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. It interfaces with an `API Service` for job initiation and delivery, and a `Job Database` for status management. Code acquisition and filtering are handled by the `Repository Manager`, which then feeds into the `Static Analysis Engine` for initial code analysis. The core intelligence resides in the `AI Interpretation Layer`, which, leveraging a recently updated agent framework, employs specialized `MetaAgent` and `PlannerAgent` components to derive architectural insights and strategic analysis plans from the static analysis results. These insights are then relayed back to the `Orchestration Engine` for final documentation generation and delivery.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
 The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.
@@ -36,7 +39,6 @@ The central control unit managing the entire code analysis and documentation gen
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py#L55-L72" target="_blank" rel="noopener noreferrer">`main.generate_analysis`:55-72</a>
 
 
 ### API Service
@@ -45,7 +47,7 @@ Handles external job requests and delivers final documentation.
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinglocal_app.py" target="_blank" rel="noopener noreferrer">`local_app.start_generation_job`</a>
+- `API Service`
 
 
 ### Job Database
@@ -54,52 +56,52 @@ Stores and manages job status and metadata.
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.update_job`</a>
+- `Job Database`
 
 
 ### Repository Manager
-Responsible for fetching code from repositories.
+Responsible for fetching code from repositories and managing file and directory exclusions based on `.gitignore` patterns and default ignored paths.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
+- `Repository Manager`:1-10
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs static analysis on the provided code.
+Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.StaticAnalysisEngine.analyze_code`</a>
+- `Static Analysis Engine`:1-10
 
 
 ### AI Interpretation Layer
-Interprets static analysis results and generates insights, encompassing specialized agents like MetaAgent and PlannerAgent. This layer is orchestrated by the `DiagramGenerator`.
+Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent` and `PlannerAgent`. This layer is now built upon a significantly modified agent framework, impacting the internal workings and interactions of its constituent agents.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`AI Interpretation Layer`</a>
 
 
 ### MetaAgent
-Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation.
+Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py`.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py#L31-L40" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent.analyze_metadata`:31-40</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`MetaAgent`</a>
 
 
 ### PlannerAgent
-Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope.
+Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py`.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py#L22-L33" target="_blank" rel="noopener noreferrer">`agents.planner_agent.PlannerAgent.generate_plan`:22-33</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`PlannerAgent`</a>
 
 
 ### Unclassified
