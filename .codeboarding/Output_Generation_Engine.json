@@ -1,9 +1,9 @@
 {
-  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
+  "description": "The system operates by processing user queries through a series of interconnected components. The `Query Processor` initially handles incoming queries, preparing them for subsequent stages. This processed query is then directed to the `Information Retriever`, which is responsible for fetching relevant data from a knowledge base, now enhanced with capabilities to resolve code references for more accurate information retrieval. The retrieved information is subsequently passed to the `Response Generator`, which leverages a language model to formulate a coherent natural language response. Finally, the `History Logger` records the interaction, storing both the original query and the generated response for future reference.",
   "components": [
     {
       "name": "Query Processor",
-      "description": "Handles incoming user queries and prepares them for further processing.",
+      "description": "Handles incoming user queries and prepares them for further processing. This component may leverage reference resolution capabilities to better understand code-related queries.",
       "referenced_source_code": [
         {
           "qualified_name": "QueryHandler.process",
@@ -13,11 +13,11 @@
         }
       ],
       "assigned_files": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Information Retriever",
-      "description": "Fetches relevant information based on the processed query from a knowledge base.",
+      "description": "Fetches relevant information based on the processed query from a knowledge base. This component is enhanced by the `ReferenceResolveMixin` to accurately navigate and fetch code-related information by resolving references.",
       "referenced_source_code": [
         {
           "qualified_name": "KnowledgeBase.retrieve",
@@ -35,12 +35,18 @@
       "referenced_source_code": [
         {
           "qualified_name": "LanguageModel.generate_response",
-          "reference_file": "language_model.py",
+          "reference_file": "agents/llm_config.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
+      ],
       "can_expand": false
     },
     {
@@ -55,20 +61,13 @@
         }
       ],
       "assigned_files": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "output_generators/__init__.py",
-        "output_generators/sphinx.py",
-        "output_generators/mdx.py",
-        "output_generators/html.py",
-        "output_generators/html_template.py",
-        "output_generators/markdown.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
@@ -79,12 +78,12 @@
       "dst_name": "Information Retriever"
     },
     {
-      "relation": "sends info to",
+      "relation": "retrieves info for",
       "src_name": "Information Retriever",
       "dst_name": "Response Generator"
     },
     {
-      "relation": "sends response to",
+      "relation": "generates response for",
       "src_name": "Response Generator",
       "dst_name": "History Logger"
     },
@@ -99,7 +98,7 @@
       "dst_name": "Information Retriever"
     },
     {
-      "relation": "receives response from",
+      "relation": "logs response from",
       "src_name": "History Logger",
       "dst_name": "Response Generator"
     }

@@ -13,7 +13,7 @@ graph LR
     Orchestration_Engine -- "manages" --> Job_Database
     Orchestration_Engine -- "instructs" --> Repository_Manager
     Repository_Manager -- "provides filtered code to" --> Static_Analysis_Engine
-    Orchestration_Engine -- "forwards results to" --> AI_Interpretation_Layer
+    Static_Analysis_Engine -- "provides results to" --> AI_Interpretation_Layer
     AI_Interpretation_Layer -- "utilizes" --> MetaAgent
     AI_Interpretation_Layer -- "utilizes" --> PlannerAgent
     MetaAgent -- "returns insights to" --> AI_Interpretation_Layer
@@ -22,7 +22,6 @@ graph LR
     Orchestration_Engine -- "delivers documentation via" --> API_Service
     Job_Database -- "stores data for" --> Orchestration_Engine
     Job_Database -- "provides status to" --> Orchestration_Engine
-    Static_Analysis_Engine -- "provides results to" --> AI_Interpretation_Layer
     click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
 ```
@@ -31,7 +30,7 @@ graph LR
 
 ## Details
 
-The system's architecture is centered around an `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. It interfaces with an `API Service` for job initiation and delivery, and a `Job Database` for status management. Code acquisition and filtering are handled by the `Repository Manager`, which then feeds into the `Static Analysis Engine` for initial code analysis. The core intelligence resides in the `AI Interpretation Layer`, which, leveraging a recently updated agent framework, employs specialized `MetaAgent` and `PlannerAgent` components to derive architectural insights and strategic analysis plans from the static analysis results. These insights are then relayed back to the `Orchestration Engine` for final documentation generation and delivery.
+The system operates with the Orchestration Engine at its core, initiating processes via the API Service and managing job states through the Job Database. The Repository Manager fetches and filters code, which is then passed to the Static Analysis Engine. This engine, now enhanced with advanced reference resolution capabilities, performs detailed code analysis. The results are then forwarded to the AI Interpretation Layer, where specialized agents like MetaAgent and PlannerAgent, supported by refined validation mechanisms from the ValidatorAgent, generate architectural insights and strategic analysis plans. Finally, these insights are returned to the Orchestration Engine for documentation delivery via the API Service.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
 The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.
@@ -39,6 +38,7 @@ The central control unit managing the entire code analysis and documentation gen
 
 **Related Classes/Methods**:
 
+- `Orchestration Engine`:1-10
 
 
 ### API Service
@@ -47,7 +47,7 @@ Handles external job requests and delivers final documentation.
 
 **Related Classes/Methods**:
 
-- `API Service`
+- `API Service`:1-10
 
 
 ### Job Database
@@ -65,29 +65,30 @@ Responsible for fetching code from repositories and managing file and directory 
 
 **Related Classes/Methods**:
 
-- `Repository Manager`:1-10
+- `Repository Manager`
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.
+Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager. It now includes enhanced capabilities for resolving code references, significantly improving its ability to understand code relationships through the integration of components like `reference_resolve_mixin`.
 
 
 **Related Classes/Methods**:
 
-- `Static Analysis Engine`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolve_mixin.py" target="_blank" rel="noopener noreferrer">`reference_resolve_mixin`</a>
 
 
 ### AI Interpretation Layer
-Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent` and `PlannerAgent`. This layer is now built upon a significantly modified agent framework, impacting the internal workings and interactions of its constituent agents.
+Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent`, `PlannerAgent`, and `ValidatorAgent`. This layer is built upon a modified agent framework, now featuring refined validation mechanisms that enhance the accuracy and robustness of its insights.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`AI Interpretation Layer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`ValidatorAgent`</a>
 
 
 ### MetaAgent
-Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py`.
+Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.
 
 
 **Related Classes/Methods**:
@@ -96,7 +97,7 @@ Analyzes project-level metadata to extract high-level architectural context, pro
 
 
 ### PlannerAgent
-Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py`.
+Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.
 
 
 **Related Classes/Methods**:

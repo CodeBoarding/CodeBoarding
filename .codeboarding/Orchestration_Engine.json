@@ -1,5 +1,5 @@
 {
-  "description": "The system's architecture is centered around an `Orchestration Engine` that manages the entire code analysis and documentation generation workflow. It interfaces with an `API Service` for job initiation and delivery, and a `Job Database` for status management. Code acquisition and filtering are handled by the `Repository Manager`, which then feeds into the `Static Analysis Engine` for initial code analysis. The core intelligence resides in the `AI Interpretation Layer`, which, leveraging a recently updated agent framework, employs specialized `MetaAgent` and `PlannerAgent` components to derive architectural insights and strategic analysis plans from the static analysis results. These insights are then relayed back to the `Orchestration Engine` for final documentation generation and delivery.",
+  "description": "The system operates with the Orchestration Engine at its core, initiating processes via the API Service and managing job states through the Job Database. The Repository Manager fetches and filters code, which is then passed to the Static Analysis Engine. This engine, now enhanced with advanced reference resolution capabilities, performs detailed code analysis. The results are then forwarded to the AI Interpretation Layer, where specialized agents like MetaAgent and PlannerAgent, supported by refined validation mechanisms from the ValidatorAgent, generate architectural insights and strategic analysis plans. Finally, these insights are returned to the Orchestration Engine for documentation delivery via the API Service.",
   "components": [
     {
       "name": "Orchestration Engine",
@@ -7,13 +7,14 @@
       "referenced_source_code": [
         {
           "qualified_name": "Orchestration Engine",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ],
       "assigned_files": [
-        "main.py"
+        "main.py",
+        "../../github_action.py"
       ],
       "can_expand": true
     },
@@ -23,13 +24,13 @@
       "referenced_source_code": [
         {
           "qualified_name": "API Service",
-          "reference_file": "API Service",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
         }
       ],
       "assigned_files": [
-        "local_app.py"
+        "../../local_app.py"
       ],
       "can_expand": true
     },
@@ -39,13 +40,13 @@
       "referenced_source_code": [
         {
           "qualified_name": "Job Database",
-          "reference_file": "Job Database",
+          "reference_file": "I cannot fulfill this request as the list of files to choose from is empty. Please provide a list of files to search within.",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Repository Manager",
@@ -54,34 +55,6 @@
         {
           "qualified_name": "Repository Manager",
           "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "Static Analysis Engine",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "AI Interpretation Layer",
-      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent` and `PlannerAgent`. This layer is now built upon a significantly modified agent framework, impacting the internal workings and interactions of its constituent agents.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "AI Interpretation Layer",
-          "reference_file": "agents/agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -90,8 +63,50 @@
       "can_expand": true
     },
     {
+      "name": "Static Analysis Engine",
+      "description": "Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager. It now includes enhanced capabilities for resolving code references, significantly improving its ability to understand code relationships through the integration of components like `reference_resolve_mixin`.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "Static Analysis Engine",
+          "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "reference_resolve_mixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent`, `PlannerAgent`, and `ValidatorAgent`. This layer is built upon a modified agent framework, now featuring refined validation mechanisms that enhance the accuracy and robustness of its insights.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "AI Interpretation Layer",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/agent.py"
+      ],
+      "can_expand": true
+    },
+    {
       "name": "MetaAgent",
-      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py`.",
+      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.",
       "referenced_source_code": [
         {
           "qualified_name": "MetaAgent",
@@ -101,13 +116,13 @@
         }
       ],
       "assigned_files": [
-        "agents/meta_agent.py"
+        "../../agents/meta_agent.py"
       ],
       "can_expand": true
     },
     {
       "name": "PlannerAgent",
-      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py`.",
+      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.",
       "referenced_source_code": [
         {
           "qualified_name": "PlannerAgent",
@@ -117,7 +132,7 @@
         }
       ],
       "assigned_files": [
-        "agents/planner_agent.py"
+        "../../agents/planner_agent.py"
       ],
       "can_expand": true
     },
@@ -125,9 +140,7 @@
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
-      "assigned_files": [
-        "github_action.py"
-      ],
+      "assigned_files": [],
       "can_expand": false
     }
   ],
@@ -153,8 +166,8 @@
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "forwards results to",
-      "src_name": "Orchestration Engine",
+      "relation": "provides results to",
+      "src_name": "Static Analysis Engine",
       "dst_name": "AI Interpretation Layer"
     },
     {
@@ -196,11 +209,6 @@
       "relation": "provides status to",
       "src_name": "Job Database",
       "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "provides results to",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "AI Interpretation Layer"
     }
   ]
 }

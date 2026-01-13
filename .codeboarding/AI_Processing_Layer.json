@@ -1,13 +1,33 @@
 {
-  "description": "The system's core architecture revolves around processing user queries through a sequence of specialized components. The Query Processor initiates the flow by parsing incoming requests. These parsed queries are then forwarded to the Language Model Interface, which handles communication with the underlying language model. The output from the language model, which may include instructions for tool usage, is then managed by the Tool Executor. This component is responsible for orchestrating the invocation of various tools, incorporating sophisticated decision-making and execution logic. Finally, the Response Formatter aggregates and structures the information from both the language model and tool executions to construct a coherent and user-friendly response, which is then returned to the Query Processor. This design ensures a clear separation of concerns, enabling efficient and adaptable query processing and tool integration.",
+  "description": "The system is designed around a core flow that begins with the Query Processor handling incoming user queries. These queries are then passed to the Language Model Interface for interaction with the underlying language model. The generated model output drives the Tool Executor, which orchestrates tool execution, now enhanced with sophisticated validation and the ability to leverage the Static Analysis Provider for deeper code understanding. Finally, the Response Formatter aggregates all information to construct and return the final response to the user. This architecture ensures a clear separation of concerns, enabling modular development and maintainability.",
   "components": [
     {
       "name": "Query Processor",
-      "description": "Handles incoming user queries, including parsing and initial validation.",
+      "description": "Handles incoming user queries, including parsing and initial validation, and serves as the entry and exit point for user interaction.",
       "referenced_source_code": [
         {
           "qualified_name": "QueryParser:parse",
+          "reference_file": ".",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Model Interface",
+      "description": "Manages communication with the underlying language model, sending prompts and receiving generated text.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "LLMClient:send_prompt",
           "reference_file": "",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "LLMClient:receive_response",
+          "reference_file": ".",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -16,41 +36,8 @@
       "can_expand": false
     },
     {
-      "name": "Language Model Interface",
-      "description": "Manages interactions with the underlying language model, sending prompts and receiving generated text.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "LLMClient:send_prompt",
-          "reference_file": "LLMClient:send_prompt",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "LLMClient:receive_response",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "agents/llm_config.py",
-        "agents/details_agent.py",
-        "agents/abstraction_agent.py",
-        "agents/prompts/__init__.py",
-        "agents/prompts/claude_prompts_bidirectional.py",
-        "agents/prompts/gpt_prompts_unidirectional.py",
-        "agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/gpt_prompts_bidirectional.py",
-        "agents/prompts/prompt_factory.py",
-        "agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "agents/prompts/claude_prompts_unidirectional.py"
-      ],
-      "can_expand": false
-    },
-    {
       "name": "Tool Executor",
-      "description": "Orchestrates the execution of specific tools, incorporating complex decision-making and execution flows based on the language model's output. It manages tool invocation, result retrieval, and potentially iterative processing or re-prompting.",
+      "description": "Orchestrates tool execution, incorporating complex decision-making, enhanced validation, and iterative processing based on language model outputs. It can also leverage static analysis capabilities.",
       "referenced_source_code": [
         {
           "qualified_name": "ToolRegistry:get_tool",
@@ -65,16 +52,34 @@
           "reference_end_line": 96
         }
       ],
+      "assigned_files": [
+        "agents/tools/toolkit.py",
+        "agents/tools/base.py",
+        "../../agents/diff_analyzer.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Provider",
+      "description": "Offers static analysis and reference resolution services to other components, primarily supporting the Tool Executor in understanding and validating code references.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer/reference_resolve_mixin.py",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
       "assigned_files": [],
       "can_expand": true
     },
     {
       "name": "Response Formatter",
-      "description": "Formats the final response to be sent back to the user, combining information from the language model and tool outputs.",
+      "description": "Formats the final response by combining information from the language model and tool outputs before returning it to the user.",
       "referenced_source_code": [
         {
           "qualified_name": "ResponseBuilder:build",
-          "reference_file": "ResponseBuilder:build",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
@@ -102,12 +107,22 @@
       "dst_name": "Tool Executor"
     },
     {
+      "relation": "requests static analysis from",
+      "src_name": "Tool Executor",
+      "dst_name": "Static Analysis Provider"
+    },
+    {
+      "relation": "provides analysis results to",
+      "src_name": "Static Analysis Provider",
+      "dst_name": "Tool Executor"
+    },
+    {
       "relation": "forwards execution results and model outputs to",
       "src_name": "Tool Executor",
       "dst_name": "Response Formatter"
     },
     {
-      "relation": "returns the final formatted response to",
+      "relation": "returns final formatted response to",
       "src_name": "Response Formatter",
       "dst_name": "Query Processor"
     }
