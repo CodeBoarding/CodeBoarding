@@ -1,12 +1,9 @@
-"""
-Utility functions for Java static analysis.
-"""
-
+import os
 import subprocess
+import shutil
 import re
 import platform
 from pathlib import Path
-from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -46,7 +43,7 @@ def get_java_version(java_cmd: str = "java") -> int:
         return 0
 
 
-def detect_java_installations() -> List[Path]:
+def detect_java_installations() -> list[Path]:
     """
     Detect JDK installations on the system.
 
@@ -56,8 +53,6 @@ def detect_java_installations() -> List[Path]:
     candidates = []
 
     # Check JAVA_HOME
-    import os
-
     if java_home := os.getenv("JAVA_HOME"):
         candidates.append(Path(java_home))
 
@@ -106,7 +101,7 @@ def detect_java_installations() -> List[Path]:
     return unique_jdks
 
 
-def find_java_21_or_later() -> Optional[Path]:
+def find_java_21_or_later() -> Path | None:
     """
     Find a Java 21+ installation.
 
@@ -124,8 +119,6 @@ def find_java_21_or_later() -> Optional[Path]:
 
     # Check system java as fallback
     if get_java_version("java") >= 21:
-        import shutil
-
         java_path = shutil.which("java")
         if java_path:
             # Resolve to JDK home (parent of parent of java executable)
@@ -158,7 +151,7 @@ def get_jdtls_config_dir(jdtls_root: Path) -> Path:
         raise RuntimeError(f"Unsupported platform: {system}")
 
 
-def find_launcher_jar(jdtls_root: Path) -> Optional[Path]:
+def find_launcher_jar(jdtls_root: Path) -> Path | None:
     """
     Find the Eclipse Equinox launcher JAR.
 
@@ -183,8 +176,8 @@ def find_launcher_jar(jdtls_root: Path) -> Optional[Path]:
 
 
 def create_jdtls_command(
-    jdtls_root: Path, workspace_dir: Path, java_home: Optional[Path] = None, heap_size: str = "4G"
-) -> List[str]:
+    jdtls_root: Path, workspace_dir: Path, java_home: Path | None = None, heap_size: str = "4G"
+) -> list[str]:
     """
     Create command to launch JDTLS.
 

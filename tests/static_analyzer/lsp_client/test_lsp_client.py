@@ -1716,49 +1716,46 @@ def main():
         self.assertIsNone(result.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_handle_notification_base_method(self, mock_popen):
-        """Test base _handle_notification method."""
+    def test_handle_notification_default_implementation(self, mock_popen):
+        """Test default handle_notification implementation does nothing."""
         mock_process = Mock()
         mock_popen.return_value = mock_process
 
         client = LSPClient(self.project_path, self.mock_language)
 
-        # Test notification without handler - should not crash
-        notification = {"method": "window/logMessage", "params": {"message": "Test log"}}
-        client._handle_notification(notification)  # Should not raise
+        # Test notification with default handler - should not crash
+        client.handle_notification("window/logMessage", {"message": "Test log"})  # Should not raise
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_handle_notification_calls_subclass_handler(self, mock_popen):
-        """Test that _handle_notification calls subclass handler if available."""
+        """Test that _handle_notification calls the handle_notification method."""
         mock_process = Mock()
         mock_popen.return_value = mock_process
 
         client = LSPClient(self.project_path, self.mock_language)
 
-        # Add a mock handler to the client
-        client.handle_notification = Mock()  # type: ignore[attr-defined]
+        # Mock the handle_notification method
+        with patch.object(client, "handle_notification") as mock_handler:
+            # Test notification
+            notification = {"method": "textDocument/publishDiagnostics", "params": {"diagnostics": []}}
+            client._handle_notification(notification)
 
-        # Test notification
-        notification = {"method": "textDocument/publishDiagnostics", "params": {"diagnostics": []}}
-        client._handle_notification(notification)
-
-        # Should call the handler
-        client.handle_notification.assert_called_once_with("textDocument/publishDiagnostics", {"diagnostics": []})  # type: ignore[attr-defined]
+            # Should call the handler
+            mock_handler.assert_called_once_with("textDocument/publishDiagnostics", {"diagnostics": []})
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_handle_notification_handles_handler_exception(self, mock_popen):
-        """Test that _handle_notification handles exceptions in subclass handler."""
+        """Test that _handle_notification handles exceptions in handle_notification."""
         mock_process = Mock()
         mock_popen.return_value = mock_process
 
         client = LSPClient(self.project_path, self.mock_language)
 
-        # Add a handler that raises an exception
-        client.handle_notification = Mock(side_effect=Exception("Handler error"))  # type: ignore[attr-defined]
-
-        # Test notification - should not propagate exception
-        notification = {"method": "test/notification", "params": {}}
-        client._handle_notification(notification)  # Should not raise
+        # Mock handle_notification to raise an exception
+        with patch.object(client, "handle_notification", side_effect=Exception("Handler error")):
+            # Test notification - should not propagate exception
+            notification = {"method": "test/notification", "params": {}}
+            client._handle_notification(notification)  # Should not raise
 
 
 if __name__ == "__main__":

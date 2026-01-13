@@ -5,7 +5,6 @@ Detects Maven, Gradle, and multi-module Java projects.
 """
 
 from pathlib import Path
-from typing import List, Optional
 import xml.etree.ElementTree as ET
 import logging
 
@@ -22,7 +21,7 @@ class JavaProjectConfig:
         root: Path,
         build_system: str,  # "maven", "gradle", "eclipse", or "none"
         is_multi_module: bool = False,
-        modules: Optional[List[Path]] = None,
+        modules: list[Path] | None = None,
     ):
         self.root = root
         self.build_system = build_system
@@ -45,7 +44,7 @@ class JavaConfigScanner:
         self.repo_path = repo_path
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(repo_path)
 
-    def scan(self) -> List[JavaProjectConfig]:
+    def scan(self) -> list[JavaProjectConfig]:
         """
         Scan repository for Java projects.
 
@@ -91,11 +90,11 @@ class JavaConfigScanner:
 
         return projects
 
-    def _find_maven_projects(self) -> List[Path]:
+    def _find_maven_projects(self) -> list[Path]:
         """Find all directories containing pom.xml."""
         return [p.parent for p in self.repo_path.rglob("pom.xml") if p.is_file()]
 
-    def _find_gradle_projects(self) -> List[Path]:
+    def _find_gradle_projects(self) -> list[Path]:
         """Find all directories containing settings.gradle."""
         gradle_roots: list[Path] = []
 
@@ -105,13 +104,13 @@ class JavaConfigScanner:
 
         return gradle_roots
 
-    def _find_eclipse_projects(self) -> List[Path]:
+    def _find_eclipse_projects(self) -> list[Path]:
         """Find all directories containing .project file."""
         return [
             p.parent for p in self.repo_path.rglob(".project") if p.is_file() and (p.parent / ".classpath").exists()
         ]
 
-    def _analyze_maven_project(self, pom_dir: Path) -> Optional[JavaProjectConfig]:
+    def _analyze_maven_project(self, pom_dir: Path) -> JavaProjectConfig | None:
         """Analyze a Maven project to determine if it's multi-module."""
         pom_file = pom_dir / "pom.xml"
 
@@ -147,8 +146,14 @@ class JavaConfigScanner:
             logger.warning(f"Failed to parse {pom_file}: {e}")
             return None
 
-    def _analyze_gradle_project(self, gradle_dir: Path) -> Optional[JavaProjectConfig]:
-        """Analyze a Gradle project to determine if it's multi-project."""
+    def _analyze_gradle_project(self, gradle_dir: Path) -> JavaProjectConfig | None:
+        """
+        Analyze a Gradle project to determine if it's multi-project.
+
+        Note: We only detect if it's multi-module, but don't parse the actual modules.
+        JDTLS will discover all modules during project import via its native Gradle integration,
+        which handles complex cases like dynamic includes, Kotlin DSL, and multi-line statements.
+        """
         settings_file = gradle_dir / "settings.gradle"
         if not settings_file.exists():
             settings_file = gradle_dir / "settings.gradle.kts"
@@ -157,28 +162,15 @@ class JavaConfigScanner:
             return JavaProjectConfig(gradle_dir, "gradle", False)
 
         try:
-            content = settings_file.read_text()
+            content = settings_file.read_text(encoding="utf-8", errors="replace")
 
-            # Look for include statements
-            # Examples: include 'app', 'lib'
-            #           include 'services:api', 'services:impl'
-            import re
+            # Simple check: does settings.gradle contain any include statement?
+            # This is just a heuristic - JDTLS will do the actual module discovery
+            has_includes = "include" in content and ("'" in content or '"' in content)
 
-            includes = re.findall(r"include\s+['\"]([^'\"]+)['\"]", content)
-            includes.extend(re.findall(r"include\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", content))
-
-            if includes:
-                # Multi-project Gradle build
-                module_paths = []
-                for include in includes:
-                    # Convert Gradle path to file path
-                    # 'services:api' -> 'services/api'
-                    module_rel_path = include.replace(":", "/")
-                    module_path = gradle_dir / module_rel_path
-                    if module_path.exists():
-                        module_paths.append(module_path)
-
-                return JavaProjectConfig(gradle_dir, "gradle", is_multi_module=True, modules=module_paths)
+            if has_includes:
+                # Multi-project Gradle build - let JDTLS discover the actual modules
+                return JavaProjectConfig(gradle_dir, "gradle", is_multi_module=True, modules=[])
             else:
                 return JavaProjectConfig(gradle_dir, "gradle", False)
 
@@ -203,7 +195,7 @@ class JavaConfigScanner:
             return False
 
 
-def scan_java_projects(repo_path: Path) -> List[JavaProjectConfig]:
+def scan_java_projects(repo_path: Path) -> list[JavaProjectConfig]:
     """
     Convenience function to scan for Java projects.
 

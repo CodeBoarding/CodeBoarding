@@ -4,6 +4,7 @@ import os
 import subprocess
 import threading
 import time
+from abc import ABC
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,9 +56,13 @@ class FileAnalysisResult:
     error: str | None = None
 
 
-class LSPClient:
+class LSPClient(ABC):
     """
-    Language server protocol client for interacting with langservers
+    Language server protocol client for interacting with langservers.
+
+    This is an abstract base class that provides common LSP functionality.
+    Subclasses should override handle_notification() if they need to process
+    language server notifications (e.g., for tracking build/import progress).
     """
 
     def __init__(
@@ -181,18 +186,48 @@ class LSPClient:
         """
         Process a notification from the LSP server.
 
-        Subclasses can override handle_notification() to process specific notifications.
-        This method extracts the method and params and calls the subclass handler if available.
+        This method extracts the method and params from the notification and calls
+        the subclass's handle_notification() method.
+
+        Args:
+            notification: The notification dictionary from the LSP server
         """
         method = notification.get("method", "")
         params = notification.get("params", {})
 
-        # Call subclass handler if it exists
-        if hasattr(self, "handle_notification"):
-            try:
-                self.handle_notification(method, params)
-            except Exception as e:
-                logger.debug(f"Error in notification handler for {method}: {e}")
+        # Call subclass handler
+        try:
+            self.handle_notification(method, params)
+        except Exception as e:
+            logger.debug(f"Error in notification handler for {method}: {e}")
+
+    def handle_notification(self, method: str, params: dict):
+        """
+        Handle notifications from the LSP server.
+
+        Subclasses can override this method to process specific notifications
+        from the language server (e.g., build progress, import status, diagnostics).
+
+        The default implementation does nothing. Override this method in subclasses
+        that need to track server-side events.
+
+        Args:
+            method: The LSP notification method name (e.g., "language/status")
+            params: The notification parameters
+
+        Example:
+            For Java (JDTLS), override to track project import progress:
+
+                def handle_notification(self, method: str, params: dict):
+                    if method == "language/status":
+                        if params.get("type") == "ProjectStatus" and params.get("message") == "OK":
+                            self.import_complete = True
+
+            For TypeScript, the default implementation is sufficient (no override needed).
+        """
+        # Default implementation: do nothing
+        # Subclasses override this to handle language-specific notifications
+        pass
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""

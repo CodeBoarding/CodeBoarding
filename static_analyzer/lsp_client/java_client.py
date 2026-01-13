@@ -2,17 +2,17 @@
 Java LSP client using Eclipse JDT Language Server.
 """
 
-import time
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Dict, List, Optional
 import logging
+import os
+import shutil
+import tempfile
+import time
+from pathlib import Path
 
 from .client import LSPClient
 from ..java_config_scanner import JavaProjectConfig
 from ..java_utils import create_jdtls_command, get_java_version, find_java_21_or_later, detect_java_installations
-from ..programming_language import ProgrammingLanguage
+from ..programming_language import ProgrammingLanguage, JavaConfig
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class JavaClient(LSPClient):
         language: ProgrammingLanguage,
         project_config: JavaProjectConfig,
         ignore_manager: RepoIgnoreManager,
-        jdtls_root: Optional[Path] = None,
+        jdtls_root: Path | None = None,
     ):
         """
         Initialize Java LSP client.
@@ -44,17 +44,16 @@ class JavaClient(LSPClient):
             jdtls_root: Path to JDTLS installation (if None, will try to detect from config)
         """
         self.project_config = project_config
-        self.workspace_dir: Optional[Path] = None  # Will be created in start()
+        self.workspace_dir: Path | None = None  # Will be created in start()
         self.temp_workspace = True
 
         # Try to get jdtls_root from language config first, then from parameter
         if jdtls_root is not None:
-            self.jdtls_root: Optional[Path] = jdtls_root
+            self.jdtls_root: Path | None = jdtls_root
         else:
-            # Get from language config_extra
-            jdtls_root_str = language.config_extra.get("jdtls_root")
-            if jdtls_root_str:
-                self.jdtls_root = Path(jdtls_root_str)
+            # Get from language-specific config
+            if isinstance(language.language_specific_config, JavaConfig):
+                self.jdtls_root = language.language_specific_config.jdtls_root
             else:
                 self.jdtls_root = None
 
@@ -63,8 +62,8 @@ class JavaClient(LSPClient):
 
         # Track import status
         self.import_complete = False
-        self.import_errors: List[str] = []
-        self.java_home: Optional[Path] = None  # Will be detected in start()
+        self.import_errors: list[str] = []
+        self.java_home: Path | None = None  # Will be detected in start()
         self.workspace_indexed = False  # Track if workspace symbols are available
 
     def start(self):
@@ -73,37 +72,48 @@ class JavaClient(LSPClient):
         self.workspace_dir = Path(tempfile.mkdtemp(prefix="jdtls-workspace-"))
         self.temp_workspace = True
 
-        # Find Java 21+
-        self.java_home = find_java_21_or_later()
-        if self.java_home is None:
-            raise RuntimeError("Java 21+ required to run JDTLS. Please install JDK 21 or later.")
+        try:
+            # Find Java 21+
+            self.java_home = find_java_21_or_later()
+            if self.java_home is None:
+                raise RuntimeError("Java 21+ required to run JDTLS. Please install JDK 21 or later.")
 
-        # If jdtls_root not provided, try to find it from server params or environment
-        if self.jdtls_root is None:
-            self.jdtls_root = self._find_jdtls_root()
+            # If jdtls_root not provided, try to find it from server params or environment
             if self.jdtls_root is None:
-                raise RuntimeError(
-                    "JDTLS installation not found. Please ensure JDTLS is installed "
-                    "and the path is configured in static_analysis_config.yml"
-                )
+                self.jdtls_root = self._find_jdtls_root()
+                if self.jdtls_root is None:
+                    raise RuntimeError(
+                        "JDTLS installation not found. Please ensure JDTLS is installed "
+                        "and the path is configured in static_analysis_config.yml"
+                    )
 
-        # Calculate heap size
-        heap_size = self._calculate_heap_size()
+            # Calculate heap size
+            heap_size = self._calculate_heap_size()
 
-        # Build JDTLS command
-        jdtls_command = create_jdtls_command(self.jdtls_root, self.workspace_dir, self.java_home, heap_size)
+            # Build JDTLS command
+            jdtls_command = create_jdtls_command(self.jdtls_root, self.workspace_dir, self.java_home, heap_size)
 
-        # Override the server_start_params with our constructed command
-        self.server_start_params = jdtls_command
+            # Override the server_start_params with our constructed command
+            self.server_start_params = jdtls_command
 
-        logger.info(
-            f"Starting JavaClient for {self.project_config.root} " f"(build system: {self.project_config.build_system})"
-        )
+            logger.info(
+                f"Starting JavaClient for {self.project_config.root} "
+                f"(build system: {self.project_config.build_system})"
+            )
 
-        # Call parent start() which will use our server_start_params
-        super().start()
+            # Call parent start() which will use our server_start_params
+            super().start()
+        except Exception:
+            # Clean up workspace on failure
+            if self.temp_workspace and self.workspace_dir and self.workspace_dir.exists():
+                try:
+                    shutil.rmtree(self.workspace_dir)
+                    logger.debug(f"Cleaned up workspace after failure: {self.workspace_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up workspace: {e}")
+            raise
 
-    def _find_jdtls_root(self) -> Optional[Path]:
+    def _find_jdtls_root(self) -> Path | None:
         """Try to find JDTLS root directory from various locations."""
         # Check common locations
         potential_locations = [
@@ -120,10 +130,15 @@ class JavaClient(LSPClient):
         return None
 
     def _calculate_heap_size(self) -> str:
-        """Calculate appropriate heap size for project."""
-        # Count Java files as rough size indicator
-        java_files = list(self.project_config.root.rglob("*.java"))
-        file_count = len(java_files)
+        """Calculate appropriate heap size for project based on JVM language files."""
+        # Count all JVM language files (Java, Kotlin, Groovy) as JDTLS scans full project
+        # Include all files regardless of gitignore since JDTLS will process them
+        jvm_files: list[Path] = []
+        jvm_files.extend(self.project_config.root.rglob("*.java"))
+        jvm_files.extend(self.project_config.root.rglob("*.kt"))
+        jvm_files.extend(self.project_config.root.rglob("*.groovy"))
+
+        file_count = len(jvm_files)
 
         if file_count < 100:
             return "1G"
@@ -139,9 +154,6 @@ class JavaClient(LSPClient):
     def _initialize(self):
         """Performs the LSP initialization handshake with JDTLS-specific options."""
         logger.info(f"Initializing JDTLS for {self.language_id}...")
-
-        import os
-
         params = {
             "processId": os.getpid(),
             "rootUri": self.project_path.as_uri(),
@@ -150,7 +162,7 @@ class JavaClient(LSPClient):
         }
 
         init_id = self._send_request("initialize", params)
-        response = self._wait_for_response(init_id)
+        response = self._wait_for_response(init_id, timeout=360)
 
         if "error" in response:
             raise RuntimeError(f"Initialization failed: {response['error']}")
@@ -167,13 +179,13 @@ class JavaClient(LSPClient):
         """
         # Detect available JDKs for multi-version support
         jdks = detect_java_installations()
-        runtimes: List[Dict[str, str | bool]] = []
+        runtimes: list[dict[str, str | bool]] = []
 
         for jdk in jdks[:5]:  # Limit to 5 most recent
             java_cmd = jdk / "bin" / "java"
             version = get_java_version(str(java_cmd))
             if version > 0:
-                runtime_entry: Dict[str, str | bool] = {
+                runtime_entry: dict[str, str | bool] = {
                     "name": f"JavaSE-{version}",
                     "path": str(jdk),
                 }
@@ -378,7 +390,19 @@ class JavaClient(LSPClient):
         """
         Handle notifications from JDTLS.
 
-        Tracks import progress and completion.
+        JDTLS sends various notifications during project import and build processes.
+        This method tracks the import progress to determine when the project is ready
+        for analysis.
+
+        Args:
+            method: The LSP notification method name
+            params: The notification parameters
+
+        Tracked notifications:
+            - language/status: Project import status and service readiness
+            - $/progress: Build/import progress updates
+            - language/progressReport: Maven/Gradle specific progress
+            - textDocument/publishDiagnostics: Compilation errors including import failures
         """
         # Track language/status notifications for import progress
         if method == "language/status":
@@ -447,10 +471,10 @@ class JavaClient(LSPClient):
         """
         try:
             # Try to read package declaration from file
-            content = file_path.read_text(encoding="utf-8")
+            content = file_path.read_text(encoding="utf-8", errors="replace")
             lines = content.split("\n")
 
-            for line in lines[:20]:  # Check first 20 lines
+            for line in lines[:100]:
                 line = line.strip()
                 if line.startswith("package "):
                     # Extract package name

@@ -5,11 +5,11 @@ Tests for Java LSP client.
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 
 from static_analyzer.lsp_client.java_client import JavaClient
 from static_analyzer.java_config_scanner import JavaProjectConfig
-from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from repo_utils.ignore import RepoIgnoreManager
 
 
@@ -26,7 +26,7 @@ class TestJavaClient(unittest.TestCase):
         self.mock_language.get_server_parameters.return_value = ["java", "-jar", "jdtls.jar"]
         self.mock_language.get_suffix_pattern.return_value = ["*.java"]
         self.mock_language.get_language_id.return_value = "java"
-        self.mock_language.config_extra = {}
+        self.mock_language.language_specific_config = None
 
         # Create mock ignore manager
         self.mock_ignore_manager = Mock(spec=RepoIgnoreManager)
@@ -147,8 +147,9 @@ class TestJavaClient(unittest.TestCase):
     @patch("pathlib.Path.rglob")
     def test_calculate_heap_size_small_project(self, mock_rglob):
         """Test heap size calculation for small project."""
-        # Mock < 100 files
-        mock_rglob.return_value = [Path("file.java")] * 50
+        # Mock < 100 files total (method calls rglob 3 times for .java, .kt, .groovy)
+        # So we need to return fewer files per call
+        mock_rglob.return_value = [Path("file.java")] * 20
 
         client = JavaClient(
             self.project_path,
@@ -163,8 +164,9 @@ class TestJavaClient(unittest.TestCase):
     @patch("pathlib.Path.rglob")
     def test_calculate_heap_size_medium_project(self, mock_rglob):
         """Test heap size calculation for medium project."""
-        # Mock 100-500 files
-        mock_rglob.return_value = [Path("file.java")] * 300
+        # Mock 100-500 files total (method calls rglob 3 times for .java, .kt, .groovy)
+        # 100 * 3 = 300 total files, which should fall in the 2G range
+        mock_rglob.return_value = [Path("file.java")] * 100
 
         client = JavaClient(
             self.project_path,
