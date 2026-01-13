@@ -29,7 +29,7 @@
         }
       ],
       "assigned_files": [
-        "../../local_app.py"
+        "local_app.py"
       ],
       "can_expand": true
     },
@@ -101,7 +101,7 @@
         }
       ],
       "assigned_files": [
-        "../../agents/meta_agent.py"
+        "agents/meta_agent.py"
       ],
       "can_expand": true
     },
@@ -117,7 +117,7 @@
         }
       ],
       "assigned_files": [
-        "../../agents/planner_agent.py"
+        "agents/planner_agent.py"
       ],
       "can_expand": true
     },
@@ -126,7 +126,7 @@
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
       "referenced_source_code": [],
       "assigned_files": [
-        "../../github_action.py"
+        "github_action.py"
       ],
       "can_expand": false
     }

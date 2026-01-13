@@ -137,6 +137,33 @@ class ReferenceResolverMixin(abc.ABC):
             reference.reference_start_line = file_assignment.start_line
             reference.reference_end_line = file_assignment.end_line
 
+            # Normalize the path if it's not absolute and doesn't exist
+            if reference.reference_file and not os.path.isabs(reference.reference_file):
+                # Try as relative path from repo root
+                abs_path = os.path.join(self.repo_dir, reference.reference_file)
+                if os.path.exists(abs_path):
+                    reference.reference_file = abs_path
+                else:
+                    # File might be just a filename - search for it recursively
+                    matches = list(Path(self.repo_dir).rglob(os.path.basename(reference.reference_file)))
+                    if len(matches) == 1:
+                        # Unambiguous case: exactly one match found
+                        reference.reference_file = str(matches[0])
+                        logger.info(
+                            f"[Reference Resolution] Found unique file '{os.path.basename(reference.reference_file)}' at {reference.reference_file}"
+                        )
+                    else:
+                        # Ambiguous case: multiple files with the same name
+                        match_paths = [str(m) for m in matches]
+                        if len(matches) > 1:
+                            logger.error(
+                                f"[Reference Resolution] Ambiguous file name '{os.path.basename(reference.reference_file)}' "
+                                f"for reference '{qname}'. Found {len(matches)} matches: {match_paths}. "
+                                f"Cannot determine the correct file with certainty."
+                            )
+                        # Clear the reference to signal resolution failure
+                        reference.reference_file = None
+
             if reference.reference_file is None:
                 logger.error(
                     f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language."

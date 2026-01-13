@@ -13,11 +13,11 @@
         }
       ],
       "assigned_files": [
-        "../../agents/__init__.py",
-        "../../agents/diff_analyzer.py",
-        "../../agents/validator_agent.py",
-        "../../agents/agent_responses.py",
-        "../../agents/agent.py"
+        "agents/__init__.py",
+        "agents/diff_analyzer.py",
+        "agents/validator_agent.py",
+        "agents/agent_responses.py",
+        "agents/agent.py"
       ],
       "can_expand": true
     },

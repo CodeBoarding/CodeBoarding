@@ -13,8 +13,8 @@
         }
       ],
       "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/analysis_json.py"
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py"
       ],
       "can_expand": false
     },
@@ -30,7 +30,7 @@
         }
       ],
       "assigned_files": [
-        "../../diagram_analysis/diagram_generator.py"
+        "diagram_analysis/diagram_generator.py"
       ],
       "can_expand": true
     },
@@ -60,7 +60,7 @@
         }
       ],
       "assigned_files": [
-        "../../diagram_analysis/version.py"
+        "diagram_analysis/version.py"
       ],
       "can_expand": false
     },
