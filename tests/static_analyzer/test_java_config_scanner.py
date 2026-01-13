@@ -196,7 +196,8 @@ class TestJavaConfigScanner(unittest.TestCase):
         self.assertEqual(len(projects), 1)
         self.assertEqual(projects[0].build_system, "gradle")
         self.assertTrue(projects[0].is_multi_module)
-        self.assertEqual(len(projects[0].modules), 2)
+        # Module discovery is left to JDTLS for Gradle projects
+        self.assertEqual(len(projects[0].modules), 0)
 
     def test_scan_gradle_kotlin_dsl(self):
         """Test detecting Gradle project with Kotlin DSL."""
@@ -234,7 +235,8 @@ class TestJavaConfigScanner(unittest.TestCase):
 
         self.assertEqual(len(projects), 1)
         self.assertTrue(projects[0].is_multi_module)
-        self.assertEqual(len(projects[0].modules), 2)
+        # Module discovery is left to JDTLS for Gradle projects
+        self.assertEqual(len(projects[0].modules), 0)
 
     def test_scan_eclipse_project(self):
         """Test detecting Eclipse project."""
