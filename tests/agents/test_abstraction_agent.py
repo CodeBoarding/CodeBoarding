@@ -206,11 +206,13 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_fix_ref.assert_called_once_with(updated_analysis)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.abstraction_agent.AbstractionAgent._build_file_cluster_mapping")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_static_init):
+    def test_classify_files(self, mock_relpath, mock_exists, mock_build_file_cluster_mapping, mock_static_init):
         # Test classify_files (now deterministic, no LLM call)
         mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_build_file_cluster_mapping.return_value = {}
 
         # Mock the static analysis to return our test files
         self.mock_static_analysis.get_all_source_files.return_value = [

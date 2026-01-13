@@ -1,18 +1,18 @@
 # End-to-End Pipeline Evaluation
 
-**Generated:** 2025-12-27T14:15:51.644096+00:00
+**Generated:** 2026-01-01T23:16:52.961160+00:00
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Total Tokens | Tool Calls |
 |---------|----------|--------|----------|--------------|------------|
-| markitdown | Python | ✅ Success | 390.4 | 1,653,294 | 72 |
-| codeboarding | Python | ✅ Success | 6135.0 | 1,003,690 | 71 |
-| django | Python | ❌ Failed | 6789.6 | 0 | 0 |
+| markitdown | Python | ✅ Success | 450.0 | 1,661,125 | 97 |
+| codeboarding | Python | ✅ Success | 381.5 | 1,536,205 | 66 |
+| django | Python | ❌ Failed | 53454.4 | 0 | 0 |
 
 **Success:** 2/3
-**Total Tokens:** 2,656,984
-**Total Tool Calls:** 143
+**Total Tokens:** 3,197,330
+**Total Tool Calls:** 163
 
 ## Generated Top-Level Diagrams
 
@@ -20,36 +20,37 @@
 
 ```mermaid
 graph LR
-    Client_Integration_Interfaces["Client & Integration Interfaces"]
-    MarkItDown_Orchestration_Core["MarkItDown Orchestration Core"]
-    Office_Document_Processors["Office & Document Processors"]
-    Web_AI_Intelligence_Subsystem["Web & AI Intelligence Subsystem"]
-    Mathematical_Translation_Engine["Mathematical Translation Engine"]
+    Orchestration_Entry_Layer["Orchestration & Entry Layer"]
+    Core_Framework_Plugin_System["Core Framework & Plugin System"]
+    Structured_Document_Processors["Structured Document Processors"]
+    AI_Media_Extraction_Services["AI & Media Extraction Services"]
+    Math_Representation_Engine["Math Representation Engine"]
     Unclassified["Unclassified"]
-    Client_Integration_Interfaces -- "Initiates conversion requests with local paths or URIs" --> MarkItDown_Orchestration_Core
-    MarkItDown_Orchestration_Core -- "Dispatches binary streams to specialized parsing modules" --> Office_Document_Processors
-    MarkItDown_Orchestration_Core -- "Routes web content and media for intelligent transformation" --> Web_AI_Intelligence_Subsystem
-    Office_Document_Processors -- "Delegates embedded formula conversion (OMML to LaTeX)" --> Mathematical_Translation_Engine
-    Office_Document_Processors -- "Re-invokes orchestrator for nested/recursive content processing" --> MarkItDown_Orchestration_Core
-    Web_AI_Intelligence_Subsystem -- "Utilizes shared LLM configuration for caption generation" --> MarkItDown_Orchestration_Core
+    Orchestration_Entry_Layer -- "uses the core registration system and StreamInfo to manage available converters and metadata" --> Core_Framework_Plugin_System
+    Orchestration_Entry_Layer -- "Dispatches standard document streams (DOCX, HTML) to specific processors based on detected MIME types" --> Structured_Document_Processors
+    Orchestration_Entry_Layer -- "Routes binary or complex streams (PDF, Audio) to AI-enriched converters when higher fidelity extraction is required" --> AI_Media_Extraction_Services
+    Structured_Document_Processors -- "invokes the math engine during pre-processing to translate embedded Office Math (OMML) into LaTeX" --> Math_Representation_Engine
+    Structured_Document_Processors -- "inherit from the `DocumentConverter` base class to ensure a unified interface" --> Core_Framework_Plugin_System
+    AI_Media_Extraction_Services -- "inherit from the `DocumentConverter` base class to ensure a unified interface" --> Core_Framework_Plugin_System
+    AI_Media_Extraction_Services -- "utilize `StreamInfo` to manage multi-modal data streams during heavy processing tasks like transcription or OCR" --> Core_Framework_Plugin_System
 ```
 
 ### codeboarding
 
 ```mermaid
 graph LR
-    Pipeline_Orchestration_Subsystem["Pipeline & Orchestration Subsystem"]
-    Static_Analysis_Context_Engine["Static Analysis & Context Engine"]
-    Agent_Reasoning_Intelligence_Core["Agent Reasoning & Intelligence Core"]
-    Autonomous_Analysis_Toolset["Autonomous Analysis Toolset"]
-    Documentation_Diagram_Generator["Documentation & Diagram Generator"]
+    Job_Orchestration_Repo_Manager["Job Orchestration & Repo Manager"]
+    LSP_Static_Analysis_Provider["LSP Static Analysis Provider"]
+    Agent_Intelligence_Framework["Agent Intelligence Framework"]
+    Multi_Stage_Analysis_Agents["Multi-Stage Analysis Agents"]
+    Semantic_Graph_Output_Engine["Semantic Graph & Output Engine"]
     Unclassified["Unclassified"]
-    Pipeline_Orchestration_Subsystem -- "Triggers initial codebase scanning and populates the CallGraph to establish the ground truth." --> Static_Analysis_Context_Engine
-    Static_Analysis_Context_Engine -- "Provides high-fidelity symbol and hierarchy context for tools in the CodeBoardingToolkit." --> Autonomous_Analysis_Toolset
-    Autonomous_Analysis_Toolset -- "Inherits base ReAct logic and LLM provider abstractions to perform complex reasoning tasks." --> Agent_Reasoning_Intelligence_Core
-    Agent_Reasoning_Intelligence_Core -- "Streams execution events, token usage, and performance metrics for real-time monitoring." --> Pipeline_Orchestration_Subsystem
-    Autonomous_Analysis_Toolset -- "Executes deep-dive queries to refine architectural findings based on specific code structures." --> Static_Analysis_Context_Engine
-    Pipeline_Orchestration_Subsystem -- "Directs the final rendering of discovered insights into human-readable documentation and visual diagrams." --> Documentation_Diagram_Generator
+    Job_Orchestration -- "Triggers the initial multi-language scan to establish the semantic "ground truth" and symbol map." --> LSP_Static_Analysis_Provider
+    Job_Orchestration -- "Orchestrates the agentic decomposition loop (Abstraction -> Details -> Validation) and manages parallel task execution." --> Multi_Stage_Analysis_Agents
+    Multi_Stage_Analysis_Agents -- "Queries verified symbol data and call graphs (via the Toolkit) to ground LLM hallucinations in actual source code." --> LSP_Static_Analysis_Provider
+    Multi_Stage_Analysis_Agents -- "Inherits core agentic capabilities and retrieves specialized prompt templates (e.g., `AbstractionAgent` uses `get_system_message`)." --> Agent_Intelligence_Framework
+    Multi_Stage_Analysis_Agents -- "Passes structured analysis insights (`AnalysisInsights`) to the clustering and rendering pipeline." --> Semantic_Graph_Output_Engine
+    Semantic_Graph_Output_Engine -- "Resolves call graph references to validate the generated architecture and cluster boundaries." --> LSP_Static_Analysis_Provider
 ```
 
 ### django
