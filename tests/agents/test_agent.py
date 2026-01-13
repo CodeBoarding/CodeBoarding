@@ -37,9 +37,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.mock_analysis.references = []
 
         # Mock environment variables
-        self.env_patcher = patch.dict(
-            os.environ, {"OPENAI_API_KEY": "test_key", "CODEBOARDING_MODEL": "gpt-4o"}, clear=True
-        )
+        self.env_patcher = patch.dict(os.environ, {"OPENAI_API_KEY": "test_key", "PARSING_MODEL": "gpt-4o"}, clear=True)
         self.env_patcher.start()
 
         # Set up monitoring context
