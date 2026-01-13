@@ -270,8 +270,8 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         self.resolver._try_llm_resolution(reference, "nonexistent.Class", ["nonexistent.py"])
 
-        # Should still set the path (even if it doesn't exist)
-        self.assertEqual(reference.reference_file, "nonexistent.py")
+        # The reference should be None to signal resolution failure
+        self.assertIsNone(reference.reference_file)
 
     def test_relative_paths_conversion(self):
         """Test conversion of absolute paths to relative paths"""
@@ -343,6 +343,49 @@ class TestReferenceResolverMixin(unittest.TestCase):
         # Since module/file.py exists, it should be converted to absolute path
         expected_abs_path = str(self.repo_dir / "module" / "file.py")
         self.assertEqual(reference.reference_file, expected_abs_path)
+
+    def test_llm_resolution_with_ambiguous_filename(self):
+        """Test LLM resolution handles ambiguous file names (multiple matches)"""
+        # Create multiple files with the same name in different directories
+        (self.repo_dir / "dir1").mkdir()
+        (self.repo_dir / "dir1" / "common.py").write_text("# dir1 version\n")
+        (self.repo_dir / "dir2").mkdir()
+        (self.repo_dir / "dir2" / "common.py").write_text("# dir2 version\n")
+
+        reference = SourceCodeReference(
+            qualified_name="common", reference_file=None, reference_start_line=None, reference_end_line=None
+        )
+
+        # Mock LLM to return just filename (ambiguous)
+        mock_file_path = FilePath(file_path="common.py", start_line=1, end_line=1)
+        self.resolver.mock_parse_invoke.return_value = mock_file_path
+
+        self.resolver._try_llm_resolution(reference, "common", ["common.py"])
+
+        # Should fail to resolve due to ambiguity and set reference_file to None
+        self.assertIsNone(reference.reference_file)
+
+    def test_llm_resolution_with_unique_filename_in_subdirectory(self):
+        """Test LLM resolution succeeds with unique file name in subdirectory"""
+        # Create a uniquely named file in nested directory
+        (self.repo_dir / "subdir1").mkdir()
+        (self.repo_dir / "subdir1" / "unique_file.py").write_text("# unique content\n")
+
+        reference = SourceCodeReference(
+            qualified_name="unique_file", reference_file=None, reference_start_line=None, reference_end_line=None
+        )
+
+        # Mock LLM to return just filename (unambiguous - only one match)
+        mock_file_path = FilePath(file_path="unique_file.py", start_line=1, end_line=1)
+        self.resolver.mock_parse_invoke.return_value = mock_file_path
+
+        self.resolver._try_llm_resolution(reference, "unique_file", ["unique_file.py"])
+
+        # Should successfully resolve to the unique match
+        self.assertIsNotNone(reference.reference_file)
+        assert reference.reference_file is not None  # needed for mypy
+        self.assertTrue(reference.reference_file.endswith("unique_file.py"))
+        self.assertTrue(os.path.exists(reference.reference_file))
 
     def test_fix_source_code_reference_lines_multiple_languages(self):
         """Test resolution across multiple languages"""

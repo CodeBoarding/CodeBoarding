@@ -145,15 +145,24 @@ class ReferenceResolverMixin(abc.ABC):
                     reference.reference_file = abs_path
                 else:
                     # File might be just a filename - search for it recursively
-                    from pathlib import Path
-
                     matches = list(Path(self.repo_dir).rglob(os.path.basename(reference.reference_file)))
-                    if matches:
-                        # Use the first match (convert to absolute path)
+                    if len(matches) == 1:
+                        # Unambiguous case: exactly one match found
                         reference.reference_file = str(matches[0])
                         logger.info(
-                            f"[Reference Resolution] Found file '{os.path.basename(reference.reference_file)}' at {reference.reference_file}"
+                            f"[Reference Resolution] Found unique file '{os.path.basename(reference.reference_file)}' at {reference.reference_file}"
                         )
+                    else:
+                        # Ambiguous case: multiple files with the same name
+                        match_paths = [str(m) for m in matches]
+                        if len(matches) > 1:
+                            logger.error(
+                                f"[Reference Resolution] Ambiguous file name '{os.path.basename(reference.reference_file)}' "
+                                f"for reference '{qname}'. Found {len(matches)} matches: {match_paths}. "
+                                f"Cannot determine the correct file with certainty."
+                            )
+                        # Clear the reference to signal resolution failure
+                        reference.reference_file = None
 
             if reference.reference_file is None:
                 logger.error(
