@@ -17,9 +17,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Scanner",
@@ -31,12 +29,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/scanner.py",
-        "../../static_analyzer/typescript_config_scanner.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "LSP Client",
@@ -48,12 +41,7 @@
           "reference_start_line": 58,
           "reference_end_line": 1105
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/lsp_client/typescript_client.py",
-        "../../static_analyzer/lsp_client/client.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Reference Resolver",
@@ -65,11 +53,7 @@
           "reference_start_line": 15,
           "reference_end_line": 151
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/reference_resolve_mixin.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Graph Builder",
@@ -81,11 +65,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/graph.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Programming Language Support",
@@ -97,11 +77,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/programming_language.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Analysis Result Handler",
@@ -113,11 +89,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../static_analyzer/analysis_result.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "RepoIgnoreManager",
@@ -129,20 +101,12 @@
           "reference_start_line": 8,
           "reference_end_line": 107
         }
-      ],
-      "assigned_files": [
-        "repo_utils/ignore.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../repo_utils/git_diff.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

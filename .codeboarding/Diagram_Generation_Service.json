@@ -11,9 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Diagram Generation Service",
@@ -31,12 +29,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/analysis_json.py",
-        "../../diagram_analysis/diagram_generator.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "AI Interpretation Layer",
@@ -48,9 +41,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -62,9 +53,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Repository Manager",
@@ -76,9 +65,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "API Service",
@@ -90,9 +77,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Database",
@@ -104,16 +89,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

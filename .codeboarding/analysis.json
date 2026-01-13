@@ -61,6 +61,7 @@
         "repo_utils/git_diff.py",
         "repo_utils/ignore.py",
         "static_analyzer/programming_language.py",
+        "static_analyzer/__init__.py",
         "static_analyzer/reference_resolve_mixin.py",
         "static_analyzer/graph.py",
         "static_analyzer/analysis_result.py",
@@ -124,7 +125,7 @@
         "agents/tools/read_git_diff.py",
         "agents/tools/read_file.py",
         "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py",
+        "/home/ubuntu/CodeBoarding/repo/CodeBoarding/agents/tools/read_docs.y",
         "agents/prompts/claude_prompts_bidirectional.py",
         "agents/prompts/gpt_prompts_unidirectional.py",
         "agents/prompts/gemini_flash_prompts_bidirectional.py",
@@ -148,6 +149,7 @@
         }
       ],
       "assigned_files": [
+        "output_generators/__init__.py",
         "output_generators/sphinx.py",
         "output_generators/mdx.py",
         "output_generators/html.py",
@@ -168,8 +170,10 @@
         }
       ],
       "assigned_files": [
+        "diagram_analysis/__init__.py",
         "diagram_analysis/analysis_json.py",
-        "diagram_analysis/diagram_generator.py"
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py"
       ],
       "can_expand": true
     },
@@ -196,11 +200,7 @@
         "evals/definitions/static_analysis.py",
         "evals/definitions/end_to_end.py",
         "evals/definitions/scalability.py",
-        "static_analyzer/__init__.py",
         "static_analyzer/lsp_client/__init__.py",
-        "output_generators/__init__.py",
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/version.py",
         "monitoring/paths.py",
         "monitoring/__init__.py",
         "monitoring/context.py",
@@ -209,6 +209,13 @@
         "monitoring/mixin.py",
         "monitoring/writers.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
       "can_expand": false
     }
   ],

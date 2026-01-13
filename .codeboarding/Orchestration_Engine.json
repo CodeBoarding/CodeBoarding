@@ -11,12 +11,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [
-        "main.py",
-        "../../github_action.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "API Service",
@@ -28,11 +23,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Database",
@@ -44,9 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Repository Manager",
@@ -58,9 +47,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -78,9 +65,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "AI Interpretation Layer",
@@ -98,11 +83,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "MetaAgent",
@@ -114,11 +95,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/meta_agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "PlannerAgent",
@@ -130,18 +107,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/planner_agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

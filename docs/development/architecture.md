@@ -494,6 +494,7 @@ graph LR
     Output_Generation_Engine["Output Generation Engine"]
     Diagram_Generation_Service["Diagram Generation Service"]
     Unclassified["Unclassified"]
+    Unclassified["Unclassified"]
     Orchestration_Engine -- "delegates tasks to" --> Static_Analysis_Engine
     Static_Analysis_Engine -- "provides enhanced structured code to" --> Orchestration_Engine
     Orchestration_Engine -- "orchestrates" --> AI_Processing_Layer
@@ -564,6 +565,12 @@ Specializes in converting structured architectural data into visual diagrams, po
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis" target="_blank" rel="noopener noreferrer">`diagram_analysis`</a>
 
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
