@@ -7,12 +7,13 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
+from agents.constants import SUPPORTED_EXTENSIONS_FALLBACK
 from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
 from monitoring import trace
+from diagram_analysis.version import Version
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
-from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils.git_diff import FileChange, get_git_diff
 
@@ -22,6 +23,16 @@ class DiffAnalyzingAgent(LargeModelAgent):
         super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
         self.project_name = project_name
         self.repo_dir = repo_dir
+
+        # Determine supported extensions: primary from static analysis, fallback to defaults
+        self.supported_extensions = self._get_supported_extensions(static_analysis)
+
+        if not self.supported_extensions:
+            logger.warning("[DiffAnalyzingAgent] No languages detected in static analysis, using fallback defaults")
+            self.supported_extensions = self._get_fallback_extensions()
+
+        logger.info(f"[DiffAnalyzingAgent] Monitoring changes for extensions: {sorted(self.supported_extensions)}")
+
         self.prompt = PromptTemplate(template=get_diff_analysis_message(), input_variables=["analysis", "diff_data"])
         self.read_diff_tool = self.toolkit.get_read_diff_tool(diffs=self.get_diff_data())
 
@@ -42,6 +53,33 @@ class DiffAnalyzingAgent(LargeModelAgent):
         with open(analysis_file_path, "r") as analysis_file:
             return AnalysisInsights.model_validate_json(analysis_file.read())
 
+    def _get_supported_extensions(self, static_analysis: StaticAnalysisResults) -> set[str]:
+        """
+        Extract supported file extensions from static analysis results.
+
+        Only includes extensions for languages that have LSP server support.
+
+        Args:
+            static_analysis: Static analysis results containing detected languages
+
+        Returns:
+            Set of supported file extensions (e.g., {'.py', '.ts', '.go'})
+        """
+        extensions = set()
+        for lang in static_analysis.programming_languages:
+            if lang.is_supported_lang():  # Only include languages with LSP support
+                extensions.update(lang.suffixes)
+        return extensions
+
+    def _get_fallback_extensions(self) -> set[str]:
+        """
+        Get fallback extensions when static analysis is unavailable or incomplete.
+
+        Returns:
+            Set of default supported file extensions
+        """
+        return SUPPORTED_EXTENSIONS_FALLBACK.copy()
+
     def get_diff_data(self) -> List[FileChange]:
         """
         Get the diff data for the current repository.
@@ -57,17 +95,26 @@ class DiffAnalyzingAgent(LargeModelAgent):
         diff = self.filter_diff(diff)
         return diff
 
-    @staticmethod
-    def filter_diff(diff: List[FileChange]) -> List[FileChange]:
+    def filter_diff(self, diff: List[FileChange]) -> List[FileChange]:
         """
-        Filter the diff to only include files that are relevant for analysis.
-        For now, we assume that only files in the .codeboarding directory are relevant.
+        Filter the diff to only include files with supported extensions.
+
+        Args:
+            diff: List of file changes from git
+
+        Returns:
+            List of file changes with supported extensions
         """
         relevant_files = []
         for change in diff:
-            # For now we are checking just python files
-            if change.filename.endswith(".py"):
+            file_ext = Path(change.filename).suffix
+            if file_ext in self.supported_extensions:
                 relevant_files.append(change)
+
+        filtered_count = len(diff) - len(relevant_files)
+        if filtered_count > 0:
+            logger.debug(f"[DiffAnalyzingAgent] Filtered out {filtered_count} unsupported files")
+
         return relevant_files
 
     def analysis_exists(self):
