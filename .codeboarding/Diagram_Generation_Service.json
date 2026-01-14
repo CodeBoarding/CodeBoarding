@@ -17,9 +17,7 @@
           "reference_start_line": 237,
           "reference_end_line": 267
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Orchestration Engine",
@@ -31,9 +29,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Repository Manager",
@@ -45,9 +41,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -59,9 +53,7 @@
           "reference_start_line": 13,
           "reference_end_line": 85
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "AI Interpretation Layer",
@@ -103,9 +95,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Job Database",
@@ -141,9 +131,7 @@
           "reference_start_line": 102,
           "reference_end_line": 124
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Diagram Generation Service",
@@ -155,14 +143,7 @@
           "reference_start_line": 199,
           "reference_end_line": 298
         }
-      ],
-      "assigned_files": [
-        "../../diagram_analysis/__init__.py",
-        "../../diagram_analysis/analysis_json.py",
-        "../../diagram_analysis/diagram_generator.py",
-        "../../diagram_analysis/version.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Output Generation Engine",
@@ -180,16 +161,12 @@
           "reference_start_line": 44,
           "reference_end_line": 101
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

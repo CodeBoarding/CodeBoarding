@@ -11,11 +11,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [
-        "<file_path>"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Output Generation Engine",
@@ -27,23 +23,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../output_generators/__init__.py",
-        "../../output_generators/sphinx.py",
-        "../../output_generators/mdx.py",
-        "../../output_generators/html.py",
-        "../../output_generators/html_template.py",
-        "../../output_generators/markdown.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

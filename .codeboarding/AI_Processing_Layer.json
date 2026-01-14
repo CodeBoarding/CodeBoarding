@@ -11,9 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Language Model Interface",
@@ -25,11 +23,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/llm_config.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Tool Executor",
@@ -41,11 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Provider",
@@ -57,9 +47,7 @@
           "reference_start_line": 1,
           "reference_end_line": 10
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Response Formatter",
@@ -71,16 +59,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
