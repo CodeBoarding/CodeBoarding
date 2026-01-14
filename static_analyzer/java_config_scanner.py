@@ -1,9 +1,3 @@
-"""
-Java project configuration scanner.
-
-Detects Maven, Gradle, and multi-module Java projects.
-"""
-
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import logging
@@ -14,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class JavaProjectConfig:
-    """Configuration for a Java project."""
 
     def __init__(
         self,
@@ -38,7 +31,6 @@ class JavaProjectConfig:
 
 
 class JavaConfigScanner:
-    """Scanner for Java project configurations."""
 
     def __init__(self, repo_path: Path, ignore_manager: RepoIgnoreManager | None = None):
         self.repo_path = repo_path

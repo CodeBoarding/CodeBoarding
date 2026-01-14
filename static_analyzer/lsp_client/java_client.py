@@ -9,10 +9,15 @@ import tempfile
 import time
 from pathlib import Path
 
-from .client import LSPClient
-from ..java_config_scanner import JavaProjectConfig
-from ..java_utils import create_jdtls_command, get_java_version, find_java_21_or_later, detect_java_installations
-from ..programming_language import ProgrammingLanguage, JavaConfig
+from static_analyzer.lsp_client.client import LSPClient
+from static_analyzer.java_config_scanner import JavaProjectConfig
+from static_analyzer.java_utils import (
+    create_jdtls_command,
+    get_java_version,
+    find_java_21_or_later,
+    detect_java_installations,
+)
+from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
