@@ -59,10 +59,12 @@ class TestDetailsAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_init(self, mock_static_init):
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
+    def test_init(self, mock_create_llm, mock_create_instructor):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -79,10 +81,12 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("feedback", agent.prompts)
         self.assertIn("classification", agent.prompts)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_step_subcfg(self, mock_static_init):
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
+    def test_step_subcfg(self, mock_create_llm, mock_create_instructor):
         # Test step_subcfg
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -101,11 +105,13 @@ class TestDetailsAgent(unittest.TestCase):
             self.assertIn("subcfg_insight", agent.context)
             mock_tool.component_cfg.assert_called_once_with(self.test_component)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    def test_step_cfg(self, mock_parse_invoke, mock_static_init):
+    def test_step_cfg(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_cfg
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -129,11 +135,13 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("cfg_insight", agent.context)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    def test_step_enhance_structure(self, mock_parse_invoke, mock_static_init):
+    def test_step_enhance_structure(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_enhance_structure
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -161,11 +169,13 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("structure_insight", agent.context)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    def test_step_analysis(self, mock_parse_invoke, mock_static_init):
+    def test_step_analysis(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -193,12 +203,14 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
-    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
+    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test apply_feedback
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -230,12 +242,14 @@ class TestDetailsAgent(unittest.TestCase):
         mock_parse_invoke.assert_called_once()
         mock_fix_ref.assert_called_once_with(updated_analysis)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
-    def test_run(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
+    def test_run(self, mock_fix_ref, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test run method
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -274,13 +288,17 @@ class TestDetailsAgent(unittest.TestCase):
             self.assertEqual(mock_parse_invoke.call_count, 3)
             mock_fix_ref.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_parse_invoke, mock_static_init):
+    def test_classify_files(
+        self, mock_relpath, mock_exists, mock_parse_invoke, mock_create_llm, mock_create_instructor
+    ):
         # Test classify_files
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

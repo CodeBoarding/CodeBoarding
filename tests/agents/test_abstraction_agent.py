@@ -52,10 +52,12 @@ class TestAbstractionAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_init(self, mock_static_init):
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
+    def test_init(self, mock_create_llm, mock_create_instructor):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -71,11 +73,13 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertIn("classification", agent.prompts)
         self.assertIn("feedback", agent.prompts)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_single_language(self, mock_parse_invoke, mock_static_init):
+    def test_step_cfg_single_language(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_cfg with single language
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -95,11 +99,13 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertIn("cfg_insight", agent.context)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_multiple_languages(self, mock_parse_invoke, mock_static_init):
+    def test_step_cfg_multiple_languages(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_cfg with multiple languages
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
         agent = AbstractionAgent(
@@ -120,11 +126,13 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_cfg_no_languages(self, mock_parse_invoke, mock_static_init):
+    def test_step_cfg_no_languages(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_cfg with no languages detected
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = []
 
         agent = AbstractionAgent(
@@ -144,11 +152,13 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_source(self, mock_parse_invoke, mock_static_init):
+    def test_step_source(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test step_source
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -175,11 +185,13 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         self.assertIn("source", agent.context)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_generate_analysis(self, mock_parse_invoke, mock_static_init):
+    def test_generate_analysis(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test generate_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -212,12 +224,14 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
     @patch("agents.abstraction_agent.AbstractionAgent.fix_source_code_reference_lines")
-    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
+    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_create_llm, mock_create_instructor):
         # Test apply_feedback
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -249,13 +263,17 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_parse_invoke.assert_called_once()
         mock_fix_ref.assert_called_once_with(updated_analysis)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_parse_invoke, mock_static_init):
+    def test_classify_files(
+        self, mock_relpath, mock_exists, mock_parse_invoke, mock_create_llm, mock_create_instructor
+    ):
         # Test classify_files
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
+        mock_create_instructor.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

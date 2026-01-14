@@ -1,7 +1,7 @@
 import abc
 import json
 from abc import abstractmethod
-from typing import get_origin, Optional, Any
+from typing import get_origin, get_args, Optional, Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -42,7 +42,8 @@ class LLMBaseModel(BaseModel, abc.ABC):
         for fname, fvalue in cls.model_fields.items():
             ftype = fvalue.annotation
             if get_origin(ftype) is list:
-                inner_type = ftype.__args__[0] if hasattr(ftype, "__args__") else "item"
+                args = get_args(ftype)
+                inner_type = args[0] if args else "item"
                 if isinstance(inner_type, type) and issubclass(inner_type, LLMBaseModel):
                     nested_fields = ", ".join(f"{f}: {v.description}" for f, v in inner_type.model_fields.items())
                     lines.append(f"- {fname}: List of objects with ({nested_fields})")

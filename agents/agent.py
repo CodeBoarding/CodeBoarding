@@ -4,14 +4,14 @@ import time
 from pathlib import Path
 from typing import Type
 
-import instructor
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
-from agents.llm_config import LLM_PROVIDERS
+from agents.agent_responses import LLMBaseModel
+from agents.llm_config import create_llm_from_env, create_instructor_client_from_env
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from monitoring.callbacks import MonitoringCallback
@@ -27,27 +27,24 @@ from monitoring.stats import RunStats
 
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
-INSTRUCTOR_PROVIDER_MAP = {
-    "openai": "openai",
-    "vercel": "openai",  # Uses OpenAI-compatible API
-    "anthropic": "anthropic",
-    "google": "google",
-    "aws": "bedrock",
-    "cerebras": "cerebras",
-    "ollama": "ollama",
-}
-
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
-    _parsing_llm: BaseChatModel | None = None
-    _instructor_client = None
-    _instructor_provider_name: str | None = None
-    _instructor_model_name: str | None = None
-
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        system_message: str,
+        llm: BaseChatModel,
+        model_name: str,
+        instructor_client,
+        instructor_model_name: str,
+    ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.llm = llm
+        self.model_name = model_name
+        self.instructor_client = instructor_client
+        self.instructor_model_name = instructor_model_name
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
@@ -97,103 +94,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     @property
     def external_deps_tool(self):
         return self.toolkit.external_deps
-
-    @classmethod
-    def get_parsing_llm(cls) -> BaseChatModel:
-        """Shared access to the small model for parsing tasks."""
-        if cls._parsing_llm is None:
-            parsing_model = os.getenv("PARSING_MODEL", None)
-            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
-        return cls._parsing_llm
-
-    @classmethod
-    def _get_instructor_client(cls):
-        """Get or create an instructor client for structured extraction."""
-        if cls._instructor_client is not None:
-            return cls._instructor_client
-
-        parsing_model = os.getenv("PARSING_MODEL", None)
-
-        for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
-
-            model_name = parsing_model if parsing_model else config.parsing_model
-            instructor_provider = INSTRUCTOR_PROVIDER_MAP.get(name)
-
-            if instructor_provider is None:
-                logger.warning(f"No instructor mapping for provider {name}, falling back to openai")
-                instructor_provider = "openai"
-
-            logger.info(f"Initializing instructor client with provider: {instructor_provider}, model: {model_name}")
-
-            if name == "vercel":
-                from openai import OpenAI
-
-                base_url = config.get_resolved_extra_args().get("base_url")
-                openai_client = OpenAI(api_key=config.get_api_key(), base_url=base_url)
-                cls._instructor_client = instructor.from_openai(openai_client, mode=instructor.Mode.MD_JSON)
-            elif name == "google":
-                cls._instructor_client = instructor.from_provider(
-                    f"google/{model_name}",
-                    api_key=config.get_api_key(),
-                    mode=instructor.Mode.MD_JSON,
-                )
-            else:
-                provider_string = f"{instructor_provider}/{model_name}"
-                kwargs = {}
-                if name not in ["aws", "ollama"]:
-                    api_key = config.get_api_key()
-                    if api_key:
-                        kwargs["api_key"] = api_key
-                cls._instructor_client = instructor.from_provider(provider_string, **kwargs)
-
-            cls._instructor_provider_name = name
-            cls._instructor_model_name = model_name
-            return cls._instructor_client
-
-        raise ValueError("No valid LLM configuration found for instructor client")
-
-    @staticmethod
-    def _static_initialize_llm(
-        model_override: str | None = None, is_parsing: bool = False
-    ) -> tuple[BaseChatModel, str]:
-        """Initialize LLM based on available API keys with priority order."""
-        for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
-
-            # Determine model name
-            default_model = config.parsing_model if is_parsing else config.agent_model
-            model_name = model_override if model_override else default_model
-
-            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
-
-            kwargs = {
-                "model": model_name,
-                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
-            }
-            kwargs.update(config.get_resolved_extra_args())
-
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
-
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-
-            # Update global monitoring callback
-            MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
-
-        # Dynamically build error message with all possible env vars
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
-
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
@@ -321,7 +221,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
-    def _parse_response(self, prompt, response, return_type: Type[BaseModel], max_retries=5, attempt=0):
+    def _parse_response(self, prompt, response, return_type: Type[LLMBaseModel], max_retries=5, attempt=0):
         if attempt >= max_retries:
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
@@ -330,18 +230,15 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             logger.error(f"Empty response for prompt: {prompt}")
 
         try:
-            client = self._get_instructor_client()
             extraction_prompt = return_type.extractor_str() + response
-            print("=== Extraction Prompt ===")
-            print(extraction_prompt)
             create_kwargs = {
                 "response_model": return_type,
                 "messages": [{"role": "user", "content": extraction_prompt}],
                 "max_retries": 2,
             }
-            if self._instructor_model_name:
-                create_kwargs["model"] = self._instructor_model_name
-            result = client.chat.completions.create(**create_kwargs)
+            if self.instructor_model_name:
+                create_kwargs["model"] = self.instructor_model_name
+            result = self.instructor_client.chat.completions.create(**create_kwargs)
             return result
         except ValidationError as e:
             logger.warning(f"Validation error during extraction (attempt {attempt + 1}/{max_retries}): {e}")
@@ -363,6 +260,18 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
-        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
-        super().__init__(repo_dir, static_analysis, system_message, llm)
+        llm, model_name, _ = create_llm_from_env(model_override=agent_model, is_parsing=False)
+        instructor_client, instructor_model_name = create_instructor_client_from_env()
+
+        MONITORING_CALLBACK.model_name = model_name
+
+        super().__init__(
+            repo_dir=repo_dir,
+            static_analysis=static_analysis,
+            system_message=system_message,
+            llm=llm,
+            model_name=model_name,
+            instructor_client=instructor_client,
+            instructor_model_name=instructor_model_name,
+        )
         self.agent_monitoring_callback.model_name = model_name
