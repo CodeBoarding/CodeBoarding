@@ -1,20 +1,15 @@
-import json
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Type
 
-from dotenv import load_dotenv
+import instructor
 from google.api_core.exceptions import ResourceExhausted
-from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
-from pydantic import ValidationError
-from trustcall import create_extractor
+from pydantic import BaseModel, ValidationError
 
 from agents.llm_config import LLM_PROVIDERS
 from agents.tools.base import RepoContext
@@ -32,9 +27,22 @@ from monitoring.stats import RunStats
 
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
+INSTRUCTOR_PROVIDER_MAP = {
+    "openai": "openai",
+    "vercel": "openai",  # Uses OpenAI-compatible API
+    "anthropic": "anthropic",
+    "google": "google",
+    "aws": "bedrock",
+    "cerebras": "cerebras",
+    "ollama": "ollama",
+}
+
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
-    _parsing_llm: Optional[BaseChatModel] = None
+    _parsing_llm: BaseChatModel | None = None
+    _instructor_client = None
+    _instructor_provider_name: str | None = None
+    _instructor_model_name: str | None = None
 
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
@@ -94,14 +102,61 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""
         if cls._parsing_llm is None:
-
             parsing_model = os.getenv("PARSING_MODEL", None)
             cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
         return cls._parsing_llm
 
+    @classmethod
+    def _get_instructor_client(cls):
+        """Get or create an instructor client for structured extraction."""
+        if cls._instructor_client is not None:
+            return cls._instructor_client
+
+        parsing_model = os.getenv("PARSING_MODEL", None)
+
+        for name, config in LLM_PROVIDERS.items():
+            if not config.is_active():
+                continue
+
+            model_name = parsing_model if parsing_model else config.parsing_model
+            instructor_provider = INSTRUCTOR_PROVIDER_MAP.get(name)
+
+            if instructor_provider is None:
+                logger.warning(f"No instructor mapping for provider {name}, falling back to openai")
+                instructor_provider = "openai"
+
+            logger.info(f"Initializing instructor client with provider: {instructor_provider}, model: {model_name}")
+
+            if name == "vercel":
+                from openai import OpenAI
+
+                base_url = config.get_resolved_extra_args().get("base_url")
+                openai_client = OpenAI(api_key=config.get_api_key(), base_url=base_url)
+                cls._instructor_client = instructor.from_openai(openai_client, mode=instructor.Mode.MD_JSON)
+            elif name == "google":
+                cls._instructor_client = instructor.from_provider(
+                    f"google/{model_name}",
+                    api_key=config.get_api_key(),
+                    mode=instructor.Mode.MD_JSON,
+                )
+            else:
+                provider_string = f"{instructor_provider}/{model_name}"
+                kwargs = {}
+                if name not in ["aws", "ollama"]:
+                    api_key = config.get_api_key()
+                    if api_key:
+                        kwargs["api_key"] = api_key
+                cls._instructor_client = instructor.from_provider(provider_string, **kwargs)
+
+            cls._instructor_provider_name = name
+            cls._instructor_model_name = model_name
+            return cls._instructor_client
+
+        raise ValueError("No valid LLM configuration found for instructor client")
+
     @staticmethod
     def _static_initialize_llm(
-        model_override: Optional[str] = None, is_parsing: bool = False
+        model_override: str | None = None, is_parsing: bool = False
     ) -> tuple[BaseChatModel, str]:
         """Initialize LLM based on available API keys with priority order."""
         for name, config in LLM_PROVIDERS.items():
@@ -266,34 +321,33 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
-    def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
+    def _parse_response(self, prompt, response, return_type: Type[BaseModel], max_retries=5, attempt=0):
         if attempt >= max_retries:
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        parsing_llm = self.get_parsing_llm()
-        extractor = create_extractor(parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
+
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
-            if "responses" in result and len(result["responses"]) != 0:
-                return return_type.model_validate(result["responses"][0])
-            if "messages" in result and len(result["messages"]) != 0:
-                message = result["messages"][0].content
-                parser = PydanticOutputParser(pydantic_object=return_type)
-                return self._try_parse(message, parser)
-            parser = PydanticOutputParser(pydantic_object=return_type)
-            return self._try_parse(response, parser)
-        except IndexError as e:
-            # try to parse with the json parser if possible
-            logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
+            client = self._get_instructor_client()
+            extraction_prompt = return_type.extractor_str() + response
+            print("=== Extraction Prompt ===")
+            print(extraction_prompt)
+            create_kwargs = {
+                "response_model": return_type,
+                "messages": [{"role": "user", "content": extraction_prompt}],
+                "max_retries": 2,
+            }
+            if self._instructor_model_name:
+                create_kwargs["model"] = self._instructor_model_name
+            result = client.chat.completions.create(**create_kwargs)
+            return result
+        except ValidationError as e:
+            logger.warning(f"Validation error during extraction (attempt {attempt + 1}/{max_retries}): {e}")
             return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except ResourceExhausted as e:
-            # Parsing uses exponential backoff for rate limits
             if attempt < max_retries - 1:
-                # Exponential backoff: 30s * 2^attempt, capped at 300s
                 delay = min(30 * (2**attempt), 300)
                 logger.warning(
                     f"ResourceExhausted during parsing (rate limit): {e}\n"
@@ -304,30 +358,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             else:
                 logger.error(f"Resource exhausted on final parsing attempt: {e}")
                 raise
-
-    def _try_parse(self, message_content, parser):
-        try:
-            prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
-
-            Here is the content to parse and fix: {adjective}
-
-            Please provide only the JSON output without any additional text."""
-            prompt = PromptTemplate(
-                template=prompt_template,
-                input_variables=["adjective"],
-                partial_variables={"format_instructions": parser.get_format_instructions()},
-            )
-            parsing_llm = self.get_parsing_llm()
-            chain = prompt | parsing_llm | parser
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            return chain.invoke({"adjective": message_content}, config=config)
-        except (ValidationError, OutputParserException):
-            for k, v in json.loads(message_content).items():
-                try:
-                    return self._try_parse(json.dumps(v), parser)
-                except:
-                    pass
-        raise ValueError(f"Couldn't parse {message_content}")
 
 
 class LargeModelAgent(CodeBoardingAgent):

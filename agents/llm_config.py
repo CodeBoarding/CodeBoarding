@@ -71,7 +71,7 @@ LLM_PROVIDERS = {
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
         agent_model="gemini-2.5-flash",
-        parsing_model="gemini-2.5-flash-lite",
+        parsing_model="gemini-2.5-flash",
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),

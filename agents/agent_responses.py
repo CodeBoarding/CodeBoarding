@@ -1,8 +1,24 @@
 import abc
+import json
 from abc import abstractmethod
-from typing import get_origin, Optional
+from typing import get_origin, Optional, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _parse_stringified_json(v: Any) -> Any:
+    """Parse stringified JSON objects that Vercel AI Gateway sometimes returns.
+
+    When using Gemini via Vercel's AI gateway with tool calling, nested objects
+    in arrays are sometimes returned as JSON strings instead of actual objects.
+    This helper parses them back into dicts.
+    """
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            return v
+    return v
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -11,28 +27,31 @@ class LLMBaseModel(BaseModel, abc.ABC):
         raise NotImplementedError("LLM String has to be implemented.")
 
     @classmethod
-    def extractor_str(cls):
-        # Here iterate over the fields that we have and use their description like:
-        result_str = "please extract the following: "
+    def extractor_str(cls) -> str:
+        """Generate an extraction prompt for instructor.
+
+        Override this in subclasses to provide model-specific extraction prompts
+        that are more effective for structured output extraction.
+        """
+        return cls._default_extractor_str()
+
+    @classmethod
+    def _default_extractor_str(cls) -> str:
+        """Default extraction prompt generator for backward compatibility."""
+        lines = ["Extract the following fields as structured JSON:\n"]
         for fname, fvalue in cls.model_fields.items():
-            # check if the field type is Optional
             ftype = fvalue.annotation
-            # Check if the type is a typing.List (e.g., typing.List[SomeType])
             if get_origin(ftype) is list:
-                # get the type of the list:
-                if ftype is not None and hasattr(ftype, "__args__"):
-                    ftype = ftype.__args__[0]
-                result_str += f"{fname} which is a list ("
-            if ftype is Optional:
-                result_str += f"{fname} ({fvalue.description}), "
-            elif ftype is not None and isinstance(ftype, type) and issubclass(ftype, LLMBaseModel):
-                # Now I need to call the extractor_str method of the field
-                result_str += ftype.extractor_str()
+                inner_type = ftype.__args__[0] if hasattr(ftype, "__args__") else "item"
+                if isinstance(inner_type, type) and issubclass(inner_type, LLMBaseModel):
+                    nested_fields = ", ".join(f"{f}: {v.description}" for f, v in inner_type.model_fields.items())
+                    lines.append(f"- {fname}: List of objects with ({nested_fields})")
+                else:
+                    lines.append(f"- {fname}: List of {fvalue.description}")
             else:
-                result_str += f"{fname} ({fvalue.description}), "
-            if get_origin(ftype) is list:
-                result_str += "), "
-        return result_str
+                lines.append(f"- {fname}: {fvalue.description}")
+        lines.append("\nContent to extract from:\n")
+        return "\n".join(lines)
 
 
 class SourceCodeReference(LLMBaseModel):
@@ -118,6 +137,31 @@ class AnalysisInsights(LLMBaseModel):
     components: list[Component] = Field(description="List of the components identified in the project.")
     components_relations: list[Relation] = Field(description="List of relations among the components.")
 
+    @classmethod
+    def extractor_str(cls) -> str:
+        """Optimized extraction prompt for analysis insights."""
+        return """Extract the analysis insights from the following content as structured JSON.
+
+Provide:
+- description: One paragraph explaining the main functionality and purpose
+
+For each component provide:
+- name: The component name
+- description: A short description of the component
+- referenced_source_code: List of source code references, each with:
+  - qualified_name: Qualified name (e.g., "langchain.tools.tool")
+  - reference_file: File path (e.g., "langchain/tools/tool.py") or null
+  - reference_start_line: Starting line number or null
+  - reference_end_line: Ending line number or null
+
+For each relation provide:
+- relation: The relationship phrase
+- src_name: Source component name
+- dst_name: Target component name
+
+Content to extract from:
+"""
+
     def llm_str(self):
         if not self.components:
             return "No abstract components found."
@@ -151,6 +195,40 @@ class CFGAnalysisInsights(LLMBaseModel):
 
     components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
     components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
+
+    @field_validator("components", mode="before")
+    @classmethod
+    def parse_stringified_components(cls, v: Any) -> Any:
+        """Handle stringified JSON from Vercel AI Gateway."""
+        if isinstance(v, list):
+            return [_parse_stringified_json(item) for item in v]
+        return v
+
+    @field_validator("components_relations", mode="before")
+    @classmethod
+    def parse_stringified_relations(cls, v: Any) -> Any:
+        """Handle stringified JSON from Vercel AI Gateway."""
+        if isinstance(v, list):
+            return [_parse_stringified_json(item) for item in v]
+        return v
+
+    @classmethod
+    def extractor_str(cls) -> str:
+        """Optimized extraction prompt for CFG analysis."""
+        return """Extract all components and their relationships from the following CFG analysis as structured JSON.
+
+For each component provide:
+- name: The component name (e.g., "CLI Service", "Analysis Engine")
+- description: A brief description of what the component does
+- referenced_source: List of qualified method/class names (e.g., ["main.main", "analyzer.analyze"])
+
+For each relation provide:
+- relation: The relationship phrase (e.g., "Triggers Analysis", "Returns Results")
+- src_name: Source component name (must match a component name exactly)
+- dst_name: Target component name (must match a component name exactly)
+
+Content to extract from:
+"""
 
     def llm_str(self):
         if not self.components:
