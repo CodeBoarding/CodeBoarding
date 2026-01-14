@@ -23,11 +23,7 @@
           "reference_start_line": 35,
           "reference_end_line": 329
         }
-      ],
-      "assigned_files": [
-        "main.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "MetaAgent",
@@ -39,11 +35,7 @@
           "reference_start_line": 15,
           "reference_end_line": 39
         }
-      ],
-      "assigned_files": [
-        "../../agents/meta_agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "PlannerAgent",
@@ -55,11 +47,7 @@
           "reference_start_line": 12,
           "reference_end_line": 32
         }
-      ],
-      "assigned_files": [
-        "../../agents/planner_agent.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "CodeBoardingAgent",
@@ -71,18 +59,12 @@
           "reference_start_line": 35,
           "reference_end_line": 329
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../local_app.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
