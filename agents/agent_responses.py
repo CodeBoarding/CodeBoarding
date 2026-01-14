@@ -1,7 +1,7 @@
 import abc
 import json
 from abc import abstractmethod
-from typing import get_origin, get_args, Optional, Any
+from typing import get_origin, get_args, Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -37,7 +37,6 @@ class LLMBaseModel(BaseModel, abc.ABC):
 
     @classmethod
     def _default_extractor_str(cls) -> str:
-        """Default extraction prompt generator for backward compatibility."""
         lines = ["Extract the following fields as structured JSON:\n"]
         for fname, fvalue in cls.model_fields.items():
             ftype = fvalue.annotation
@@ -140,7 +139,6 @@ class AnalysisInsights(LLMBaseModel):
 
     @classmethod
     def extractor_str(cls) -> str:
-        """Optimized extraction prompt for analysis insights."""
         return """Extract the analysis insights from the following content as structured JSON.
 
 Provide:
@@ -215,7 +213,6 @@ class CFGAnalysisInsights(LLMBaseModel):
 
     @classmethod
     def extractor_str(cls) -> str:
-        """Optimized extraction prompt for CFG analysis."""
         return """Extract all components and their relationships from the following CFG analysis as structured JSON.
 
 For each component provide:

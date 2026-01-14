@@ -1,17 +1,17 @@
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Type, Dict, Any, Optional, Callable
+from typing import Any
 
 import instructor
-from langchain_core.language_models import BaseChatModel
-from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
+from langchain_core.language_models import BaseChatModel
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +39,17 @@ class LLMConfig:
                           which is crucial for structured output extraction.
     """
 
-    chat_class: Type[BaseChatModel]
+    chat_class: type[BaseChatModel]
     api_key_env: str
     agent_model: str
     parsing_model: str
     instructor_provider: InstructorProvider
     agent_temperature: float = 0
     parsing_temperature: float = 0
-    extra_args: Dict[str, Any] = field(default_factory=dict)
+    extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
 
     def is_active(self) -> bool:
@@ -58,7 +58,7 @@ class LLMConfig:
             return True
         return any(os.getenv(var) for var in self.alt_env_vars)
 
-    def get_resolved_extra_args(self) -> Dict[str, Any]:
+    def get_resolved_extra_args(self) -> dict[str, Any]:
         resolved = {}
         for k, v in self.extra_args.items():
             value = v() if callable(v) else v
@@ -67,7 +67,6 @@ class LLMConfig:
         return resolved
 
     def create_instructor_client(self, model_name: str):
-        """Create an instructor client for this provider."""
         api_key = self.get_api_key()
 
         if self.instructor_provider == InstructorProvider.OPENAI:
@@ -83,7 +82,7 @@ class LLMConfig:
             return instructor.from_provider(
                 f"google/{model_name}",
                 api_key=api_key,
-                mode=instructor.Mode.MD_JSON,
+                mode=instructor.Mode.MD_JSON,  # This line is crucial for structured output with Gemini
             )
 
         if self.instructor_provider in (InstructorProvider.BEDROCK, InstructorProvider.OLLAMA):
@@ -188,7 +187,6 @@ LLM_PROVIDERS = {
 
 
 def get_active_config() -> tuple[str, LLMConfig]:
-    """Get the first active LLM configuration."""
     for name, config in LLM_PROVIDERS.items():
         if config.is_active():
             return name, config
@@ -199,12 +197,7 @@ def get_active_config() -> tuple[str, LLMConfig]:
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
 
 
-def create_instructor_client_from_env():
-    """Create an instructor client using the active LLM configuration.
-
-    Returns:
-        tuple: (instructor_client, model_name)
-    """
+def create_instructor_client_from_env() -> tuple[instructor.Instructor, str]:
     _, config = get_active_config()
     parsing_model_override = os.getenv("PARSING_MODEL", None)
     model_name = parsing_model_override or config.parsing_model
@@ -216,15 +209,6 @@ def create_instructor_client_from_env():
 def create_llm_from_env(
     model_override: str | None = None, is_parsing: bool = False
 ) -> tuple[BaseChatModel, str, "LLMConfig"]:
-    """Create an LLM using the active configuration from environment.
-
-    Args:
-        model_override: Optional model name to override the default.
-        is_parsing: If True, use parsing model defaults, else agent model.
-
-    Returns:
-        tuple: (model, model_name, config)
-    """
     name, config = get_active_config()
 
     default_model = config.parsing_model if is_parsing else config.agent_model
