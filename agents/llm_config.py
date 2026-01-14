@@ -70,7 +70,7 @@ LLM_PROVIDERS = {
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
-        agent_model="gemini-3-flash-preview",
+        agent_model="gemini-2.5-flash",
         parsing_model="gemini-2.5-flash-lite",
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
@@ -94,7 +94,7 @@ LLM_PROVIDERS = {
     "google": LLMConfig(
         chat_class=ChatGoogleGenerativeAI,
         api_key_env="GOOGLE_API_KEY",
-        agent_model="gemini-3-flash-preview",
+        agent_model="gemini-2.5-flash",
         parsing_model="gemini-2.5-flash",
         extra_args={
             "max_tokens": None,

@@ -90,17 +90,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def external_deps_tool(self):
         return self.toolkit.external_deps
 
-    def _setup_env_vars(self):
-        load_dotenv()
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
-        self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-
     @classmethod
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""
