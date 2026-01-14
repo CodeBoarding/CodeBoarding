@@ -1,184 +1,119 @@
 {
-  "description": "The system operates with the Orchestration Engine at its core, initiating processes via the API Service and managing job states through the Job Database. The Repository Manager fetches and filters code, which is then passed to the Static Analysis Engine. This engine, now enhanced with advanced reference resolution capabilities, performs detailed code analysis. The results are then forwarded to the AI Interpretation Layer, where specialized agents like MetaAgent and PlannerAgent, supported by refined validation mechanisms from the ValidatorAgent, generate architectural insights and strategic analysis plans. Finally, these insights are returned to the Orchestration Engine for documentation delivery via the API Service.",
+  "description": "The CodeBoarding system is orchestrated by the `Orchestration Engine`, which acts as the central control unit for the entire code analysis and documentation generation pipeline. It initiates the process by interacting with the `MetaAgent` to gather architectural context and project metadata. Subsequently, it invokes the `PlannerAgent` to generate a structured plan for analyzing various components of the codebase. The `Orchestration Engine` then delegates specific analysis and execution tasks to the `CodeBoardingAgent`, which serves as a foundational worker agent. The `CodeBoardingAgent` provides core capabilities such as interacting with Large Language Models (LLMs), accessing various tools for reading source code, file structures, and Control Flow Graphs (CFGs), and handling robust invocation mechanisms with error handling. This collaborative interaction between the `Orchestration Engine` and its specialized agents ensures a comprehensive and structured approach to code analysis and documentation.",
   "components": [
     {
       "name": "Orchestration Engine",
-      "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation.",
+      "description": "The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation, primarily by delegating to the `CodeBoardingAgent`. It now also integrates the `ValidatorAgent` into its workflow for post-processing validation.",
       "referenced_source_code": [
         {
-          "qualified_name": "Orchestration Engine",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
-    },
-    {
-      "name": "API Service",
-      "description": "Handles external job requests and delivers final documentation.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "API Service",
-          "reference_file": "<file_path>",
-          "reference_start_line": 1,
-          "reference_end_line": 10
-        }
-      ]
-    },
-    {
-      "name": "Job Database",
-      "description": "Stores and manages job status and metadata.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "Job Database",
-          "reference_file": "I cannot fulfill this request as the list of files to choose from is empty. Please provide a list of files to search within.",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Repository Manager",
-      "description": "Responsible for fetching code from repositories and managing file and directory exclusions based on `.gitignore` patterns and default ignored paths.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "Repository Manager",
-          "reference_file": "<file_path>",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager. It now includes enhanced capabilities for resolving code references, significantly improving its ability to understand code relationships through the integration of components like `reference_resolve_mixin`.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "Static Analysis Engine",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 15,
+          "reference_end_line": 39
         },
         {
-          "qualified_name": "reference_resolve_mixin",
-          "reference_file": "static_analyzer/reference_resolve_mixin.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "AI Interpretation Layer",
-      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like `MetaAgent`, `PlannerAgent`, and `ValidatorAgent`. This layer is built upon a modified agent framework, now featuring refined validation mechanisms that enhance the accuracy and robustness of its insights.",
-      "referenced_source_code": [
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": 12,
+          "reference_end_line": 32
+        },
         {
-          "qualified_name": "AI Interpretation Layer",
+          "qualified_name": "agents.agent.CodeBoardingAgent",
           "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "ValidatorAgent",
-          "reference_file": "agents/validator_agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 35,
+          "reference_end_line": 329
         }
-      ]
+      ],
+      "assigned_files": [
+        "main.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "MetaAgent",
-      "description": "Analyzes project-level metadata to extract high-level architectural context, project type, domain, and technological biases, guiding subsequent analysis and interpretation. Its behavior is now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.",
+      "description": "Responsible for analyzing project metadata to establish architectural context and bias, supplying foundational understanding to initiate the analysis pipeline.",
       "referenced_source_code": [
         {
-          "qualified_name": "MetaAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 15,
+          "reference_end_line": 39
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/meta_agent.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "PlannerAgent",
-      "description": "Generates a strategic plan for deeper code analysis based on initial analysis and metadata, identifying key components for detailed examination and determining their expansion scope. Its design and behavior are now influenced by the updated agent framework in `agents/agent.py` and benefits from the refined validation capabilities within the `AI Interpretation Layer`.",
+      "description": "Generates a structured plan for analyzing components, serving as the strategic planning unit for the `Orchestration Engine` to determine the sequence and scope of subsequent analysis tasks.",
       "referenced_source_code": [
         {
-          "qualified_name": "PlannerAgent",
-          "reference_file": "agents/agent.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": 12,
+          "reference_end_line": 32
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/planner_agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingAgent",
+      "description": "A foundational agent providing core capabilities such as LLM interaction, tool access (e.g., reading source code, file structure, CFG), and robust invocation mechanisms with error handling. It acts as a base worker agent or a toolkit provider that the `Orchestration Engine` delegates specific execution tasks to, or that other specialized agents extend or compose.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 35,
+          "reference_end_line": 329
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [
+        "../../local_app.py"
+      ],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
       "relation": "initiates",
-      "src_name": "API Service",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "manages",
       "src_name": "Orchestration Engine",
-      "dst_name": "Job Database"
-    },
-    {
-      "relation": "instructs",
-      "src_name": "Orchestration Engine",
-      "dst_name": "Repository Manager"
-    },
-    {
-      "relation": "provides filtered code to",
-      "src_name": "Repository Manager",
-      "dst_name": "Static Analysis Engine"
-    },
-    {
-      "relation": "provides results to",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "utilizes",
-      "src_name": "AI Interpretation Layer",
       "dst_name": "MetaAgent"
     },
     {
-      "relation": "utilizes",
-      "src_name": "AI Interpretation Layer",
+      "relation": "invokes",
+      "src_name": "Orchestration Engine",
       "dst_name": "PlannerAgent"
     },
     {
-      "relation": "returns insights to",
-      "src_name": "MetaAgent",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "returns plan to",
-      "src_name": "PlannerAgent",
-      "dst_name": "AI Interpretation Layer"
-    },
-    {
-      "relation": "sends insights to",
-      "src_name": "AI Interpretation Layer",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "delivers documentation via",
+      "relation": "delegates tasks to",
       "src_name": "Orchestration Engine",
-      "dst_name": "API Service"
+      "dst_name": "CodeBoardingAgent"
     },
     {
-      "relation": "stores data for",
-      "src_name": "Job Database",
+      "relation": "provides project context to",
+      "src_name": "MetaAgent",
       "dst_name": "Orchestration Engine"
     },
     {
-      "relation": "provides status to",
-      "src_name": "Job Database",
+      "relation": "provides analysis plans to",
+      "src_name": "PlannerAgent",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "performs tasks delegated by",
+      "src_name": "CodeBoardingAgent",
       "dst_name": "Orchestration Engine"
     }
   ]

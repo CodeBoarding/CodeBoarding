@@ -1,90 +1,56 @@
 {
-  "description": "The system operates by processing user queries through a series of interconnected components. The `Query Processor` initially handles incoming queries, preparing them for subsequent stages. This processed query is then directed to the `Information Retriever`, which is responsible for fetching relevant data from a knowledge base, now enhanced with capabilities to resolve code references for more accurate information retrieval. The retrieved information is subsequently passed to the `Response Generator`, which leverages a language model to formulate a coherent natural language response. Finally, the `History Logger` records the interaction, storing both the original query and the generated response for future reference.",
+  "description": "This subsystem is designed to translate complex architectural analysis into clear, structured documentation and visual representations. The primary flow begins with the AI Interpretation Layer, which processes raw project data to extract and formulate structured architectural insights. These insights represent the core understanding of the system's design and components. The critical interaction pathway involves the AI Interpretation Layer sending these structured architectural insights directly to the Output Generation Engine. The Output Generation Engine then takes on the responsibility of transforming these insights into various consumable formats. This includes generating human-readable documentation (e.g., Markdown reports) and machine-readable data (e.g., JSON) that can be used for automated diagram generation. This ensures a consistent and automated pipeline from AI-driven analysis to final architectural documentation.",
   "components": [
     {
-      "name": "Query Processor",
-      "description": "Handles incoming user queries and prepares them for further processing. This component may leverage reference resolution capabilities to better understand code-related queries.",
+      "name": "AI Interpretation Layer",
+      "description": "This component is responsible for processing raw data and generating structured architectural insights. It acts as the source of high-level understanding derived from the project's analysis, providing the foundational data for documentation and diagram generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryHandler.process",
-          "reference_file": "query_handler.py",
+          "qualified_name": "ai_interpretation_layer",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [
+        "<file_path>"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "This component is the core of the subsystem. It receives structured architectural insights from the AI Interpretation Layer and is responsible for formatting these insights into diverse output types, such as Markdown, JSON, reports, or raw data suitable for diagram generation. It ensures that the generated documentation adheres to specified standards and acts as the crucial bridge between AI-processed data and the final end-user documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
-    },
-    {
-      "name": "Information Retriever",
-      "description": "Fetches relevant information based on the processed query from a knowledge base. This component is enhanced by the `ReferenceResolveMixin` to accurately navigate and fetch code-related information by resolving references.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "KnowledgeBase.retrieve",
-          "reference_file": "knowledge_base.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Response Generator",
-      "description": "Utilizes a language model to generate a natural language response.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "LanguageModel.generate_response",
-          "reference_file": "agents/llm_config.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "History Logger",
-      "description": "Stores the user query and the generated response for future reference.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "InteractionLogger.log",
-          "reference_file": "monitoring/callbacks.py",
-          "reference_start_line": 16,
-          "reference_end_line": 166
-        }
-      ]
+      ],
+      "assigned_files": [
+        "../../output_generators/__init__.py",
+        "../../output_generators/sphinx.py",
+        "../../output_generators/mdx.py",
+        "../../output_generators/html.py",
+        "../../output_generators/html_template.py",
+        "../../output_generators/markdown.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "sends query to",
-      "src_name": "Query Processor",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "retrieves info for",
-      "src_name": "Information Retriever",
-      "dst_name": "Response Generator"
-    },
-    {
-      "relation": "generates response for",
-      "src_name": "Response Generator",
-      "dst_name": "History Logger"
-    },
-    {
-      "relation": "receives query from",
-      "src_name": "Information Retriever",
-      "dst_name": "Query Processor"
-    },
-    {
-      "relation": "receives info from",
-      "src_name": "Response Generator",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "logs response from",
-      "src_name": "History Logger",
-      "dst_name": "Response Generator"
+      "relation": "sends structured architectural insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Output Generation Engine"
     }
   ]
 }

@@ -1,92 +1,96 @@
 {
-  "description": "The system is designed around a core flow that begins with the Query Processor handling incoming user queries. These queries are then passed to the Language Model Interface for interaction with the underlying language model. The generated model output drives the Tool Executor, which orchestrates tool execution, now enhanced with sophisticated validation and the ability to leverage the Static Analysis Provider for deeper code understanding. Finally, the Response Formatter aggregates all information to construct and return the final response to the user. This architecture ensures a clear separation of concerns, enabling modular development and maintainability.",
+  "description": "The system processes user queries through a structured flow, leveraging a language model and specialized tools, with static analysis capabilities. The Query Processor initiates the interaction, passing parsed queries to the Language Model Interface. The language model's output then guides the Tool Executor, which orchestrates tool usage, potentially consulting the Static Analysis Provider for validation or information. Finally, the Response Formatter synthesizes all outputs into a coherent response, delivered back via the Query Processor.",
   "components": [
     {
       "name": "Query Processor",
-      "description": "Handles incoming user queries, including parsing and initial validation, and serves as the entry and exit point for user interaction.",
+      "description": "Manages initial user query parsing, validation, and serves as the system's entry and exit point.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryParser:parse",
-          "reference_file": ".",
+          "qualified_name": "QueryProcessor",
+          "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Language Model Interface",
-      "description": "Manages communication with the underlying language model, sending prompts and receiving generated text.",
+      "description": "Handles all communication with the underlying language model, sending prompts and receiving generated responses.",
       "referenced_source_code": [
         {
-          "qualified_name": "LLMClient:send_prompt",
-          "reference_file": "",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "LLMClient:receive_response",
-          "reference_file": ".",
+          "qualified_name": "LanguageModelInterface",
+          "reference_file": "<file_path>",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "can_expand": true
     },
     {
       "name": "Tool Executor",
-      "description": "Orchestrates tool execution, incorporating complex decision-making, enhanced validation, and iterative processing based on language model outputs. It can also leverage static analysis capabilities.",
+      "description": "Orchestrates the execution of tools, making decisions based on language model outputs, performing validation, and integrating static analysis.",
       "referenced_source_code": [
         {
-          "qualified_name": "ToolRegistry:get_tool",
-          "reference_file": "agents/tools/toolkit.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "Tool:execute",
-          "reference_file": "agents/tools/base.py",
-          "reference_start_line": 57,
-          "reference_end_line": 96
-        }
-      ]
-    },
-    {
-      "name": "Static Analysis Provider",
-      "description": "Offers static analysis and reference resolution services to other components, primarily supporting the Tool Executor in understanding and validating code references.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "static_analyzer/reference_resolve_mixin.py",
-          "reference_file": "static_analyzer/reference_resolve_mixin.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Response Formatter",
-      "description": "Formats the final response by combining information from the language model and tool outputs before returning it to the user.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "ResponseBuilder:build",
+          "qualified_name": "ToolExecutor",
           "reference_file": "",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [
+        "../../agents/agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Provider",
+      "description": "Provides static analysis and code reference resolution services, primarily to support the Tool Executor.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "StaticAnalysisProvider",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Response Formatter",
+      "description": "Combines language model outputs and tool execution results to construct and format the final response for the user.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "ResponseFormatter",
+          "reference_file": "I cannot fulfill this request. The list of files to choose from is empty, and I am instructed to select exactly one file path from that list. Therefore, I cannot proceed to locate the `ResponseFormatter` definition.",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "sends parsed queries to",
+      "relation": "submits parsed queries to",
       "src_name": "Query Processor",
       "dst_name": "Language Model Interface"
     },
     {
-      "relation": "provides model output to",
+      "relation": "provides language model output/plan to",
       "src_name": "Language Model Interface",
       "dst_name": "Tool Executor"
     },
@@ -96,17 +100,17 @@
       "dst_name": "Static Analysis Provider"
     },
     {
-      "relation": "provides analysis results to",
+      "relation": "returns analysis results to",
       "src_name": "Static Analysis Provider",
       "dst_name": "Tool Executor"
     },
     {
-      "relation": "forwards execution results and model outputs to",
+      "relation": "forwards execution results to",
       "src_name": "Tool Executor",
       "dst_name": "Response Formatter"
     },
     {
-      "relation": "returns final formatted response to",
+      "relation": "delivers formatted response to",
       "src_name": "Response Formatter",
       "dst_name": "Query Processor"
     }

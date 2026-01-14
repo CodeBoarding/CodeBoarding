@@ -6,63 +6,61 @@ graph LR
     Static_Analysis_Provider["Static Analysis Provider"]
     Response_Formatter["Response Formatter"]
     Unclassified["Unclassified"]
-    Query_Processor -- "sends parsed queries to" --> Language_Model_Interface
-    Language_Model_Interface -- "provides model output to" --> Tool_Executor
+    Query_Processor -- "submits parsed queries to" --> Language_Model_Interface
+    Language_Model_Interface -- "provides language model output/plan to" --> Tool_Executor
     Tool_Executor -- "requests static analysis from" --> Static_Analysis_Provider
-    Static_Analysis_Provider -- "provides analysis results to" --> Tool_Executor
-    Tool_Executor -- "forwards execution results and model outputs to" --> Response_Formatter
-    Response_Formatter -- "returns final formatted response to" --> Query_Processor
+    Static_Analysis_Provider -- "returns analysis results to" --> Tool_Executor
+    Tool_Executor -- "forwards execution results to" --> Response_Formatter
+    Response_Formatter -- "delivers formatted response to" --> Query_Processor
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system is designed around a core flow that begins with the Query Processor handling incoming user queries. These queries are then passed to the Language Model Interface for interaction with the underlying language model. The generated model output drives the Tool Executor, which orchestrates tool execution, now enhanced with sophisticated validation and the ability to leverage the Static Analysis Provider for deeper code understanding. Finally, the Response Formatter aggregates all information to construct and return the final response to the user. This architecture ensures a clear separation of concerns, enabling modular development and maintainability.
+The system processes user queries through a structured flow, leveraging a language model and specialized tools, with static analysis capabilities. The Query Processor initiates the interaction, passing parsed queries to the Language Model Interface. The language model's output then guides the Tool Executor, which orchestrates tool usage, potentially consulting the Static Analysis Provider for validation or information. Finally, the Response Formatter synthesizes all outputs into a coherent response, delivered back via the Query Processor.
 
 ### Query Processor
-Handles incoming user queries, including parsing and initial validation, and serves as the entry and exit point for user interaction.
+Manages initial user query parsing, validation, and serves as the system's entry and exit point.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`QueryParser:parse`</a>
 
 
 ### Language Model Interface
-Manages communication with the underlying language model, sending prompts and receiving generated text.
+Handles all communication with the underlying language model, sending prompts and receiving generated responses.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding." target="_blank" rel="noopener noreferrer">`LLMClient:receive_response`</a>
+- `LanguageModelInterface`
 
 
 ### Tool Executor
-Orchestrates tool execution, incorporating complex decision-making, enhanced validation, and iterative processing based on language model outputs. It can also leverage static analysis capabilities.
+Orchestrates the execution of tools, making decisions based on language model outputs, performing validation, and integrating static analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py" target="_blank" rel="noopener noreferrer">`ToolRegistry:get_tool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L57-L96" target="_blank" rel="noopener noreferrer">`Tool:execute`:57-96</a>
 
 
 ### Static Analysis Provider
-Offers static analysis and reference resolution services to other components, primarily supporting the Tool Executor in understanding and validating code references.
+Provides static analysis and code reference resolution services, primarily to support the Tool Executor.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolve_mixin.py" target="_blank" rel="noopener noreferrer">`static_analyzer/reference_resolve_mixin.py`</a>
+- `StaticAnalysisProvider`:1-10
 
 
 ### Response Formatter
-Formats the final response by combining information from the language model and tool outputs before returning it to the user.
+Combines language model outputs and tool execution results to construct and format the final response for the user.
 
 
 **Related Classes/Methods**:
 
+- `ResponseFormatter`
 
 
 ### Unclassified

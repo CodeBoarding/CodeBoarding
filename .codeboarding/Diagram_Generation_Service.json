@@ -1,152 +1,272 @@
 {
-  "description": "The system's architecture is centered around an Orchestration Engine that manages the entire code analysis and documentation generation workflow. It interfaces with an API Service for job initiation and delivery, and a Job Database for status management. Code acquisition and filtering are handled by the Repository Manager, which then feeds into the Static Analysis Engine for initial code analysis. The core intelligence resides in the AI Interpretation Layer, which employs specialized MetaAgent and PlannerAgent components to derive architectural insights and strategic analysis plans from the static analysis results. These insights are then relayed back to the Orchestration Engine for final documentation generation. Finally, the Diagram Generation Service converts structured architectural data into visual diagrams, enhancing comprehension.",
+  "description": "The CodeBoarding project provides an automated system for generating architectural documentation and diagrams from source code. The API Service acts as the entry point, receiving requests for repository analysis. The Orchestration Engine then takes charge, coordinating the entire workflow. It first utilizes the Repository Manager to clone the target repository, which then feeds the source code to the Static Analysis Engine for initial structural analysis. The raw analysis data is then passed to the AI Interpretation Layer, a suite of intelligent agents that leverage Large Language Models to derive high-level architectural insights and contextual understanding. Concurrently, the Job Database maintains the state and results of ongoing and completed analysis jobs. Once architectural insights are generated, the Diagram Generation Service transforms this data into visual representations. Finally, the Output Generation Engine compiles all insights, diagrams, and raw analysis into comprehensive documentation in various formats.",
   "components": [
     {
-      "name": "Orchestration Engine",
-      "description": "Acts as the central coordinator of the analysis and documentation generation pipeline. It initiates requests, manages the flow of data between different services, and aggregates results.",
+      "name": "API Service",
+      "description": "Serves as the primary external interface, handling all incoming requests and acting as the entry point for users or other systems to initiate code analysis and documentation generation tasks.",
       "referenced_source_code": [
         {
-          "qualified_name": "Orchestration_Engine",
-          "reference_file": ".codeboarding/Orchestration_Engine.md",
+          "qualified_name": "main.process_remote_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 176,
+          "reference_end_line": 234
+        },
+        {
+          "qualified_name": "main.process_local_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 237,
+          "reference_end_line": 267
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "Orchestration Engine",
+      "description": "The central coordinator of the entire analysis pipeline. It manages the workflow, dispatches tasks to other components, monitors their progress, and ensures the sequential or parallel execution of analysis steps.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
-      "name": "Diagram Generation Service",
-      "description": "Specializes in converting structured architectural data into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.",
+      "name": "Repository Manager",
+      "description": "Responsible for interacting with code repositories. It handles tasks such as cloning, fetching, and managing access to the source code that needs to be analyzed.",
       "referenced_source_code": [
         {
-          "qualified_name": "diagram_analysis.diagram_generator",
-          "reference_file": "diagram_analysis/diagram_generator.py",
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Performs initial, rule-based analysis of the source code. It identifies structural patterns, dependencies, and other static properties without executing the code, providing foundational data for further interpretation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 13,
+          "reference_end_line": 85
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Leverages Large Language Models (LLMs) to derive higher-level architectural insights and contextual understanding from the raw static analysis data. It translates technical details into human-readable explanations and identifies architectural patterns.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "diagram_analysis.analysis_json",
-          "reference_file": "diagram_analysis/analysis_json.py",
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "AI Interpretation Layer",
-      "description": "Interprets static analysis results and generates insights, encompassing specialized agents like MetaAgent and PlannerAgent.",
-      "referenced_source_code": [
+        },
         {
-          "qualified_name": "agents.agent",
-          "reference_file": "agents/agent.py",
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "Performs static analysis on the provided code, receiving a filtered set of files from the Repository Manager.",
-      "referenced_source_code": [
+        },
         {
-          "qualified_name": "Static_Analysis_Engine",
-          "reference_file": ".codeboarding/Static_Analysis_Engine.md",
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "Repository Manager",
-      "description": "Responsible for fetching code from repositories and managing file and directory exclusions based on .gitignore patterns and default ignored paths.",
-      "referenced_source_code": [
+        },
         {
-          "qualified_name": "Orchestration_Engine",
-          "reference_file": ".codeboarding/Orchestration_Engine.md",
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
           "reference_start_line": null,
           "reference_end_line": null
-        }
-      ]
-    },
-    {
-      "name": "API Service",
-      "description": "Handles external job requests and delivers final documentation.",
-      "referenced_source_code": [
+        },
         {
-          "qualified_name": "Orchestration_Engine",
-          "reference_file": ".codeboarding/Orchestration_Engine.md",
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Job Database",
-      "description": "Stores and manages job status and metadata.",
+      "description": "Persistently stores information related to ongoing and completed analysis jobs, including their status, configuration, intermediate results, and final outputs. It ensures data integrity and allows for job tracking and retrieval.",
       "referenced_source_code": [
         {
-          "qualified_name": "Orchestration_Engine",
-          "reference_file": ".codeboarding/Orchestration_Engine.md",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "duckdb_crud.init_db",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 16,
+          "reference_end_line": 45
+        },
+        {
+          "qualified_name": "duckdb_crud.insert_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 49,
+          "reference_end_line": 65
+        },
+        {
+          "qualified_name": "duckdb_crud.update_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 68,
+          "reference_end_line": 77
+        },
+        {
+          "qualified_name": "duckdb_crud.fetch_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 80,
+          "reference_end_line": 99
+        },
+        {
+          "qualified_name": "duckdb_crud.fetch_all_jobs",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": 102,
+          "reference_end_line": 124
         }
-      ]
+      ],
+      "assigned_files": [],
+      "can_expand": false
+    },
+    {
+      "name": "Diagram Generation Service",
+      "description": "Specializes in converting structured architectural data (from static analysis and AI interpretation) into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 199,
+          "reference_end_line": 298
+        }
+      ],
+      "assigned_files": [
+        "../../diagram_analysis/__init__.py",
+        "../../diagram_analysis/analysis_json.py",
+        "../../diagram_analysis/diagram_generator.py",
+        "../../diagram_analysis/version.py"
+      ],
+      "can_expand": false
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Compiles all analysis results, AI interpretations, and generated diagrams into various final output formats (e.g., Markdown, HTML, PDF). It is responsible for formatting and presenting the comprehensive documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown_file",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": 104,
+          "reference_end_line": 117
+        },
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": 44,
+          "reference_end_line": 101
+        }
+      ],
+      "assigned_files": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "initiates",
+      "relation": "initiates requests to",
       "src_name": "API Service",
       "dst_name": "Orchestration Engine"
     },
     {
-      "relation": "instructs",
+      "relation": "coordinates tasks with",
       "src_name": "Orchestration Engine",
       "dst_name": "Repository Manager"
     },
     {
-      "relation": "provides filtered code to",
-      "src_name": "Repository Manager",
+      "relation": "coordinates tasks with",
+      "src_name": "Orchestration Engine",
       "dst_name": "Static Analysis Engine"
     },
     {
-      "relation": "provides results to",
-      "src_name": "Static Analysis Engine",
+      "relation": "coordinates tasks with",
+      "src_name": "Orchestration Engine",
       "dst_name": "AI Interpretation Layer"
     },
     {
-      "relation": "sends insights to",
-      "src_name": "AI Interpretation Layer",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "sends structured architectural data to",
+      "relation": "coordinates tasks with",
       "src_name": "Orchestration Engine",
       "dst_name": "Diagram Generation Service"
     },
     {
-      "relation": "sends generated diagrams/diagram code to",
-      "src_name": "Diagram Generation Service",
-      "dst_name": "Orchestration Engine"
-    },
-    {
-      "relation": "delivers documentation via",
+      "relation": "coordinates tasks with",
       "src_name": "Orchestration Engine",
-      "dst_name": "API Service"
+      "dst_name": "Output Generation Engine"
     },
     {
-      "relation": "manages",
+      "relation": "updates and retrieves job status from",
       "src_name": "Orchestration Engine",
       "dst_name": "Job Database"
     },
     {
-      "relation": "stores data for",
-      "src_name": "Job Database",
-      "dst_name": "Orchestration Engine"
+      "relation": "provides source code to",
+      "src_name": "Repository Manager",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "provides analysis data to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "provides analysis data to",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Diagram Generation Service"
+    },
+    {
+      "relation": "provides architectural insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Diagram Generation Service"
+    },
+    {
+      "relation": "provides architectural insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "provides visual diagrams to",
+      "src_name": "Diagram Generation Service",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "receives data from",
+      "src_name": "Output Generation Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "receives data from",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Diagram Generation Service"
     }
   ]
 }
