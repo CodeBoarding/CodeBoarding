@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agents.agent_responses import Component, AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import ClusteringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class ClusterMethodsMixin:
                         cluster_num = int(parts[1])
                         include_current = cluster_num in cluster_ids
                     except ValueError:
+                        logger.warning(f"[ClusterMethodsMixin] Failed to parse cluster ID from line: {line}")
                         include_current = False
 
             if include_current:
@@ -70,8 +72,10 @@ class ClusterMethodsMixin:
 
     def _build_file_cluster_mapping(self) -> dict[str, set[int]]:
         """
-        Build mapping of file_path -> set of cluster_ids that have nodes in that file.
-        This is purely deterministic - no LLM needed.
+        Build a mapping from file paths to the cluster IDs that contain nodes from that file.
+
+        Returns:
+            dict mapping file_path -> set of cluster IDs where the file has code nodes
         """
         file_to_clusters: dict[str, set[int]] = defaultdict(set)
 
@@ -80,13 +84,13 @@ class ClusterMethodsMixin:
             nx_graph = cfg.to_networkx()
 
             if nx_graph.number_of_nodes() == 0:
+                logger.debug(f"[ClusterMethodsMixin] Skipping {lang} CFG - no nodes found")
                 continue
 
-            # Get cluster mapping
             communities, _ = cfg._adaptive_clustering(
                 nx_graph,
-                target_clusters=20,  # Use same default as to_cluster_string()
-                min_cluster_size=2,
+                target_clusters=ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
+                min_cluster_size=ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
             )
 
             for cluster_id, nodes in enumerate(communities, start=1):  # Start from 1 to match display
@@ -129,12 +133,28 @@ class ClusterMethodsMixin:
             # Check 1: Does file contain any key entities?
             for key_entity in component.key_entities:
                 if key_entity.reference_file:
-                    # Normalize paths for comparison
-                    ref_file_norm = os.path.normpath(key_entity.reference_file)
-                    file_path_norm = os.path.normpath(file_path)
-                    if file_path_norm.endswith(ref_file_norm) or ref_file_norm in file_path_norm:
-                        matched_components.append(component)
-                        break  # Don't need to check other key_entities for this component
+                    # Use resolved paths for exact matching to avoid false positives
+                    # (e.g., utils.py matching test_utils.py with substring check)
+                    try:
+                        ref_path = Path(key_entity.reference_file)
+                        file_path_obj = Path(file_path)
+                        # Handle both absolute and relative paths
+                        if ref_path.is_absolute() and file_path_obj.is_absolute():
+                            if file_path_obj.resolve() == ref_path.resolve():
+                                matched_components.append(component)
+                                break
+                        else:
+                            # For relative paths, check if file_path ends with ref_file
+                            if file_path_obj.resolve().match(f"*/{ref_path}") or file_path_obj.name == ref_path.name:
+                                matched_components.append(component)
+                                break
+                    except (OSError, ValueError):
+                        # Fall back to normalized string comparison if Path operations fail
+                        ref_file_norm = os.path.normpath(key_entity.reference_file)
+                        file_path_norm = os.path.normpath(file_path)
+                        if file_path_norm.endswith(ref_file_norm):
+                            matched_components.append(component)
+                            break
 
             # Check 2: Do file's clusters overlap with component's clusters?
             # Only check if not already matched via key_entities
