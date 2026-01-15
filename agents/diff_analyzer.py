@@ -97,10 +97,6 @@ class DiffAnalyzingAgent(LargeModelAgent):
         if skipped_files:
             self._log_skipped_files(skipped_files)
 
-        filtered_count = len(diff) - len(relevant_files)
-        if filtered_count > 0:
-            logger.debug(f"[DiffAnalyzingAgent] Filtered out {filtered_count} unsupported files")
-
         return relevant_files
 
     def _log_skipped_files(self, skipped_files: list[str]):
@@ -124,7 +120,7 @@ class DiffAnalyzingAgent(LargeModelAgent):
         log_list = ", ".join(visible_files)
         suffix = f" ... (and {truncated_count} more)" if truncated_count > 0 else ""
 
-        logger.debug(f"[DiffAnalyzingAgent] Filtered {len(skipped_files)} unsupported files: " f"[{log_list}{suffix}]")
+        logger.info(f"[DiffAnalyzingAgent] Filtered {len(skipped_files)} unsupported files: " f"[{log_list}{suffix}]")
 
     def analysis_exists(self):
         """

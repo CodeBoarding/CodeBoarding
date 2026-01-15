@@ -60,7 +60,7 @@ dependencies = [
     "seaborn==0.13.2",
     "sqlparse==0.5.3",
     "tomli==2.2.1",
-    "instructor>=1.0.0",
+    "instructor==1.11.3",
     "typer==0.9.4",
     "types-protobuf==5.29.1.20250403",
     "uml-class-diagram-generator==0.1",
