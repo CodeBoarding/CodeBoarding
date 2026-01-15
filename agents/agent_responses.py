@@ -6,19 +6,19 @@ from typing import get_origin, get_args, Any
 from pydantic import BaseModel, Field, field_validator
 
 
-def _parse_stringified_json(v: Any) -> Any:
+def _parse_stringified_json(value: Any) -> Any:
     """Parse stringified JSON objects that Vercel AI Gateway sometimes returns.
 
     When using Gemini via Vercel's AI gateway with tool calling, nested objects
     in arrays are sometimes returned as JSON strings instead of actual objects.
     This helper parses them back into dicts.
     """
-    if isinstance(v, str):
+    if isinstance(value, str):
         try:
-            return json.loads(v)
+            return json.loads(value)
         except json.JSONDecodeError:
-            return v
-    return v
+            return value
+    return value
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -195,21 +195,22 @@ class CFGAnalysisInsights(LLMBaseModel):
     components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
     components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
 
+    # Pydantic field validators - automatically called during model instantiation
     @field_validator("components", mode="before")
     @classmethod
-    def parse_stringified_components(cls, v: Any) -> Any:
+    def parse_stringified_components(cls, value: Any) -> Any:
         """Handle stringified JSON from Vercel AI Gateway."""
-        if isinstance(v, list):
-            return [_parse_stringified_json(item) for item in v]
-        return v
+        if isinstance(value, list):
+            return [_parse_stringified_json(item) for item in value]
+        return value
 
     @field_validator("components_relations", mode="before")
     @classmethod
-    def parse_stringified_relations(cls, v: Any) -> Any:
+    def parse_stringified_relations(cls, value: Any) -> Any:
         """Handle stringified JSON from Vercel AI Gateway."""
-        if isinstance(v, list):
-            return [_parse_stringified_json(item) for item in v]
-        return v
+        if isinstance(value, list):
+            return [_parse_stringified_json(item) for item in value]
+        return value
 
     @classmethod
     def extractor_str(cls) -> str:

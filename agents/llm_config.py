@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any
 
 import instructor
+from openai import OpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
@@ -72,8 +73,6 @@ class LLMConfig:
         if self.instructor_provider == InstructorProvider.OPENAI:
             base_url = self.get_resolved_extra_args().get("base_url")
             if base_url:
-                from openai import OpenAI
-
                 openai_client = OpenAI(api_key=api_key, base_url=base_url)
                 return instructor.from_openai(openai_client, mode=instructor.Mode.MD_JSON)
             return instructor.from_provider(f"openai/{model_name}", api_key=api_key)

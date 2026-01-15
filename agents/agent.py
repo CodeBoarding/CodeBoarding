@@ -2,8 +2,9 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Type
+from typing import Type, TypeVar
 
+import instructor
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -19,6 +20,8 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
+
+LLMResponseT = TypeVar("LLMResponseT", bound=LLMBaseModel)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         system_message: str,
         llm: BaseChatModel,
         model_name: str,
-        instructor_client,
+        instructor_client: instructor.Instructor,
         instructor_model_name: str,
     ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
@@ -216,12 +219,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt, type):
+    def _parse_invoke(self, prompt: str, response_type: Type[LLMResponseT]) -> LLMResponseT:
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
-        return self._parse_response(prompt, response, type)
+        return self._parse_response(prompt, response, response_type)
 
-    def _parse_response(self, prompt, response, return_type: Type[LLMBaseModel], max_retries=5, attempt=0):
+    def _parse_response(
+        self, prompt: str, response: str, return_type: Type[LLMResponseT], max_retries: int = 5, attempt: int = 0
+    ) -> LLMResponseT:
         if attempt >= max_retries:
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
