@@ -362,7 +362,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(
@@ -416,7 +416,7 @@ class TestValidatorAgent(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(

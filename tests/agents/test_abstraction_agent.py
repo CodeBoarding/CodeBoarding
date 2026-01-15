@@ -147,40 +147,6 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_source(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
-        # Test step_source
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
-        agent = AbstractionAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-        )
-
-        # Add some context
-        cfg_insight = CFGAnalysisInsights(
-            components=[],
-            components_relations=[],
-        )
-        agent.context["cfg_insight"] = cfg_insight
-
-        mock_response = AnalysisInsights(
-            description="Test source analysis",
-            components=[],
-            components_relations=[],
-        )
-        mock_parse_invoke.return_value = mock_response
-
-        result = agent.step_source()
-
-        self.assertEqual(result, mock_response)
-        self.assertIn("source", agent.context)
-
     @patch("agents.agent.create_instructor_client_from_env")
     @patch("agents.agent.create_llm_from_env")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")

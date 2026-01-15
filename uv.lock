@@ -538,7 +538,7 @@ requires-dist = [
     { name = "python-call-graph", specifier = "==2.1.3" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "regex", specifier = "==2024.11.6" },
-    { name = "rich", specifier = ">=13.7.0" },
+    { name = "rich", specifier = "==14.2.0" },
     { name = "seaborn", specifier = "==0.13.2" },
     { name = "sqlparse", specifier = "==0.5.3" },
     { name = "tomli", specifier = "==2.2.1" },
