@@ -1,11 +1,9 @@
 from static_analyzer.graph import Node, CallGraph
-from static_analyzer.programming_language import ProgrammingLanguage
 
 
 class StaticAnalysisResults:
     def __init__(self):
         self.results = {}
-        self.programming_languages: list[ProgrammingLanguage] = []
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """
@@ -176,11 +174,3 @@ class StaticAnalysisResults:
         for language in self.results:
             all_source_files.extend(self.get_source_files(language))
         return all_source_files
-
-    def set_programming_languages(self, programming_languages: list[ProgrammingLanguage]):
-        """
-        Sets the list of programming languages detected in the repository.
-
-        :param programming_languages: A list of ProgrammingLanguage objects.
-        """
-        self.programming_languages = programming_languages

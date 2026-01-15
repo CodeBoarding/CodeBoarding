@@ -7,11 +7,11 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
-from agents.constants import SUPPORTED_EXTENSIONS_FALLBACK
 from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
 from monitoring import trace
 from diagram_analysis.version import Version
 from static_analyzer.analysis_result import StaticAnalysisResults
+from utils import get_config
 
 logger = logging.getLogger(__name__)
 from output_generators.markdown import sanitize
@@ -23,13 +23,7 @@ class DiffAnalyzingAgent(LargeModelAgent):
         super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
         self.project_name = project_name
         self.repo_dir = repo_dir
-
-        # Determine supported extensions: primary from static analysis, fallback to defaults
-        self.supported_extensions = self._get_supported_extensions(static_analysis)
-
-        if not self.supported_extensions:
-            logger.warning("[DiffAnalyzingAgent] No languages detected in static analysis, using fallback defaults")
-            self.supported_extensions = self._get_fallback_extensions()
+        self.supported_extensions = self._get_supported_extensions()
 
         logger.info(f"[DiffAnalyzingAgent] Monitoring changes for extensions: {sorted(self.supported_extensions)}")
 
@@ -53,32 +47,18 @@ class DiffAnalyzingAgent(LargeModelAgent):
         with open(analysis_file_path, "r") as analysis_file:
             return AnalysisInsights.model_validate_json(analysis_file.read())
 
-    def _get_supported_extensions(self, static_analysis: StaticAnalysisResults) -> set[str]:
+    def _get_supported_extensions(self) -> set[str]:
         """
-        Extract supported file extensions from static analysis results.
-
-        Only includes extensions for languages that have LSP server support.
-
-        Args:
-            static_analysis: Static analysis results containing detected languages
+        Extract supported file extensions from static analysis config.
 
         Returns:
             Set of supported file extensions (e.g., {'.py', '.ts', '.go'})
         """
         extensions = set()
-        for lang in static_analysis.programming_languages:
-            if lang.is_supported_lang():  # Only include languages with LSP support
-                extensions.update(lang.suffixes)
+        lsp_servers = get_config("lsp_servers")
+        for server_config in lsp_servers.values():
+            extensions.update(server_config.get("file_extensions", []))
         return extensions
-
-    def _get_fallback_extensions(self) -> set[str]:
-        """
-        Get fallback extensions when static analysis is unavailable or incomplete.
-
-        Returns:
-            Set of default supported file extensions
-        """
-        return SUPPORTED_EXTENSIONS_FALLBACK.copy()
 
     def get_diff_data(self) -> List[FileChange]:
         """
@@ -110,6 +90,10 @@ class DiffAnalyzingAgent(LargeModelAgent):
             file_ext = Path(change.filename).suffix
             if file_ext in self.supported_extensions:
                 relevant_files.append(change)
+            else:
+                logger.debug(
+                    f"[DiffAnalyzingAgent] Skipping unsupported file: {change.filename} (extension: {file_ext})"
+                )
 
         filtered_count = len(diff) - len(relevant_files)
         if filtered_count > 0:
