@@ -1,7 +1,22 @@
 import logging
+from pathlib import Path
 from typing import Optional, Set
 
+from pydantic import BaseModel, Field
+
 logger = logging.getLogger(__name__)
+
+
+class LanguageConfig(BaseModel):
+    """Base configuration class for language-specific settings."""
+
+    model_config = {"frozen": True}  # Make configs immutable
+
+
+class JavaConfig(LanguageConfig):
+    """Java-specific configuration."""
+
+    jdtls_root: Path = Field(description="Path to the JDTLS (Java Language Server) installation directory")
 
 
 class ProgrammingLanguage:
@@ -13,6 +28,7 @@ class ProgrammingLanguage:
         suffixes: list[str],
         server_commands: list[str] | None = None,
         lsp_server_key: str | None = None,
+        language_specific_config: LanguageConfig | None = None,
     ):
         self.language = language
         self.size = size
@@ -21,6 +37,8 @@ class ProgrammingLanguage:
         self.server_commands = server_commands
         # group related languages (e.g., JS, TSX, JSX -> typescript) to the same language server
         self.lsp_server_key = lsp_server_key or language.lower()
+        # Store language-specific configuration (e.g., JavaConfig for Java)
+        self.language_specific_config = language_specific_config
 
     def get_suffix_pattern(self) -> list[str]:
         """Generate and return pattern for the file suffixes, to use in .rglob(pattern)"""
@@ -101,11 +119,16 @@ class ProgrammingLanguageBuilder:
 
         server_commands: list | None = None
         config_suffixes: Set[str] = set()
+        language_specific_config: LanguageConfig | None = None
 
         if lsp_server_key and lsp_server_key in self.lsp_configs:
             config = self.lsp_configs[lsp_server_key]
             server_commands = config.get("command")
             config_suffixes = set(config.get("file_extensions", []))
+
+            # Create language-specific config based on the LSP server key
+            if lsp_server_key == "java" and "jdtls_root" in config:
+                language_specific_config = JavaConfig(jdtls_root=Path(config["jdtls_root"]))
 
         # Merge suffixes from tokei and config
         all_suffixes = file_suffixes | config_suffixes
@@ -117,6 +140,7 @@ class ProgrammingLanguageBuilder:
             suffixes=list(all_suffixes),
             server_commands=server_commands,
             lsp_server_key=lsp_server_key,
+            language_specific_config=language_specific_config,
         )
 
     def get_supported_extensions(self) -> Set[str]:

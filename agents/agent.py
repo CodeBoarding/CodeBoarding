@@ -1,22 +1,18 @@
-import json
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Type, TypeVar
 
-from dotenv import load_dotenv
+import instructor
 from google.api_core.exceptions import ResourceExhausted
-from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
-from trustcall import create_extractor
 
-from agents.llm_config import LLM_PROVIDERS
+from agents.agent_responses import LLMBaseModel
+from agents.llm_config import create_llm_from_env, create_instructor_client_from_env
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from monitoring.callbacks import MonitoringCallback
@@ -24,6 +20,8 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
+
+LLMResponseT = TypeVar("LLMResponseT", bound=LLMBaseModel)
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +32,22 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
-    _parsing_llm: Optional[BaseChatModel] = None
-
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        system_message: str,
+        llm: BaseChatModel,
+        model_name: str,
+        instructor_client: instructor.Instructor,
+        instructor_model_name: str,
+    ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.llm = llm
+        self.model_name = model_name
+        self.instructor_client = instructor_client
+        self.instructor_model_name = instructor_model_name
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
@@ -89,67 +97,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     @property
     def external_deps_tool(self):
         return self.toolkit.external_deps
-
-    def _setup_env_vars(self):
-        load_dotenv()
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.aws_bearer_token = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
-        self.aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        self.cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-
-    @classmethod
-    def get_parsing_llm(cls) -> BaseChatModel:
-        """Shared access to the small model for parsing tasks."""
-        if cls._parsing_llm is None:
-
-            parsing_model = os.getenv("PARSING_MODEL", None) or os.getenv("CODEBOARDING_MODEL")
-            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
-        return cls._parsing_llm
-
-    @staticmethod
-    def _static_initialize_llm(
-        model_override: Optional[str] = None, is_parsing: bool = False
-    ) -> tuple[BaseChatModel, str]:
-        """Initialize LLM based on available API keys with priority order."""
-        for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
-
-            # Determine model name
-            default_model = config.parsing_model if is_parsing else config.agent_model
-            model_name = model_override if model_override else default_model
-
-            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
-
-            kwargs = {
-                "model": model_name,
-                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
-            }
-            kwargs.update(config.get_resolved_extra_args())
-
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
-
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-
-            # Update global monitoring callback
-            MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
-
-        # Dynamically build error message with all possible env vars
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
-
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
@@ -272,39 +219,37 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt, type):
+    def _parse_invoke(self, prompt: str, response_type: Type[LLMResponseT]) -> LLMResponseT:
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
-        return self._parse_response(prompt, response, type)
+        return self._parse_response(prompt, response, response_type)
 
-    def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
+    def _parse_response(
+        self, prompt: str, response: str, return_type: Type[LLMResponseT], max_retries: int = 5, attempt: int = 0
+    ) -> LLMResponseT:
         if attempt >= max_retries:
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        parsing_llm = self.get_parsing_llm()
-        extractor = create_extractor(parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
+
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
-            if "responses" in result and len(result["responses"]) != 0:
-                return return_type.model_validate(result["responses"][0])
-            if "messages" in result and len(result["messages"]) != 0:
-                message = result["messages"][0].content
-                parser = PydanticOutputParser(pydantic_object=return_type)
-                return self._try_parse(message, parser)
-            parser = PydanticOutputParser(pydantic_object=return_type)
-            return self._try_parse(response, parser)
-        except IndexError as e:
-            # try to parse with the json parser if possible
-            logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
+            extraction_prompt = return_type.extractor_str() + response
+            create_kwargs = {
+                "response_model": return_type,
+                "messages": [{"role": "user", "content": extraction_prompt}],
+                "max_retries": 2,
+            }
+            if self.instructor_model_name:
+                create_kwargs["model"] = self.instructor_model_name
+            result = self.instructor_client.chat.completions.create(**create_kwargs)
+            return result
+        except ValidationError as e:
+            logger.warning(f"Validation error during extraction (attempt {attempt + 1}/{max_retries}): {e}")
             return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except ResourceExhausted as e:
-            # Parsing uses exponential backoff for rate limits
             if attempt < max_retries - 1:
-                # Exponential backoff: 30s * 2^attempt, capped at 300s
                 delay = min(30 * (2**attempt), 300)
                 logger.warning(
                     f"ResourceExhausted during parsing (rate limit): {e}\n"
@@ -316,34 +261,22 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 logger.error(f"Resource exhausted on final parsing attempt: {e}")
                 raise
 
-    def _try_parse(self, message_content, parser):
-        try:
-            prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
-
-            Here is the content to parse and fix: {adjective}
-
-            Please provide only the JSON output without any additional text."""
-            prompt = PromptTemplate(
-                template=prompt_template,
-                input_variables=["adjective"],
-                partial_variables={"format_instructions": parser.get_format_instructions()},
-            )
-            parsing_llm = self.get_parsing_llm()
-            chain = prompt | parsing_llm | parser
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            return chain.invoke({"adjective": message_content}, config=config)
-        except (ValidationError, OutputParserException):
-            for k, v in json.loads(message_content).items():
-                try:
-                    return self._try_parse(json.dumps(v), parser)
-                except:
-                    pass
-        raise ValueError(f"Couldn't parse {message_content}")
-
 
 class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
-        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
-        super().__init__(repo_dir, static_analysis, system_message, llm)
+        llm, model_name, _ = create_llm_from_env(model_override=agent_model, is_parsing=False)
+        instructor_client, instructor_model_name = create_instructor_client_from_env()
+
+        MONITORING_CALLBACK.model_name = model_name
+
+        super().__init__(
+            repo_dir=repo_dir,
+            static_analysis=static_analysis,
+            system_message=system_message,
+            llm=llm,
+            model_name=model_name,
+            instructor_client=instructor_client,
+            instructor_model_name=instructor_model_name,
+        )
         self.agent_monitoring_callback.model_name = model_name

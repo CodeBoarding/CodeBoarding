@@ -13,6 +13,21 @@ class TypeScriptClient(LSPClient):
     Extends the base LSPClient with TypeScript-specific functionality.
     """
 
+    def handle_notification(self, method: str, params: dict):
+        """
+        Handle notifications from the TypeScript language server.
+
+        TypeScript language server notifications are not needed for our analysis,
+        so this method intentionally does nothing. The base implementation is sufficient.
+
+        Args:
+            method: The LSP notification method name
+            params: The notification parameters
+        """
+        # TypeScript LSP server notifications are not needed for static analysis
+        # The server handles project loading internally without requiring client tracking
+        pass
+
     def start(self):
         """Starts the language server with dependency check."""
         # Check and install dependencies if needed

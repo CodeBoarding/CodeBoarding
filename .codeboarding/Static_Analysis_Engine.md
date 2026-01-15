@@ -9,46 +9,35 @@ graph LR
     Analysis_Result_Handler["Analysis Result Handler"]
     RepoIgnoreManager["RepoIgnoreManager"]
     Unclassified["Unclassified"]
-    Agent -- "consumes" --> Analysis_Result_Handler
-    Agent -- "utilizes indirectly" --> LSP_Client
-    Agent -- "utilizes indirectly" --> Reference_Resolver
-    Agent -- "utilizes indirectly" --> Graph_Builder
-    Agent -- "interacts with" --> External_LLM
+    Analysis_Result_Handler -- "provides results to" --> Agent
+    Agent -- "consumes results from" --> Analysis_Result_Handler
     Agent -- "uses" --> RepoIgnoreManager
     Scanner -- "provides input to" --> LSP_Client
     Scanner -- "uses" --> Programming_Language_Support
-    Scanner -- "uses" --> RepoIgnoreManager
-    LSP_Client -- "receives input from" --> Scanner
+    RepoIgnoreManager -- "filters files for" --> Scanner
     LSP_Client -- "provides ASTs to" --> Graph_Builder
-    LSP_Client -- "provides parsed information to" --> Reference_Resolver
-    Reference_Resolver -- "receives parsed information from" --> LSP_Client
-    Reference_Resolver -- "integrates resolved references with" --> Graph_Builder
-    Graph_Builder -- "receives ASTs from" --> LSP_Client
-    Graph_Builder -- "receives resolved references from" --> Reference_Resolver
-    Graph_Builder -- "uses" --> Programming_Language_Support
+    LSP_Client -- "provides parsed info to" --> Reference_Resolver
+    Reference_Resolver -- "provides resolved references to" --> Graph_Builder
     Graph_Builder -- "provides CFGs to" --> Analysis_Result_Handler
-    Programming_Language_Support -- "provides configurations to" --> Scanner
-    Programming_Language_Support -- "provides configurations to" --> Graph_Builder
-    Analysis_Result_Handler -- "receives CFGs from" --> Graph_Builder
-    Analysis_Result_Handler -- "provides StaticAnalysisResults to" --> Agent
-    RepoIgnoreManager -- "provides file filtering rules to" --> Scanner
-    RepoIgnoreManager -- "used by" --> Agent
-    click Agent href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Agent.md" "Details"
+    Graph_Builder -- "uses" --> Programming_Language_Support
+    Programming_Language_Support -- "configures" --> Scanner
+    Programming_Language_Support -- "configures" --> Graph_Builder
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's core functionality revolves around the Agent component, which orchestrates code analysis and interaction. The process begins with the Scanner performing lexical analysis on files, with its scope refined by the RepoIgnoreManager. The LSP Client then provides detailed parsed information, including ASTs, which are used by the Reference Resolver to link symbolic references. Both ASTs and resolved references are fed into the Graph Builder to construct Control Flow Graphs. The Programming Language Support component provides essential language-specific configurations throughout these stages. All generated analysis data is managed by the Analysis Result Handler, which then provides StaticAnalysisResults to the Agent. The Agent utilizes these results, along with a CodeBoardingToolkit (which interacts with the LSP Client, Reference Resolver, and Graph Builder indirectly), and an external LLM to process prompts, perform actions, and generate intelligent responses, effectively driving the code understanding and interaction workflow.
+The system's core functionality revolves around a sophisticated static code analysis pipeline orchestrated by an intelligent `Agent`. The `Scanner` initiates the process, leveraging the `RepoIgnoreManager` for efficient file filtering and `Programming Language Support` for language-specific rules, to feed raw code into the `LSP Client`. The `LSP Client` then provides rich parsed data, including Abstract Syntax Trees (ASTs), to both the `Reference Resolver` and the `Graph Builder`. The `Reference Resolver`, with its enhanced capabilities, plays a crucial role in identifying and linking symbolic references, which are then integrated into the `Graph Builder` to construct comprehensive Control Flow Graphs (CFGs). `Programming Language Support` also guides the `Graph Builder` in this process, ensuring accurate graph construction. All analysis results, including CFGs, are meticulously managed by the `Analysis Result Handler`, which then provides these results to the `Agent`. The `Agent`, now encompassing a specialized `ValidatorAgent`, acts as the central orchestrator, consuming these detailed analysis results to interact with the codebase, process information, and generate responses, potentially utilizing an LLM for advanced reasoning.
 
-### Agent [[Expand]](./Agent.md)
-The `Agent` component, specifically `CodeBoardingAgent`, acts as the central orchestrator. It leverages static analysis results and a toolkit of specialized tools to interact with the codebase, process information using an LLM, and generate responses. It manages the overall workflow, including prompt processing, tool invocation, and response parsing.
+### Agent
+The `Agent` component, encompassing `CodeBoardingAgent` (from `agents/agent.py`) and the new `ValidatorAgent` (from `agents/validator_agent.py`), acts as the central orchestrator. It leverages static analysis results and a toolkit of specialized tools to interact with the codebase, process information using an LLM, and generate responses. The `ValidatorAgent` specifically handles validation tasks, adding a new stage or type of processing to the overall workflow. The `Agent` manages the overall workflow, including prompt processing, tool invocation, and response parsing.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L36-L341" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`:36-341</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`agents.validator_agent.ValidatorAgent`</a>
 
 
 ### Scanner
@@ -70,7 +59,7 @@ The `LSP Client` then provides rich parsed information, including Abstract Synta
 
 
 ### Reference Resolver
-This parsed data is crucial for the `Reference Resolver` to identify and link symbolic references within the code.
+The `Reference Resolver` component (from `static_analyzer/reference_resolve_mixin.py`) is crucial for identifying and linking symbolic references within the code. Its enhanced capabilities improve the accuracy, scope, and efficiency of reference resolution, thereby improving the quality of data fed to the `Graph Builder`.
 
 
 **Related Classes/Methods**:

@@ -141,15 +141,14 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
 
         # Convert to relative paths
         for comp in analysis.components:
-            files = []
-            for file in comp.assigned_files:
-                if os.path.exists(file):
-                    # relative path from the repo root
-                    rel_file = os.path.relpath(file, self.repo_dir)
-                    files.append(rel_file)
+            normalized_files: list[str] = []
+            for file_path in comp.assigned_files:
+                if os.path.exists(file_path):
+                    rel_file = os.path.relpath(file_path, self.repo_dir)
+                    normalized_files.append(rel_file)
                 else:
-                    files.append(file)
-            comp.assigned_files = files
+                    normalized_files.append(file_path)
+            comp.assigned_files = normalized_files
 
         logger.info(f"[AbstractionAgent] Classified {len(all_files)} files into {len(analysis.components)} components")
 

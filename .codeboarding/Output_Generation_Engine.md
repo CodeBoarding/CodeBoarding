@@ -1,58 +1,34 @@
 ```mermaid
 graph LR
-    Query_Processor["Query Processor"]
-    Information_Retriever["Information Retriever"]
-    Response_Generator["Response Generator"]
-    History_Logger["History Logger"]
+    AI_Interpretation_Layer["AI Interpretation Layer"]
+    Output_Generation_Engine["Output Generation Engine"]
     Unclassified["Unclassified"]
-    Query_Processor -- "sends query to" --> Information_Retriever
-    Information_Retriever -- "sends info to" --> Response_Generator
-    Response_Generator -- "sends response to" --> History_Logger
-    Information_Retriever -- "receives query from" --> Query_Processor
-    Response_Generator -- "receives info from" --> Information_Retriever
-    History_Logger -- "receives response from" --> Response_Generator
+    AI_Interpretation_Layer -- "sends structured architectural insights to" --> Output_Generation_Engine
+    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.
+This subsystem is designed to translate complex architectural analysis into clear, structured documentation and visual representations. The primary flow begins with the AI Interpretation Layer, which processes raw project data to extract and formulate structured architectural insights. These insights represent the core understanding of the system's design and components. The critical interaction pathway involves the AI Interpretation Layer sending these structured architectural insights directly to the Output Generation Engine. The Output Generation Engine then takes on the responsibility of transforming these insights into various consumable formats. This includes generating human-readable documentation (e.g., Markdown reports) and machine-readable data (e.g., JSON) that can be used for automated diagram generation. This ensures a consistent and automated pipeline from AI-driven analysis to final architectural documentation.
 
-### Query Processor
-Handles incoming user queries and prepares them for further processing.
-
-
-**Related Classes/Methods**:
-
-- `QueryHandler.process`
-
-
-### Information Retriever
-Fetches relevant information based on the processed query from a knowledge base.
+### AI Interpretation Layer
+This component is responsible for processing raw data and generating structured architectural insights. It acts as the source of high-level understanding derived from the project's analysis, providing the foundational data for documentation and diagram generation.
 
 
 **Related Classes/Methods**:
 
-- `KnowledgeBase.retrieve`
+- `ai_interpretation_layer`:1-10
 
 
-### Response Generator
-Utilizes a language model to generate a natural language response.
-
-
-**Related Classes/Methods**:
-
-- `LanguageModel.generate_response`
-
-
-### History Logger
-Stores the user query and the generated response for future reference.
+### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
+This component is the core of the subsystem. It receives structured architectural insights from the AI Interpretation Layer and is responsible for formatting these insights into diverse output types, such as Markdown, JSON, reports, or raw data suitable for diagram generation. It ensures that the generated documentation adheres to specified standards and acts as the crucial bridge between AI-processed data and the final end-user documentation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py#L16-L166" target="_blank" rel="noopener noreferrer">`InteractionLogger.log`:16-166</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
 
 
 ### Unclassified

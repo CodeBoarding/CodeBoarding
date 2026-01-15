@@ -482,6 +482,21 @@ class TestTypeScriptClient(unittest.TestCase):
         except Exception:
             self.fail("configure_typescript_workspace should not raise exceptions")
 
+    @patch("subprocess.Popen")
+    def test_handle_notification(self, mock_popen):
+        """Test that TypeScriptClient has handle_notification method that does nothing."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = TypeScriptClient(self.project_path, self.mock_language)
+
+        # Should not crash and should do nothing
+        client.handle_notification("window/logMessage", {"message": "test"})
+        client.handle_notification("textDocument/publishDiagnostics", {"diagnostics": []})
+
+        # Verify it exists and is callable
+        self.assertTrue(callable(client.handle_notification))
+
 
 if __name__ == "__main__":
     unittest.main()

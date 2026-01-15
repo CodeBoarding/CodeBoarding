@@ -54,6 +54,18 @@ lsp_servers:
     file_extensions:
       - .php
     install_commands: npm install intelephense
+  java:
+    name: Eclipse JDT Language Server
+    command:
+    - java # Placeholder - actual command constructed by JavaClient
+    languages:
+    - java
+    file_extensions:
+    - .java
+    install_commands: | 
+      wget https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz
+      tar -xzf jdt-language-server-*.tar.gz -C ./static_analyzer/servers/jdtls
+    jdtls_root: ./static_analyzer/servers/jdtls
 tools:
   tokei:
     name: tokei

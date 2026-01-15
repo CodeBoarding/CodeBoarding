@@ -1,107 +1,41 @@
 {
-  "description": "This graph represents the core functionality of a system that processes user queries, generates responses using a language model, and stores interaction history. The main flow involves receiving a query, retrieving relevant information, generating a response, and then saving the interaction. Its purpose is to provide an interactive question-answering system with memory.",
+  "description": "This subsystem is designed to translate complex architectural analysis into clear, structured documentation and visual representations. The primary flow begins with the AI Interpretation Layer, which processes raw project data to extract and formulate structured architectural insights. These insights represent the core understanding of the system's design and components. The critical interaction pathway involves the AI Interpretation Layer sending these structured architectural insights directly to the Output Generation Engine. The Output Generation Engine then takes on the responsibility of transforming these insights into various consumable formats. This includes generating human-readable documentation (e.g., Markdown reports) and machine-readable data (e.g., JSON) that can be used for automated diagram generation. This ensures a consistent and automated pipeline from AI-driven analysis to final architectural documentation.",
   "components": [
     {
-      "name": "Query Processor",
-      "description": "Handles incoming user queries and prepares them for further processing.",
+      "name": "AI Interpretation Layer",
+      "description": "This component is responsible for processing raw data and generating structured architectural insights. It acts as the source of high-level understanding derived from the project's analysis, providing the foundational data for documentation and diagram generation.",
       "referenced_source_code": [
         {
-          "qualified_name": "QueryHandler.process",
-          "reference_file": "query_handler.py",
+          "qualified_name": "ai_interpretation_layer",
+          "reference_file": "<file_path>",
+          "reference_start_line": 1,
+          "reference_end_line": 10
+        }
+      ]
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "This component is the core of the subsystem. It receives structured architectural insights from the AI Interpretation Layer and is responsible for formatting these insights into diverse output types, such as Markdown, JSON, reports, or raw data suitable for diagram generation. It ensures that the generated documentation adheres to specified standards and acts as the crucial bridge between AI-processed data and the final end-user documentation.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Information Retriever",
-      "description": "Fetches relevant information based on the processed query from a knowledge base.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "KnowledgeBase.retrieve",
-          "reference_file": "knowledge_base.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": true
-    },
-    {
-      "name": "Response Generator",
-      "description": "Utilizes a language model to generate a natural language response.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "LanguageModel.generate_response",
-          "reference_file": "language_model.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
-    },
-    {
-      "name": "History Logger",
-      "description": "Stores the user query and the generated response for future reference.",
-      "referenced_source_code": [
-        {
-          "qualified_name": "InteractionLogger.log",
-          "reference_file": "monitoring/callbacks.py",
-          "reference_start_line": 16,
-          "reference_end_line": 166
-        }
-      ],
-      "assigned_files": [],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../output_generators/__init__.py",
-        "../../output_generators/sphinx.py",
-        "../../output_generators/mdx.py",
-        "../../output_generators/html.py",
-        "../../output_generators/html_template.py",
-        "../../output_generators/markdown.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
     {
-      "relation": "sends query to",
-      "src_name": "Query Processor",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "sends info to",
-      "src_name": "Information Retriever",
-      "dst_name": "Response Generator"
-    },
-    {
-      "relation": "sends response to",
-      "src_name": "Response Generator",
-      "dst_name": "History Logger"
-    },
-    {
-      "relation": "receives query from",
-      "src_name": "Information Retriever",
-      "dst_name": "Query Processor"
-    },
-    {
-      "relation": "receives info from",
-      "src_name": "Response Generator",
-      "dst_name": "Information Retriever"
-    },
-    {
-      "relation": "receives response from",
-      "src_name": "History Logger",
-      "dst_name": "Response Generator"
+      "relation": "sends structured architectural insights to",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Output Generation Engine"
     }
   ]
 }
