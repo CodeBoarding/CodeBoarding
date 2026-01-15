@@ -86,20 +86,45 @@ class DiffAnalyzingAgent(LargeModelAgent):
             List of file changes with supported extensions
         """
         relevant_files = []
+        skipped_files = []
         for change in diff:
             file_ext = Path(change.filename).suffix
             if file_ext in self.supported_extensions:
                 relevant_files.append(change)
             else:
-                logger.debug(
-                    f"[DiffAnalyzingAgent] Skipping unsupported file: {change.filename} (extension: {file_ext})"
-                )
+                skipped_files.append(change.filename)
+
+        if skipped_files:
+            self._log_skipped_files(skipped_files)
 
         filtered_count = len(diff) - len(relevant_files)
         if filtered_count > 0:
             logger.debug(f"[DiffAnalyzingAgent] Filtered out {filtered_count} unsupported files")
 
         return relevant_files
+
+    def _log_skipped_files(self, skipped_files: list[str]):
+        # Configuration for truncation
+        MAX_FILES_LIMIT = 10
+        MAX_CHAR_LIMIT = 300
+
+        visible_files = []
+        current_length = 0
+        truncated_count = 0
+        for i, filename in enumerate(skipped_files):
+            # Check if adding this filename (plus a comma/space) exceeds our limits
+            if (current_length + len(filename) + 2) > MAX_CHAR_LIMIT or i >= MAX_FILES_LIMIT:
+                truncated_count = len(skipped_files) - i
+                break
+
+            visible_files.append(filename)
+            current_length += len(filename) + 2  # +2 for the comma and space
+
+        # Construct the final message
+        log_list = ", ".join(visible_files)
+        suffix = f" ... (and {truncated_count} more)" if truncated_count > 0 else ""
+
+        logger.debug(f"[DiffAnalyzingAgent] Filtered {len(skipped_files)} unsupported files: " f"[{log_list}{suffix}]")
 
     def analysis_exists(self):
         """
