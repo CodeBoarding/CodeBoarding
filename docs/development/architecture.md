@@ -2,67 +2,58 @@
 
 ```mermaid
 graph LR
-    Query_Processor["Query Processor"]
-    Language_Model_Interface["Language Model Interface"]
-    Tool_Executor["Tool Executor"]
-    Static_Analysis_Provider["Static Analysis Provider"]
-    Response_Formatter["Response Formatter"]
+    PromptFactory["PromptFactory"]
+    LLM_Specific_Prompt_Modules["LLM-Specific Prompt Modules"]
+    LLM_Integrator["LLM Integrator"]
+    Interpretation_Processor["Interpretation Processor"]
     Unclassified["Unclassified"]
-    Query_Processor -- "submits parsed queries to" --> Language_Model_Interface
-    Language_Model_Interface -- "provides language model output/plan to" --> Tool_Executor
-    Tool_Executor -- "requests static analysis from" --> Static_Analysis_Provider
-    Static_Analysis_Provider -- "returns analysis results to" --> Tool_Executor
-    Tool_Executor -- "forwards execution results to" --> Response_Formatter
-    Response_Formatter -- "delivers formatted response to" --> Query_Processor
+    PromptFactory -- "orchestrates" --> LLM_Specific_Prompt_Modules
+    PromptFactory -- "passes prompts to" --> LLM_Integrator
+    LLM_Integrator -- "sends responses to" --> Interpretation_Processor
+    Interpretation_Processor -- "consumes output from" --> LLM_Integrator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system processes user queries through a structured flow, leveraging a language model and specialized tools, with static analysis capabilities. The Query Processor initiates the interaction, passing parsed queries to the Language Model Interface. The language model's output then guides the Tool Executor, which orchestrates tool usage, potentially consulting the Static Analysis Provider for validation or information. Finally, the Response Formatter synthesizes all outputs into a coherent response, delivered back via the Query Processor.
+The system initiates by leveraging the PromptFactory to dynamically generate prompts, which are then specialized by LLM-Specific Prompt Modules to suit the chosen LLM. The LLM Integrator configures and manages the connection to the external LLM service, sending the prepared prompts. Upon receiving responses, the Interpretation Processor, embodied by various agents, processes and interprets the LLM's output, driving the subsequent analytical or operational tasks within the system. The architecture is centered around an intelligent agent system that dynamically interacts with various Large Language Models (LLMs). The PromptFactory and its LLM-Specific Prompt Modules form the core of prompt generation, ensuring adaptability across different LLM providers. The LLM Integrator acts as the crucial interface for external LLM communication, handling configuration and API interactions. Finally, the Interpretation Processor, represented by the Agent and MetaAgent components, is responsible for making sense of the LLM responses, driving the system's analytical and operational capabilities. This modular design allows for flexible integration of new LLMs and prompt strategies, while maintaining a clear separation of concerns for prompt management, LLM interaction, and response interpretation.
 
-### Query Processor
-Manages initial user query parsing, validation, and serves as the system's entry and exit point.
-
-
-**Related Classes/Methods**:
-
-
-
-### Language Model Interface
-Handles all communication with the underlying language model, sending prompts and receiving generated responses.
+### PromptFactory
+The primary component for generating and managing prompts. It dynamically constructs prompts tailored to specific LLMs and analysis tasks, incorporating static analysis data and contextual information. This component is crucial for the adaptability of the system to different LLM providers and varying analysis requirements.
 
 
 **Related Classes/Methods**:
 
-- `LanguageModelInterface`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
 
 
-### Tool Executor
-Orchestrates the execution of tools, making decisions based on language model outputs, performing validation, and integrating static analysis.
-
-
-**Related Classes/Methods**:
-
-
-
-### Static Analysis Provider
-Provides static analysis and code reference resolution services, primarily to support the Tool Executor.
+### LLM-Specific Prompt Modules
+Specializes in creating and managing prompt segments or full prompts for particular LLM providers (e.g., Claude, OpenAI, Google). These modules handle the nuances of each LLM's input format, token limits, and specific prompting strategies (e.g., bidirectional for conversational flows).
 
 
 **Related Classes/Methods**:
 
-- `StaticAnalysisProvider`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`agents.prompts.claude_prompts_bidirectional.ClaudeBidirectionalPromptFactory`</a>
 
 
-### Response Formatter
-Combines language model outputs and tool execution results to construct and format the final response for the user.
+### LLM Integrator
+This component is responsible for configuring and managing the interaction with various external LLM services. It handles the setup of LLM models and their specific parameters, acting as the bridge between the application and the LLM providers.
 
 
 **Related Classes/Methods**:
 
-- `ResponseFormatter`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config`</a>
+
+
+### Interpretation Processor
+This component is responsible for processing and interpreting the responses received from the LLMs. It encompasses the logic for agents that utilize LLM outputs to perform specific tasks, such as analysis, planning, or validation, and orchestrates the overall flow of information within the agent system.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.Agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
 
 
 ### Unclassified
@@ -78,123 +69,79 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 ```mermaid
 graph LR
-    API_Service["API Service"]
-    Orchestration_Engine["Orchestration Engine"]
-    Repository_Manager["Repository Manager"]
-    Static_Analysis_Engine["Static Analysis Engine"]
-    AI_Interpretation_Layer["AI Interpretation Layer"]
-    Job_Database["Job Database"]
-    Diagram_Generation_Service["Diagram Generation Service"]
-    Output_Generation_Engine["Output Generation Engine"]
+    LLM_Configuration_Manager["LLM Configuration Manager"]
+    LLM_Client_Factory["LLM Client Factory"]
+    Agentic_AI_Core["Agentic AI Core"]
+    External_Tooling_Integration["External Tooling Integration"]
+    External_LLM_Providers["External LLM Providers"]
     Unclassified["Unclassified"]
-    API_Service -- "initiates requests to" --> Orchestration_Engine
-    Orchestration_Engine -- "coordinates tasks with" --> Repository_Manager
-    Orchestration_Engine -- "coordinates tasks with" --> Static_Analysis_Engine
-    Orchestration_Engine -- "coordinates tasks with" --> AI_Interpretation_Layer
-    Orchestration_Engine -- "coordinates tasks with" --> Diagram_Generation_Service
-    Orchestration_Engine -- "coordinates tasks with" --> Output_Generation_Engine
-    Orchestration_Engine -- "updates and retrieves job status from" --> Job_Database
-    Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "provides analysis data to" --> AI_Interpretation_Layer
-    Static_Analysis_Engine -- "provides analysis data to" --> Diagram_Generation_Service
-    AI_Interpretation_Layer -- "provides architectural insights to" --> Diagram_Generation_Service
-    AI_Interpretation_Layer -- "provides architectural insights to" --> Output_Generation_Engine
-    Diagram_Generation_Service -- "provides visual diagrams to" --> Output_Generation_Engine
-    Output_Generation_Engine -- "receives data from" --> AI_Interpretation_Layer
-    Output_Generation_Engine -- "receives data from" --> Diagram_Generation_Service
-    click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
-    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
-    click Diagram_Generation_Service href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Diagram_Generation_Service.md" "Details"
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    LLM_Configuration_Manager -- "provides configurations to" --> LLM_Client_Factory
+    LLM_Client_Factory -- "creates LLM clients for" --> Agentic_AI_Core
+    Agentic_AI_Core -- "utilizes LLM clients from" --> LLM_Client_Factory
+    Agentic_AI_Core -- "uses tools from" --> External_Tooling_Integration
+    LLM_Client_Factory -- "connects to" --> External_LLM_Providers
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The CodeBoarding project provides an automated system for generating architectural documentation and diagrams from source code. The API Service acts as the entry point, receiving requests for repository analysis. The Orchestration Engine then takes charge, coordinating the entire workflow. It first utilizes the Repository Manager to clone the target repository, which then feeds the source code to the Static Analysis Engine for initial structural analysis. The raw analysis data is then passed to the AI Interpretation Layer, a suite of intelligent agents that leverage Large Language Models to derive high-level architectural insights and contextual understanding. Concurrently, the Job Database maintains the state and results of ongoing and completed analysis jobs. Once architectural insights are generated, the Diagram Generation Service transforms this data into visual representations. Finally, the Output Generation Engine compiles all insights, diagrams, and raw analysis into comprehensive documentation in various formats.
+The `agents` subsystem forms the intelligent core of the project, orchestrating AI-driven code analysis through a modular architecture. It begins with the **LLM Configuration Manager**, which centralizes the setup for various Large Language Model providers. This configuration is then consumed by the **LLM Client Factory**, responsible for dynamically instantiating LLM clients tailored for both general interactions and structured data extraction. These clients are the primary interface for the **Agentic AI Core**, a collection of specialized agents (e.g., Abstraction, Details, Planner) that perform the actual code analysis by interacting with the LLMs. To gather necessary context from the codebase, the **Agentic AI Core** integrates with **External Tooling Integration**, a suite of tools for reading files, analyzing dependencies, and retrieving source code. Ultimately, the **LLM Client Factory** establishes connections with **External LLM Providers**, facilitating the communication with services like OpenAI, Google, and Anthropic to execute AI tasks. This layered approach ensures flexibility, maintainability, and efficient utilization of AI capabilities for comprehensive code understanding.
 
-### API Service
-Serves as the primary external interface, handling all incoming requests and acting as the entry point for users or other systems to initiate code analysis and documentation generation tasks.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py#L176-L234" target="_blank" rel="noopener noreferrer">`main.process_remote_repository`:176-234</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py#L237-L267" target="_blank" rel="noopener noreferrer">`main.process_local_repository`:237-267</a>
-
-
-### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
-The central coordinator of the entire analysis pipeline. It manages the workflow, dispatches tasks to other components, monitors their progress, and ensures the sequential or parallel execution of analysis steps.
+### LLM Configuration Manager
+Responsible for loading, validating, and providing LLM configurations, including API keys, model names, and provider-specific settings.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L29-L92" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLMConfig`:29-92</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLM_PROVIDERS`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L20-L26" target="_blank" rel="noopener noreferrer">`agents.llm_config.InstructorProvider`:20-26</a>
 
 
-### Repository Manager
-Responsible for interacting with code repositories. It handles tasks such as cloning, fetching, and managing access to the source code that needs to be analyzed.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils.clone_repository`</a>
-
-
-### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Performs initial, rule-based analysis of the source code. It identifies structural patterns, dependencies, and other static properties without executing the code, providing foundational data for further interpretation.
+### LLM Client Factory
+Manages the creation and instantiation of LLM clients (both for general chat and structured output via `instructor`) based on the active configuration. It abstracts the complexities of different LLM APIs.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L13-L85" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`:13-85</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L199-L205" target="_blank" rel="noopener noreferrer">`agents.llm_config.create_instructor_client_from_env`:199-205</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L208-L229" target="_blank" rel="noopener noreferrer">`agents.llm_config.create_llm_from_env`:208-229</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLMConfig.create_instructor_client`</a>
 
 
-### AI Interpretation Layer
-Leverages Large Language Models (LLMs) to derive higher-level architectural insights and contextual understanding from the raw static analysis data. It translates technical details into human-readable explanations and identifies architectural patterns.
+### Agentic AI Core
+Contains the core logic for various AI agents that interact with LLMs to perform tasks like code abstraction, detail analysis, planning, and validation. These agents interpret LLM responses and drive the overall analysis process.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent.DetailsAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent.PlannerAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`agents.validator_agent.ValidatorAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/diff_analyzer.py" target="_blank" rel="noopener noreferrer">`agents.diff_analyzer.DiffAnalyzingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
 
 
-### Job Database
-Persistently stores information related to ongoing and completed analysis jobs, including their status, configuration, intermediate results, and final outputs. It ensures data integrity and allows for job tracking and retrieval.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L16-L45" target="_blank" rel="noopener noreferrer">`duckdb_crud.init_db`:16-45</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L49-L65" target="_blank" rel="noopener noreferrer">`duckdb_crud.insert_job`:49-65</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L68-L77" target="_blank" rel="noopener noreferrer">`duckdb_crud.update_job`:68-77</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L80-L99" target="_blank" rel="noopener noreferrer">`duckdb_crud.fetch_job`:80-99</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py#L102-L124" target="_blank" rel="noopener noreferrer">`duckdb_crud.fetch_all_jobs`:102-124</a>
-
-
-### Diagram Generation Service [[Expand]](./Diagram_Generation_Service.md)
-Specializes in converting structured architectural data (from static analysis and AI interpretation) into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.
+### External Tooling Integration
+Provides a set of tools that agents can use to interact with the repository, such as reading files, analyzing dependencies, and retrieving source code.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L199-L298" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis`:199-298</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`agents.tools.external_deps.ExternalDepsTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_file.ReadFileTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.ReadSourceTool`</a>
 
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Compiles all analysis results, AI interpretations, and generated diagrams into various final output formats (e.g., Markdown, HTML, PDF). It is responsible for formatting and presenting the comprehensive documentation.
+### External LLM Providers
+Represents various external Large Language Model services (e.g., OpenAI, Anthropic, Google, AWS Bedrock, Ollama, Cerebras) that are integrated and consumed by the system. These are defined and configured within the `LLM_PROVIDERS` dictionary.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py#L104-L117" target="_blank" rel="noopener noreferrer">`output_generators.markdown.generate_markdown_file`:104-117</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py#L44-L101" target="_blank" rel="noopener noreferrer">`output_generators.markdown.generate_markdown`:44-101</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L20-L26" target="_blank" rel="noopener noreferrer">`agents.llm_config.InstructorProvider`:20-26</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLM_PROVIDERS`</a>
 
 
 ### Unclassified
@@ -211,100 +158,54 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 ```mermaid
 graph LR
     Orchestration_Engine["Orchestration Engine"]
-    MetaAgent["MetaAgent"]
-    PlannerAgent["PlannerAgent"]
-    CodeBoardingAgent["CodeBoardingAgent"]
+    Repository_Manager["Repository Manager"]
+    Static_Analysis_Engine["Static Analysis Engine"]
+    AI_Interpretation_Layer["AI Interpretation Layer"]
     Unclassified["Unclassified"]
-    Orchestration_Engine -- "initiates" --> MetaAgent
-    Orchestration_Engine -- "invokes" --> PlannerAgent
-    Orchestration_Engine -- "delegates tasks to" --> CodeBoardingAgent
-    MetaAgent -- "provides project context to" --> Orchestration_Engine
-    PlannerAgent -- "provides analysis plans to" --> Orchestration_Engine
-    CodeBoardingAgent -- "performs tasks delegated by" --> Orchestration_Engine
+    Orchestration_Engine -- "instructs" --> Repository_Manager
+    Orchestration_Engine -- "triggers" --> Static_Analysis_Engine
+    Orchestration_Engine -- "sends results to" --> AI_Interpretation_Layer
     click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
+    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
+    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The CodeBoarding system is orchestrated by the `Orchestration Engine`, which acts as the central control unit for the entire code analysis and documentation generation pipeline. It initiates the process by interacting with the `MetaAgent` to gather architectural context and project metadata. Subsequently, it invokes the `PlannerAgent` to generate a structured plan for analyzing various components of the codebase. The `Orchestration Engine` then delegates specific analysis and execution tasks to the `CodeBoardingAgent`, which serves as a foundational worker agent. The `CodeBoardingAgent` provides core capabilities such as interacting with Large Language Models (LLMs), accessing various tools for reading source code, file structures, and Control Flow Graphs (CFGs), and handling robust invocation mechanisms with error handling. This collaborative interaction between the `Orchestration Engine` and its specialized agents ensures a comprehensive and structured approach to code analysis and documentation.
+The system is orchestrated by the Orchestration Engine, which serves as the central control for the entire analysis and documentation generation workflow. It directs the Repository Manager to handle code repository interactions, ensuring the necessary source code is available. For code quality and structural insights, the Orchestration Engine triggers the Static Analysis Engine to perform detailed code analysis. The results from these processes are then forwarded by the Orchestration Engine to the AI Interpretation Layer, which processes and interprets the data, potentially leveraging AI models, to generate comprehensive documentation and insights. This architecture ensures a streamlined flow from code acquisition and analysis to intelligent interpretation and output generation.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
-The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation, primarily by delegating to the `CodeBoardingAgent`. It now also integrates the `ValidatorAgent` into its workflow for post-processing validation.
+The central coordinator of the analysis and documentation generation pipeline.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py#L15-L39" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`:15-39</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py#L12-L32" target="_blank" rel="noopener noreferrer">`agents.planner_agent.PlannerAgent`:12-32</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L35-L329" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`:35-329</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`agents`</a>
 
 
-### MetaAgent
-Responsible for analyzing project metadata to establish architectural context and bias, supplying foundational understanding to initiate the analysis pipeline.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py#L15-L39" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`:15-39</a>
-
-
-### PlannerAgent
-Generates a structured plan for analyzing components, serving as the strategic planning unit for the `Orchestration Engine` to determine the sequence and scope of subsequent analysis tasks.
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Manages interactions with code repositories.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py#L12-L32" target="_blank" rel="noopener noreferrer">`agents.planner_agent.PlannerAgent`:12-32</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/__init__.py" target="_blank" rel="noopener noreferrer">`repo_utils`</a>
 
 
-### CodeBoardingAgent
-A foundational agent providing core capabilities such as LLM interaction, tool access (e.g., reading source code, file structure, CFG), and robust invocation mechanisms with error handling. It acts as a base worker agent or a toolkit provider that the `Orchestration Engine` delegates specific execution tasks to, or that other specialized agents extend or compose.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L35-L329" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`:35-329</a>
-
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-
-
-### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
-
-
-```mermaid
-graph LR
-    AI_Interpretation_Layer["AI Interpretation Layer"]
-    Output_Generation_Engine["Output Generation Engine"]
-    Unclassified["Unclassified"]
-    AI_Interpretation_Layer -- "sends structured architectural insights to" --> Output_Generation_Engine
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
-```
-
-[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
-
-## Details
-
-This subsystem is designed to translate complex architectural analysis into clear, structured documentation and visual representations. The primary flow begins with the AI Interpretation Layer, which processes raw project data to extract and formulate structured architectural insights. These insights represent the core understanding of the system's design and components. The critical interaction pathway involves the AI Interpretation Layer sending these structured architectural insights directly to the Output Generation Engine. The Output Generation Engine then takes on the responsibility of transforming these insights into various consumable formats. This includes generating human-readable documentation (e.g., Markdown reports) and machine-readable data (e.g., JSON) that can be used for automated diagram generation. This ensures a consistent and automated pipeline from AI-driven analysis to final architectural documentation.
-
-### AI Interpretation Layer
-This component is responsible for processing raw data and generating structured architectural insights. It acts as the source of high-level understanding derived from the project's analysis, providing the foundational data for documentation and diagram generation.
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+Performs static code analysis.
 
 
 **Related Classes/Methods**:
 
-- `ai_interpretation_layer`:1-10
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer`</a>
 
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-This component is the core of the subsystem. It receives structured architectural insights from the AI Interpretation Layer and is responsible for formatting these insights into diverse output types, such as Markdown, JSON, reports, or raw data suitable for diagram generation. It ensures that the generated documentation adheres to specified standards and acts as the crucial bridge between AI-processed data and the final end-user documentation.
+### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
+Processes and interprets data, potentially using AI models, to generate meaningful outputs.
 
 
 **Related Classes/Methods**:
@@ -325,107 +226,167 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 
 ```mermaid
 graph LR
-    Agent["Agent"]
-    Scanner["Scanner"]
-    LSP_Client["LSP Client"]
-    Reference_Resolver["Reference Resolver"]
-    Graph_Builder["Graph Builder"]
-    Programming_Language_Support["Programming Language Support"]
-    Analysis_Result_Handler["Analysis Result Handler"]
-    RepoIgnoreManager["RepoIgnoreManager"]
+    Agent_Response_Data_Models["Agent Response Data Models"]
+    Agents["Agents"]
+    External_Output_Processors["External Output Processors"]
     Unclassified["Unclassified"]
-    Analysis_Result_Handler -- "provides results to" --> Agent
-    Agent -- "consumes results from" --> Analysis_Result_Handler
-    Agent -- "uses" --> RepoIgnoreManager
-    Scanner -- "provides input to" --> LSP_Client
-    Scanner -- "uses" --> Programming_Language_Support
-    RepoIgnoreManager -- "filters files for" --> Scanner
-    LSP_Client -- "provides ASTs to" --> Graph_Builder
-    LSP_Client -- "provides parsed info to" --> Reference_Resolver
-    Reference_Resolver -- "provides resolved references to" --> Graph_Builder
-    Graph_Builder -- "provides CFGs to" --> Analysis_Result_Handler
-    Graph_Builder -- "uses" --> Programming_Language_Support
-    Programming_Language_Support -- "configures" --> Scanner
-    Programming_Language_Support -- "configures" --> Graph_Builder
+    Agents -- "produces structured output conforming to" --> Agent_Response_Data_Models
+    Agent_Response_Data_Models -- "provides structured data for" --> External_Output_Processors
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's core functionality revolves around a sophisticated static code analysis pipeline orchestrated by an intelligent `Agent`. The `Scanner` initiates the process, leveraging the `RepoIgnoreManager` for efficient file filtering and `Programming Language Support` for language-specific rules, to feed raw code into the `LSP Client`. The `LSP Client` then provides rich parsed data, including Abstract Syntax Trees (ASTs), to both the `Reference Resolver` and the `Graph Builder`. The `Reference Resolver`, with its enhanced capabilities, plays a crucial role in identifying and linking symbolic references, which are then integrated into the `Graph Builder` to construct comprehensive Control Flow Graphs (CFGs). `Programming Language Support` also guides the `Graph Builder` in this process, ensuring accurate graph construction. All analysis results, including CFGs, are meticulously managed by the `Analysis Result Handler`, which then provides these results to the `Agent`. The `Agent`, now encompassing a specialized `ValidatorAgent`, acts as the central orchestrator, consuming these detailed analysis results to interact with the codebase, process information, and generate responses, potentially utilizing an LLM for advanced reasoning.
+The `agents` subsystem is a core analytical component, where various specialized agents perform static analysis and generate insights. These insights are meticulously structured using the `Agent Response Data Models`, which define a standardized schema for representing complex information such as source code references, inter-component relationships, and comprehensive analysis summaries. This structured output ensures consistency and facilitates seamless integration with downstream processes, enabling the generation of detailed documentation and visual architectural diagrams. The `Agent Response Data Models` act as a crucial interface, ensuring that the raw analytical output from the agents is transformed into a consumable format for higher-level output generation functionalities.
 
-### Agent
-The `Agent` component, encompassing `CodeBoardingAgent` (from `agents/agent.py`) and the new `ValidatorAgent` (from `agents/validator_agent.py`), acts as the central orchestrator. It leverages static analysis results and a toolkit of specialized tools to interact with the codebase, process information using an LLM, and generate responses. The `ValidatorAgent` specifically handles validation tasks, adding a new stage or type of processing to the overall workflow. The `Agent` manages the overall workflow, including prompt processing, tool invocation, and response parsing.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L36-L341" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`:36-341</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`agents.validator_agent.ValidatorAgent`</a>
-
-
-### Scanner
-The `Scanner` initiates the process with lexical analysis, potentially on a filtered set of files determined by the `RepoIgnoreManager`.
+### Agent Response Data Models
+This component defines the standardized data structures and schemas used by various agents to encapsulate their analysis results, insights, and references. It includes models for source code references, inter-component relationships, and overall analysis summaries, facilitating consistent data representation for subsequent processing and output generation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`Scanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.LLMBaseModel`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.SourceCodeReference`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.Relation`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.Component`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.AnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.CFGComponent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.CFGAnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.ValidationInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.UpdateAnalysis`</a>
 
 
-### LSP Client
-The `LSP Client` then provides rich parsed information, including Abstract Syntax Trees (ASTs), by interacting with external Language Servers.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py#L58-L1105" target="_blank" rel="noopener noreferrer">`LSPClient`:58-1105</a>
-
-
-### Reference Resolver
-The `Reference Resolver` component (from `static_analyzer/reference_resolve_mixin.py`) is crucial for identifying and linking symbolic references within the code. Its enhanced capabilities improve the accuracy, scope, and efficiency of reference resolution, thereby improving the quality of data fed to the `Graph Builder`.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/reference_resolve_mixin.py#L15-L151" target="_blank" rel="noopener noreferrer">`ReferenceResolver`:15-151</a>
-
-
-### Graph Builder
-Both the ASTs from the `LSP Client` and the resolved references from the `Reference Resolver` feed into the `Graph Builder`, which constructs Control Flow Graphs (CFGs).
+### Agents
+The `agents` subsystem is a core analytical component, where various specialized agents perform static analysis and generate insights.
 
 
 **Related Classes/Methods**:
 
-- `GraphBuilder`
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`agents`</a>
 
 
-### Programming Language Support
-Throughout this process, the `Programming Language Support` component provides language-specific configurations and rules, ensuring accurate analysis.
-
-
-**Related Classes/Methods**:
-
-- `ProgrammingLanguageSupport`
-
-
-### Analysis Result Handler
-The `Analysis Result Handler` manages and stores the various outputs, such as CFGs and other static analysis results, making them accessible for further processing or consumption.
+### External Output Processors
+External components (e.g., documentation generators, diagram renderers) that consume and transform structured data into human-readable documentation and visual representations.
 
 
 **Related Classes/Methods**:
 
-- `AnalysisResultHandler`
+- `external_output_processors`
 
 
-### RepoIgnoreManager
-The `RepoIgnoreManager` handles the logic for ignoring files and directories based on project-specific configurations, influencing the scope of analysis for other components.
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    Repository_Manager["Repository Manager"]
+    File_Content_Reader["File Content Reader"]
+    File_Structure_Reader["File Structure Reader"]
+    Unclassified["Unclassified"]
+    Repository_Manager -- "delegates to" --> File_Content_Reader
+    Repository_Manager -- "delegates to" --> File_Structure_Reader
+    File_Content_Reader -- "receives commands from" --> Repository_Manager
+    File_Structure_Reader -- "receives commands from" --> Repository_Manager
+    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+The Repository Manager subsystem is responsible for managing all interactions with code repositories, encompassing fetching source code and handling file system access. It acts as the primary interface for the project to retrieve and navigate the codebase under analysis. Within this subsystem, the File Content Reader and File Structure Reader are specialized tools that perform distinct but complementary functions. The Repository Manager itself acts as the coordinating entity, routing requests to the appropriate reader component. Both reader components directly interface with the underlying file system to fulfill their responsibilities, providing the foundational data necessary for the broader code analysis and documentation generation process.
+
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Orchestrates and abstracts all file system and repository interactions, ensuring efficient and controlled access to project code and structure. It acts as a facade for external components needing repository data.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py#L8-L107" target="_blank" rel="noopener noreferrer">`repo_utils.ignore.RepoIgnoreManager`:8-107</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`File Content Reader`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`File Structure Reader`</a>
+
+
+### File Content Reader
+This component is dedicated to retrieving the raw content of individual files from the code repository. It serves as the direct access point for obtaining the textual data of source code files.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`File Content Reader`</a>
+
+
+### File Structure Reader
+This component is responsible for providing a hierarchical representation of the repository's file system. It enables the system to understand the project's layout, including directories and files, which is crucial for contextual analysis and navigation.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`File Structure Reader`</a>
+
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    StaticAnalysisManager["StaticAnalysisManager"]
+    GetCFGTool["GetCFGTool"]
+    LanguageServerAdapter["LanguageServerAdapter"]
+    Unclassified["Unclassified"]
+    GetCFGTool -- "queries" --> StaticAnalysisManager
+    StaticAnalysisManager -- "provides" --> GetCFGTool
+    StaticAnalysisManager -- "delegates to" --> LanguageServerAdapter
+    StaticAnalysisManager -- "depends on" --> LanguageServerAdapter
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+The Static Analysis Engine subsystem is a critical part of the "Code Analysis and Documentation Generation Tool," focusing on extracting deep structural, control flow, and semantic information from source code. It operates as a modular unit, providing essential data to other components of the larger system.
+
+### StaticAnalysisManager
+This is the orchestrator of the entire static analysis process within the subsystem. It coordinates the analysis workflow, manages the interaction with language-specific parsers, and is responsible for storing and providing the generated analysis data, such as Control Flow Graphs (CFGs). It embodies the "Orchestration Engine" pattern for this specific domain.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py#L13-L85" target="_blank" rel="noopener noreferrer">`StaticAnalysisManager`:13-85</a>
+
+
+### GetCFGTool
+This component acts as the primary interface for other parts of the system to access the static analysis results, specifically Control Flow Graphs. It queries the `StaticAnalysisManager` to retrieve CFG data, filters it for component-specific information, and formats it for external consumption. It serves as an internal "API Service" for analysis data.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py" target="_blank" rel="noopener noreferrer">`GetCFGTool`</a>
+
+
+### LanguageServerAdapter
+This component is responsible for abstracting and managing interactions with various external Language Servers. It handles language-specific parsing and analysis tasks, translating requests from the `StaticAnalysisManager` into calls to the appropriate language tools and processing their responses. This aligns with the "External Service Integration" pattern.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py#L59-L94" target="_blank" rel="noopener noreferrer">`LanguageServerAdapter`:59-94</a>
 
 
 ### Unclassified
@@ -442,102 +403,93 @@ Component for all unclassified files and utility functions (Utility functions/Ex
 ```mermaid
 graph LR
     Orchestration_Engine["Orchestration Engine"]
+    Repository_Manager["Repository Manager"]
     Static_Analysis_Engine["Static Analysis Engine"]
-    AI_Processing_Layer["AI Processing Layer"]
+    AI_Interpretation_Layer["AI Interpretation Layer"]
+    LLM_Integration_Layer["LLM Integration Layer"]
     Output_Generation_Engine["Output Generation Engine"]
-    Diagram_Generation_Service["Diagram Generation Service"]
     Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Unclassified["Unclassified"]
-    Orchestration_Engine -- "delegates tasks to" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "provides enhanced structured code to" --> Orchestration_Engine
-    Orchestration_Engine -- "orchestrates" --> AI_Processing_Layer
-    AI_Processing_Layer -- "provides validated architectural insights to" --> Output_Generation_Engine
-    Output_Generation_Engine -- "generates diagram data for" --> Diagram_Generation_Service
+    Orchestration_Engine -- "requests codebase from" --> Repository_Manager
+    Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "submits analysis artifacts to" --> Orchestration_Engine
+    Orchestration_Engine -- "requests prompt generation from" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "sends LLM prompts to" --> LLM_Integration_Layer
+    LLM_Integration_Layer -- "provides LLM responses to" --> AI_Interpretation_Layer
+    AI_Interpretation_Layer -- "returns interpreted data to" --> Orchestration_Engine
+    Orchestration_Engine -- "provides analysis data for diagrams to" --> Output_Generation_Engine
+    Output_Generation_Engine -- "generates diagrams and documentation from" --> interpreted_data
+    Repository_Manager -- "provides source code to" --> Orchestration_Engine
     click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
+    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
-    click AI_Processing_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Processing_Layer.md" "Details"
+    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
+    click LLM_Integration_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Integration_Layer.md" "Details"
     click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
-    click Diagram_Generation_Service href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Diagram_Generation_Service.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-The system's architecture is centered around an Orchestration Engine that meticulously manages the entire code analysis and documentation generation lifecycle. It initiates a robust Static Analysis Engine, now significantly enhanced with reference resolution capabilities, to produce highly accurate structured code representations. These refined outputs are then channeled to the AI Processing Layer, where specialized agents, including a new `ValidatorAgent`, leverage Large Language Models to derive and validate architectural insights. The validated information subsequently flows to the Output Generation Engine for diverse documentation formatting, culminating in the Diagram Generation Service for intuitive visual representations. This integrated pipeline ensures comprehensive, accurate, and visually accessible architectural documentation.
+The CodeBoarding project operates through a sophisticated multi-component architecture designed for automated code analysis and documentation generation. At its core, the Orchestration Engine acts as the central control unit, managing the entire workflow from initial code ingestion to final output. It delegates tasks to specialized components: the Repository Manager handles all interactions with the codebase, providing raw source files and structural information. The Static Analysis Engine then processes this code to extract critical structural and control flow data. This analyzed data, along with user queries, is fed into the AI Interpretation Layer, which dynamically crafts prompts for various Large Language Models (LLMs). The LLM Integration Layer facilitates secure communication with these external LLMs, retrieving their responses. These responses are then processed by the AI Interpretation Layer and returned to the Orchestration Engine. Finally, the Output Generation Engine takes the interpreted data and analysis artifacts to produce comprehensive documentation, including diagrams, ensuring a cohesive and informative output.
 
 ### Orchestration Engine [[Expand]](./Orchestration_Engine.md)
-The central control unit managing the entire code analysis and documentation generation pipeline. It coordinates the execution flow, from static analysis to AI interpretation and final output generation, primarily by delegating to the `CodeBoardingAgent`. It now also integrates the `ValidatorAgent` into its workflow for post-processing validation.
+The central coordinator managing the entire code analysis and documentation generation workflow, orchestrating tasks and data flow.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent.PlannerAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent`</a>
+
+
+### Repository Manager [[Expand]](./Repository_Manager.md)
+Handles all interactions with code repositories, including fetching source code and managing file system access.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_file`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_file_structure`</a>
 
 
 ### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
-Responsible for parsing source code, building Abstract Syntax Trees (ASTs), generating Control Flow Graphs (CFGs), and applying adaptive clustering algorithms to abstract these graphs into logical architectural components. It now incorporates a `ReferenceResolveMixin` to significantly enhance its capability to resolve references, providing more accurate, structured, clustered, and filtered code representations.
+Performs in-depth static analysis on source code to extract structural, control flow, and semantic information.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer" target="_blank" rel="noopener noreferrer">`static_analyzer`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.Graph`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py" target="_blank" rel="noopener noreferrer">`repo_utils/ignore.py`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_cfg`</a>
 
 
-### AI Processing Layer [[Expand]](./AI_Processing_Layer.md)
-This integrated layer processes structured code data using Large Language Models (LLMs) to derive architectural insights, identify components, and understand relationships. It relies on the `CodeBoardingAgent` for prompt generation, LLM interaction, and response parsing. The newly introduced `ValidatorAgent` within this layer ensures the correctness and quality of processed information.
+### AI Interpretation Layer [[Expand]](./AI_Interpretation_Layer.md)
+Dynamically constructs and manages prompts tailored for various Large Language Models (LLMs) and specific analysis tasks.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent.DetailsAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L14-L52" target="_blank" rel="noopener noreferrer">`agents.llm_config.LLMConfig`:14-52</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validator_agent.py" target="_blank" rel="noopener noreferrer">`agents.validator_agent.ValidatorAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/claude_prompts_bidirectional.py" target="_blank" rel="noopener noreferrer">`agents.prompts.claude_prompts_bidirectional`</a>
+
+
+### LLM Integration Layer [[Expand]](./LLM_Integration_Layer.md)
+Manages secure and efficient communication with various external Large Language Model providers.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`agents.tools.external_deps`</a>
 
 
 ### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-Takes the structured architectural insights from the AI Processing Layer and formats them into various output types, such as documentation files (Markdown, JSON), reports, or raw data suitable for diagram generation.
+Formats and produces the final documentation, reports, or other output artifacts based on processed analysis and LLM interpretations, including the generation of diagrams.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators" target="_blank" rel="noopener noreferrer">`output_generators`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses`</a>
 
-
-### Diagram Generation Service [[Expand]](./Diagram_Generation_Service.md)
-Specializes in converting structured architectural data into visual diagrams, potentially using tools like Mermaid.js. It enhances comprehension by providing interactive and visual representations of the analyzed architecture.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis" target="_blank" rel="noopener noreferrer">`diagram_analysis`</a>
-
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
-
-### Unclassified
-Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
-
-
-**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
