@@ -32,12 +32,10 @@ class TestValidatorAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_init(self, mock_create_llm, mock_create_instructor):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_init(self, mock_static_init):
         # Test initialization
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -47,13 +45,11 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertIsNotNone(agent.valid_relations_prompt)
         self.assertIsNotNone(agent.agent)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.validator_agent.ValidatorAgent._parse_invoke")
-    def test_validate_components(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
+    def test_validate_components(self, mock_parse_invoke, mock_static_init):
         # Test validate_components
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -89,13 +85,11 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertEqual(result, mock_validation)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.validator_agent.ValidatorAgent._parse_invoke")
-    def test_validate_relations(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
+    def test_validate_relations(self, mock_parse_invoke, mock_static_init):
         # Test validate_relations
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -137,12 +131,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertEqual(result, mock_validation)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_no_references(self, mock_create_llm, mock_create_instructor):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_no_references(self, mock_static_init):
         # Test validate_references with component having no references
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -166,12 +158,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("no source code references", result.additional_info)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_no_file(self, mock_create_llm, mock_create_instructor):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_no_file(self, mock_static_init):
         # Test validate_references with reference having no file
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -203,12 +193,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertIn("incorrect source references", result.additional_info)
 
     @patch("os.path.exists")
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_valid_reference(self, mock_create_llm, mock_create_instructor, mock_exists):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_valid_reference(self, mock_static_init, mock_exists):
         # Test validate_references with valid reference
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -250,12 +238,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertIsInstance(result, ValidationInsights)
         self.assertTrue(result.is_valid)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_incorrect_file_path(self, mock_create_llm, mock_create_instructor):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_incorrect_file_path(self, mock_static_init):
         # Test validate_references with incorrect file path
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -293,13 +279,11 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("incorrect source references", result.additional_info)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("os.path.exists")
-    def test_validate_references_file_exists(self, mock_exists, mock_create_llm, mock_create_instructor):
+    def test_validate_references_file_exists(self, mock_exists, mock_static_init):
         # Test validate_references with file reference that exists
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -340,12 +324,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertTrue(result.is_valid)
 
     @patch("os.path.exists")
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_relative_path_comparison(self, mock_create_llm, mock_create_instructor, mock_exists):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_relative_path_comparison(self, mock_static_init, mock_exists):
         """Test that validator correctly compares relative reference paths with absolute static analysis paths"""
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -392,14 +374,10 @@ class TestValidatorAgent(unittest.TestCase):
         self.assertTrue(result.is_valid)
 
     @patch("os.path.exists")
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_validate_references_incorrect_path_after_normalization(
-        self, mock_create_llm, mock_create_instructor, mock_exists
-    ):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_validate_references_incorrect_path_after_normalization(self, mock_static_init, mock_exists):
         """Test that validator detects incorrect paths even with relative/absolute path mismatches"""
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = ValidatorAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

@@ -1,0 +1,191 @@
+{
+  "description": "The `agents` subsystem forms the intelligent core of the project, orchestrating AI-driven code analysis through a modular architecture. It begins with the **LLM Configuration Manager**, which centralizes the setup for various Large Language Model providers. This configuration is then consumed by the **LLM Client Factory**, responsible for dynamically instantiating LLM clients tailored for both general interactions and structured data extraction. These clients are the primary interface for the **Agentic AI Core**, a collection of specialized agents (e.g., Abstraction, Details, Planner) that perform the actual code analysis by interacting with the LLMs. To gather necessary context from the codebase, the **Agentic AI Core** integrates with **External Tooling Integration**, a suite of tools for reading files, analyzing dependencies, and retrieving source code. Ultimately, the **LLM Client Factory** establishes connections with **External LLM Providers**, facilitating the communication with services like OpenAI, Google, and Anthropic to execute AI tasks. This layered approach ensures flexibility, maintainability, and efficient utilization of AI capabilities for comprehensive code understanding.",
+  "components": [
+    {
+      "name": "LLM Configuration Manager",
+      "description": "Responsible for loading, validating, and providing LLM configurations, including API keys, model names, and provider-specific settings.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 29,
+          "reference_end_line": 92
+        },
+        {
+          "qualified_name": "agents.llm_config.LLM_PROVIDERS",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 96,
+          "reference_end_line": 96
+        },
+        {
+          "qualified_name": "agents.llm_config.InstructorProvider",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 20,
+          "reference_end_line": 26
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Client Factory",
+      "description": "Manages the creation and instantiation of LLM clients (both for general chat and structured output via `instructor`) based on the active configuration. It abstracts the complexities of different LLM APIs.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.llm_config.create_instructor_client_from_env",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 199,
+          "reference_end_line": 205
+        },
+        {
+          "qualified_name": "agents.llm_config.create_llm_from_env",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 208,
+          "reference_end_line": 229
+        },
+        {
+          "qualified_name": "agents.llm_config.LLMConfig.create_instructor_client",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Agentic AI Core",
+      "description": "Contains the core logic for various AI agents that interact with LLMs to perform tasks like code abstraction, detail analysis, planning, and validation. These agents interpret LLM responses and drive the overall analysis process.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/abstraction_agent.py",
+        "../../agents/details_agent.py",
+        "../../agents/planner_agent.py",
+        "../../agents/validator_agent.py",
+        "../../agents/meta_agent.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "External Tooling Integration",
+      "description": "Provides a set of tools that agents can use to interact with the repository, such as reading files, analyzing dependencies, and retrieving source code.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.tools.external_deps.ExternalDepsTool",
+          "reference_file": "agents/tools/external_deps.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools.read_file.ReadFileTool",
+          "reference_file": "agents/tools/read_file.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools.read_source.ReadSourceTool",
+          "reference_file": "agents/tools/read_source.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "../../agents/tools/external_deps.py",
+        "../../agents/tools/read_file.py",
+        "../../agents/tools/read_source.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "External LLM Providers",
+      "description": "Represents various external Large Language Model services (e.g., OpenAI, Anthropic, Google, AWS Bedrock, Ollama, Cerebras) that are integrated and consumed by the system. These are defined and configured within the `LLM_PROVIDERS` dictionary.",
+      "referenced_source_code": [
+        {
+          "qualified_name": "agents.llm_config.InstructorProvider",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 20,
+          "reference_end_line": 26
+        },
+        {
+          "qualified_name": "agents.llm_config.LLM_PROVIDERS",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 96,
+          "reference_end_line": 96
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides configurations to",
+      "src_name": "LLM Configuration Manager",
+      "dst_name": "LLM Client Factory"
+    },
+    {
+      "relation": "creates LLM clients for",
+      "src_name": "LLM Client Factory",
+      "dst_name": "Agentic AI Core"
+    },
+    {
+      "relation": "utilizes LLM clients from",
+      "src_name": "Agentic AI Core",
+      "dst_name": "LLM Client Factory"
+    },
+    {
+      "relation": "uses tools from",
+      "src_name": "Agentic AI Core",
+      "dst_name": "External Tooling Integration"
+    },
+    {
+      "relation": "connects to",
+      "src_name": "LLM Client Factory",
+      "dst_name": "External LLM Providers"
+    }
+  ]
+}

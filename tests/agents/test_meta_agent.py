@@ -26,12 +26,10 @@ class TestMetaAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
-    def test_init(self, mock_create_llm, mock_create_instructor):
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    def test_init(self, mock_static_init):
         # Test initialization
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -42,13 +40,11 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
-    def test_analyze_project_metadata(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
+    def test_analyze_project_metadata(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -74,13 +70,11 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIn("Python", result.technology_stack)
         mock_parse_invoke.assert_called_once()
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
-    def test_analyze_project_metadata_application(self, mock_parse_invoke, mock_create_llm, mock_create_instructor):
+    def test_analyze_project_metadata_application(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata for an application
-        mock_create_llm.return_value = (MagicMock(), "test-model", MagicMock())
-        mock_create_instructor.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

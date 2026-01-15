@@ -1,34 +1,52 @@
 ```mermaid
 graph LR
-    AI_Interpretation_Layer["AI Interpretation Layer"]
-    Output_Generation_Engine["Output Generation Engine"]
+    Agent_Response_Data_Models["Agent Response Data Models"]
+    Agents["Agents"]
+    External_Output_Processors["External Output Processors"]
     Unclassified["Unclassified"]
-    AI_Interpretation_Layer -- "sends structured architectural insights to" --> Output_Generation_Engine
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    Agents -- "produces structured output conforming to" --> Agent_Response_Data_Models
+    Agent_Response_Data_Models -- "provides structured data for" --> External_Output_Processors
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This subsystem is designed to translate complex architectural analysis into clear, structured documentation and visual representations. The primary flow begins with the AI Interpretation Layer, which processes raw project data to extract and formulate structured architectural insights. These insights represent the core understanding of the system's design and components. The critical interaction pathway involves the AI Interpretation Layer sending these structured architectural insights directly to the Output Generation Engine. The Output Generation Engine then takes on the responsibility of transforming these insights into various consumable formats. This includes generating human-readable documentation (e.g., Markdown reports) and machine-readable data (e.g., JSON) that can be used for automated diagram generation. This ensures a consistent and automated pipeline from AI-driven analysis to final architectural documentation.
+The `agents` subsystem is a core analytical component, where various specialized agents perform static analysis and generate insights. These insights are meticulously structured using the `Agent Response Data Models`, which define a standardized schema for representing complex information such as source code references, inter-component relationships, and comprehensive analysis summaries. This structured output ensures consistency and facilitates seamless integration with downstream processes, enabling the generation of detailed documentation and visual architectural diagrams. The `Agent Response Data Models` act as a crucial interface, ensuring that the raw analytical output from the agents is transformed into a consumable format for higher-level output generation functionalities.
 
-### AI Interpretation Layer
-This component is responsible for processing raw data and generating structured architectural insights. It acts as the source of high-level understanding derived from the project's analysis, providing the foundational data for documentation and diagram generation.
-
-
-**Related Classes/Methods**:
-
-- `ai_interpretation_layer`:1-10
-
-
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
-This component is the core of the subsystem. It receives structured architectural insights from the AI Interpretation Layer and is responsible for formatting these insights into diverse output types, such as Markdown, JSON, reports, or raw data suitable for diagram generation. It ensures that the generated documentation adheres to specified standards and acts as the crucial bridge between AI-processed data and the final end-user documentation.
+### Agent Response Data Models
+This component defines the standardized data structures and schemas used by various agents to encapsulate their analysis results, insights, and references. It includes models for source code references, inter-component relationships, and overall analysis summaries, facilitating consistent data representation for subsequent processing and output generation.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/__init__.py" target="_blank" rel="noopener noreferrer">`output_generators`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.LLMBaseModel`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.SourceCodeReference`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.Relation`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.Component`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.AnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.CFGComponent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.CFGAnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.ValidationInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.UpdateAnalysis`</a>
+
+
+### Agents
+The `agents` subsystem is a core analytical component, where various specialized agents perform static analysis and generate insights.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`agents`</a>
+
+
+### External Output Processors
+External components (e.g., documentation generators, diagram renderers) that consume and transform structured data into human-readable documentation and visual representations.
+
+
+**Related Classes/Methods**:
+
+- `external_output_processors`
 
 
 ### Unclassified
