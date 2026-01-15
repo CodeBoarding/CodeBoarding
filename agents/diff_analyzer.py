@@ -9,10 +9,11 @@ from agents.agent import LargeModelAgent
 from agents.agent_responses import AnalysisInsights, Component, UpdateAnalysis
 from agents.prompts import get_system_diff_analysis_message, get_diff_analysis_message
 from monitoring import trace
+from diagram_analysis.version import Version
 from static_analyzer.analysis_result import StaticAnalysisResults
+from utils import get_config
 
 logger = logging.getLogger(__name__)
-from diagram_analysis.version import Version
 from output_generators.markdown import sanitize
 from repo_utils.git_diff import FileChange, get_git_diff
 
@@ -22,6 +23,10 @@ class DiffAnalyzingAgent(LargeModelAgent):
         super().__init__(repo_dir, static_analysis, get_system_diff_analysis_message())
         self.project_name = project_name
         self.repo_dir = repo_dir
+        self.supported_extensions = self._get_supported_extensions()
+
+        logger.info(f"[DiffAnalyzingAgent] Monitoring changes for extensions: {sorted(self.supported_extensions)}")
+
         self.prompt = PromptTemplate(template=get_diff_analysis_message(), input_variables=["analysis", "diff_data"])
         self.read_diff_tool = self.toolkit.get_read_diff_tool(diffs=self.get_diff_data())
 
@@ -42,6 +47,19 @@ class DiffAnalyzingAgent(LargeModelAgent):
         with open(analysis_file_path, "r") as analysis_file:
             return AnalysisInsights.model_validate_json(analysis_file.read())
 
+    def _get_supported_extensions(self) -> set[str]:
+        """
+        Extract supported file extensions from static analysis config.
+
+        Returns:
+            Set of supported file extensions (e.g., {'.py', '.ts', '.go'})
+        """
+        extensions = set()
+        lsp_servers = get_config("lsp_servers")
+        for server_config in lsp_servers.values():
+            extensions.update(server_config.get("file_extensions", []))
+        return extensions
+
     def get_diff_data(self) -> List[FileChange]:
         """
         Get the diff data for the current repository.
@@ -57,18 +75,52 @@ class DiffAnalyzingAgent(LargeModelAgent):
         diff = self.filter_diff(diff)
         return diff
 
-    @staticmethod
-    def filter_diff(diff: List[FileChange]) -> List[FileChange]:
+    def filter_diff(self, diff: List[FileChange]) -> List[FileChange]:
         """
-        Filter the diff to only include files that are relevant for analysis.
-        For now, we assume that only files in the .codeboarding directory are relevant.
+        Filter the diff to only include files with supported extensions.
+
+        Args:
+            diff: List of file changes from git
+
+        Returns:
+            List of file changes with supported extensions
         """
         relevant_files = []
+        skipped_files = []
         for change in diff:
-            # For now we are checking just python files
-            if change.filename.endswith(".py"):
+            file_ext = Path(change.filename).suffix
+            if file_ext in self.supported_extensions:
                 relevant_files.append(change)
+            else:
+                skipped_files.append(change.filename)
+
+        if skipped_files:
+            self._log_skipped_files(skipped_files)
+
         return relevant_files
+
+    def _log_skipped_files(self, skipped_files: list[str]):
+        # Configuration for truncation
+        MAX_FILES_LIMIT = 10
+        MAX_CHAR_LIMIT = 300
+
+        visible_files = []
+        current_length = 0
+        truncated_count = 0
+        for i, filename in enumerate(skipped_files):
+            # Check if adding this filename (plus a comma/space) exceeds our limits
+            if (current_length + len(filename) + 2) > MAX_CHAR_LIMIT or i >= MAX_FILES_LIMIT:
+                truncated_count = len(skipped_files) - i
+                break
+
+            visible_files.append(filename)
+            current_length += len(filename) + 2  # +2 for the comma and space
+
+        # Construct the final message
+        log_list = ", ".join(visible_files)
+        suffix = f" ... (and {truncated_count} more)" if truncated_count > 0 else ""
+
+        logger.info(f"[DiffAnalyzingAgent] Filtered {len(skipped_files)} unsupported files: " f"[{log_list}{suffix}]")
 
     def analysis_exists(self):
         """
