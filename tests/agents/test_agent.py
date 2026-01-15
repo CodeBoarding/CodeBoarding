@@ -6,25 +6,20 @@ from unittest.mock import Mock, MagicMock, patch
 
 from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
-from pydantic import ValidationError
+from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent, LargeModelAgent
-from agents.agent_responses import LLMBaseModel
-from agents.llm_config import LLM_PROVIDERS
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
 
-class TestResponse(LLMBaseModel):
+class TestResponse(BaseModel):
     """Test response model for parsing tests"""
 
     value: str
 
-    def llm_str(self):
-        return self.value
-
-    @classmethod
-    def extractor_str(cls) -> str:
+    @staticmethod
+    def extractor_str():
         return "Extract the value field: "
 
 
@@ -63,7 +58,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
     @patch("agents.agent.create_react_agent")
     def test_init_with_openai(self, mock_create_agent):
         # Test initialization with OpenAI
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_agent_executor = Mock()
@@ -84,7 +79,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
     @patch("agents.agent.create_react_agent")
     def test_init_with_anthropic(self, mock_create_agent):
         # Test initialization with Anthropic
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
@@ -97,7 +92,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
     @patch("agents.agent.create_react_agent")
     def test_init_with_google(self, mock_create_agent):
         # Test initialization with Google
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
@@ -107,10 +102,11 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "test_token"}, clear=True)
+    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_aws(self, mock_create_agent):
+    def test_init_with_aws(self, mock_create_agent, mock_load_dotenv):
         # Test initialization with AWS Bedrock
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
@@ -120,25 +116,25 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"CEREBRAS_API_KEY": "test_key"}, clear=True)
-    @patch("agents.agent.create_instructor_client_from_env")
+    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_cerebras(self, mock_create_agent, mock_create_instructor):
+    def test_init_with_cerebras(self, mock_create_agent, mock_load_dotenv):
         # Test initialization with Cerebras
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
-        mock_create_instructor.return_value = (Mock(), "test-model")
 
         with patch.object(LLM_PROVIDERS["cerebras"], "chat_class", return_value=mock_llm):
             agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://localhost:11434"}, clear=True)
+    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_ollama(self, mock_create_agent):
+    def test_init_with_ollama(self, mock_create_agent, mock_load_dotenv):
         # Test initialization with Ollama
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
@@ -148,7 +144,8 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_init_no_api_key(self):
+    @patch("agents.agent.load_dotenv")
+    def test_init_no_api_key(self, mock_load_dotenv):
         # Test initialization without any API key
         with self.assertRaises(ValueError) as context:
             LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
@@ -170,9 +167,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._invoke("Test prompt")
@@ -195,9 +189,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._invoke("Test prompt")
@@ -225,9 +216,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._invoke("Test prompt")
@@ -252,9 +240,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._invoke("Test prompt")
@@ -277,9 +262,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._invoke("Test prompt")
@@ -293,7 +275,8 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
 
     @patch("agents.agent.create_react_agent")
-    def test_parse_invoke(self, mock_create_agent):
+    @patch("agents.agent.create_extractor")
+    def test_parse_invoke(self, mock_extractor, mock_create_agent):
         # Test parse_invoke method
         mock_agent_executor = Mock()
         mock_create_agent.return_value = mock_agent_executor
@@ -302,18 +285,16 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_response_message = AIMessage(content='{"value": "test_value"}')
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
 
-        # Mock instructor client
-        mock_instructor_client = Mock()
-        mock_instructor_client.chat.completions.create.return_value = TestResponse(value="test_value")
+        # Mock extractor
+        mock_extractor_instance = Mock()
+        mock_extractor.return_value = mock_extractor_instance
+        mock_extractor_instance.invoke.return_value = {"responses": [{"value": "test_value"}]}
 
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=mock_instructor_client,
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._parse_invoke("Test prompt", TestResponse)
@@ -332,9 +313,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         results = agent.get_monitoring_results()
@@ -355,9 +333,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         # Manually set stats on the agent's stats container
@@ -380,7 +355,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
     @patch("agents.agent.create_react_agent")
     def test_initialize_llm_custom_model(self, mock_create_agent):
         # Test LLM initialization with custom model
-        from agents.llm_config import LLM_PROVIDERS
+        from agents.agent import LLM_PROVIDERS
 
         mock_llm = Mock()
         mock_create_agent.return_value = Mock()
@@ -397,16 +372,18 @@ class TestCodeBoardingAgent(unittest.TestCase):
                 self.assertEqual(call_args[1]["model"], "gpt-4-turbo")
 
     @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_extractor")
     @patch("time.sleep")
-    def test_parse_response_with_retry(self, mock_sleep, mock_create_agent):
+    def test_parse_response_with_retry(self, mock_sleep, mock_extractor, mock_create_agent):
         # Test parse_response with retry logic
         mock_create_agent.return_value = Mock()
 
-        # Mock instructor client to fail first with ValidationError, then succeed
-        mock_instructor_client = Mock()
-        mock_instructor_client.chat.completions.create.side_effect = [
-            ValidationError.from_exception_data("First attempt fails", []),
-            TestResponse(value="success"),
+        # Mock extractor to fail first, then succeed
+        mock_extractor_instance = Mock()
+        mock_extractor.return_value = mock_extractor_instance
+        mock_extractor_instance.invoke.side_effect = [
+            IndexError("First attempt fails"),
+            {"responses": [{"value": "success"}]},
         ]
 
         agent = CodeBoardingAgent(
@@ -414,9 +391,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=mock_instructor_client,
-            instructor_model_name="test-instructor-model",
         )
 
         result = agent._parse_response("Test prompt", '{"value": "success"}', TestResponse, max_retries=5)
@@ -435,9 +409,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         # Check tools are initialized
@@ -461,9 +432,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             static_analysis=self.mock_analysis,
             system_message="Test",
             llm=self.mock_llm,
-            model_name="test-model",
-            instructor_client=Mock(),
-            instructor_model_name="test-instructor-model",
         )
 
         # Verify create_react_agent was called with tools
