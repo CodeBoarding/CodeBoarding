@@ -11,18 +11,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/agent.py",
-        "../../agents/meta_agent.py",
-        "../../agents/diff_analyzer.py",
-        "../../agents/details_agent.py",
-        "../../agents/validator_agent.py",
-        "../../agents/abstraction_agent.py",
-        "../../agents/planner_agent.py",
-        "agents/tools/toolkit.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "Repository Manager",
@@ -34,9 +23,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Static Analysis Engine",
@@ -48,9 +35,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "AI Interpretation Layer",
@@ -62,20 +47,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [],
-      "can_expand": true
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "main.py",
-        "../../local_app.py",
-        "../../github_action.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [

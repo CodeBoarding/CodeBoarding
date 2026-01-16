@@ -164,7 +164,7 @@
         "diagram_analysis/analysis_json.py",
         "diagram_analysis/diagram_generator.py"
       ],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Unclassified",
@@ -203,6 +203,13 @@
         "monitoring/mixin.py",
         "monitoring/writers.py"
       ],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "referenced_source_code": [],
+      "assigned_files": [],
       "can_expand": false
     }
   ],

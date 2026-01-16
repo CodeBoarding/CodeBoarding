@@ -7,6 +7,7 @@ graph LR
     LLM_Integration_Layer["LLM Integration Layer"]
     Output_Generation_Engine["Output Generation Engine"]
     Unclassified["Unclassified"]
+    Unclassified["Unclassified"]
     Orchestration_Engine -- "requests codebase from" --> Repository_Manager
     Repository_Manager -- "provides source code to" --> Static_Analysis_Engine
     Static_Analysis_Engine -- "submits analysis artifacts to" --> Orchestration_Engine
@@ -22,7 +23,6 @@ graph LR
     click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
     click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
     click LLM_Integration_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Integration_Layer.md" "Details"
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -80,7 +80,7 @@ Manages secure and efficient communication with various external Large Language 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`agents.tools.external_deps`</a>
 
 
-### Output Generation Engine [[Expand]](./Output_Generation_Engine.md)
+### Output Generation Engine
 Formats and produces the final documentation, reports, or other output artifacts based on processed analysis and LLM interpretations, including the generation of diagrams.
 
 
@@ -88,6 +88,12 @@ Formats and produces the final documentation, reports, or other output artifacts
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses`</a>
 
+
+### Unclassified
+Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)
+
+
+**Related Classes/Methods**: _None_
 
 ### Unclassified
 Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)

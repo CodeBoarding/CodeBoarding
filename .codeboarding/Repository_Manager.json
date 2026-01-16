@@ -17,13 +17,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/tools/read_file.py",
-        "../../agents/tools/read_file_structure.py",
-        "../../agents/tools/read_source.py"
-      ],
-      "can_expand": true
+      ]
     },
     {
       "name": "File Content Reader",
@@ -35,11 +29,7 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/tools/read_file.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "File Structure Reader",
@@ -51,25 +41,12 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "../../agents/tools/read_file_structure.py"
-      ],
-      "can_expand": false
+      ]
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": [],
-      "assigned_files": [
-        "../../agents/tools/read_packages.py",
-        "../../agents/tools/read_git_diff.py",
-        "../../agents/tools/read_structure.py",
-        "../../agents/tools/read_docs.py",
-        "../../repo_utils/git_diff.py",
-        "repo_utils/ignore.py"
-      ],
-      "can_expand": false
+      "referenced_source_code": []
     }
   ],
   "components_relations": [
