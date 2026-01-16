@@ -54,7 +54,7 @@ class StaticAnalysisEval(BaseEval):
         analysis = analyzer.analyze()
 
         # Collect stats similar to diagram_generator.py
-        static_stats = {"repo_name": project_name, "languages": {}}
+        static_stats: dict[str, Any] = {"repo_name": project_name, "languages": {}}
 
         # Use ProjectScanner to get accurate LOC counts
         scanner = ProjectScanner(repo_path)
