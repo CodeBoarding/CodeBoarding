@@ -139,8 +139,7 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
-    @patch("agents.agent.create_instructor_client_from_env")
-    @patch("agents.agent.create_llm_from_env")
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
     def test_generate_analysis(self, mock_parse_invoke, mock_static_init):
         # Test generate_analysis
