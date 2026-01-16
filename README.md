@@ -12,6 +12,7 @@
 [![Python Support](https://img.shields.io/badge/Python-Supported-green?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![TypeScript Support](https://img.shields.io/badge/TypeScript-Supported-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![JavaScript Support](https://img.shields.io/badge/JavaScript-Supported-yellow?style=for-the-badge&logo=javascript&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Java Support](https://img.shields.io/badge/Java-Supported-orange?style=for-the-badge&logo=java&logoColor=white)](https://www.java.com/)
 [![Go Support](https://img.shields.io/badge/Go-Supported-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
 [![PHP Support](https://img.shields.io/badge/PHP-Supported-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 
