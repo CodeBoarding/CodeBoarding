@@ -1,0 +1,105 @@
+{
+  "description": "This graph represents the architecture of an application that manages the lifecycle of data processing and visualization. The main flow involves the Application Orchestrator, which initializes components and coordinates the processing of analysis jobs, leading to the generation of visual diagrams and documentation from architectural data. The purpose is to provide a structured approach to interpreting and presenting codebase information through various outputs.",
+  "components": [
+    {
+      "name": "Application Orchestrator",
+      "description": "Manages the overall application lifecycle, initializes components, processes analysis jobs, and coordinates the flow from data interpretation to the final output generation. It serves as the primary entry point for the application's execution.",
+      "key_entities": [
+        {
+          "qualified_name": "main.py",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app.py",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Data Persistence Layer",
+      "description": "Handles all interactions with the underlying data store (DuckDB), providing Create, Read, Update, and Delete (CRUD) operations for architectural data, job states, and application configurations. It ensures the reliable storage and retrieval of all persistent information.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud.py",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Diagram Generation Engine",
+      "description": "Responsible for transforming interpreted architectural data into visual diagrams. It encapsulates the logic for rendering different diagram types, potentially leveraging external libraries or formats like Mermaid.js, to provide a clear visual representation of the codebase structure.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Documentation Generation Engine",
+      "description": "Generates various textual documentation formats (e.g., Markdown, MDX, reStructuredText, HTML) from the processed architectural data. It provides specialized generators for each output format, ensuring the architectural insights are presented in a comprehensive and readable manner.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.markdown.MarkdownGenerator",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/markdown.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Data Persistence Layer"
+    },
+    {
+      "relation": "delegates_to",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Diagram Generation Engine"
+    },
+    {
+      "relation": "delegates_to",
+      "src_name": "Application Orchestrator",
+      "dst_name": "Documentation Generation Engine"
+    }
+  ]
+}

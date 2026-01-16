@@ -1,0 +1,91 @@
+{
+  "description": "The core functionality of this subsystem revolves around the systematic preparation and initial analysis of a code repository. The process begins with the acquisition of the repository, followed by the application of filtering rules, and culminates in a structural scan. This sequential flow ensures that subsequent, more detailed analyses operate on a clean, relevant, and well-understood subset of the codebase.",
+  "components": [
+    {
+      "name": "Repository Cloner/Manager",
+      "description": "This component is responsible for the initial acquisition of code repositories, primarily through cloning from remote sources. It also handles version control operations like checking out specific branches or commits, ensuring the analysis operates on the intended codebase.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.__init__.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.checkout_repo",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Ignore Rule Processor",
+      "description": "This component identifies and applies ignore rules, typically from .gitignore files, to filter out irrelevant files and directories. Its function is to streamline subsequent analysis by ensuring only pertinent code assets are considered.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.ignore.Ignore",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "File Structure Scanner",
+      "description": "This component scans the local file system of the acquired repository to build an initial, high-level understanding of its directory and file structure. It provides a foundational map that guides subsequent static analysis and configuration detection, operating on the filtered context provided by the Ignore Rule Processor.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_file_structure.ReadFileStructure",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_file_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "key_entities": [],
+      "assigned_files": [
+        "None"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides cloned repository to",
+      "src_name": "Repository Cloner/Manager",
+      "dst_name": "Ignore Rule Processor"
+    },
+    {
+      "relation": "provides filtered repository context to",
+      "src_name": "Ignore Rule Processor",
+      "dst_name": "File Structure Scanner"
+    }
+  ]
+}

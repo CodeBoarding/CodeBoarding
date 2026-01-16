@@ -1,0 +1,87 @@
+{
+  "description": "Responsible for generating tailored prompts for various Large Language Models (LLMs) based on the analysis context. It manages the abstract interface for prompt creation and defines structured data models for agents to communicate their analysis results and component definitions. It also handles resolving source code references.",
+  "components": [
+    {
+      "name": "Prompt Abstraction & Generation",
+      "description": "This component defines the abstract interface for creating prompts tailored for various Large Language Models (LLMs). It provides concrete factory implementations for different LLM providers and prompt strategies, ensuring flexibility and extensibility in interacting with diverse AI models based on the analysis context.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_bidirectional.GPTBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts_bidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_bidirectional.GeminiFlashBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent Response Structuring",
+      "description": "This component defines the structured data models and interfaces that agents use to communicate their analysis results, identified component definitions, and discovered relationships back to the orchestration engine or other downstream components. It ensures consistent and standardized data exchange within the AI interpretation layer, facilitating further processing and output generation.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AgentResponse",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.AgentComponent",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.AgentRelationship",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/cluster_methods_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Provides the necessary interfaces and concrete implementations for agents to formulate their queries and instructions for LLMs, which then expect responses structured according to Agent Response Structuring.",
+      "src_name": "Prompt Abstraction & Generation",
+      "dst_name": "Agent Response Structuring"
+    }
+  ]
+}

@@ -1,68 +1,217 @@
 {
-  "description": "The Static Analysis Engine subsystem is a critical part of the \"Code Analysis and Documentation Generation Tool,\" focusing on extracting deep structural, control flow, and semantic information from source code. It operates as a modular unit, providing essential data to other components of the larger system.",
+  "description": "The Static Analysis Engine is a core subsystem responsible for extracting structural information from source code. It leverages Language Server Protocol (LSP) clients to perform in-depth analysis, collecting and storing various code intelligence artifacts. Its primary function is to transform raw source code into structured, queryable data representations.",
   "components": [
     {
-      "name": "StaticAnalysisManager",
-      "description": "This is the orchestrator of the entire static analysis process within the subsystem. It coordinates the analysis workflow, manages the interaction with language-specific parsers, and is responsible for storing and providing the generated analysis data, such as Control Flow Graphs (CFGs). It embodies the \"Orchestration Engine\" pattern for this specific domain.",
-      "referenced_source_code": [
+      "name": "LSP Client Manager",
+      "description": "Orchestrates all Language Server Protocol (LSP) interactions, managing the lifecycle of language-specific LSP clients, dispatching analysis tasks, and processing raw code intelligence.",
+      "key_entities": [
         {
-          "qualified_name": "StaticAnalysisManager",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": 13,
-          "reference_end_line": 85
-        }
-      ]
-    },
-    {
-      "name": "GetCFGTool",
-      "description": "This component acts as the primary interface for other parts of the system to access the static analysis results, specifically Control Flow Graphs. It queries the `StaticAnalysisManager` to retrieve CFG data, filters it for component-specific information, and formats it for external consumption. It serves as an internal \"API Service\" for analysis data.",
-      "referenced_source_code": [
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
         {
-          "qualified_name": "GetCFGTool",
-          "reference_file": "agents/tools/read_cfg.py",
+          "qualified_name": "static_analyzer.lsp_client.client.start",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.build_static_analysis",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client._initialize",
+          "reference_file": "static_analyzer/lsp_client/client.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
     },
     {
-      "name": "LanguageServerAdapter",
-      "description": "This component is responsible for abstracting and managing interactions with various external Language Servers. It handles language-specific parsing and analysis tasks, translating requests from the `StaticAnalysisManager` into calls to the appropriate language tools and processing their responses. This aligns with the \"External Service Integration\" pattern.",
-      "referenced_source_code": [
+      "name": "TypeScript LSP Client",
+      "description": "A specialized LSP client for TypeScript projects, responsible for project bootstrapping, workspace configuration, dependency management, and extracting TypeScript-specific symbols, references, and call hierarchies.",
+      "key_entities": [
         {
-          "qualified_name": "LanguageServerAdapter",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": 59,
-          "reference_end_line": 94
+          "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client._initialize",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client._prepare_for_analysis",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client._find_typescript_files",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
         }
-      ]
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Java LSP Client",
+      "description": "A specialized LSP client for Java projects, handling JDTLS interaction, project setup, heap size calculation, and comprehensive code analysis to gather Java-specific code intelligence.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client.JavaClient",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client._initialize",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client._find_jdtls_root",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client.wait_for_import",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Result Aggregator",
+      "description": "Serves as the central data store for all static analysis results, collecting, organizing, and persisting code intelligence like CFGs, class hierarchies, and package dependencies, providing a unified queryable interface.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.add_cfg",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.add_class_hierarchy",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.get_cfg",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.get_all_source_files",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_source.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Call Graph & Abstraction Engine",
+      "description": "Constructs detailed call graphs from aggregated static analysis data and applies algorithms for abstracting and clustering graph nodes to transform low-level code interactions into higher-level architectural representations.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.add_edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph._adaptive_clustering",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.to_cluster_string",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.to_networkx",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
     },
     {
       "name": "Unclassified",
       "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "referenced_source_code": []
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "queries",
-      "src_name": "GetCFGTool",
-      "dst_name": "StaticAnalysisManager"
+      "relation": "<->",
+      "src_name": "LSP Client Manager",
+      "dst_name": "TypeScript LSP Client"
     },
     {
-      "relation": "provides",
-      "src_name": "StaticAnalysisManager",
-      "dst_name": "GetCFGTool"
+      "relation": "<->",
+      "src_name": "LSP Client Manager",
+      "dst_name": "Java LSP Client"
     },
     {
-      "relation": "delegates to",
-      "src_name": "StaticAnalysisManager",
-      "dst_name": "LanguageServerAdapter"
+      "relation": "->",
+      "src_name": "LSP Client Manager",
+      "dst_name": "Static Analysis Result Aggregator"
     },
     {
-      "relation": "depends on",
-      "src_name": "StaticAnalysisManager",
-      "dst_name": "LanguageServerAdapter"
+      "relation": "<->",
+      "src_name": "Static Analysis Result Aggregator",
+      "dst_name": "Call Graph & Abstraction Engine"
     }
   ]
 }

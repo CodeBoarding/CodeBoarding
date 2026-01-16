@@ -1,0 +1,141 @@
+{
+  "description": "The evaluation subsystem is orchestrated by the `Evaluation Core`, which provides the foundational framework for defining and executing evaluation pipelines. Users interact with this core functionality via the `Evaluation CLI`, enabling them to configure and trigger evaluations. During execution, the `Evaluation Core` utilizes `Monitoring Callbacks` to capture real-time event data. These `Monitoring Callbacks` then delegate the persistent storage of this data to `Monitoring Data Writers`, ensuring all evaluation metrics and events are accurately recorded. Conversely, the `Evaluation Core` also interacts directly with `Monitoring Data Writers` to retrieve or manage stored evaluation results, completing the feedback loop for analysis and reporting.",
+  "components": [
+    {
+      "name": "Monitoring Callbacks",
+      "description": "Manages event-driven responses within the monitoring system, capturing real-time data from various system events and triggering subsequent actions.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.callbacks.EventCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.callbacks.ErrorCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Writers",
+      "description": "Responsible for the persistent storage of all monitoring data, ensuring accurate recording and storage for later analysis and reporting.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.MonitoringWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.writers.Writer",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.writers.FileWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation Core",
+      "description": "Provides the foundational framework for defining, configuring, and executing evaluation pipelines, assessing various metrics and performance indicators.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.base.EvaluationBase",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.base.Evaluator",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.base.Metric",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation CLI",
+      "description": "Offers a command-line interface for users to interact with the evaluation subsystem, including defining new tasks and triggering pipelines.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli.CLI",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Unclassified",
+      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/tools/base.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "utilizes",
+      "src_name": "Monitoring Callbacks",
+      "dst_name": "Evaluation Core"
+    },
+    {
+      "relation": "depends on",
+      "src_name": "Monitoring Data Writers",
+      "dst_name": "Monitoring Callbacks"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "Evaluation Core",
+      "dst_name": "Monitoring Data Writers"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "Evaluation CLI",
+      "dst_name": "Evaluation Core"
+    }
+  ]
+}
