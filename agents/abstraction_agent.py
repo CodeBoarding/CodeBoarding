@@ -6,12 +6,10 @@ from langchain_core.prompts import PromptTemplate
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import (
-    LLMBaseModel,
     AnalysisInsights,
     ClusterAnalysis,
     ValidationInsights,
     MetaAnalysisInsights,
-    Component,
 )
 from agents.prompts import (
     get_system_message,
@@ -38,8 +36,6 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
 
         self.project_name = project_name
         self.meta_context = meta_context
-
-        self.context: dict[str, LLMBaseModel] = {}
 
         self.prompts = {
             "analyze_clusters": PromptTemplate(
@@ -73,17 +69,15 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         )
 
         cluster_analysis = self._parse_invoke(prompt, ClusterAnalysis)
-        self.context["cluster_analysis"] = cluster_analysis
         return cluster_analysis
 
     @trace
-    def generate_analysis(self) -> AnalysisInsights:
+    def generate_analysis(self, cluster_analysis: ClusterAnalysis) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final analysis for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
-        cluster_analysis = self.context.get("cluster_analysis")
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
         prompt = self.prompts["final_analysis"].format(
@@ -102,60 +96,10 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         analysis = self._parse_invoke(prompt, AnalysisInsights)
         return self.fix_source_code_reference_lines(analysis)
 
-    @trace
-    def classify_files(self, analysis: AnalysisInsights):
-        """
-        Classify files into components based on the analysis (DETERMINISTIC).
-        It will modify directly the analysis object.
-
-        This method assigns files to components based on:
-        1. key_entities references (if file contains those classes/methods)
-        2. source_cluster_ids (if file contains nodes from those clusters)
-        """
-        logger.info(f"[AbstractionAgent] Classifying files deterministically for: {self.project_name}")
-        all_files = self.static_analysis.get_all_source_files()
-
-        # Add "Unclassified" component for files that don't fit
-        analysis.components.append(
-            Component(
-                name="Unclassified",
-                description="Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-                key_entities=[],
-                source_cluster_ids=[],
-            )
-        )
-
-        for comp in analysis.components:
-            comp.assigned_files = []
-
-        file_to_clusters = self._build_file_cluster_mapping()
-        for file_path in all_files:
-            matched_components = self._match_file_to_components(file_path, analysis.components, file_to_clusters)
-
-            if matched_components:
-                for component in matched_components:
-                    component.assigned_files.append(file_path)
-            else:
-                unclassified = next(c for c in analysis.components if c.name == "Unclassified")
-                unclassified.assigned_files.append(file_path)
-
-        # Convert to relative paths
-        for comp in analysis.components:
-            files = []
-            for file in comp.assigned_files:
-                if os.path.exists(file):
-                    # relative path from the repo root
-                    rel_file = os.path.relpath(file, self.repo_dir)
-                    files.append(rel_file)
-                else:
-                    files.append(file)
-            comp.assigned_files = files
-
-        logger.info(f"[AbstractionAgent] Classified {len(all_files)} files into {len(analysis.components)} components")
-
     def run(self):
-        self.analyze_clusters()  # Step 1: Understand clusters
-        analysis = self.generate_analysis()  # Step 2: Create final components
+        cluster_analysis = self.analyze_clusters()
+        analysis = self.generate_analysis(cluster_analysis)
+        self._validate_cluster_ids(analysis)
         analysis = self.fix_source_code_reference_lines(analysis)
-        self._ensure_unique_key_entities(analysis)  # Step 3: Ensure key_entities are unique
+        self._ensure_unique_key_entities(analysis)
         return analysis

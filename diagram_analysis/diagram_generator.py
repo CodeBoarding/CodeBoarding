@@ -101,8 +101,8 @@ class DiagramGenerator:
             safe_name = sanitize(component.name)
             output_path = os.path.join(self.output_dir, f"{safe_name}.json")
 
-            # Save the analysis result
-            self.details_agent.classify_files(component, analysis)
+            # Assign files to sub-components
+            self.details_agent.classify_files(analysis)
             with open(output_path, "w") as f:
                 f.write(from_analysis_to_json(analysis, new_components))
 

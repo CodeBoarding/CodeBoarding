@@ -1,91 +1,140 @@
 {
-  "description": "The core functionality of this subsystem revolves around the systematic preparation and initial analysis of a code repository. The process begins with the acquisition of the repository, followed by the application of filtering rules, and culminates in a structural scan. This sequential flow ensures that subsequent, more detailed analyses operate on a clean, relevant, and well-understood subset of the codebase.",
+  "description": "The core of this subsystem is the `Repository & Project Initializer`, which is responsible for setting up and preparing code repositories for static analysis. It orchestrates the initial project scan, leveraging `GitDiff` to identify code changes. For language-specific processing, it orchestrates the `ProgrammingLanguageBuilder`, and for collecting code metrics, it orchestrates `Tokei`. This integrated approach ensures that projects are correctly configured and analyzed from the outset, providing a foundational layer for further static analysis.",
   "components": [
     {
-      "name": "Repository Cloner/Manager",
-      "description": "This component is responsible for the initial acquisition of code repositories, primarily through cloning from remote sources. It also handles version control operations like checking out specific branches or commits, ensuring the analysis operates on the intended codebase.",
+      "name": "Repository & Project Initializer",
+      "description": "This component manages the acquisition and initial configuration of code repositories, including cloning, language detection, and project-specific setup. It orchestrates the initial project scan and prepares the project for further static analysis.",
       "key_entities": [
         {
-          "qualified_name": "repo_utils.__init__.clone_repository",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "repo_utils.__init__.checkout_repo",
-          "reference_file": "repo_utils/__init__.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "qualified_name": "repo_utils.project_scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 13,
+          "reference_end_line": 85
         },
         {
           "qualified_name": "repo_utils.git_diff.GitDiff",
           "reference_file": "repo_utils/git_diff.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 5,
+          "reference_end_line": 15
         }
       ],
       "assigned_files": [
-        "repo_utils/__init__.py",
-        "repo_utils/git_diff.py"
+        "diagram_analysis/diagram_generator.py",
+        "utils.py",
+        "github_action.py",
+        "output_generators/mdx.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "main.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "duckdb_crud.py",
+        "logging_config.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "vscode_constants.py",
+        "agents/prompts/prompt_factory.py",
+        "static_analyzer/scanner.py",
+        "output_generators/markdown.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "output_generators/sphinx.py",
+        "repo_utils/git_diff.py",
+        "local_app.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "output_generators/html.py"
       ],
-      "source_cluster_ids": [],
-      "can_expand": false
-    },
-    {
-      "name": "Ignore Rule Processor",
-      "description": "This component identifies and applies ignore rules, typically from .gitignore files, to filter out irrelevant files and directories. Its function is to streamline subsequent analysis by ensuring only pertinent code assets are considered.",
-      "key_entities": [
-        {
-          "qualified_name": "repo_utils.ignore.Ignore",
-          "reference_file": "repo_utils/ignore.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
+      "source_cluster_ids": [
+        1,
+        2
       ],
-      "assigned_files": [
-        "repo_utils/ignore.py"
-      ],
-      "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "File Structure Scanner",
-      "description": "This component scans the local file system of the acquired repository to build an initial, high-level understanding of its directory and file structure. It provides a foundational map that guides subsequent static analysis and configuration detection, operating on the filtered context provided by the Ignore Rule Processor.",
+      "name": "GitDiff",
+      "description": "A utility component responsible for identifying and providing differences between versions of code within a repository, crucial for incremental analysis.",
       "key_entities": [
         {
-          "qualified_name": "agents.tools.read_file_structure.ReadFileStructure",
-          "reference_file": "agents/tools/read_file_structure.py",
+          "qualified_name": "repo_utils.git_diff.GitDiff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": 5,
+          "reference_end_line": 15
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py",
+        "utils.py",
+        "output_generators/markdown.py",
+        "github_action.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py",
+        "main.py",
+        "duckdb_crud.py",
+        "repo_utils/git_diff.py",
+        "local_app.py",
+        "logging_config.py",
+        "vscode_constants.py",
+        "output_generators/html.py"
+      ],
+      "source_cluster_ids": [
+        2
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "ProgrammingLanguageBuilder",
+      "description": "This component handles language-specific build processes, parsing, or other transformations required to prepare code for deeper analysis, ensuring compatibility with various programming paradigms.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.programming_language_builder.ProgrammingLanguageBuilder",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": 77,
+          "reference_end_line": 147
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [
+        3
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Tokei",
+      "description": "A component responsible for calculating and reporting code statistics, such as lines of code, comments, and blank lines, across various programming languages, providing quantitative insights into the codebase.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.tokei.Tokei",
+          "reference_file": null,
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "agents/tools/read_file_structure.py"
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/prompt_factory.py"
       ],
-      "source_cluster_ids": [],
-      "can_expand": false
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "key_entities": [],
-      "assigned_files": [
-        "None"
+      "source_cluster_ids": [
+        4
       ],
-      "source_cluster_ids": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "provides cloned repository to",
-      "src_name": "Repository Cloner/Manager",
-      "dst_name": "Ignore Rule Processor"
+      "relation": "utilizes",
+      "src_name": "Repository & Project Initializer",
+      "dst_name": "GitDiff"
     },
     {
-      "relation": "provides filtered repository context to",
-      "src_name": "Ignore Rule Processor",
-      "dst_name": "File Structure Scanner"
+      "relation": "orchestrates",
+      "src_name": "Repository & Project Initializer",
+      "dst_name": "ProgrammingLanguageBuilder"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Repository & Project Initializer",
+      "dst_name": "Tokei"
     }
   ]
 }

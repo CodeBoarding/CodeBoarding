@@ -1,7 +1,7 @@
-import abc
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from langchain_core.prompts import PromptTemplate
 
@@ -12,15 +12,12 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class ReferenceResolverMixin(abc.ABC):
+class ReferenceResolverMixin:
+    _parse_invoke: Any  # Provided by Agent base class
+
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
-
-    @abc.abstractmethod
-    def _parse_invoke(self, prompt, type):
-        """Abstract method to be implemented by subclasses for LLM invocation."""
-        pass
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")

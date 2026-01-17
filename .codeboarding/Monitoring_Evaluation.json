@@ -1,9 +1,9 @@
 {
-  "description": "The evaluation subsystem is orchestrated by the `Evaluation Core`, which provides the foundational framework for defining and executing evaluation pipelines. Users interact with this core functionality via the `Evaluation CLI`, enabling them to configure and trigger evaluations. During execution, the `Evaluation Core` utilizes `Monitoring Callbacks` to capture real-time event data. These `Monitoring Callbacks` then delegate the persistent storage of this data to `Monitoring Data Writers`, ensuring all evaluation metrics and events are accurately recorded. Conversely, the `Evaluation Core` also interacts directly with `Monitoring Data Writers` to retrieve or manage stored evaluation results, completing the feedback loop for analysis and reporting.",
+  "description": "The Evaluation Framework Core orchestrates the evaluation process by generating events related to LLM and tool interactions. It utilizes the Event Handling Mixin to emit these events, which are captured by the LLM Event Monitoring component. This component processes the events and records critical metrics, providing the Evaluation Framework Core with the necessary data to inform its evaluation strategies and assess performance.",
   "components": [
     {
-      "name": "Monitoring Callbacks",
-      "description": "Manages event-driven responses within the monitoring system, capturing real-time data from various system events and triggering subsequent actions.",
+      "name": "LLM Event Monitoring",
+      "description": "This component is responsible for actively monitoring and recording events generated during LLM and tool interactions. It captures critical metrics such as token usage, tool calls, and errors, integrating directly into the execution flow to provide real-time performance data.",
       "key_entities": [
         {
           "qualified_name": "monitoring.callbacks.MonitoringCallback",
@@ -12,13 +12,19 @@
           "reference_end_line": null
         },
         {
-          "qualified_name": "monitoring.callbacks.EventCallback",
+          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_llm_end",
           "reference_file": "monitoring/callbacks.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "monitoring.callbacks.ErrorCallback",
+          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_tool_start",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_tool_end",
           "reference_file": "monitoring/callbacks.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -28,55 +34,49 @@
         "monitoring/callbacks.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
-      "name": "Monitoring Data Writers",
-      "description": "Responsible for the persistent storage of all monitoring data, ensuring accurate recording and storage for later analysis and reporting.",
+      "name": "Event Handling Mixin",
+      "description": "This component provides a standardized and reusable mechanism for other parts of the system to emit events. By offering a consistent interface, it ensures that events are generated uniformly, which is crucial for reliable capture by the monitoring system.",
       "key_entities": [
         {
-          "qualified_name": "monitoring.writers.MonitoringWriter",
-          "reference_file": "monitoring/writers.py",
+          "qualified_name": "monitoring.mixin.EventHandler",
+          "reference_file": "monitoring/mixin.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "monitoring.writers.Writer",
-          "reference_file": "monitoring/writers.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "monitoring.writers.FileWriter",
-          "reference_file": "monitoring/writers.py",
+          "qualified_name": "monitoring.mixin.EventHandler.on_event",
+          "reference_file": "monitoring/mixin.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "monitoring/writers.py"
+        "monitoring/mixin.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
-      "name": "Evaluation Core",
-      "description": "Provides the foundational framework for defining, configuring, and executing evaluation pipelines, assessing various metrics and performance indicators.",
+      "name": "Evaluation Framework Core",
+      "description": "This component establishes the foundational structure for evaluating the performance and correctness of LLM outputs and tool executions. It defines abstract classes and interfaces for specifying evaluation metrics, managing datasets, and orchestrating evaluation strategies.",
       "key_entities": [
         {
-          "qualified_name": "evals.base.EvaluationBase",
+          "qualified_name": "evals.base.EvaluationFramework",
           "reference_file": "evals/base.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "evals.base.Evaluator",
+          "qualified_name": "evals.base.EvaluationFramework.evaluate",
           "reference_file": "evals/base.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "evals.base.Metric",
+          "qualified_name": "evals.base.EvaluationFramework.run_eval",
           "reference_file": "evals/base.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -87,55 +87,23 @@
       ],
       "source_cluster_ids": [],
       "can_expand": true
-    },
-    {
-      "name": "Evaluation CLI",
-      "description": "Offers a command-line interface for users to interact with the evaluation subsystem, including defining new tasks and triggering pipelines.",
-      "key_entities": [
-        {
-          "qualified_name": "evals.cli.CLI",
-          "reference_file": "evals/cli.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [
-        "evals/cli.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "key_entities": [],
-      "assigned_files": [
-        "agents/tools/base.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "utilizes",
-      "src_name": "Monitoring Callbacks",
-      "dst_name": "Evaluation Core"
+      "relation": "emits events via",
+      "src_name": "Evaluation Framework Core",
+      "dst_name": "Event Handling Mixin"
     },
     {
-      "relation": "depends on",
-      "src_name": "Monitoring Data Writers",
-      "dst_name": "Monitoring Callbacks"
+      "relation": "enables event capture by",
+      "src_name": "Event Handling Mixin",
+      "dst_name": "LLM Event Monitoring"
     },
     {
-      "relation": "interacts with",
-      "src_name": "Evaluation Core",
-      "dst_name": "Monitoring Data Writers"
-    },
-    {
-      "relation": "interacts with",
-      "src_name": "Evaluation CLI",
-      "dst_name": "Evaluation Core"
+      "relation": "provides evaluation data to",
+      "src_name": "LLM Event Monitoring",
+      "dst_name": "Evaluation Framework Core"
     }
   ]
 }

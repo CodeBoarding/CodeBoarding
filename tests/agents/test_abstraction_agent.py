@@ -89,7 +89,6 @@ class TestAbstractionAgent(unittest.TestCase):
         result = agent.analyze_clusters()
 
         self.assertEqual(result, mock_response)
-        self.assertIn("cluster_analysis", agent.context)
         mock_parse_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
@@ -151,11 +150,9 @@ class TestAbstractionAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        # Add cluster analysis context
         cluster_analysis = ClusterAnalysis(
             cluster_components=[],
         )
-        agent.context["cluster_analysis"] = cluster_analysis
 
         mock_response = AnalysisInsights(
             description="Final analysis",
@@ -164,7 +161,7 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.generate_analysis()
+        result = agent.generate_analysis(cluster_analysis)
 
         self.assertEqual(result, mock_response)
 
@@ -206,19 +203,14 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_fix_ref.assert_called_once_with(updated_analysis)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._build_file_cluster_mapping")
+    @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_build_file_cluster_mapping, mock_static_init):
-        # Test classify_files (now deterministic, no LLM call)
+    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init):
+        # Test classify_files (assigns files from clusters + key_entities)
         mock_static_init.return_value = (MagicMock(), "test-model")
-        mock_build_file_cluster_mapping.return_value = {}
+        mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
 
-        # Mock the static analysis to return our test files
-        self.mock_static_analysis.get_all_source_files.return_value = [
-            str(self.repo_dir / "test_file.py"),
-            str(self.repo_dir / "another_file.py"),
-        ]
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -228,7 +220,7 @@ class TestAbstractionAgent(unittest.TestCase):
 
         key_entity = SourceCodeReference(
             qualified_name="test.TestClass",
-            reference_file="test_file.py",
+            reference_file=str(self.repo_dir / "test_file.py"),
             reference_start_line=1,
             reference_end_line=10,
         )
@@ -251,11 +243,9 @@ class TestAbstractionAgent(unittest.TestCase):
 
         agent.classify_files(analysis)
 
-        # Check that Unclassified component was added
-        self.assertTrue(any(c.name == "Unclassified" for c in analysis.components))
-
-        # Check that files were assigned to TestComponent (since key_entity matches test_file.py)
-        self.assertTrue(len(component.assigned_files) > 0)
+        # Check files were assigned from both clusters and key_entities
+        self.assertIn("cluster_file.py", component.assigned_files)
+        self.assertIn("test_file.py", component.assigned_files)
 
 
 if __name__ == "__main__":

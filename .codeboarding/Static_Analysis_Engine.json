@@ -1,217 +1,73 @@
 {
-  "description": "The Static Analysis Engine is a core subsystem responsible for extracting structural information from source code. It leverages Language Server Protocol (LSP) clients to perform in-depth analysis, collecting and storing various code intelligence artifacts. Its primary function is to transform raw source code into structured, queryable data representations.",
+  "description": "The Static Analysis Engine subsystem is critical for understanding and processing source code within the project. It leverages Language Server Protocols for deep code analysis, stores the resulting insights, and efficiently tracks code changes to enable incremental analysis.",
   "components": [
     {
-      "name": "LSP Client Manager",
-      "description": "Orchestrates all Language Server Protocol (LSP) interactions, managing the lifecycle of language-specific LSP clients, dispatching analysis tasks, and processing raw code intelligence.",
+      "name": "LSP Client/Integration",
+      "description": "Manages communication with Language Server Protocols (LSP) to perform syntax highlighting, code completion, diagnostics, and other language-specific analyses. It acts as an interface to various language servers, extracting structured information from the source code.",
       "key_entities": [
         {
-          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.client.start",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.client.build_static_analysis",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.client._initialize",
-          "reference_file": "static_analyzer/lsp_client/client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "TypeScript LSP Client",
-      "description": "A specialized LSP client for TypeScript projects, responsible for project bootstrapping, workspace configuration, dependency management, and extracting TypeScript-specific symbols, references, and call hierarchies.",
-      "key_entities": [
-        {
-          "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
-          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.typescript_client._initialize",
-          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.typescript_client._prepare_for_analysis",
-          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.typescript_client._find_typescript_files",
-          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Java LSP Client",
-      "description": "A specialized LSP client for Java projects, handling JDTLS interaction, project setup, heap size calculation, and comprehensive code analysis to gather Java-specific code intelligence.",
-      "key_entities": [
-        {
-          "qualified_name": "static_analyzer.lsp_client.java_client.JavaClient",
-          "reference_file": "static_analyzer/lsp_client/java_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.java_client._initialize",
-          "reference_file": "static_analyzer/lsp_client/java_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.java_client._find_jdtls_root",
-          "reference_file": "static_analyzer/lsp_client/java_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.java_client.wait_for_import",
-          "reference_file": "static_analyzer/lsp_client/java_client.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        }
-      ],
-      "assigned_files": [],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analysis Result Aggregator",
-      "description": "Serves as the central data store for all static analysis results, collecting, organizing, and persisting code intelligence like CFGs, class hierarchies, and package dependencies, providing a unified queryable interface.",
-      "key_entities": [
-        {
-          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
-          "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_result.add_cfg",
-          "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_result.add_class_hierarchy",
-          "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_result.get_cfg",
-          "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_result.get_all_source_files",
-          "reference_file": "static_analyzer/analysis_result.py",
+          "qualified_name": "LSP",
+          "reference_file": "agents/tools/read_cfg.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "agents/tools/read_source.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/read_structure.py"
+        "agents/tools/read_cfg.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "Call Graph & Abstraction Engine",
-      "description": "Constructs detailed call graphs from aggregated static analysis data and applies algorithms for abstracting and clustering graph nodes to transform low-level code interactions into higher-level architectural representations.",
+      "name": "Analysis Result Store",
+      "description": "Responsible for persisting and retrieving the results generated by the static analysis process. This includes parsed Abstract Syntax Trees (ASTs), symbol tables, diagnostic messages, and other derived code insights, often using a robust database solution.",
       "key_entities": [
         {
-          "qualified_name": "static_analyzer.graph.CallGraph",
-          "reference_file": "static_analyzer/graph.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.graph.add_edge",
-          "reference_file": "static_analyzer/graph.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.graph._adaptive_clustering",
-          "reference_file": "static_analyzer/graph.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.graph.to_cluster_string",
-          "reference_file": "static_analyzer/graph.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "static_analyzer.graph.to_networkx",
-          "reference_file": "static_analyzer/graph.py",
+          "qualified_name": "AnalysisResultStore",
+          "reference_file": "duckdb_crud.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
-      "assigned_files": [],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "Unclassified",
-      "description": "Component for all unclassified files and utility functions (Utility functions/External Libraries/Dependencies)",
-      "key_entities": [],
-      "assigned_files": [],
+      "name": "Code Diff Analyzer",
+      "description": "Identifies and analyzes changes between different versions of code. It pinpoints modified, added, or deleted code segments, which is crucial for incremental analysis, understanding the impact of code evolution, and triggering targeted re-analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeDiffAnalyzer",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
-      "relation": "<->",
-      "src_name": "LSP Client Manager",
-      "dst_name": "TypeScript LSP Client"
+      "relation": "produces/stores",
+      "src_name": "LSP Client/Integration",
+      "dst_name": "Analysis Result Store"
     },
     {
-      "relation": "<->",
-      "src_name": "LSP Client Manager",
-      "dst_name": "Java LSP Client"
+      "relation": "triggers/requests",
+      "src_name": "Code Diff Analyzer",
+      "dst_name": "LSP Client/Integration"
     },
     {
-      "relation": "->",
-      "src_name": "LSP Client Manager",
-      "dst_name": "Static Analysis Result Aggregator"
-    },
-    {
-      "relation": "<->",
-      "src_name": "Static Analysis Result Aggregator",
-      "dst_name": "Call Graph & Abstraction Engine"
+      "relation": "consumes/updates",
+      "src_name": "Code Diff Analyzer",
+      "dst_name": "Analysis Result Store"
     }
   ]
 }

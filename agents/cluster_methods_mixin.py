@@ -1,11 +1,10 @@
 import logging
 import os
-from collections import defaultdict
 from pathlib import Path
 
 from agents.agent_responses import Component, AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusteringConfig
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -15,154 +14,104 @@ class ClusterMethodsMixin:
     Mixin providing shared cluster-related functionality for agents.
 
     This mixin provides methods for:
-    - Building cluster strings from CFG analysis
-    - Extracting specific clusters from cluster strings
-    - Mapping files to clusters
-    - Matching files to components based on clusters
+    - Building cluster strings from CFG analysis (using CallGraph.cluster())
+    - Assigning files to components based on clusters and key_entities
     - Ensuring unique key entities across components
+
+    All clustering logic is delegated to CallGraph.cluster() which provides:
+    - Deterministic cluster IDs (seed=42)
+    - Cached results
+    - File <-> cluster bidirectional mappings
     """
 
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
 
-    def _build_cluster_string(self, programming_langs: list[str]) -> str:
+    def _get_cluster_result(self, lang: str) -> ClusterResult:
+        """Get cached cluster result for a language."""
+        cfg = self.static_analysis.get_cfg(lang)
+        return cfg.cluster()
+
+    def _get_files_for_clusters(self, cluster_ids: list[int]) -> set[str]:
         """
-        Build a cluster string that explicitly shows cluster IDs and their nodes.
-        This makes it easy for the LLM to reference clusters.
+        Get all files that belong to the given cluster IDs.
+
+        Args:
+            cluster_ids: List of cluster IDs to get files for
+
+        Returns:
+            Set of file paths
+        """
+        files: set[str] = set()
+        for lang in self.static_analysis.get_languages():
+            cluster_result = self._get_cluster_result(lang)
+            for cluster_id in cluster_ids:
+                files.update(cluster_result.get_files_for_cluster(cluster_id))
+        return files
+
+    def _build_cluster_string(self, programming_langs: list[str], cluster_ids: set[int] | None = None) -> str:
+        """
+        Build a cluster string for LLM consumption.
+
+        Args:
+            programming_langs: List of languages to include
+            cluster_ids: Optional set of cluster IDs to filter by
+
+        Returns:
+            Formatted cluster string with headers per language
         """
         cluster_lines = []
 
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
-            cluster_str = cfg.to_cluster_string()
+            cluster_str = cfg.to_cluster_string(cluster_ids)
 
-            # The cluster string already has format: "Cluster 1 (5 nodes): [...]"
-            # This is perfect - LLM can see cluster IDs explicitly
-            cluster_lines.append(f"\n## {lang.capitalize()} Clusters\n")
-            cluster_lines.append(cluster_str)
+            if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
+                header = "Component CFG" if cluster_ids else "Clusters"
+                cluster_lines.append(f"\n## {lang.capitalize()} - {header}\n")
+                cluster_lines.append(cluster_str)
+                cluster_lines.append("\n")
 
         return "".join(cluster_lines)
 
-    def _extract_clusters_from_string(self, cluster_str: str, cluster_ids: set[int]) -> str:
+    def _assign_files_to_component(self, component: Component) -> None:
         """
-        Parse cluster string and extract only specified cluster IDs.
-        This is deterministic - no LLM call needed!
+        Assign files to a component.
+        1. Get all files from component's clusters (instant lookup)
+        2. Add resolved key_entity files
+        3. Convert to relative paths
         """
-        lines = cluster_str.split("\n")
-        result_lines = []
-        include_current = False
+        assigned: set[str] = set()
 
-        for line in lines:
-            # Check if this is a cluster header: "Cluster N (...)"
-            if line.startswith("Cluster "):
-                parts = line.split()
-                if len(parts) >= 2:
-                    try:
-                        cluster_num = int(parts[1])
-                        include_current = cluster_num in cluster_ids
-                    except ValueError:
-                        logger.warning(f"[ClusterMethodsMixin] Failed to parse cluster ID from line: {line}")
-                        include_current = False
+        # Step 1: Files from clusters
+        if component.source_cluster_ids:
+            cluster_files = self._get_files_for_clusters(component.source_cluster_ids)
+            assigned.update(cluster_files)
 
-            if include_current:
-                result_lines.append(line)
+        # Step 2: Files from key_entities (already resolved by ReferenceResolverMixin)
+        for entity in component.key_entities:
+            if entity.reference_file:
+                # Handle both absolute and relative paths
+                if os.path.isabs(entity.reference_file):
+                    assigned.add(entity.reference_file)
+                else:
+                    abs_path = os.path.join(self.repo_dir, entity.reference_file)
+                    if os.path.exists(abs_path):
+                        assigned.add(abs_path)
+                    else:
+                        assigned.add(entity.reference_file)
 
-        return "\n".join(result_lines)
+        # Convert to relative paths
+        component.assigned_files = [os.path.relpath(f, self.repo_dir) if os.path.isabs(f) else f for f in assigned]
 
-    def _build_file_cluster_mapping(self) -> dict[str, set[int]]:
+    def classify_files(self, analysis: AnalysisInsights) -> None:
         """
-        Build a mapping from file paths to the cluster IDs that contain nodes from that file.
-
-        Returns:
-            dict mapping file_path -> set of cluster IDs where the file has code nodes
+        Assign files to all components based on clusters and key_entities.
+        Modifies the analysis object directly.
         """
-        file_to_clusters: dict[str, set[int]] = defaultdict(set)
-
-        for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            nx_graph = cfg.to_networkx()
-
-            if nx_graph.number_of_nodes() == 0:
-                logger.debug(f"[ClusterMethodsMixin] Skipping {lang} CFG - no nodes found")
-                continue
-
-            communities, _ = cfg._adaptive_clustering(
-                nx_graph,
-                target_clusters=ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-                min_cluster_size=ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-            )
-
-            for cluster_id, nodes in enumerate(communities, start=1):  # Start from 1 to match display
-                if len(nodes) < 2:  # Skip singletons
-                    continue
-                for node_name in nodes:
-                    # Get file path for this node
-                    if node_name in nx_graph.nodes:
-                        node_data = nx_graph.nodes[node_name]
-                        file_path = node_data.get("file_path")
-                        if file_path:
-                            file_to_clusters[file_path].add(cluster_id)
-
-        return file_to_clusters
-
-    def _match_file_to_components(
-        self, file_path: str, components: list[Component], file_to_clusters: dict[str, set[int]]
-    ) -> list[Component]:
-        """
-        Match a file to ALL components it belongs to deterministically.
-
-        A file can belong to multiple components since:
-        - Shared utilities may be used by multiple components
-        - Files can contain code referenced by different components
-
-        Matching logic:
-        1. If file contains a key_entity from component -> match
-        2. If file's clusters overlap with component.source_cluster_ids -> match
-        3. Otherwise -> no match (goes to Unclassified)
-
-        Returns: List of all matching components (can be empty)
-        """
-        file_clusters = file_to_clusters.get(file_path, set())
-        matched_components = []
-
-        for component in components:
-            if component.name == "Unclassified":
-                continue
-
-            # Check 1: Does file contain any key entities?
-            for key_entity in component.key_entities:
-                if key_entity.reference_file:
-                    # Use resolved paths for exact matching to avoid false positives
-                    # (e.g., utils.py matching test_utils.py with substring check)
-                    try:
-                        ref_path = Path(key_entity.reference_file)
-                        file_path_obj = Path(file_path)
-                        # Handle both absolute and relative paths
-                        if ref_path.is_absolute() and file_path_obj.is_absolute():
-                            if file_path_obj.resolve() == ref_path.resolve():
-                                matched_components.append(component)
-                                break
-                        else:
-                            # For relative paths, check if file_path ends with ref_file
-                            if file_path_obj.resolve().match(f"*/{ref_path}") or file_path_obj.name == ref_path.name:
-                                matched_components.append(component)
-                                break
-                    except (OSError, ValueError):
-                        # Fall back to normalized string comparison if Path operations fail
-                        ref_file_norm = os.path.normpath(key_entity.reference_file)
-                        file_path_norm = os.path.normpath(file_path)
-                        if file_path_norm.endswith(ref_file_norm):
-                            matched_components.append(component)
-                            break
-
-            # Check 2: Do file's clusters overlap with component's clusters?
-            # Only check if not already matched via key_entities
-            if component not in matched_components and file_clusters and component.source_cluster_ids:
-                if any(cluster_id in component.source_cluster_ids for cluster_id in file_clusters):
-                    matched_components.append(component)
-
-        return matched_components
+        for comp in analysis.components:
+            self._assign_files_to_component(comp)
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """
@@ -176,9 +125,8 @@ class ClusterMethodsMixin:
         This prevents confusion in documentation where the same class/method
         is listed as a "key entity" for multiple components.
         """
-        logger.info(f"[ClusterMethodsMixin] Ensuring key_entities are unique across components")
+        logger.info("[ClusterMethodsMixin] Ensuring key_entities are unique across components")
 
-        # Track which qualified_names we've seen and where
         seen_entities: dict[str, Component] = {}
 
         for component in analysis.components:
@@ -191,11 +139,7 @@ class ClusterMethodsMixin:
                 qname = key_entity.qualified_name
 
                 if qname in seen_entities:
-                    # Already assigned to another component
                     original_component = seen_entities[qname]
-
-                    # Decide which component should keep this entity
-                    # Priority: Keep it in the component where the file is assigned
                     ref_file = key_entity.reference_file
 
                     current_has_file = ref_file and any(
@@ -206,7 +150,7 @@ class ClusterMethodsMixin:
                     )
 
                     if current_has_file and not original_has_file:
-                        # Move to current component (remove from original)
+                        # Move to current component
                         original_component.key_entities = [
                             e for e in original_component.key_entities if e.qualified_name != qname
                         ]
@@ -215,14 +159,42 @@ class ClusterMethodsMixin:
                             f"[ClusterMethodsMixin] Moved key_entity '{qname}' from {original_component.name} to {component.name}"
                         )
                     else:
-                        # Keep in original component (remove from current)
+                        # Keep in original component
                         entities_to_remove.append(key_entity)
                         logger.debug(
                             f"[ClusterMethodsMixin] Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
                         )
                 else:
-                    # First time seeing this entity
                     seen_entities[qname] = component
 
-            # Remove duplicates from current component
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
+
+    def _get_valid_cluster_ids(self) -> set[int]:
+        """Get all valid cluster IDs from the static analysis across all languages."""
+        valid_ids: set[int] = set()
+        for lang in self.static_analysis.get_languages():
+            cluster_result = self._get_cluster_result(lang)
+            valid_ids.update(cluster_result.get_cluster_ids())
+        return valid_ids
+
+    def _validate_cluster_ids(self, analysis: AnalysisInsights, valid_cluster_ids: set[int] | None = None) -> None:
+        """
+        Validate and fix cluster IDs in the analysis.
+        Removes invalid cluster IDs that don't exist in the static analysis.
+
+        Args:
+            analysis: The analysis to validate
+            valid_cluster_ids: Optional set of valid IDs. If None, fetches from static analysis.
+        """
+        if valid_cluster_ids is None:
+            valid_cluster_ids = self._get_valid_cluster_ids()
+
+        for component in analysis.components:
+            if component.source_cluster_ids:
+                original_ids = component.source_cluster_ids.copy()
+                component.source_cluster_ids = [cid for cid in component.source_cluster_ids if cid in valid_cluster_ids]
+                removed_ids = set(original_ids) - set(component.source_cluster_ids)
+                if removed_ids:
+                    logger.warning(
+                        f"[ClusterMethodsMixin] Removed invalid cluster IDs {removed_ids} from component '{component.name}'"
+                    )
