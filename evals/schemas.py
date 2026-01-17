@@ -97,6 +97,7 @@ class ProjectSpec:
     url: str
     expected_language: str = ""
     env_vars: dict[str, str] = field(default_factory=dict)
+    code_size: str | None = None  # e.g. "small", "medium", "large"
 
 
 @dataclass

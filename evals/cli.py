@@ -8,10 +8,14 @@ from pathlib import Path
 # Ensure we can import from parent directory if run as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from evals.config import PROJECTS_STATIC_ANALYSIS, PROJECTS_E2E, PROJECTS_SCALING
-from evals.definitions.static_analysis import StaticAnalysisEval
-from evals.definitions.end_to_end import EndToEndEval
-from evals.definitions.scalability import ScalabilityEval
+from evals.tasks.static_analysis import StaticAnalysisEval
+from evals.tasks.static_analysis.config import PROJECTS as PROJECTS_STATIC_ANALYSIS
+from evals.tasks.end_to_end import EndToEndEval
+from evals.tasks.end_to_end.config import PROJECTS as PROJECTS_E2E
+from evals.tasks.scalability import ScalabilityEval
+from evals.tasks.scalability.config import PROJECTS as PROJECTS_SCALING
+from evals.tasks.accuracy import AccuracyEval
+from evals.tasks.accuracy.config import PROJECTS as PROJECTS_ACCURACY
 from evals.schemas import ProjectSpec
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +25,10 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Run evaluations for CodeBoarding")
     parser.add_argument(
-        "--type", choices=["static", "e2e", "scalability", "all"], default="all", help="Type of evaluation to run"
+        "--type",
+        choices=["static", "e2e", "scalability", "accuracy", "all"],
+        default="all",
+        help="Type of evaluation to run",
     )
     parser.add_argument("--output-dir", type=Path, default=Path("evals/reports"), help="Directory to save reports")
     parser.add_argument(
@@ -54,6 +61,9 @@ def main():
 
     if args.type in ["scalability", "all"]:
         evals_to_run.append((ScalabilityEval("scalability", args.output_dir), PROJECTS_SCALING, []))
+
+    if args.type in ["accuracy", "all"]:
+        evals_to_run.append((AccuracyEval("accuracy", args.output_dir), PROJECTS_ACCURACY, []))
 
     for eval_instance, projects, extra_args in evals_to_run:
         try:
