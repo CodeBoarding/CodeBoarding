@@ -19,96 +19,65 @@ Your analysis must include:
 
 Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
 
-CFG_MESSAGE = """Analyze the Control Flow Graph for `{project_name}` with diagram generation in mind.
+CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
 
 Project Context:
 {meta_context}
 
-The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
-As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
-Control-flow Data:
-{cfg_str}
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
 
 Instructions:
-1. Analyze the provided CFG data first, identifying clear component boundaries for a flow graph representation
-2. Use getPackageDependencies to get information on package structure for diagram organization
-3. Use getClassHierarchy if component relationships need clarification for arrow connections
+1. For each cluster shown above, provide:
+   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
+   - A short descriptive name (2-4 words)
+   - One sentence explaining what this cluster does
 
-Required outputs:
-- Important modules/functions from CFG data with clear interaction pathways
-- Abstract components (max 15) with clear names, descriptions, and responsibilities
-- Component relationships (only 1 per component pair) suitable for diagram arrows
-- Source file references from CFG data for interactive click events
+2. Focus on the {project_type} architectural patterns
+3. Give semantic meaning to the clusters based on the method names and call patterns
 
-Apply {project_type} architectural patterns. Focus on core business logic with clear data flow - exclude logging/error handling components that clutter diagrams."""
+Output only the cluster interpretations. Keep descriptions concise."""
 
-SOURCE_MESSAGE = """Validate and enhance component analysis using source code for comprehensive documentation and diagram generation.
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
 
 Project Context:
 {meta_context}
 
-Current analysis:
-{insight_so_far}
+Cluster Analysis:
+{cluster_analysis}
 
 Instructions:
-1. Review current analysis to identify gaps and optimize for flow graph representation
-2. Use getClassHierarchy if component structure needs clarification for diagram mapping
-3. Use getSourceCode to ensure components have clear source file references for click events
-4. Use readFile for full file references when component boundaries need validation
-5. Use getFileStructure for directory/package references - these create better high-level diagram components
+1. Review the cluster interpretations above
+2. Decide which clusters should be merged into components
+3. For each component, specify which cluster_ids it includes
+4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+5. Define relationships between components
+
+Guidelines for {project_type} projects:
+- Aim for 5-8 final components
+- Merge related clusters that serve a common purpose
+- Each component should have clear boundaries
+- Include only architecturally significant relationships
+- Only 1 relationship per component pair (no bidirectional arrows)
 
 Required outputs:
-- Validated component boundaries optimized for both analysis and diagram representation
-- Refined components (max 10) using {project_type} patterns with distinct responsibilities
-- Confirmed component relationships suitable for clear diagram connections
-- Clear source file references for interactive diagram elements and documentation
-- Component groupings that translate well to diagram subgraphs and documentation sections
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each with:
+  * name: Clear component name
+  * description: What this component does
+  * source_cluster_ids: Which cluster IDs belong to this component
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 1 relationship per component pair
 
-Work primarily with existing insights. Use tools for missing information. Consider both documentation clarity and flow graph representation."""
-
-CLASSIFICATION_MESSAGE = """You are the software architecture expert, you have analysed the project {project_name} and have identified the following components:
-{components}
-
-Now you have to classify each of the file projects into one of the components. Here is a batch of unclassified files:
-{files}
-
-You can use the readFile tool to read the file content if you need more information to classify the file correctly. Please take a look at the file content before making a decision especially if you don't find it relevant to the already related files in the component.
-If you can't find a relevant component for the file, classify it as part of the "Unclassified" component.
-"""
-
-CONCLUSIVE_ANALYSIS_MESSAGE = """Final architecture analysis for `{project_name}` optimized for representing the flow.
-
-Project Context:
-{meta_context}
-
-CFG Analysis:
-{cfg_insight}
-
-Source Analysis:
-{source_insight}
-
-Instructions:
-Use provided analysis data to create comprehensive documentation suitable for both written analysis and visual diagram generation. Validate file references with getFileStructure and readSourceCode for accuracy.
-
-Required outputs:
-1. Synthesized insights from CFG and source analysis in one paragraph explaining the main flow suitable for diagram explanation
-2. Critical interaction pathways that translate to clear diagram arrows and documentation flow
-3. Final components (max 8, optimally 5) following {project_type} patterns with distinct boundaries for visual representation. Each should have a source file references, which are the main files/functions/classes/modules that represent the component
-4. Component relationships (only 1 per component pair) that create clear diagram connections and define logical flow. For relationships which are call/return, keep only the call relationship, so we can maintain the clarity and direction of the diagram.
-5. Architecture overview paragraph suitable for both documentation and diagram generation prompts
-
-Additional considerations for diagram generation:
-- Components should have clear functional boundaries for flow graph representation
-- Use clear naming conventions for components to enhance clarity in the context of the project itself.
-- Relationships should represent clear data/control flow for arrow representation
-- Include file/directory references suitable for interactive click events
-- Group related functionality for potential diagram subgraphs
+Note: assigned_files will be populated later via deterministic file classification.
 
 Constraints:
-- Use only provided analysis data
-- Focus on highest level architectural components suitable for both documentation and flow graph representation
-- Exclude utility/logging components that clutter both documentation and diagrams
-- Include description paragraph that works for project overview and diagram context"""
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation
+- Keep relationships unidirectional for clear flow"""
 
 FEEDBACK_MESSAGE = """You are a software architect receiving expert feedback on your analysis for documentation and diagram optimization.
 
@@ -178,7 +147,10 @@ Instructions:
 
 Required outputs:
 - Subsystem modules/functions from CFG
-- Components with clear responsibilities
+- Components with clear responsibilities. Each component must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
 - Component interactions (max 10 components, 2 relationships per pair)
 - Justification based on {project_type} patterns
 
@@ -198,7 +170,11 @@ Instructions:
 
 Required outputs:
 - Validated component abstractions from existing insights
-- Refinements based on {project_type} patterns
+- Refinements based on {project_type} patterns. Each component must include:
+  * name: Clear subcomponent name
+  * description: What this subcomponent does
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * Ensure all key_entities have both qualified_name AND reference_file populated
 - Confirmed component source files and relationships
 
 Work primarily with provided insights."""
@@ -216,7 +192,11 @@ No tools required - use provided analysis summary only.
 
 Required outputs:
 1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns
+2. Max 8 components following {project_type} patterns. Each component must include:
+   * name: Clear subcomponent name
+   * description: What this subcomponent does (1-2 sentences)
+   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+   * CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
 3. Clear component descriptions and source files
 4. Component interactions (only 1 relationship per component pair)
 
@@ -372,17 +352,11 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cfg_message(self) -> str:
-        return CFG_MESSAGE
+    def get_cluster_analysis_message(self) -> str:
+        return CLUSTER_ANALYSIS_MESSAGE
 
-    def get_source_message(self) -> str:
-        return SOURCE_MESSAGE
-
-    def get_classification_message(self) -> str:
-        return CLASSIFICATION_MESSAGE
-
-    def get_conclusive_analysis_message(self) -> str:
-        return CONCLUSIVE_ANALYSIS_MESSAGE
+    def get_final_analysis_message(self) -> str:
+        return FINAL_ANALYSIS_MESSAGE
 
     def get_feedback_message(self) -> str:
         return FEEDBACK_MESSAGE
@@ -430,5 +404,4 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
         return META_INFORMATION_PROMPT
 
     def get_file_classification_message(self) -> str:
-        return FILE_CLASSIFICATION_MESSAGE
         return FILE_CLASSIFICATION_MESSAGE

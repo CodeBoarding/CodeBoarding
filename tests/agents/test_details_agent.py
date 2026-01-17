@@ -49,7 +49,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.test_component = Component(
             name="TestComponent",
             description="Test component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
             assigned_files=["test.py", "test_utils.py"],
         )
 
@@ -77,7 +77,6 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("structure", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
         self.assertIn("feedback", agent.prompts)
-        self.assertIn("classification", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_step_subcfg(self, mock_static_init):
@@ -275,12 +274,14 @@ class TestDetailsAgent(unittest.TestCase):
             mock_fix_ref.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.details_agent.DetailsAgent._parse_invoke")
+    @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_parse_invoke, mock_static_init):
-        # Test classify_files
+    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init):
+        # Test classify_files (assigns files from clusters + key_entities)
         mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
+
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -288,12 +289,18 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
 
-        from agents.agent_responses import ComponentFiles, FileClassification
+        key_entity = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file=str(self.repo_dir / "test_file.py"),
+            reference_start_line=1,
+            reference_end_line=10,
+        )
 
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
-            referenced_source_code=[],
+            key_entities=[key_entity],
+            source_cluster_ids=[1],
         )
 
         analysis = AnalysisInsights(
@@ -302,21 +309,14 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        # Mock file classification response
-        mock_classification = ComponentFiles(
-            file_paths=[
-                FileClassification(file_path="test.py", component_name="SubComponent"),
-                FileClassification(file_path="test_utils.py", component_name="Unclassified"),
-            ]
-        )
-        mock_parse_invoke.return_value = mock_classification
         mock_exists.return_value = True
-        mock_relpath.side_effect = lambda path, start: path
+        mock_relpath.side_effect = lambda path, start: Path(path).name
 
-        agent.classify_files(self.test_component, analysis)
+        agent.classify_files(analysis)
 
-        # Check that Unclassified component was added
-        self.assertTrue(any(c.name == "Unclassified" for c in analysis.components))
+        # Check files were assigned from both clusters and key_entities
+        self.assertIn("cluster_file.py", sub_component.assigned_files)
+        self.assertIn("test_file.py", sub_component.assigned_files)
 
 
 if __name__ == "__main__":

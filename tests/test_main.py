@@ -178,7 +178,8 @@ class TestPartialUpdate(unittest.TestCase):
                     {
                         "name": "TestComponent",
                         "description": "Test",
-                        "referenced_source_code": []
+                        "key_entities": [],
+                        "source_cluster_ids": []
                     }
                 ],
                 "components_relations": []

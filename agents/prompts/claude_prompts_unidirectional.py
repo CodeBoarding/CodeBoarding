@@ -24,103 +24,64 @@ Focus on:
 - Single-pass efficiency while maintaining accuracy
 </thinking>"""
 
-CFG_MESSAGE = """Analyze Control Flow Graph for {project_name} with diagram generation in mind.
+CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
 
-<context>
+Project Context:
 {meta_context}
-The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
-As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
-Control-flow Data:
-{cfg_str}
 
-The goal is to efficiently extract architectural insights that enable new developers to understand the system flow quickly, with clear visual diagrams.
-</context>
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
-<instructions>
-1. Analyze the provided CFG data first, identifying clear component boundaries for flow graph representation
-2. Use getPackageDependencies OR getClassHierarchy ONLY when relationships need clarification for diagram connections
-3. Apply {project_type} architectural patterns throughout your analysis
-4. Focus on core business logic - deliberately exclude logging/error handling components that clutter diagrams
-5. Optimize for single-pass efficiency
-</instructions>
+CFG Clusters:
+{cfg_clusters}
 
-<thinking>
-I need to extract:
-1. Core modules (max 15) with interaction patterns suitable for flow graph representation
-2. Abstract components with names, descriptions, and responsibilities
-3. Component relationships (max 1 per pair) for clear diagram arrows
-4. Source file references for interactive diagram elements
-</thinking>"""
+Instructions:
+1. For each cluster shown above, provide:
+   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
+   - A short descriptive name (2-4 words)
+   - One sentence explaining what this cluster does
 
-SOURCE_MESSAGE = """Validate and enhance component analysis for diagram generation optimization.
+2. Focus on the {project_type} architectural patterns
+3. Give semantic meaning to the clusters based on the method names and call patterns
 
-<context>
+Output only the cluster interpretations. Keep descriptions concise."""
+
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
+
+Project Context:
 {meta_context}
-Current analysis: {insight_so_far}
 
-The goal is to efficiently refine the analysis for clear documentation and flow diagrams that help new engineers navigate the codebase.
-</context>
+Cluster Analysis:
+{cluster_analysis}
 
-<instructions>
-1. Review current analysis to identify gaps and optimize for flow graph representation
-2. If component structure needs clarification for diagram mapping, you MAY use getClassHierarchy (use sparingly)
-3. If component boundaries need validation, you MAY use readFile (only when essential)
-4. Work with existing insights, focus on flow graph representation
-5. Maintain efficiency - avoid unnecessary tool usage
-</instructions>
+Instructions:
+1. Review the cluster interpretations above
+2. Decide which clusters should be merged into components
+3. For each component, specify which cluster_ids it includes
+4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+5. Define relationships between components
 
-<thinking>
-I need to refine to:
-1. 5-10 components with distinct responsibilities following {project_type} patterns
-2. Clear component boundaries optimized for visual representation
-3. Verified source file references for interactive diagram elements
-4. Relationships (max 1 per pair) suitable for clear diagram connections
-</thinking>"""
+Guidelines for {project_type} projects:
+- Aim for 5-8 final components
+- Merge related clusters that serve a common purpose
+- Each component should have clear boundaries
+- Include only architecturally significant relationships
 
-CLASSIFICATION_MESSAGE = """Classify files into architectural components for {project_name}.
+Required outputs:
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each with:
+  * name: Clear component name
+  * description: What this component does
+  * source_cluster_ids: Which cluster IDs belong to this component
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair
 
-<context>
-Components: {components}
-Files: {files}
+Note: assigned_files will be populated later via deterministic file classification.
 
-The goal is to efficiently organize files into components for clear architectural understanding by new developers.
-</context>
+Constraints:
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation"""
 
-<instructions>
-1. Match files to components based on functionality and architectural purpose
-2. If a file's purpose is ambiguous, you MUST use readFile to examine its contents before classification
-3. If no relevant component exists after examination, classify as "Unclassified"
-4. Provide brief justification for each classification
-5. Work efficiently to maintain single-pass analysis
-</instructions>"""
-
-CONCLUSIVE_ANALYSIS_MESSAGE = """Create final architectural analysis for {project_name} optimized for flow diagram representation.
-
-<context>
-{meta_context}
-CFG insights: {cfg_insight}
-Source insights: {source_insight}
-
-The goal is to efficiently synthesize analysis into clear documentation and diagrams that enable new engineers to understand the system flow quickly.
-</context>
-
-<instructions>
-1. Use provided analysis data to create efficient documentation suitable for visual diagram generation
-2. Focus on highest level architectural components suitable for flow graph representation
-3. For call/return relationships, keep only the call relationship to maintain diagram clarity and direction
-4. Exclude utility/logging components that clutter diagrams
-5. Maintain unidirectional flow optimization
-</instructions>
-
-<thinking>
-I need to provide:
-1. Main flow overview (one paragraph) explaining data flow suitable for diagram context
-2. 5-8 components following {project_type} patterns with source references
-3. Component relationships (only 1 per pair) for clear diagram arrows and flow direction
-4. Architecture summary suitable for documentation and visual diagram generation
-
-Components should have distinct visual boundaries and clear naming.
-</thinking>"""
 
 FEEDBACK_MESSAGE = """Improve analysis based on validation feedback for documentation and diagram optimization.
 
@@ -186,7 +147,14 @@ The goal is to efficiently document control flow and interfaces for architectura
 2. If interaction details are unclear, you MAY use getClassHierarchy (sparingly)
 3. Document control flow, dependencies, and interfaces
 4. Focus on core subsystem functionality only
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+</output_requirements>"""
 
 ENHANCE_STRUCTURE_MESSAGE = """Enhance component analysis: {component}
 
@@ -203,12 +171,21 @@ The goal is to efficiently validate and improve component analysis for better de
 3. Validate organization, identify gaps, and improve documentation
 4. Focus on architectural patterns from {project_type} context
 5. Work primarily with provided insights for efficiency
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return enhanced analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Ensure all key_entities have both qualified_name AND reference_file populated
+</output_requirements>"""
 
 DETAILS_MESSAGE = """Provide component analysis: {component}
 
 <context>
 Context: {meta_context}
+Analysis so far: {insight_so_far}
 
 The goal is to efficiently create component documentation that helps developers understand its role and capabilities.
 </context>
@@ -218,7 +195,16 @@ The goal is to efficiently create component documentation that helps developers 
 2. Document internal organization, capabilities, interfaces, and development insights
 3. Use {project_type} patterns as reference
 4. Focus on information that helps developers understand and modify this component
-</instructions>"""
+</instructions>
+
+<output_requirements>
+Return final analysis with subcomponents. Each subcomponent must include:
+- name: Clear subcomponent name
+- description: What this subcomponent does (1-2 sentences)
+- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
+- Component relationships showing how subcomponents interact
+</output_requirements>"""
 
 PLANNER_SYSTEM_MESSAGE = """You evaluate components for detailed analysis based on complexity and significance.
 
@@ -374,17 +360,11 @@ class ClaudeUnidirectionalPromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cfg_message(self) -> str:
-        return CFG_MESSAGE
+    def get_cluster_analysis_message(self) -> str:
+        return CLUSTER_ANALYSIS_MESSAGE
 
-    def get_source_message(self) -> str:
-        return SOURCE_MESSAGE
-
-    def get_classification_message(self) -> str:
-        return CLASSIFICATION_MESSAGE
-
-    def get_conclusive_analysis_message(self) -> str:
-        return CONCLUSIVE_ANALYSIS_MESSAGE
+    def get_final_analysis_message(self) -> str:
+        return FINAL_ANALYSIS_MESSAGE
 
     def get_feedback_message(self) -> str:
         return FEEDBACK_MESSAGE

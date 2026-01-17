@@ -144,20 +144,12 @@ def get_system_message() -> str:
     return get_global_factory()._prompt_factory.get_system_message()
 
 
-def get_cfg_message() -> str:
-    return get_global_factory()._prompt_factory.get_cfg_message()
+def get_cluster_analysis_message() -> str:
+    return get_global_factory()._prompt_factory.get_cluster_analysis_message()
 
 
-def get_source_message() -> str:
-    return get_global_factory()._prompt_factory.get_source_message()
-
-
-def get_classification_message() -> str:
-    return get_global_factory()._prompt_factory.get_classification_message()
-
-
-def get_conclusive_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_conclusive_analysis_message()
+def get_final_analysis_message() -> str:
+    return get_global_factory()._prompt_factory.get_final_analysis_message()
 
 
 def get_feedback_message() -> str:
@@ -221,5 +213,4 @@ def get_meta_information_prompt() -> str:
 
 
 def get_file_classification_message() -> str:
-    return get_global_factory()._prompt_factory.get_file_classification_message()
     return get_global_factory()._prompt_factory.get_file_classification_message()

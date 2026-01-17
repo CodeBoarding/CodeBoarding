@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
+    """Base model for LLM-parseable response types."""
+
     @abstractmethod
     def llm_str(self):
         raise NotImplementedError("LLM String has to be implemented.")
@@ -36,7 +38,7 @@ class LLMBaseModel(BaseModel, abc.ABC):
 
 
 class SourceCodeReference(LLMBaseModel):
-    """Reference to a specific source code element such as a class or method."""
+    """Reference to source code including qualified name and file location."""
 
     qualified_name: str = Field(
         description="Qualified name of the source code, e.g., `langchain.tools.tool` or `langchain_core.output_parsers.JsonOutputParser` or `langchain_core.output_parsers.JsonOutputParser:parse`."
@@ -75,7 +77,7 @@ class SourceCodeReference(LLMBaseModel):
 
 
 class Relation(LLMBaseModel):
-    """Structured representation of a relationship between two components"""
+    """A relationship between two components."""
 
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
@@ -85,32 +87,67 @@ class Relation(LLMBaseModel):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
 
+class ClusterComponent(LLMBaseModel):
+    """A component derived from cluster analysis."""
+
+    cluster_id: int = Field(description="The cluster ID from the CFG analysis (e.g., 1, 2, 3)")
+    name: str = Field(description="Descriptive name for this cluster/component (2-4 words)")
+    description: str = Field(description="One sentence explaining what this cluster does")
+
+    def llm_str(self):
+        return f"**Cluster {self.cluster_id}: {self.name}**\n   {self.description}"
+
+
+class ClusterAnalysis(LLMBaseModel):
+    """Analysis results containing interpreted cluster components."""
+
+    cluster_components: list[ClusterComponent] = Field(
+        description="Interpretation of each cluster. Use cluster_id to reference clusters from the CFG."
+    )
+
+    def llm_str(self):
+        if not self.cluster_components:
+            return "No clusters analyzed."
+        title = "# Cluster-Based Components\n"
+        body = "\n".join(cc.llm_str() for cc in self.cluster_components)
+        return title + body
+
+
 class Component(LLMBaseModel):
-    """Structured representation of an abstract component derived from the static analysis"""
+    """A software component with name, description, and key entities."""
 
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
-    referenced_source_code: list[SourceCodeReference] = Field(
-        description="A list of source code names of referenced methods and classes to the component. THIS CANNOT BE EMPTY."
+
+    # LLM picks these: The MOST IMPORTANT/critical methods and classes
+    key_entities: list[SourceCodeReference] = Field(
+        description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
+
+    # Deterministic from static analysis: ALL files belonging to this component
     assigned_files: list[str] = Field(
-        description="A list of source code names of files assigned to the component.",
+        description="All source files assigned to this component (populated deterministically).",
         default_factory=list,
         exclude=True,
+    )
+
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from the CFG analysis that this component encompasses.",
+        default_factory=list,
     )
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
         qn = ""
-        if self.referenced_source_code:
-            qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q.llm_str()}`" for q in self.referenced_source_code)
+        if self.key_entities:
+            qn += "   - *Key Entities*: "
+            qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
         return "\n".join([n, d, qn]).strip()
 
 
 class AnalysisInsights(LLMBaseModel):
-    """Structured representation of insights derived from the static analysis"""
+    """Project analysis insights including components and their relations."""
 
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
@@ -128,7 +165,7 @@ class AnalysisInsights(LLMBaseModel):
 
 
 class CFGComponent(LLMBaseModel):
-    """Structured representation of an abstract component derived from the CFG analysis"""
+    """A component derived from control flow graph analysis."""
 
     name: str = Field(description="Name of the abstract component")
     description: str = Field(description="One paragraph explaining the component.")
@@ -147,7 +184,7 @@ class CFGComponent(LLMBaseModel):
 
 
 class CFGAnalysisInsights(LLMBaseModel):
-    """Structured representation of insights derived from the CFG analysis"""
+    """Insights from control flow graph analysis including components and relations."""
 
     components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
     components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
@@ -162,7 +199,7 @@ class CFGAnalysisInsights(LLMBaseModel):
 
 
 class ExpandComponent(LLMBaseModel):
-    """Structured representation of whether to expand a component or not"""
+    """Decision on whether to expand a component with reasoning."""
 
     should_expand: bool = Field(description="Whether the component should be expanded in detail or not.")
     reason: str = Field(description="Reasoning behind the decision to expand or not.")
@@ -172,7 +209,7 @@ class ExpandComponent(LLMBaseModel):
 
 
 class ValidationInsights(LLMBaseModel):
-    """Structured representation of feedback on the analysis"""
+    """Validation results with status and additional information."""
 
     is_valid: bool = Field(description="Indicates whether the validation results in valid or not.")
     additional_info: str | None = Field(
@@ -184,7 +221,7 @@ class ValidationInsights(LLMBaseModel):
 
 
 class UpdateAnalysis(LLMBaseModel):
-    """Structured representation of feedback to update an analysis"""
+    """Feedback on how much a diagram needs updating."""
 
     update_degree: int = Field(
         description="Degree to which the diagram needs update. 0 means no update, 10 means complete update."
@@ -196,7 +233,7 @@ class UpdateAnalysis(LLMBaseModel):
 
 
 class MetaAnalysisInsights(LLMBaseModel):
-    """Structured representation of project metadata analysis"""
+    """Insights from analyzing project metadata including type, domain, and architecture."""
 
     project_type: str = Field(
         description="Type/category of the project (e.g., web framework, data processing, ML library, etc.)"
@@ -235,7 +272,7 @@ class FileClassification(LLMBaseModel):
 
 
 class ComponentFiles(LLMBaseModel):
-    """Files classified to components."""
+    """Collection of file classifications for components."""
 
     file_paths: list[FileClassification] = Field(
         description="All files with their classifications for each of the files assigned to a component."
@@ -250,7 +287,7 @@ class ComponentFiles(LLMBaseModel):
 
 
 class FilePath(LLMBaseModel):
-    """Reference to a specific file and optionally line numbers within that file."""
+    """File path with optional line range reference."""
 
     file_path: str = Field(description="Full file path for the reference")
     start_line: int | None = Field(

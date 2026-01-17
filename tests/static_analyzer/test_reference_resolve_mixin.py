@@ -62,7 +62,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test",
-            referenced_source_code=[reference],
+            key_entities=[reference],
             assigned_files=["test.py"],
         )
 
@@ -283,7 +283,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test",
-            referenced_source_code=[reference],
+            key_entities=[reference],
             assigned_files=["test.py"],
         )
 
@@ -307,7 +307,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test",
-            referenced_source_code=[reference],
+            key_entities=[reference],
             assigned_files=[],
         )
 
@@ -398,7 +398,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         component = Component(
             name="TestComponent",
             description="Test",
-            referenced_source_code=[reference],
+            key_entities=[reference],
             assigned_files=["test.py"],
         )
 

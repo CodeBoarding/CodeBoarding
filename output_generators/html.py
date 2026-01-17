@@ -79,9 +79,9 @@ def generate_html(
 
         # Build references HTML
         references_html = ""
-        if comp.referenced_source_code:
+        if comp.key_entities:
             references_html = '<h4>Related Classes/Methods:</h4><ul class="references">'
-            for reference in comp.referenced_source_code:
+            for reference in comp.key_entities:
                 if reference.reference_start_line is None or reference.reference_end_line is None:
                     references_html += f"<li><code>{reference.llm_str()}</code></li>"
                     continue

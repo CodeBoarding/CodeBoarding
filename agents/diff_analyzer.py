@@ -43,9 +43,16 @@ class DiffAnalyzingAgent(LargeModelAgent):
         Generate an initial analysis insight for the project.
         This is a placeholder method that can be overridden by subclasses.
         """
+        from pydantic import ValidationError
+
         analysis_file_path = self.repo_dir / ".codeboarding" / "analysis.json"  # Ensure the directory exists
-        with open(analysis_file_path, "r") as analysis_file:
-            return AnalysisInsights.model_validate_json(analysis_file.read())
+        try:
+            with open(analysis_file_path, "r") as analysis_file:
+                return AnalysisInsights.model_validate_json(analysis_file.read())
+        except ValidationError as e:
+            logger.error(f"[DiffAnalyzingAgent] Failed to load existing analysis.json (incompatible schema): {e}")
+            logger.info("[DiffAnalyzingAgent] Old analysis format detected, will regenerate from scratch")
+            raise FileNotFoundError("Analysis file has incompatible schema, regeneration required")
 
     def _get_supported_extensions(self) -> set[str]:
         """
@@ -142,7 +149,14 @@ class DiffAnalyzingAgent(LargeModelAgent):
             logger.info("[DiffAnalyzingAgent] No existing analysis found, running full analysis")
             return UpdateAnalysis(update_degree=10, feedback="No existing analysis found, running full analysis")
 
-        analysis = self.get_analysis()
+        try:
+            analysis = self.get_analysis()
+        except FileNotFoundError:
+            # Old analysis format - can't load it, regenerate from scratch
+            logger.info("[DiffAnalyzingAgent] Incompatible analysis schema, regenerating from scratch")
+            return UpdateAnalysis(
+                update_degree=10, feedback="Incompatible analysis schema detected, regenerating from scratch"
+            )
         diff_data = self.get_diff_data()
         if not diff_data:
             logger.info("[DiffAnalyzingAgent] No relevant code differences found")

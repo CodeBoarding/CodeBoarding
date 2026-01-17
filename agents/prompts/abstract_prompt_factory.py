@@ -15,19 +15,11 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_cfg_message(self) -> str:
+    def get_cluster_analysis_message(self) -> str:
         pass
 
     @abstractmethod
-    def get_source_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_classification_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_conclusive_analysis_message(self) -> str:
+    def get_final_analysis_message(self) -> str:
         pass
 
     @abstractmethod
