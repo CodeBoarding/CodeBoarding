@@ -1,18 +1,18 @@
 # End-to-End Pipeline Evaluation
 
-**Generated:** 2026-01-01T23:16:52.961160+00:00
+**Generated:** 2026-01-17T17:35:50.355961+00:00
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Total Tokens | Tool Calls |
 |---------|----------|--------|----------|--------------|------------|
-| markitdown | Python | ✅ Success | 450.0 | 1,661,125 | 97 |
-| codeboarding | Python | ✅ Success | 381.5 | 1,536,205 | 66 |
-| django | Python | ❌ Failed | 53454.4 | 0 | 0 |
+| markitdown | Python | ✅ Success | 185.0 | 74,846 | 6 |
+| codeboarding | Python | ✅ Success | 1010.6 | 319,883 | 65 |
+| django | Python | ✅ Success | 1046.4 | 559,172 | 19 |
 
-**Success:** 2/3
-**Total Tokens:** 3,197,330
-**Total Tool Calls:** 163
+**Success:** 3/3
+**Total Tokens:** 953,901
+**Total Tool Calls:** 90
 
 ## Generated Top-Level Diagrams
 
@@ -20,42 +20,58 @@
 
 ```mermaid
 graph LR
-    Orchestration_Entry_Layer["Orchestration & Entry Layer"]
-    Core_Framework_Plugin_System["Core Framework & Plugin System"]
-    Structured_Document_Processors["Structured Document Processors"]
-    AI_Media_Extraction_Services["AI & Media Extraction Services"]
-    Math_Representation_Engine["Math Representation Engine"]
-    Unclassified["Unclassified"]
-    Orchestration_Entry_Layer -- "uses the core registration system and StreamInfo to manage available converters and metadata" --> Core_Framework_Plugin_System
-    Orchestration_Entry_Layer -- "Dispatches standard document streams (DOCX, HTML) to specific processors based on detected MIME types" --> Structured_Document_Processors
-    Orchestration_Entry_Layer -- "Routes binary or complex streams (PDF, Audio) to AI-enriched converters when higher fidelity extraction is required" --> AI_Media_Extraction_Services
-    Structured_Document_Processors -- "invokes the math engine during pre-processing to translate embedded Office Math (OMML) into LaTeX" --> Math_Representation_Engine
-    Structured_Document_Processors -- "inherit from the `DocumentConverter` base class to ensure a unified interface" --> Core_Framework_Plugin_System
-    AI_Media_Extraction_Services -- "inherit from the `DocumentConverter` base class to ensure a unified interface" --> Core_Framework_Plugin_System
-    AI_Media_Extraction_Services -- "utilize `StreamInfo` to manage multi-modal data streams during heavy processing tasks like transcription or OCR" --> Core_Framework_Plugin_System
+    Core_Conversion_Engine["Core Conversion Engine"]
+    Document_Format_Converters["Document Format Converters"]
+    DOCX_Advanced_Processing["DOCX Advanced Processing"]
+    Markitdown_Control_Plane_MCP_Server["Markitdown Control Plane (MCP) Server"]
+    Plugin_System["Plugin System"]
+    Core_Conversion_Engine -- "orchestrates conversion using" --> Document_Format_Converters
+    Core_Conversion_Engine -- "integrates with" --> Plugin_System
+    Document_Format_Converters -- "utilizes for DOCX conversion" --> DOCX_Advanced_Processing
+    Markitdown_Control_Plane_MCP_Server -- "invokes conversion services from" --> Core_Conversion_Engine
+    Plugin_System -- "extends with new converters" --> Document_Format_Converters
 ```
 
 ### codeboarding
 
 ```mermaid
 graph LR
-    Job_Orchestration_Repo_Manager["Job Orchestration & Repo Manager"]
-    LSP_Static_Analysis_Provider["LSP Static Analysis Provider"]
-    Agent_Intelligence_Framework["Agent Intelligence Framework"]
-    Multi_Stage_Analysis_Agents["Multi-Stage Analysis Agents"]
-    Semantic_Graph_Output_Engine["Semantic Graph & Output Engine"]
-    Unclassified["Unclassified"]
-    Job_Orchestration -- "Triggers the initial multi-language scan to establish the semantic "ground truth" and symbol map." --> LSP_Static_Analysis_Provider
-    Job_Orchestration -- "Orchestrates the agentic decomposition loop (Abstraction -> Details -> Validation) and manages parallel task execution." --> Multi_Stage_Analysis_Agents
-    Multi_Stage_Analysis_Agents -- "Queries verified symbol data and call graphs (via the Toolkit) to ground LLM hallucinations in actual source code." --> LSP_Static_Analysis_Provider
-    Multi_Stage_Analysis_Agents -- "Inherits core agentic capabilities and retrieves specialized prompt templates (e.g., `AbstractionAgent` uses `get_system_message`)." --> Agent_Intelligence_Framework
-    Multi_Stage_Analysis_Agents -- "Passes structured analysis insights (`AnalysisInsights`) to the clustering and rendering pipeline." --> Semantic_Graph_Output_Engine
-    Semantic_Graph_Output_Engine -- "Resolves call graph references to validate the generated architecture and cluster boundaries." --> LSP_Static_Analysis_Provider
+    Codebase_Ingestion_Management["Codebase Ingestion & Management"]
+    Static_Analysis_Engine["Static Analysis Engine"]
+    AI_Orchestration_Prompt_Management["AI Orchestration & Prompt Management"]
+    Analysis_Agents["Analysis Agents"]
+    Output_Monitoring["Output & Monitoring"]
+    Core_Data_Models["Core Data Models"]
+    Codebase_Ingestion_Management -- "Provides raw source code and project configurations for analysis." --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "Delivers structured static analysis results (e.g., ASTs, symbol tables) to inform AI processing." --> AI_Orchestration_Prompt_Management
+    AI_Orchestration_Prompt_Management -- "Orchestrates the execution of specialized agents and provides them with context and prompts." --> Analysis_Agents
+    Analysis_Agents -- "Returns analysis insights and refined abstractions back to the orchestration layer." --> AI_Orchestration_Prompt_Management
+    AI_Orchestration_Prompt_Management -- "Sends final analysis results and architectural insights for diagram generation and documentation." --> Output_Monitoring
+    Static_Analysis_Engine -- "Populates and updates core data models (e.g., CallGraph, ASTNode) with analysis findings." --> Core_Data_Models
+    Analysis_Agents -- "Utilizes and potentially updates core data models to represent architectural abstractions." --> Core_Data_Models
+    Output_Monitoring -- "Consumes data from core data models to generate visualizations and documentation." --> Core_Data_Models
 ```
 
 ### django
 
-*No diagram generated for this project.*
+```mermaid
+graph LR
+    HTTP_Session_Core["HTTP & Session Core"]
+    ORM_Database_Layer["ORM & Database Layer"]
+    Template_Forms_Engine["Template & Forms Engine"]
+    Admin_Interface["Admin Interface"]
+    Database_Migrations["Database Migrations"]
+    Frontend_UI_Libraries["Frontend UI Libraries"]
+    GIS_Spatial_Data["GIS & Spatial Data"]
+    HTTP_Session_Core -- "Processes requests and renders responses using templates and forms." --> Template_Forms_Engine
+    HTTP_Session_Core -- "Views (triggered by HTTP requests) interact with the ORM for data access." --> ORM_Database_Layer
+    ORM_Database_Layer -- "Migrations define and apply schema changes for the ORM." --> Database_Migrations
+    Template_Forms_Engine -- "Forms can integrate with client-side UI libraries for enhanced user experience." --> Frontend_UI_Libraries
+    Admin_Interface -- "The Admin Interface manages data through the ORM." --> ORM_Database_Layer
+    Admin_Interface -- "The Admin Interface uses Django's templating and forms for its UI." --> Template_Forms_Engine
+    Admin_Interface -- "The Admin Interface often incorporates client-side UI libraries for interactive elements." --> Frontend_UI_Libraries
+    ORM_Database_Layer -- "The ORM can define and interact with spatial data types provided by the GIS component." --> GIS_Spatial_Data
+```
 
 
 ## System Specifications

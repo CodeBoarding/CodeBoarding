@@ -83,104 +83,6 @@ Constraints:
 - Components should translate well to flow diagram representation"""
 
 
-CFG_MESSAGE = """Analyze Control Flow Graph for {project_name} with diagram generation in mind.
-
-<context>
-{meta_context}
-The Control-Flow data is represented in the following format, firstly we have clustered methods, which are closely related to each other and then we have the edges between them.
-As not all methods are clustered, some methods are not part of any cluster. These methods are represented as single nodes and are also added to the graph and are listed below the clusters.
-Control-flow Data:
-{cfg_str}
-
-The goal is to efficiently extract architectural insights that enable new developers to understand the system flow quickly, with clear visual diagrams.
-</context>
-
-<instructions>
-1. Analyze the provided CFG data first, identifying clear component boundaries for flow graph representation
-2. Use getPackageDependencies OR getClassHierarchy ONLY when relationships need clarification for diagram connections
-3. Apply {project_type} architectural patterns throughout your analysis
-4. Focus on core business logic - deliberately exclude logging/error handling components that clutter diagrams
-5. Optimize for single-pass efficiency
-</instructions>
-
-<thinking>
-I need to extract:
-1. Core modules (max 15) with interaction patterns suitable for flow graph representation
-2. Abstract components with names, descriptions, and responsibilities
-3. Component relationships (max 1 per pair) for clear diagram arrows
-4. Source file references for interactive diagram elements
-</thinking>"""
-
-SOURCE_MESSAGE = """Validate and enhance component analysis for diagram generation optimization.
-
-<context>
-{meta_context}
-Current analysis: {insight_so_far}
-
-The goal is to efficiently refine the analysis for clear documentation and flow diagrams that help new engineers navigate the codebase.
-</context>
-
-<instructions>
-1. Review current analysis to identify gaps and optimize for flow graph representation
-2. If component structure needs clarification for diagram mapping, you MAY use getClassHierarchy (use sparingly)
-3. If component boundaries need validation, you MAY use readFile (only when essential)
-4. Work with existing insights, focus on flow graph representation
-5. Maintain efficiency - avoid unnecessary tool usage
-</instructions>
-
-<thinking>
-I need to refine to:
-1. 5-10 components with distinct responsibilities following {project_type} patterns
-2. Clear component boundaries optimized for visual representation
-3. Verified source file references for interactive diagram elements
-4. Relationships (max 1 per pair) suitable for clear diagram connections
-</thinking>"""
-
-CLASSIFICATION_MESSAGE = """Classify files into architectural components for {project_name}.
-
-<context>
-Components: {components}
-Files: {files}
-
-The goal is to efficiently organize files into components for clear architectural understanding by new developers.
-</context>
-
-<instructions>
-1. Match files to components based on functionality and architectural purpose
-2. If a file's purpose is ambiguous, you MUST use readFile to examine its contents before classification
-3. If no relevant component exists after examination, classify as "Unclassified"
-4. Provide brief justification for each classification
-5. Work efficiently to maintain single-pass analysis
-</instructions>"""
-
-CONCLUSIVE_ANALYSIS_MESSAGE = """Create final architectural analysis for {project_name} optimized for flow diagram representation.
-
-<context>
-{meta_context}
-CFG insights: {cfg_insight}
-Source insights: {source_insight}
-
-The goal is to efficiently synthesize analysis into clear documentation and diagrams that enable new engineers to understand the system flow quickly.
-</context>
-
-<instructions>
-1. Use provided analysis data to create efficient documentation suitable for visual diagram generation
-2. Focus on highest level architectural components suitable for flow graph representation
-3. For call/return relationships, keep only the call relationship to maintain diagram clarity and direction
-4. Exclude utility/logging components that clutter diagrams
-5. Maintain unidirectional flow optimization
-</instructions>
-
-<thinking>
-I need to provide:
-1. Main flow overview (one paragraph) explaining data flow suitable for diagram context
-2. 5-8 components following {project_type} patterns with source references
-3. Component relationships (only 1 per pair) for clear diagram arrows and flow direction
-4. Architecture summary suitable for documentation and visual diagram generation
-
-Components should have distinct visual boundaries and clear naming.
-</thinking>"""
-
 FEEDBACK_MESSAGE = """Improve analysis based on validation feedback for documentation and diagram optimization.
 
 <context>
@@ -463,18 +365,6 @@ class ClaudeUnidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
-
-    def get_cfg_message(self) -> str:
-        return CFG_MESSAGE
-
-    def get_source_message(self) -> str:
-        return SOURCE_MESSAGE
-
-    def get_classification_message(self) -> str:
-        return CLASSIFICATION_MESSAGE
-
-    def get_conclusive_analysis_message(self) -> str:
-        return CONCLUSIVE_ANALYSIS_MESSAGE
 
     def get_feedback_message(self) -> str:
         return FEEDBACK_MESSAGE
