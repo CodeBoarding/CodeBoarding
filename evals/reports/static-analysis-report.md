@@ -1,23 +1,23 @@
 # Static Analysis Performance Evaluation
 
-**Generated:** 2026-01-15T23:13:06.223708+00:00
+**Generated:** 2026-01-17T16:26:31.061746+00:00
 
 ### Summary
 
 | Project | Language | Status | Time (s) | Files | LOC |
 |---------|----------|--------|----------|-------|-----|
-| markitdown | Python | ✅ Success | 37.3 | 43 | 6,588 |
-| bertopic | Python | ✅ Success | 98.5 | 56 | 12,145 |
-| browser-use | Python | ✅ Success | 388.1 | 261 | 60,010 |
-| fastapi | Python | ✅ Success | 186.4 | 693 | 92,182 |
-| django | Python | ✅ Success | 929.5 | 994 | 435,862 |
+| markitdown | Python | ✅ Success | 23.6 | 43 | 6,588 |
+| bertopic | Python | ✅ Success | 100.7 | 56 | 12,145 |
+| browser-use | Python | ✅ Success | 264.3 | 261 | 59,744 |
+| fastapi | Python | ✅ Success | 110.1 | 693 | 92,182 |
+| django | Python | ✅ Success | 677.6 | 998 | 440,146 |
 
-**Total Files:** 2,047
-**Total LOC:** 606,787
+**Total Files:** 2,051
+**Total LOC:** 610,805
 
 ## System Specifications
 
-**Operating System:** Linux (Linux-6.8.0-90-generic-x86_64-with-glibc2.35)
-**Processor:** x86_64
-**CPU Cores:** 12
+**Operating System:** Darwin (macOS-26.2-arm64-arm-64bit)
+**Processor:** arm
+**CPU Cores:** 14
 **Git User:** ivanmilevtues
