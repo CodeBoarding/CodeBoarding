@@ -19,16 +19,12 @@ from typing import Any
 
 from evals.base import BaseEval
 from evals.tasks.accuracy.config import (
-    CODE_SIZE_BINS,
     DEPTH_LEVELS,
     PROJECTS,
-    SAMPLES_PER_BIN,
-    SCORING_MODEL,
 )
 from evals.tasks.accuracy.report_builder import AccuracyReportBuilder
 from evals.tasks.accuracy.dataset_manager import DatasetManager
 from evals.tasks.accuracy.models import (
-    CodeSizeCategory,
     HistoricalReasoning,
     ProjectMetrics,
     ScoredResult,
@@ -68,7 +64,7 @@ class AccuracyEval(BaseEval):
         self.include_system_specs_in_footer = False
 
         # Initialize components
-        self._judge = DiagramSimilarityJudge(model_override=SCORING_MODEL)
+        self._judge = DiagramSimilarityJudge()
         self._dataset_manager = DatasetManager(self.project_root)
         self._history_store = ScoreHistoryStore(output_dir)
         self._report_only = False
@@ -81,20 +77,6 @@ class AccuracyEval(BaseEval):
     def depth_levels(self) -> list[int]:
         """Configured depth levels to evaluate."""
         return DEPTH_LEVELS
-
-    @property
-    def code_size_bins(self) -> list[CodeSizeCategory]:
-        """Configured code size bins to include."""
-        if not CODE_SIZE_BINS:
-            return list(CodeSizeCategory)
-        return [CodeSizeCategory.from_label(s) for s in CODE_SIZE_BINS]
-
-    @property
-    def samples_per_bin(self) -> int | None:
-        """Maximum samples per code size bin (0 or None = unlimited)."""
-        if SAMPLES_PER_BIN and SAMPLES_PER_BIN > 0:
-            return SAMPLES_PER_BIN
-        return None
 
     # =========================================================================
     # Path Helpers
@@ -181,9 +163,7 @@ class AccuracyEval(BaseEval):
 
         entries = self._dataset_manager.get_entries(
             graph_id=base_name,
-            code_sizes=self.code_size_bins if self.code_size_bins else None,
             depth_level=depth_level,
-            limit_per_size=self.samples_per_bin,
         )
 
         # Return raw data for scoring
@@ -335,7 +315,6 @@ class AccuracyEval(BaseEval):
             .with_depth_sections(history, self.depth_levels)
             .with_score_plot(history, self.depth_levels)
             .with_reasoning(history)
-            .with_glossary()
             .build()
         )
 
