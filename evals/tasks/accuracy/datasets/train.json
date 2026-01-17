@@ -1,0 +1,155 @@
+[{
+    "graph_id": "markitdown",
+    "code_size": "medium",
+    "level_of_depth": 1,
+    "nodes": [
+      {"id": "CLI_Entrypoint", "label": "CLI Entrypoint"},
+      {"id": "MarkItDown_Engine", "label": "MarkItDown Engine"},
+      {"id": "Converter_Registry_Dispatcher", "label": "Converter Registry & Dispatcher"},
+      {"id": "PlainTextConverter", "label": "PlainTextConverter"},
+      {"id": "PdfConverter", "label": "PdfConverter"},
+      {"id": "ImageConverter", "label": "ImageConverter"},
+      {"id": "DocumentIntelligenceConverter", "label": "DocumentIntelligenceConverter"},
+      {"id": "llm_caption", "label": "llm_caption"},
+      {"id": "DocumentConverterResult", "label": "DocumentConverterResult"},
+      {"id": "Unclassified", "label": "Unclassified"}
+    ],
+    "adjacency": [
+      {
+        "source": "CLI Entrypoint",
+        "relationships": [
+          {"target": "MarkItDown Engine", "type": "invokes"},
+          {"target": "DocumentConverterResult", "type": "receives output from"}
+        ]
+      },
+      {
+        "source": "Converter Registry & Dispatcher",
+        "relationships": [
+          {"target": "PlainTextConverter", "type": "dispatches to"},
+          {"target": "PdfConverter", "type": "dispatches to"},
+          {"target": "ImageConverter", "type": "dispatches to"},
+          {"target": "DocumentIntelligenceConverter", "type": "dispatches to"}
+        ]
+      },
+      {
+        "source": "DocumentIntelligenceConverter",
+        "relationships": [
+          {"target": "DocumentConverterResult", "type": "produces"}
+        ]
+      },
+      {
+        "source": "ImageConverter",
+        "relationships": [
+          {"target": "llm_caption", "type": "optionally uses"},
+          {"target": "DocumentConverterResult", "type": "produces"}
+        ]
+      },
+      {
+        "source": "MarkItDown Engine",
+        "relationships": [
+          {"target": "Converter Registry & Dispatcher", "type": "registers and dispatches via"}
+        ]
+      },
+      {
+        "source": "PdfConverter",
+        "relationships": [
+          {"target": "DocumentConverterResult", "type": "produces"}
+        ]
+      },
+      {
+        "source": "PlainTextConverter",
+        "relationships": [
+          {"target": "DocumentConverterResult", "type": "produces"}
+        ]
+      }
+    ]
+  },
+  {
+    "graph_id": "pytorch_geometric",
+    "code_size": "large",
+    "level_of_depth": 1,
+    "nodes": [
+      {"id": "Infrastructure", "label": "Infrastructure"},
+      {"id": "Core_Library", "label": "Core Library"},
+      {"id": "Machine_Learning", "label": "Machine Learning"},
+      {"id": "Tools_Extensions", "label": "Tools & Extensions"}
+    ],
+    "adjacency": [
+      {
+        "source": "Core Library",
+        "relationships": [
+          {"target": "Machine Learning", "type": "provides data to"},
+          {"target": "Tools & Extensions", "type": "provides data structures to"}
+        ]
+      },
+      {
+        "source": "Machine Learning",
+        "relationships": [
+          {"target": "Tools & Extensions", "type": "provides models to"}
+        ]
+      }
+    ]
+  },
+  {
+    "graph_id": "ml_framework",
+    "code_size": "large",
+    "level_of_depth": 2,
+    "nodes": [
+      {"id": "Distributed", "label": "Distributed", "group": "Infrastructure"},
+      {"id": "Datasets", "label": "Datasets", "group": "Core Library"},
+      {"id": "Data_Structures", "label": "Data Structures", "group": "Core Library"},
+      {"id": "Transforms", "label": "Transforms", "group": "Core Library"},
+      {"id": "Samplers", "label": "Samplers", "group": "Machine Learning"},
+      {"id": "Data_Loaders", "label": "Data Loaders", "group": "Machine Learning"},
+      {"id": "Neural_Networks", "label": "Neural Networks", "group": "Machine Learning"},
+      {"id": "Explainability", "label": "Explainability", "group": "Tools & Extensions"},
+      {"id": "Visualization", "label": "Visualization", "group": "Tools & Extensions"},
+      {"id": "Utils", "label": "Utils", "group": "Tools & Extensions"}
+    ],
+    "adjacency": [
+      {
+        "source": "Datasets",
+        "relationships": [
+          {"target": "Data Structures", "type": "produces"}
+        ]
+      },
+      {
+        "source": "Data Structures",
+        "relationships": [
+          {"target": "Transforms", "type": "feeds into"},
+          {"target": "Utils", "type": "used by"}
+        ]
+      },
+      {
+        "source": "Transforms",
+        "relationships": [
+          {"target": "Data Loaders", "type": "provides transformed data to"}
+        ]
+      },
+      {
+        "source": "Samplers",
+        "relationships": [
+          {"target": "Data Loaders", "type": "samples data for"}
+        ]
+      },
+      {
+        "source": "Data Loaders",
+        "relationships": [
+          {"target": "Neural Networks", "type": "feeds batches to"}
+        ]
+      },
+      {
+        "source": "Neural Networks",
+        "relationships": [
+          {"target": "Explainability", "type": "provides models to"}
+        ]
+      },
+      {
+        "source": "Explainability",
+        "relationships": [
+          {"target": "Visualization", "type": "outputs to"}
+        ]
+      }
+    ]
+  }
+]

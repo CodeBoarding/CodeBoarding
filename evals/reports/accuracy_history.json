@@ -1,0 +1,57 @@
+{
+  "runs": [
+    {
+      "commit": "a1c84ff",
+      "timestamp": "2026-01-17T12:02:21.380337+00:00",
+      "scores": {
+        "markitdown-depth-1": 5.0,
+        "markitdown-depth-2": null
+      },
+      "system_specs": {
+        "OS": "Darwin",
+        "CPU": "arm",
+        "Cores": "10",
+        "User": "brovatten"
+      }
+    },
+    {
+      "commit": "a1c84ff",
+      "timestamp": "2026-01-17T14:29:38.799459+00:00",
+      "scores": {
+        "markitdown-depth-1": 5.0,
+        "markitdown-depth-2": null
+      },
+      "system_specs": {
+        "OS": "Darwin",
+        "CPU": "arm",
+        "Cores": "10",
+        "User": "brovatten"
+      }
+    }
+  ],
+  "reasoning": [
+    {
+      "commit": "a1c84ff",
+      "project": "markitdown",
+      "depth": 1,
+      "score": 5.0,
+      "node_coverage": "Both diagrams include a similar set of components related to document conversion, but they differ in naming and specific implementations of converters.",
+      "relationship_fidelity": "The relationships between nodes in both diagrams show some alignment in purpose, but the specific connections and types of relationships differ significantly.",
+      "structural_coherence": "While both diagrams depict a conversion framework, the overall architecture and flow differ, with the generated diagram introducing additional layers and components not present in the dataset diagram."
+    },
+    {
+      "commit": "a1c84ff",
+      "project": "markitdown",
+      "depth": 1,
+      "score": 5.0,
+      "node_coverage": "Both diagrams include a similar set of components related to document conversion, but they differ in naming and specific implementations of converters.",
+      "relationship_fidelity": "The relationships between nodes in both diagrams show some alignment in purpose, but the specific connections and types of relationships differ significantly.",
+      "structural_coherence": "While both diagrams depict a conversion framework, the overall architecture and flow differ, with the generated diagram introducing additional layers and components not present in the dataset diagram."
+    }
+  ],
+  "project_sizes": {
+    "markitdown": "medium",
+    "markitdown-depth-1": "medium",
+    "markitdown-depth-2": "medium"
+  }
+}

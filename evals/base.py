@@ -26,10 +26,12 @@ logger = logging.getLogger(__name__)
 
 class BaseEval(ABC):
     def __init__(self, name: str, output_dir: Path):
+        load_dotenv()
         self.name = name
         self.output_dir = output_dir
         self.results: list[EvalResult] = []
         self.project_root = get_project_root()
+        self.total_duration_seconds: float | None = None
 
     def get_latest_run_data(self, project_name: str) -> RunData:
         """Read all monitoring data for a project from its run directory."""
@@ -90,6 +92,7 @@ class BaseEval(ABC):
             str(output_dir),
             "--project-name",
             project_name,
+            "--load-env-variables",
         ]
         if extra_args:
             cmd.extend(extra_args)
@@ -98,7 +101,7 @@ class BaseEval(ABC):
         try:
             result = subprocess.run(
                 cmd,
-                capture_output=True,
+                capture_output=False,
                 text=True,
                 timeout=1800,  # 30 minutes
                 env=env,
@@ -145,6 +148,7 @@ class BaseEval(ABC):
         """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
         logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
 
+        start_time = time.time()
         self.results = []
         for project in projects:
             logger.info(f"\n{'='*60}\nProject: {project.name}\n{'='*60}")
@@ -210,11 +214,15 @@ class BaseEval(ABC):
                 logger.error(f"❌ {project.name} failed: {str(eval_result.error)[:100]}")
 
         # 4. Generate & Save Report
+        self.total_duration_seconds = time.time() - start_time
         report_content = self.generate_report(self.results)
 
-        # Add system specs
-        system_specs = generate_system_specs()
-        full_report = f"{report_content}\n\n{system_specs}"
+        # Add system specs if not explicitly skipped by subclass
+        if getattr(self, "include_system_specs_in_footer", True):
+            system_specs = generate_system_specs()
+            full_report = f"{report_content}\n\n{system_specs}"
+        else:
+            full_report = report_content
 
         report_path = self.output_dir / f"{self.name}-report.md"
         self._write_report(report_path, full_report)
