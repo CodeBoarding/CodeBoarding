@@ -22,10 +22,8 @@ class TestAbstractPromptFactory(unittest.TestCase):
         # Test that all expected abstract methods are defined
         expected_methods = [
             "get_system_message",
-            "get_cfg_message",
-            "get_source_message",
-            "get_classification_message",
-            "get_conclusive_analysis_message",
+            "get_cluster_analysis_message",
+            "get_final_analysis_message",
             "get_feedback_message",
             "get_system_details_message",
             "get_subcfg_details_message",
@@ -242,10 +240,8 @@ class TestConvenienceFunctions(unittest.TestCase):
 
         convenience_functions = [
             "get_system_message",
-            "get_cfg_message",
-            "get_source_message",
-            "get_classification_message",
-            "get_conclusive_analysis_message",
+            "get_cluster_analysis_message",
+            "get_final_analysis_message",
             "get_feedback_message",
             "get_system_details_message",
             "get_subcfg_details_message",
