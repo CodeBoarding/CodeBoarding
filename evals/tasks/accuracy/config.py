@@ -1,12 +1,5 @@
-"""
-Configuration for accuracy evaluation.
-
-Contains project specifications, dataset settings, and scoring configuration.
-"""
-
 from evals.schemas import ProjectSpec
 
-# Projects to evaluate for accuracy
 PROJECTS = [
     ProjectSpec(
         name="markitdown",
@@ -22,5 +15,4 @@ PROJECTS = [
     ),
 ]
 
-# Depth levels to analyze for accuracy evaluation.
 DEPTH_LEVELS = [1, 2]

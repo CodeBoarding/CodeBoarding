@@ -1,9 +1,3 @@
-"""
-Report generation for accuracy evaluation.
-
-Builds structured markdown reports from score history data.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,17 +28,10 @@ class AccuracyReportBuilder:
     """
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize the report builder.
-
-        Args:
-            output_dir: Directory for output files (plots, etc.)
-        """
         self.output_dir = output_dir
         self._sections: list[str] = []
 
     def with_header(self, duration_seconds: float | None = None) -> AccuracyReportBuilder:
-        """Add the report header."""
         extra_lines = []
         if duration_seconds is not None:
             extra_lines.append(f"**Duration:** {self._format_duration(duration_seconds)}")
@@ -54,7 +41,6 @@ class AccuracyReportBuilder:
         return self
 
     def with_methodology(self) -> AccuracyReportBuilder:
-        """Add the methodology section."""
         self._sections.append(
             """
 This report tracks the structural accuracy of CodeBoarding's generated diagrams against a curated ground-truth dataset. We measure how well the agent captures system topology, component relationships, and architectural hierarchy.
@@ -84,7 +70,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         history: ScoreHistory,
         depth_levels: list[int],
     ) -> AccuracyReportBuilder:
-        """Add score sections for each depth level."""
         for depth in depth_levels:
             section = self._build_depth_section(history, depth)
             if section:
@@ -96,7 +81,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         history: ScoreHistory,
         depth_levels: list[int] | None = None,
     ) -> AccuracyReportBuilder:
-        """Generate and include the score history plot."""
         if len(history.runs) < 1:
             return self
 
@@ -116,7 +100,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         return self
 
     def with_reasoning(self, history: ScoreHistory) -> AccuracyReportBuilder:
-        """Add the reasoning table."""
         if not history.reasoning:
             return self
 
@@ -129,7 +112,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         ]
 
         for r in history.reasoning:
-            # Escape pipe characters
             node_cov = r.node_coverage.replace("|", "\\|")
             rel_fid = r.relationship_fidelity.replace("|", "\\|")
             struct_coh = r.structural_coherence.replace("|", "\\|")
@@ -143,7 +125,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         return self
 
     def with_glossary(self) -> AccuracyReportBuilder:
-        """Add the glossary section."""
         self._sections.append(
             """
 ## Glossary
@@ -157,12 +138,9 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         return self
 
     def build(self) -> str:
-        """Build the final report string."""
         return "\n".join(self._sections)
 
     def _build_depth_section(self, history: ScoreHistory, depth: int) -> str | None:
-        """Build a section for a specific depth level."""
-        # Get projects for this depth
         projects = self._get_projects_for_depth(history, depth)
         if not projects:
             return None
@@ -176,10 +154,8 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
             "",
         ]
 
-        # Project scores table
         lines.extend(self._build_detail_table(history, depth, projects))
 
-        # Add note for level 2
         if depth == 2:
             lines.append("")
             lines.append(
@@ -190,7 +166,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         return "\n".join(lines)
 
     def _get_projects_for_depth(self, history: ScoreHistory, depth: int) -> list[str]:
-        """Get all project names for a specific depth level."""
         suffix = f"-depth-{depth}"
         projects: set[str] = set()
 
@@ -199,7 +174,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
                 if project.endswith(suffix):
                     projects.add(project)
 
-        # Sort by size then name
         return sorted(
             projects,
             key=lambda p: (
@@ -214,8 +188,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         depth: int,
         projects: list[str],
     ) -> list[str]:
-        """Build the detailed table showing individual project scores."""
-        # Build header
         header_cols = ["Commit"]
         for project in projects:
             base_name = self._get_base_name(project)
@@ -251,7 +223,6 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
             else:
                 cells.append("N/A")
 
-            # Add system specs columns
             cells.append(run.system_specs.get("User", "N/A"))
             cells.append(run.system_specs.get("Cores", "N/A"))
 
@@ -261,13 +232,11 @@ Our evaluation uses a **"Model-as-a-Judge"** approach to compare the `analysis.j
         return lines
 
     def _get_base_name(self, project_name: str) -> str:
-        """Get base project name without depth suffix."""
         if "-depth-" in project_name:
             return project_name.rsplit("-depth-", 1)[0]
         return project_name
 
     def _format_duration(self, seconds: float | None) -> str:
-        """Format duration in human-readable form."""
         if not isinstance(seconds, (int, float)) or seconds < 0.1:
             return "N/A"
         if seconds >= 3600:

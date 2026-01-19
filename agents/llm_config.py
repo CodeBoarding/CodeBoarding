@@ -136,3 +136,57 @@ LLM_PROVIDERS = {
         },
     ),
 }
+
+
+def create_llm(
+    model_override: Optional[str] = None,
+    is_parsing: bool = False,
+) -> tuple[BaseChatModel, str]:
+    """
+    Create an LLM instance based on available API keys with priority order.
+
+    Iterates through configured providers and returns the first one with valid credentials.
+
+    Args:
+        model_override: Specific model to use. Uses provider default if None.
+        is_parsing: If True, uses parsing model defaults; otherwise uses agent model defaults.
+
+    Returns:
+        Tuple of (configured LLM instance, model name used).
+
+    Raises:
+        ValueError: If no valid LLM configuration found (no API keys set).
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+
+        default_model = config.parsing_model if is_parsing else config.agent_model
+        model_name = model_override if model_override else default_model
+
+        logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
+
+        kwargs: Dict[str, Any] = {
+            "model": model_name,
+            "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
+
+        if name not in ["aws", "ollama"]:
+            api_key = config.get_api_key()
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        return model, model_name
+
+    # Dynamically build error message with all possible env vars
+    required_vars: list[str] = []
+    for config in LLM_PROVIDERS.values():
+        required_vars.append(config.api_key_env)
+        required_vars.extend(config.alt_env_vars)
+
+    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")

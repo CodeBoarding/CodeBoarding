@@ -16,7 +16,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.llm_config import LLM_PROVIDERS
+from agents.llm_config import create_llm
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from monitoring.callbacks import MonitoringCallback
@@ -94,51 +94,25 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""
         if cls._parsing_llm is None:
-
             parsing_model = os.getenv("PARSING_MODEL", None)
-            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
+            cls._parsing_llm, _ = cls._initialize_llm_with_monitoring(model_override=parsing_model, is_parsing=True)
         return cls._parsing_llm
 
-    @staticmethod
-    def _static_initialize_llm(
-        model_override: Optional[str] = None, is_parsing: bool = False
+    @classmethod
+    def _initialize_llm_with_monitoring(
+        cls, model_override: Optional[str] = None, is_parsing: bool = False
     ) -> tuple[BaseChatModel, str]:
-        """Initialize LLM based on available API keys with priority order."""
-        for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
+        """
+        Initialize LLM and update the global monitoring callback.
 
-            # Determine model name
-            default_model = config.parsing_model if is_parsing else config.agent_model
-            model_name = model_override if model_override else default_model
+        This is a thin wrapper around llm_config.create_llm() that adds
+        the monitoring side effect needed by CodeBoardingAgent.
 
-            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
-
-            kwargs = {
-                "model": model_name,
-                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
-            }
-            kwargs.update(config.get_resolved_extra_args())
-
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
-
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-
-            # Update global monitoring callback
-            MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
-
-        # Dynamically build error message with all possible env vars
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
-
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
+        For LLM creation without monitoring, use llm_config.create_llm() directly.
+        """
+        model, model_name = create_llm(model_override=model_override, is_parsing=is_parsing)
+        MONITORING_CALLBACK.model_name = model_name
+        return model, model_name
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
@@ -333,6 +307,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
-        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
+        llm, model_name = self._initialize_llm_with_monitoring(model_override=agent_model, is_parsing=False)
         super().__init__(repo_dir, static_analysis, system_message, llm)
         self.agent_monitoring_callback.model_name = model_name

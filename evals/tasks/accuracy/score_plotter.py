@@ -1,17 +1,9 @@
-"""
-Score history visualization using matplotlib.
-
-Generates publication-quality plots for accuracy evaluation reports.
-"""
-
 import logging
 from pathlib import Path
 from typing import Any
 
 import matplotlib
 
-# Must set backend before importing pyplot to avoid GUI initialization.
-# "Agg" is a non-interactive backend suitable for generating images without a display.
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
@@ -20,7 +12,6 @@ from evals.tasks.accuracy.models import CodeSizeCategory, ScoreHistory
 logger = logging.getLogger(__name__)
 
 
-# Visual theme constants
 THEME = {
     "background": "#1a1a2e",
     "text": "#e0e0e0",
@@ -31,29 +22,27 @@ THEME = {
     "average_line": "#ffffff",
 }
 
-# Color palette for different projects
 PROJECT_COLORS = [
-    "#22c55e",  # green
-    "#3b82f6",  # blue
-    "#f59e0b",  # amber
-    "#ef4444",  # red
-    "#a855f7",  # purple
-    "#06b6d4",  # cyan
-    "#ec4899",  # pink
-    "#84cc16",  # lime
-    "#f97316",  # orange
-    "#6366f1",  # indigo
-    "#14b8a6",  # teal
-    "#eab308",  # yellow
+    "#22c55e",
+    "#3b82f6",
+    "#f59e0b",
+    "#ef4444",
+    "#a855f7",
+    "#06b6d4",
+    "#ec4899",
+    "#84cc16",
+    "#f97316",
+    "#6366f1",
+    "#14b8a6",
+    "#eab308",
 ]
 
-# Marker shapes for different code sizes
 SIZE_MARKERS = {
-    CodeSizeCategory.SMALL: "o",  # circle
-    CodeSizeCategory.MEDIUM: "s",  # square
-    CodeSizeCategory.LARGE: "^",  # triangle up
-    CodeSizeCategory.HUGE: "D",  # diamond
-    CodeSizeCategory.UNKNOWN: "x",  # x
+    CodeSizeCategory.SMALL: "o",
+    CodeSizeCategory.MEDIUM: "s",
+    CodeSizeCategory.LARGE: "^",
+    CodeSizeCategory.HUGE: "D",
+    CodeSizeCategory.UNKNOWN: "x",
 }
 
 
@@ -70,12 +59,6 @@ class ScoreHistoryPlotter:
     """
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize the plotter.
-
-        Args:
-            output_dir: Directory where plot images will be saved
-        """
         self.output_dir = output_dir
 
     def generate(
@@ -83,27 +66,15 @@ class ScoreHistoryPlotter:
         history: ScoreHistory,
         depth_levels: list[int] | None = None,
     ) -> str | None:
-        """
-        Generate the score history plot.
-
-        Args:
-            history: Complete score history
-            depth_levels: Optional list of depth levels to include
-
-        Returns:
-            Filename of generated plot, or None if generation failed
-        """
         if not history.runs:
             return None
 
         try:
-            # Organize data by depth level
             depth_data = self._organize_by_depth(history, depth_levels)
 
             if not depth_data:
                 return None
 
-            # Create subplots
             num_plots = len(depth_data)
             fig_width = 7 * num_plots
             fig, axes = plt.subplots(1, num_plots, figsize=(fig_width, 6), squeeze=False)
@@ -111,14 +82,12 @@ class ScoreHistoryPlotter:
 
             commits = [run.commit for run in history.runs]
 
-            # Plot each depth level
             for plot_idx, (depth, projects) in enumerate(sorted(depth_data.items())):
                 ax = axes[0, plot_idx]
                 self._plot_depth(ax, history, depth, projects, commits)
 
             plt.tight_layout()
 
-            # Save
             filename = "accuracy-score-history.png"
             plot_path = self.output_dir / filename
             fig.savefig(
@@ -142,7 +111,6 @@ class ScoreHistoryPlotter:
         history: ScoreHistory,
         depth_levels: list[int] | None = None,
     ) -> dict[int, list[str]]:
-        """Organize project names by depth level."""
         depth_projects: dict[int, list[str]] = {}
 
         all_projects: set[str] = set()
@@ -158,7 +126,6 @@ class ScoreHistoryPlotter:
         return depth_projects
 
     def _extract_depth(self, project_name: str) -> int:
-        """Extract depth level from project name."""
         if "-depth-" in project_name:
             try:
                 return int(project_name.rsplit("-depth-", 1)[-1])
@@ -167,7 +134,6 @@ class ScoreHistoryPlotter:
         return 1
 
     def _get_base_name(self, project_name: str) -> str:
-        """Get base project name without depth suffix."""
         if "-depth-" in project_name:
             return project_name.rsplit("-depth-", 1)[0]
         return project_name
@@ -180,12 +146,10 @@ class ScoreHistoryPlotter:
         projects: list[str],
         commits: list[str],
     ) -> None:
-        """Plot scores for a single depth level."""
         ax.set_facecolor(THEME["background"])
 
         all_scores_for_avg: list[list[float | None]] = []
 
-        # Plot each project
         for idx, project in enumerate(sorted(projects)):
             scores = self._get_project_scores(history, project)
             all_scores_for_avg.append(scores)
@@ -195,7 +159,6 @@ class ScoreHistoryPlotter:
             size_cat = CodeSizeCategory.from_label(size_label)
             marker = SIZE_MARKERS.get(size_cat, "o")
 
-            # Filter valid points
             valid_points = [(i, s) for i, s in enumerate(scores) if s is not None]
             if not valid_points:
                 continue
@@ -214,10 +177,8 @@ class ScoreHistoryPlotter:
                 alpha=0.85,
             )
 
-        # Plot average line
         self._plot_average(ax, all_scores_for_avg)
 
-        # Apply styling
         self._style_axis(ax, depth, commits)
 
     def _get_project_scores(
@@ -225,7 +186,6 @@ class ScoreHistoryPlotter:
         history: ScoreHistory,
         project: str,
     ) -> list[float | None]:
-        """Get scores for a project across all runs."""
         return [run.scores.get(project) for run in history.runs]
 
     def _plot_average(
@@ -233,7 +193,6 @@ class ScoreHistoryPlotter:
         ax: plt.Axes,
         all_scores: list[list[float | None]],
     ) -> None:
-        """Plot the average line across all projects."""
         if not all_scores:
             return
 
@@ -270,14 +229,12 @@ class ScoreHistoryPlotter:
         depth: int,
         commits: list[str],
     ) -> None:
-        """Apply consistent styling to an axis."""
         ax.set_xlabel("Commit", fontsize=12, color=THEME["text"])
         ax.set_ylabel("Similarity Score", fontsize=12, color=THEME["text"])
 
         depth_title = f"Level {depth}: {'Architecture Overview' if depth == 1 else 'Component Internals'}"
         ax.set_title(depth_title, fontsize=14, fontweight="bold", color=THEME["text"])
 
-        # X-axis ticks
         ax.set_xticks(range(len(commits)))
         ax.set_xticklabels(
             commits,
@@ -287,16 +244,13 @@ class ScoreHistoryPlotter:
             color=THEME["text_secondary"],
         )
 
-        # Y-axis range (scores are 1-10)
         ax.set_ylim(0, 10.5)
         ax.set_yticks(range(0, 11))
         ax.tick_params(axis="y", colors=THEME["text_secondary"])
 
-        # Grid
         ax.grid(True, linestyle="--", alpha=0.3, color=THEME["grid"])
         ax.set_axisbelow(True)
 
-        # Legend
         legend = ax.legend(
             loc="upper left",
             bbox_to_anchor=(1.02, 1),
@@ -307,6 +261,5 @@ class ScoreHistoryPlotter:
         for text in legend.get_texts():
             text.set_color(THEME["text"])
 
-        # Spine colors
         for spine in ax.spines.values():
             spine.set_color(THEME["spine"])

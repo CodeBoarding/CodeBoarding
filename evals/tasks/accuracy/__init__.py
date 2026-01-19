@@ -1,10 +1,3 @@
-"""
-Accuracy evaluation for CodeBoarding diagram generation.
-
-Compares generated diagrams against a curated ground-truth dataset
-using an LLM-as-judge approach to score structural similarity.
-"""
-
 from evals.tasks.accuracy.eval import (
     AccuracyEval,
     run_accuracy_eval,

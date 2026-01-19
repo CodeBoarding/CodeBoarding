@@ -1,10 +1,3 @@
-"""
-Persistent storage for accuracy evaluation score history.
-
-Stores historical scores in JSON format for reliable persistence and querying.
-This replaces the fragile approach of parsing markdown reports to extract history.
-"""
-
 import json
 import logging
 from datetime import datetime, timezone
@@ -42,22 +35,10 @@ class ScoreHistoryStore:
     FILENAME = "accuracy_history.json"
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize the score history store.
-
-        Args:
-            output_dir: Directory where history file will be stored
-        """
         self.output_dir = output_dir
         self.path = output_dir / self.FILENAME
 
     def load(self) -> ScoreHistory:
-        """
-        Load score history from storage.
-
-        Returns:
-            ScoreHistory with all historical runs and reasoning
-        """
         if not self.path.exists():
             return ScoreHistory()
 
@@ -69,12 +50,6 @@ class ScoreHistoryStore:
             return ScoreHistory()
 
     def save(self, history: ScoreHistory) -> None:
-        """
-        Save score history to storage.
-
-        Args:
-            history: The complete score history to save
-        """
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             history.model_dump_json(indent=2),
@@ -89,22 +64,8 @@ class ScoreHistoryStore:
         system_specs: dict[str, str],
         project_sizes: dict[str, str] | None = None,
     ) -> ScoreHistory:
-        """
-        Append a new evaluation run to history.
-
-        Args:
-            commit: Git commit hash for this run
-            scores: Mapping of project names to scores
-            reasoning: List of reasoning entries for each project
-            system_specs: System specs for this run (OS, CPU, etc.)
-            project_sizes: Optional mapping of project names to size labels
-
-        Returns:
-            Updated ScoreHistory
-        """
         history = self.load()
 
-        # Create new run entry
         run = HistoricalRun(
             commit=commit,
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -113,10 +74,8 @@ class ScoreHistoryStore:
         )
         history.runs.append(run)
 
-        # Add reasoning entries
         history.reasoning.extend(reasoning)
 
-        # Update project sizes (new sizes take precedence)
         if project_sizes:
             history.project_sizes.update(project_sizes)
 
@@ -124,12 +83,10 @@ class ScoreHistoryStore:
         return history
 
     def get_commits(self) -> list[str]:
-        """Get list of all commit hashes in history."""
         history = self.load()
         return [run.commit for run in history.runs]
 
     def get_project_names(self) -> set[str]:
-        """Get all unique project names across all runs."""
         history = self.load()
         projects: set[str] = set()
         for run in history.runs:
@@ -137,15 +94,6 @@ class ScoreHistoryStore:
         return projects
 
     def get_scores_by_depth(self, depth: int) -> dict[str, list[tuple[str, float | None]]]:
-        """
-        Get all scores for projects at a specific depth level.
-
-        Args:
-            depth: The depth level to filter by
-
-        Returns:
-            Dict mapping project base names to list of (commit, score) tuples
-        """
         history = self.load()
         suffix = f"-depth-{depth}"
 
@@ -166,19 +114,8 @@ class ScoreHistoryStore:
         commit: str,
         depth: int | None = None,
     ) -> dict[str, float | None]:
-        """
-        Get average scores grouped by code size for a specific commit.
-
-        Args:
-            commit: The commit hash to query
-            depth: Optional depth level to filter by
-
-        Returns:
-            Dict mapping size labels to average scores
-        """
         history = self.load()
 
-        # Find the run for this commit
         run = next((r for r in history.runs if r.commit == commit), None)
         if not run:
             return {}
@@ -189,7 +126,6 @@ class ScoreHistoryStore:
             if score is None:
                 continue
 
-            # Check depth filter
             if depth is not None and f"-depth-{depth}" not in project:
                 continue
 
@@ -200,29 +136,8 @@ class ScoreHistoryStore:
 
         return {size: sum(scores) / len(scores) if scores else None for size, scores in size_scores.items()}
 
-    def migrate_from_report(self, report_content: str) -> None:
-        """
-        One-time migration: parse existing report and import to JSON store.
-
-        This is provided for backward compatibility but should not be used
-        in normal operation.
-
-        Args:
-            report_content: The markdown report content to parse
-        """
-        # This is intentionally minimal - just enough to migrate existing data
-        # The goal is to get people OFF of report-based storage
-        logger.info("Migrating from report-based storage to JSON store...")
-
-        history = ScoreHistory()
-        # Migration logic would go here if needed
-        # For new implementations, this should not be used
-
-        self.save(history)
-
 
 def get_system_specs() -> dict[str, str]:
-    """Get current system specifications."""
     import os
     import platform
 

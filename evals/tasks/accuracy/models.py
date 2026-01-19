@@ -1,7 +1,3 @@
-"""
-Data models and enums for accuracy evaluation.
-"""
-
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -25,7 +21,6 @@ class CodeSizeCategory(Enum):
 
     @classmethod
     def from_label(cls, label: str) -> "CodeSizeCategory":
-        """Get category from label string like 'small', 'medium', etc."""
         for category in cls:
             if category.label == label.lower():
                 return category
@@ -33,7 +28,6 @@ class CodeSizeCategory(Enum):
 
     @classmethod
     def from_char(cls, char: str) -> "CodeSizeCategory":
-        """Get category from character like 'S', 'M', 'L', 'H'."""
         for category in cls:
             if category.char == char.upper():
                 return category
@@ -76,8 +70,6 @@ class SimilarityScore(BaseModel):
     Use SimilarityScoreOutput for LLM structured output.
     """
 
-    # Note: When score is None (error case), ge/le validators are skipped by Pydantic.
-    # This allows representing both valid scores (1-10) and error states (None).
     score: int | None = Field(None, ge=1, le=10, description="Similarity score 1-10")
     node_coverage_reasoning: str = Field("", description="Reasoning for node coverage")
     relationship_fidelity_reasoning: str = Field("", description="Reasoning for relationship fidelity")
@@ -89,7 +81,6 @@ class SimilarityScore(BaseModel):
 
     @classmethod
     def from_output(cls, output: SimilarityScoreOutput) -> "SimilarityScore":
-        """Create from LLM structured output."""
         return cls(
             score=output.score,
             node_coverage_reasoning=output.node_coverage_reasoning,
@@ -125,12 +116,10 @@ class DatasetEntry(BaseModel):
     graph_id: str = ""
     code_size: str = ""
     level_of_depth: int = 1
-    # The actual diagram data - kept flexible since structure varies
     data: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any]) -> "DatasetEntry":
-        """Create from raw JSON entry, extracting known fields."""
         return cls(
             graph_id=raw.get("graph_id", ""),
             code_size=raw.get("code_size", ""),
@@ -152,12 +141,10 @@ class ProjectWithDepth:
 
     @property
     def full_name(self) -> str:
-        """Full name including depth suffix."""
         return f"{self.name}-depth-{self.depth_level}"
 
     @property
     def base_name(self) -> str:
-        """Base name without depth suffix."""
         return self.name
 
 
@@ -166,7 +153,7 @@ class HistoricalRun(BaseModel):
 
     commit: str
     timestamp: str
-    scores: dict[str, float | None] = Field(default_factory=dict)  # project_name -> score
+    scores: dict[str, float | None] = Field(default_factory=dict)
     system_specs: dict[str, str] = Field(default_factory=dict)
 
 
@@ -187,4 +174,4 @@ class ScoreHistory(BaseModel):
 
     runs: list[HistoricalRun] = Field(default_factory=list)
     reasoning: list[HistoricalReasoning] = Field(default_factory=list)
-    project_sizes: dict[str, str] = Field(default_factory=dict)  # project_name -> size label
+    project_sizes: dict[str, str] = Field(default_factory=dict)

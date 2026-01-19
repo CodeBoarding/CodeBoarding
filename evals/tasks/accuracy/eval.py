@@ -1,17 +1,3 @@
-"""
-Accuracy evaluation for CodeBoarding diagram generation.
-
-Compares generated `analysis.json` diagrams against a curated ground-truth dataset
-using an LLM-as-judge approach to score structural similarity.
-
-This module provides a thin orchestrator that composes:
-- DiagramSimilarityJudge: LLM-based scoring
-- DatasetManager: Ground-truth data loading/filtering
-- ScoreHistoryStore: Persistent score history (JSON-based)
-- AccuracyReportBuilder: Markdown report generation
-- ScoreHistoryPlotter: Visualization
-"""
-
 import json
 import logging
 from pathlib import Path
@@ -34,7 +20,6 @@ from evals.tasks.accuracy.similarity_judge import DiagramSimilarityJudge
 from evals.schemas import EvalResult, ProjectSpec, RunData
 from evals.utils import get_git_commit_short
 
-# Re-export for backward compatibility
 from evals.tasks.accuracy.level_two import (  # noqa: F401
     LevelTwoFromLevelOneEval,
     run_level2_from_level1_eval,
@@ -63,45 +48,27 @@ class AccuracyEval(BaseEval):
         super().__init__(name, output_dir)
         self.include_system_specs_in_footer = False
 
-        # Initialize components
         self._judge = DiagramSimilarityJudge()
         self._dataset_manager = DatasetManager(self.project_root)
         self._history_store = ScoreHistoryStore(output_dir)
         self._report_only = False
 
-    # =========================================================================
-    # Configuration
-    # =========================================================================
-
     @property
     def depth_levels(self) -> list[int]:
-        """Configured depth levels to evaluate."""
         return DEPTH_LEVELS
 
-    # =========================================================================
-    # Path Helpers
-    # =========================================================================
-
     def _analysis_path(self, project_name: str) -> Path:
-        """Path to the generated analysis.json for a project."""
         return self.project_root / "evals" / "artifacts" / project_name / "analysis.json"
 
     def _metrics_path(self, project_name: str) -> Path:
-        """Path to store metrics for a project."""
         return self.project_root / "evals" / "artifacts" / project_name / "accuracy_metrics.json"
 
-    # =========================================================================
-    # Project Depth Handling
-    # =========================================================================
-
     def _get_base_name(self, project_name: str) -> str:
-        """Get base project name without depth suffix."""
         if "-depth-" in project_name:
             return project_name.rsplit("-depth-", 1)[0]
         return project_name
 
     def _get_depth(self, project_name: str) -> int:
-        """Extract depth level from project name."""
         if "-depth-" in project_name:
             try:
                 return int(project_name.rsplit("-depth-", 1)[-1])
@@ -110,7 +77,6 @@ class AccuracyEval(BaseEval):
         return 1
 
     def _get_project_depth_level(self, project: ProjectSpec) -> int | None:
-        """Get depth level from project spec (env vars or name)."""
         if project.env_vars and project.env_vars.get("DIAGRAM_DEPTH_LEVEL"):
             try:
                 return int(project.env_vars["DIAGRAM_DEPTH_LEVEL"])
@@ -119,12 +85,6 @@ class AccuracyEval(BaseEval):
         return self._get_depth(project.name) if "-depth-" in project.name else None
 
     def _expand_projects_for_depths(self, projects: list[ProjectSpec]) -> list[ProjectSpec]:
-        """
-        Expand each project into multiple entries, one per configured depth level.
-
-        For example, if depth_levels is [1, 2] and we have one project "markitdown",
-        this returns ["markitdown-depth-1", "markitdown-depth-2"].
-        """
         expanded: list[ProjectSpec] = []
 
         for project in projects:
@@ -145,19 +105,13 @@ class AccuracyEval(BaseEval):
 
         return expanded
 
-    # =========================================================================
-    # Data Loading
-    # =========================================================================
-
     def _load_analysis_json(self, project_name: str) -> dict[str, Any]:
-        """Load the generated analysis.json for a project."""
         analysis_path = self._analysis_path(project_name)
         if not analysis_path.exists():
             raise FileNotFoundError(f"Missing analysis.json at {analysis_path}")
         return json.loads(analysis_path.read_text(encoding="utf-8"))
 
     def _load_expected_entries(self, project: ProjectSpec) -> list[dict[str, Any]]:
-        """Load and filter expected entries from the ground-truth dataset."""
         base_name = self._get_base_name(project.name)
         depth_level = self._get_project_depth_level(project)
 
@@ -166,12 +120,7 @@ class AccuracyEval(BaseEval):
             depth_level=depth_level,
         )
 
-        # Return raw data for scoring
         return [self._dataset_manager.get_raw_data(e) for e in entries]
-
-    # =========================================================================
-    # Evaluation Orchestration
-    # =========================================================================
 
     def run(
         self,
@@ -179,11 +128,10 @@ class AccuracyEval(BaseEval):
         extra_args: list[str] | None = None,
         report_only: bool = False,
     ) -> dict[str, Any]:
-        """
-        Run accuracy evaluation for the given projects.
+        # Ensure datasets are downloaded from Hugging Face before starting evaluation
+        logger.info("Ensuring evaluation datasets are available...")
+        self._dataset_manager.ensure_datasets_downloaded()
 
-        Projects are automatically expanded to cover all configured depth levels.
-        """
         self._report_only = report_only
         expanded_projects = self._expand_projects_for_depths(projects)
         return super().run(expanded_projects, extra_args, report_only=report_only)
@@ -194,31 +142,20 @@ class AccuracyEval(BaseEval):
         extra_args: list[str] | None = None,
         env_vars: dict[str, str] | None = None,
     ):
-        """Run the pipeline with depth level from project spec."""
         return super().run_pipeline(project, extra_args=extra_args, env_vars=env_vars)
 
     def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
-        """
-        Extract accuracy metrics for a project.
-
-        Scores the generated analysis against all matching ground-truth entries
-        and computes per-bin and overall averages.
-        """
         try:
             metrics_path = self._metrics_path(project.name)
 
-            # If report-only mode, try to load cached metrics
             if self._report_only and metrics_path.exists():
                 return json.loads(metrics_path.read_text(encoding="utf-8"))
 
-            # Load data
             actual = self._load_analysis_json(project.name)
             expected_entries = self._load_expected_entries(project)
 
-            # Score against each expected entry
             results, bin_scores = self._score_all_entries(project, actual, expected_entries)
 
-            # Compute averages
             all_scores = [s for scores in bin_scores.values() for s in scores]
             average_score = sum(all_scores) / len(all_scores) if all_scores else None
             bin_averages = {
@@ -233,7 +170,6 @@ class AccuracyEval(BaseEval):
                 dataset_samples=len(expected_entries),
             )
 
-            # Persist metrics
             metrics_path.parent.mkdir(parents=True, exist_ok=True)
             metrics_path.write_text(metrics.model_dump_json(indent=2), encoding="utf-8")
 
@@ -256,14 +192,12 @@ class AccuracyEval(BaseEval):
         actual: dict[str, Any],
         expected_entries: list[dict[str, Any]],
     ) -> tuple[list[ScoredResult], dict[str, list[float]]]:
-        """Score the actual diagram against all expected entries."""
         results: list[ScoredResult] = []
         bin_scores: dict[str, list[float]] = {}
 
         for expected in expected_entries:
             score = self._judge.score(actual, expected)
 
-            # Determine code size
             code_size = project.code_size
             if not code_size and isinstance(expected, dict):
                 code_size = expected.get("code_size", "unknown")
@@ -283,22 +217,15 @@ class AccuracyEval(BaseEval):
 
         return results, bin_scores
 
-    # =========================================================================
-    # Report Generation
-    # =========================================================================
-
     def generate_report(self, results: list[EvalResult]) -> str:
-        """Generate the accuracy evaluation report."""
         duration_seconds = getattr(self, "total_duration_seconds", None)
         commit_hash = get_git_commit_short()
         system_specs = get_system_specs()
 
-        # Collect scores and reasoning from results
         project_scores = self._collect_scores(results)
         reasoning_entries = self._collect_reasoning(results, commit_hash)
         project_sizes = self._get_project_sizes(results)
 
-        # Append to history store
         history = self._history_store.append_run(
             commit=commit_hash,
             scores=project_scores,
@@ -307,7 +234,6 @@ class AccuracyEval(BaseEval):
             project_sizes=project_sizes,
         )
 
-        # Build report
         report = (
             AccuracyReportBuilder(self.output_dir)
             .with_header(duration_seconds=duration_seconds)
@@ -321,7 +247,6 @@ class AccuracyEval(BaseEval):
         return report
 
     def _collect_scores(self, results: list[EvalResult]) -> dict[str, float | None]:
-        """Collect average scores from evaluation results."""
         return {result.project: result.metrics.get("average_similarity_score") for result in results}
 
     def _collect_reasoning(
@@ -329,7 +254,6 @@ class AccuracyEval(BaseEval):
         results: list[EvalResult],
         commit: str,
     ) -> list[HistoricalReasoning]:
-        """Collect reasoning entries from evaluation results."""
         reasoning_list: list[HistoricalReasoning] = []
 
         for result in results:
@@ -337,7 +261,6 @@ class AccuracyEval(BaseEval):
             if not similarity_results:
                 continue
 
-            # Use the first result (typically there's one per expected entry)
             first_result = similarity_results[0] if similarity_results else {}
             if not isinstance(first_result, dict):
                 continue
@@ -358,7 +281,6 @@ class AccuracyEval(BaseEval):
         return reasoning_list
 
     def _get_project_sizes(self, results: list[EvalResult]) -> dict[str, str]:
-        """Get project name to code size mapping."""
         size_mapping: dict[str, str] = {}
 
         for proj in PROJECTS:
@@ -370,25 +292,10 @@ class AccuracyEval(BaseEval):
         return size_mapping
 
 
-# =============================================================================
-# Convenience Functions
-# =============================================================================
-
-
 def run_accuracy_eval(
     output_dir: Path | None = None,
     report_only: bool = False,
 ) -> dict[str, Any]:
-    """
-    Convenience function to run the accuracy evaluation.
-
-    Args:
-        output_dir: Directory for reports (defaults to evals/reports)
-        report_only: If True, only generate report from existing artifacts
-
-    Returns:
-        Evaluation results dictionary
-    """
     report_dir = output_dir or Path("evals/reports")
     report_dir.mkdir(parents=True, exist_ok=True)
     eval_instance = AccuracyEval("accuracy", report_dir)

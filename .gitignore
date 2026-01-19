@@ -198,3 +198,7 @@ static_analyzer/servers/*
 
 # Evaluation artifacts
 evals/artifacts/
+
+# Evaluation datasets (fetched from Hugging Face Hub)
+evals/tasks/accuracy/datasets/train.json
+evals/tasks/accuracy/datasets/test.json

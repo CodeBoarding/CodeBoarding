@@ -406,6 +406,9 @@ ENABLE_MONITORING=false
 # GitHub Integration
 # GITHUB_TOKEN=your_github_token_here  # For accessing private repositories
 
+# Hugging Face Hub (for evaluation datasets)
+# HF_TOKEN=your_huggingface_token_here  # Get token from https://huggingface.co/settings/tokens
+
 # LangSmith Tracing (Optional)
 # LANGSMITH_TRACING=false
 # LANGSMITH_ENDPOINT=https://api.smith.langchain.com
