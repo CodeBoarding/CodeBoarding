@@ -69,13 +69,13 @@ class TestPlannerAgent(unittest.TestCase):
         component1 = Component(
             name="Component1",
             description="First component",
-            referenced_source_code=[ref1],
+            key_entities=[ref1],
         )
 
         component2 = Component(
             name="Component2",
             description="Second component",
-            referenced_source_code=[ref2],
+            key_entities=[ref2],
         )
 
         analysis = AnalysisInsights(
@@ -123,13 +123,13 @@ class TestPlannerAgent(unittest.TestCase):
         component1 = Component(
             name="Component1",
             description="Expandable component",
-            referenced_source_code=[ref1],
+            key_entities=[ref1],
         )
 
         component2 = Component(
             name="Component2",
             description="Non-expandable component",
-            referenced_source_code=[ref2],
+            key_entities=[ref2],
         )
 
         analysis = AnalysisInsights(
@@ -171,7 +171,7 @@ class TestPlannerAgent(unittest.TestCase):
         component = Component(
             name="Component",
             description="Simple component",
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         analysis = AnalysisInsights(

@@ -110,11 +110,11 @@ class TestComponent(unittest.TestCase):
         component = Component(
             name="User Management",
             description="Handles user authentication and authorization",
-            referenced_source_code=[ref1, ref2],
+            key_entities=[ref1, ref2],
         )
 
         self.assertEqual(component.name, "User Management")
-        self.assertEqual(len(component.referenced_source_code), 2)
+        self.assertEqual(len(component.key_entities), 2)
 
     def test_component_llm_str(self):
         # Test LLM string representation
@@ -124,7 +124,7 @@ class TestComponent(unittest.TestCase):
             reference_start_line=None,
             reference_end_line=None,
         )
-        component = Component(name="Core Service", description="Main service component", referenced_source_code=[ref])
+        component = Component(name="Core Service", description="Main service component", key_entities=[ref])
 
         llm_str = component.llm_str()
         self.assertIn("Core Service", llm_str)
@@ -142,7 +142,7 @@ class TestComponent(unittest.TestCase):
         component = Component(
             name="Service",
             description="Service layer",
-            referenced_source_code=[ref],
+            key_entities=[ref],
             assigned_files=["myapp/service.py", "myapp/utils.py"],
         )
 
@@ -156,7 +156,7 @@ class TestAnalysisInsights(unittest.TestCase):
         ref = SourceCodeReference(
             qualified_name="app.main", reference_file="app/main.py", reference_start_line=None, reference_end_line=None
         )
-        component = Component(name="Main", description="Entry point", referenced_source_code=[ref])
+        component = Component(name="Main", description="Entry point", key_entities=[ref])
         relation = Relation(relation="uses", src_name="Main", dst_name="Database")
 
         insights = AnalysisInsights(
@@ -177,7 +177,7 @@ class TestAnalysisInsights(unittest.TestCase):
             reference_start_line=None,
             reference_end_line=None,
         )
-        component = Component(name="Service", description="Business logic", referenced_source_code=[ref])
+        component = Component(name="Service", description="Business logic", key_entities=[ref])
         relation = Relation(relation="depends on", src_name="Service", dst_name="Repository")
 
         insights = AnalysisInsights(
@@ -196,10 +196,10 @@ class TestAnalysisInsights(unittest.TestCase):
         self.assertIn("No abstract components found", llm_str)
 
     def test_reference_list_validation(self):
-        # Test that referenced_source_code cannot be empty per field description
+        # Test that key_entities cannot be empty per field description
         ref = SourceCodeReference(
             qualified_name="test.func", reference_file="test.py", reference_start_line=None, reference_end_line=None
         )
         # Should work with non-empty list
-        component = Component(name="Test", description="Test component", referenced_source_code=[ref])
-        self.assertEqual(len(component.referenced_source_code), 1)
+        component = Component(name="Test", description="Test component", key_entities=[ref])
+        self.assertEqual(len(component.key_entities), 1)

@@ -1,7 +1,7 @@
-import abc
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from langchain_core.prompts import PromptTemplate
 
@@ -12,20 +12,17 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class ReferenceResolverMixin(abc.ABC):
+class ReferenceResolverMixin:
+    _parse_invoke: Any  # Provided by Agent base class
+
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
 
-    @abc.abstractmethod
-    def _parse_invoke(self, prompt, type):
-        """Abstract method to be implemented by subclasses for LLM invocation."""
-        pass
-
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
         for component in analysis.components:
-            for reference in component.referenced_source_code:
+            for reference in component.key_entities:
                 # Check if the file is already resolved
                 if reference.reference_file is not None and os.path.exists(reference.reference_file):
                     continue
@@ -172,7 +169,7 @@ class ReferenceResolverMixin(abc.ABC):
     def _relative_paths(self, analysis: AnalysisInsights):
         """Convert all reference file paths to relative paths."""
         for component in analysis.components:
-            for reference in component.referenced_source_code:
+            for reference in component.key_entities:
                 if reference.reference_file and reference.reference_file.startswith(str(self.repo_dir)):
                     reference.reference_file = os.path.relpath(reference.reference_file, self.repo_dir)
         return analysis

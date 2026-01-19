@@ -6,7 +6,7 @@ Comprehensive evaluation framework for assessing CodeBoarding's performance, rel
 
 The evaluation system consists of three evaluation types:
 
-- **Static Analysis**: Measures static analysis performance.
+- **Static Analysis**: Measures static analysis performance using the `StaticAnalyzer` directly (fast, isolated analysis of code structure without LLM calls).
 - **End-to-End**: Runs the full pipeline to produce diagrams of repos we are familiar with, to eyeball differences.
 - **Scalability**: Analyzes system scaling characteristics with codebase size and depth-level.
 
@@ -42,7 +42,7 @@ Evaluation projects are configured in `evals/config.py`:
 
 Markdown reports are generated in `evals/reports/` (or custom `--output-dir`):
 
-- `static-analysis-report.md`: Static analysis performance summary
+- `static-analysis-report.md`: Static analysis performance summary (file counts, LOC per language)
 - `end-to-end-report.md`: Full pipeline execution results with diagrams
 - `scalability-report.md`: Scaling analysis with visualizations
 
@@ -56,8 +56,9 @@ Pipeline artifacts are stored in `evals/artifacts/`:
 
 ## Requirements
 
-- `ENABLE_MONITORING=true`: Required for collecting metrics (automatically set during evaluation)
-- `REPO_ROOT`: Directory for cloned repositories (defaults to `repos`)
+- For **Static Analysis**: Only requires language servers to be available (fast, ~30 seconds per project)
+- For **End-to-End**: Requires `ENABLE_MONITORING=true` and LLM API keys
+- For **Scalability**: Same as End-to-End
 
 ## Architecture
 
@@ -69,10 +70,20 @@ evals/
 ├── schemas.py           # Data models
 ├── utils.py             # Utility functions
 ├── definitions/         # Evaluation implementations
-│   ├── static_analysis.py
+│   ├── static_analysis.py   # Direct StaticAnalyzer usage (no full pipeline)
 │   ├── end_to_end.py
 │   └── scalability.py
 └── reports/             # Generated reports
 ```
 
-Each evaluation follows the pattern: **Run Pipeline → Extract Metrics → Generate Report**
+## Static Analysis Evaluation
+
+The static analysis eval runs the `StaticAnalyzer` directly to:
+- Clone the repository
+- Run language-specific static analysis (TypeScript LSP, Java JDTLS, etc.)
+- Extract code statistics (file counts, lines of code by language)
+- Generate performance report
+
+This approach is much faster than the full pipeline and doesn't require LLM API keys or monitoring infrastructure.
+
+Each evaluation follows the pattern: **Run Pipeline/Analyzer → Extract Metrics → Generate Report**

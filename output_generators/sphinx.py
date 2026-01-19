@@ -100,11 +100,11 @@ def generate_rst(
         lines.append(comp.description)
         lines.append("")
 
-        if comp.referenced_source_code:
+        if comp.key_entities:
             lines.append("**Related Classes/Methods**:")
             lines.append("")
 
-            for reference in comp.referenced_source_code:
+            for reference in comp.key_entities:
                 if not reference.reference_file:
                     continue
                 # Normalize paths for comparison

@@ -57,7 +57,7 @@ class TestComponentJson(unittest.TestCase):
             description="Test description",
             can_expand=True,
             assigned_files=["file1.py", "file2.py"],
-            referenced_source_code=[],
+            key_entities=[],
         )
 
         self.assertEqual(comp.name, "TestComponent")
@@ -70,7 +70,7 @@ class TestComponentJson(unittest.TestCase):
         comp = ComponentJson(
             name="Component",
             description="Description",
-            referenced_source_code=[],
+            key_entities=[],
         )
 
         self.assertFalse(comp.can_expand)
@@ -81,17 +81,17 @@ class TestComponentJson(unittest.TestCase):
         ref = SourceCodeReference(
             qualified_name="test.TestClass", reference_file="test.py", reference_start_line=1, reference_end_line=10
         )
-        comp = ComponentJson(name="Component", description="Description", referenced_source_code=[ref])
+        comp = ComponentJson(name="Component", description="Description", key_entities=[ref])
 
-        self.assertEqual(len(comp.referenced_source_code), 1)
-        self.assertEqual(comp.referenced_source_code[0].qualified_name, "test.TestClass")
+        self.assertEqual(len(comp.key_entities), 1)
+        self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
 
 
 class TestAnalysisInsightsJson(unittest.TestCase):
     def test_analysis_insights_json_creation(self):
         # Test creating an AnalysisInsightsJson instance
-        comp1 = ComponentJson(name="Comp1", description="Description 1", referenced_source_code=[])
-        comp2 = ComponentJson(name="Comp2", description="Description 2", referenced_source_code=[])
+        comp1 = ComponentJson(name="Comp1", description="Description 1", key_entities=[])
+        comp2 = ComponentJson(name="Comp2", description="Description 2", key_entities=[])
         rel = Relation(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = AnalysisInsightsJson(
@@ -106,7 +106,7 @@ class TestAnalysisInsightsJson(unittest.TestCase):
 
     def test_analysis_insights_json_model_dump(self):
         # Test serialization
-        comp = ComponentJson(name="Comp", description="Description", referenced_source_code=[])
+        comp = ComponentJson(name="Comp", description="Description", key_entities=[])
         analysis = AnalysisInsightsJson(description="Test", components=[comp], components_relations=[])
 
         data = analysis.model_dump()
@@ -120,13 +120,13 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.comp1 = Component(
             name="Component1",
             description="First component",
-            referenced_source_code=[],
+            key_entities=[],
             assigned_files=["file1.py"],
         )
         self.comp2 = Component(
             name="Component2",
             description="Second component",
-            referenced_source_code=[],
+            key_entities=[],
             assigned_files=["file2.py"],
         )
 
@@ -172,7 +172,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             name="TestComp",
             description="Test description",
             assigned_files=["a.py", "b.py"],
-            referenced_source_code=[ref],
+            key_entities=[ref],
         )
 
         result = from_component_to_json_component(comp, [])
@@ -180,7 +180,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(result.name, "TestComp")
         self.assertEqual(result.description, "Test description")
         self.assertEqual(set(result.assigned_files), {"a.py", "b.py"})
-        self.assertEqual(len(result.referenced_source_code), 1)
+        self.assertEqual(len(result.key_entities), 1)
 
     def test_from_analysis_to_json(self):
         # Test full analysis conversion to JSON
@@ -232,7 +232,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             name="WithRefs",
             description="Component with references",
             assigned_files=[],
-            referenced_source_code=[ref1, ref2],
+            key_entities=[ref1, ref2],
         )
 
         analysis = AnalysisInsights(description="Test", components=[comp], components_relations=[])
@@ -241,7 +241,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         data = json.loads(json_str)
 
         comp_data = data["components"][0]
-        self.assertEqual(len(comp_data["referenced_source_code"]), 2)
+        self.assertEqual(len(comp_data["key_entities"]), 2)
 
     def test_from_analysis_to_json_formatting(self):
         # Test that JSON is properly formatted with indentation
@@ -404,7 +404,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.diff_analyzer_agent.get_component_analysis.return_value = existing_analysis
 
         # Create test component
-        component = Component(name="TestComponent", description="Test", referenced_source_code=[])
+        component = Component(name="TestComponent", description="Test", key_entities=[])
 
         result_path, new_components = gen.process_component(component)
 
@@ -472,7 +472,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.planner_agent.plan_analysis.return_value = []
 
         # Create test component
-        component = Component(name="TestComponent", description="Test", referenced_source_code=[])
+        component = Component(name="TestComponent", description="Test", key_entities=[])
 
         result_path, new_components = gen.process_component(component)
 
@@ -540,7 +540,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.planner_agent.plan_analysis.return_value = []
 
         # Create test component
-        component = Component(name="TestComponent", description="Test", referenced_source_code=[])
+        component = Component(name="TestComponent", description="Test", key_entities=[])
 
         result_path, new_components = gen.process_component(component)
 
@@ -608,7 +608,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.planner_agent.plan_analysis.return_value = []
 
         # Create test component
-        component = Component(name="TestComponent", description="Test", referenced_source_code=[])
+        component = Component(name="TestComponent", description="Test", key_entities=[])
 
         result_path, new_components = gen.process_component(component)
 
@@ -641,7 +641,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.diff_analyzer_agent.check_for_component_updates.side_effect = Exception("Test error")
 
         # Create test component
-        component = Component(name="TestComponent", description="Test", referenced_source_code=[])
+        component = Component(name="TestComponent", description="Test", key_entities=[])
 
         result_path, new_components = gen.process_component(component)
 

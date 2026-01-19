@@ -50,7 +50,7 @@ class ValidatorAgent(LargeModelAgent):
         """
         info = []
         for component in analysis.components:
-            if not component.referenced_source_code:
+            if not component.key_entities:
                 info.append(
                     f"Component {component.name} has no source code references. "
                     f"Each component MUST HAVE source code reference."
@@ -58,7 +58,7 @@ class ValidatorAgent(LargeModelAgent):
                 )
                 continue
 
-            for ref in component.referenced_source_code:
+            for ref in component.key_entities:
                 if not ref.reference_file:
                     info.append(
                         f"Component {component.name} has incorrect source references: '{ref.llm_str()}'. "

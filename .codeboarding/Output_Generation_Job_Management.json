@@ -1,0 +1,68 @@
+{
+  "description": "Manages the overall analysis workflow, persists job states, and generates diverse documentation outputs based on the AI-driven analysis.",
+  "components": [
+    {
+      "name": "Workflow Orchestrator",
+      "description": "Manages the end-to-end execution of the code analysis and documentation generation pipeline, coordinating various stages of the analysis from initiation to completion.",
+      "key_entities": [
+        {
+          "qualified_name": "WorkflowOrchestrator",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Persistence Manager",
+      "description": "Provides mechanisms for storing, retrieving, and updating the state of analysis jobs, ensuring data durability and allowing for job resumption or historical tracking.",
+      "key_entities": [
+        {
+          "qualified_name": "JobPersistenceManager",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Documentation Generator",
+      "description": "Transforms structured analysis results into various documentation formats, responsible for rendering outputs based on configuration and specific templates.",
+      "key_entities": [
+        {
+          "qualified_name": "DocumentationGenerator",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/markdown.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Persists/Retrieves Job State",
+      "src_name": "Workflow Orchestrator",
+      "dst_name": "Job Persistence Manager"
+    },
+    {
+      "relation": "Triggers Documentation Generation",
+      "src_name": "Workflow Orchestrator",
+      "dst_name": "Documentation Generator"
+    }
+  ]
+}

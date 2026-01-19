@@ -33,7 +33,8 @@ def from_component_to_json_component(component: Component, new_components: List[
     return ComponentJson(
         name=component.name,
         description=component.description,
-        referenced_source_code=component.referenced_source_code,
+        key_entities=component.key_entities,
+        source_cluster_ids=component.source_cluster_ids,
         assigned_files=component.assigned_files,
         can_expand=can_expand,
     )

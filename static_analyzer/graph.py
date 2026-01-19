@@ -1,11 +1,34 @@
 import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Optional
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ClusterResult:
+    """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
+
+    clusters: Dict[int, Set[str]] = field(default_factory=dict)  # cluster_id -> node names
+    file_to_clusters: Dict[str, Set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
+    cluster_to_files: Dict[int, Set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
+    strategy: str = ""  # which algorithm was used
+
+    def get_cluster_ids(self) -> Set[int]:
+        return set(self.clusters.keys())
+
+    def get_files_for_cluster(self, cluster_id: int) -> Set[str]:
+        return self.cluster_to_files.get(cluster_id, set())
+
+    def get_clusters_for_file(self, file_path: str) -> Set[int]:
+        return self.file_to_clusters.get(file_path, set())
+
+    def get_nodes_for_cluster(self, cluster_id: int) -> Set[str]:
+        return self.clusters.get(cluster_id, set())
 
 
 class ClusteringConfig:
@@ -93,14 +116,20 @@ class Edge:
 
 
 class CallGraph:
+    # Deterministic seed for clustering algorithms
+    CLUSTERING_SEED = 42
+
     def __init__(
         self, nodes: Dict[str, Node] | None = None, edges: List[Edge] | None = None, language: str = "python"
     ) -> None:
         self.nodes = nodes if nodes is not None else {}
         self.edges = edges if edges is not None else []
         self._edge_set: Set[Tuple[str, str]] = set()
+        self.language = language.lower()
         # Set delimiter based on language for qualified name parsing
-        self.delimiter = ClusteringConfig.DELIMITER_MAP.get(language.lower(), ClusteringConfig.DEFAULT_DELIMITER)
+        self.delimiter = ClusteringConfig.DELIMITER_MAP.get(self.language, ClusteringConfig.DEFAULT_DELIMITER)
+        # Cache for cluster result
+        self._cluster_cache: Optional[ClusterResult] = None
 
     def add_node(self, node: Node) -> None:
         if node.fully_qualified_name not in self.nodes:
@@ -134,25 +163,151 @@ class CallGraph:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
 
-    def to_cluster_string(self) -> str:
-        cfg_graph_x = self.to_networkx()
-        if cfg_graph_x.number_of_nodes() == 0:
-            summary = "No nodes available for clustering."
-            logger.warning(summary)
-            return summary
+    def cluster(
+        self,
+        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
+        min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
+    ) -> ClusterResult:
+        """
+        Perform deterministic clustering and return structured result with file mappings.
+
+        Results are cached - subsequent calls return the same ClusterResult.
+        Cluster IDs are stable and start from 1.
+
+        Args:
+            target_clusters: Target number of clusters to find
+            min_cluster_size: Minimum nodes per cluster
+
+        Returns:
+            ClusterResult with cluster_id -> nodes mapping and file <-> cluster bidirectional maps
+        """
+        if self._cluster_cache is not None:
+            return self._cluster_cache
+
+        nx_graph = self.to_networkx()
+        if nx_graph.number_of_nodes() == 0:
+            logger.warning("No nodes available for clustering.")
+            self._cluster_cache = ClusterResult(strategy="empty")
+            return self._cluster_cache
 
         communities, strategy_used = self._adaptive_clustering(
-            cfg_graph_x,
-            target_clusters=ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-            min_cluster_size=ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
+            nx_graph,
+            target_clusters=target_clusters,
+            min_cluster_size=min_cluster_size,
         )
 
         if not communities:
-            summary = "No significant clusters found."
-            logger.info(summary)
-            return summary
+            logger.info("No significant clusters found.")
+            self._cluster_cache = ClusterResult(strategy="none")
+            return self._cluster_cache
 
-        logger.info(f"Used clustering strategy: {strategy_used}, found {len(communities)} clusters")
+        # Sort communities by size (descending) for stable ordering
+        valid_communities = [c for c in communities if len(c) >= min_cluster_size]
+        sorted_communities = sorted(valid_communities, key=len, reverse=True)
+
+        # Build cluster mappings with 1-based IDs
+        clusters: Dict[int, Set[str]] = {}
+        file_to_clusters: Dict[str, Set[int]] = defaultdict(set)
+        cluster_to_files: Dict[int, Set[str]] = defaultdict(set)
+
+        for cluster_id, nodes in enumerate(sorted_communities, start=1):
+            clusters[cluster_id] = set(nodes)
+
+            for node_name in nodes:
+                if node_name in nx_graph.nodes:
+                    file_path = nx_graph.nodes[node_name].get("file_path")
+                    if file_path:
+                        file_to_clusters[file_path].add(cluster_id)
+                        cluster_to_files[cluster_id].add(file_path)
+
+        logger.info(f"Clustered {nx_graph.number_of_nodes()} nodes into {len(clusters)} clusters using {strategy_used}")
+
+        self._cluster_cache = ClusterResult(
+            clusters=clusters,
+            file_to_clusters=dict(file_to_clusters),
+            cluster_to_files=dict(cluster_to_files),
+            strategy=strategy_used,
+        )
+        return self._cluster_cache
+
+    def subgraph(self, cluster_ids: Set[int]) -> "CallGraph":
+        """
+        Create a new CallGraph containing only nodes from specified clusters.
+
+        The returned CallGraph is fully functional and can be clustered again,
+        converted to string, etc.
+
+        Args:
+            cluster_ids: Set of cluster IDs to include
+
+        Returns:
+            New CallGraph instance with only the specified clusters' nodes and their edges
+        """
+        cluster_result = self.cluster()
+
+        # Collect all nodes from requested clusters
+        nodes_to_include: Set[str] = set()
+        for cluster_id in cluster_ids:
+            nodes_to_include.update(cluster_result.get_nodes_for_cluster(cluster_id))
+
+        if not nodes_to_include:
+            logger.warning(f"No nodes found for cluster IDs: {cluster_ids}")
+            return CallGraph(language=self.language)
+
+        # Build new graph with filtered nodes and edges
+        new_nodes: Dict[str, Node] = {}
+        new_edges: List[Edge] = []
+
+        for node_name in nodes_to_include:
+            if node_name in self.nodes:
+                new_nodes[node_name] = self.nodes[node_name]
+
+        for edge in self.edges:
+            src = edge.get_source()
+            dst = edge.get_destination()
+            if src in nodes_to_include and dst in nodes_to_include:
+                new_edges.append(edge)
+
+        new_graph = CallGraph(nodes=new_nodes, edges=new_edges, language=self.language)
+        # Rebuild edge set for the new graph
+        new_graph._edge_set = {(e.get_source(), e.get_destination()) for e in new_edges}
+
+        logger.info(
+            f"Created subgraph with {len(new_nodes)} nodes and {len(new_edges)} edges from clusters {cluster_ids}"
+        )
+        return new_graph
+
+    def to_cluster_string(self, cluster_ids: Optional[Set[int]] = None) -> str:
+        """
+        Generate a human-readable string representation of clusters.
+
+        If cluster_ids is provided, only those clusters are included.
+        Uses cached cluster() result for consistency.
+
+        Args:
+            cluster_ids: Optional set of cluster IDs to include. If None, includes all.
+
+        Returns:
+            Formatted string with cluster definitions and inter-cluster connections
+        """
+        cluster_result = self.cluster()
+
+        if not cluster_result.clusters:
+            return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
+
+        cfg_graph_x = self.to_networkx()
+
+        # Filter clusters if specific IDs requested
+        if cluster_ids:
+            communities = [
+                cluster_result.clusters[cid] for cid in sorted(cluster_ids) if cid in cluster_result.clusters
+            ]
+            if not communities:
+                return f"No clusters found for IDs: {cluster_ids}"
+        else:
+            # Use all clusters, sorted by ID for consistent output
+            communities = [cluster_result.clusters[cid] for cid in sorted(cluster_result.clusters.keys())]
+
         top_nodes = set().union(*communities) if communities else set()
 
         cluster_str = self.__cluster_str(communities, cfg_graph_x)
@@ -325,12 +480,13 @@ class CallGraph:
         return original_communities
 
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str, target_clusters: int) -> list[set[str]]:
+        # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
         if algorithm == "louvain":
-            return list(nx_comm.louvain_communities(graph))
+            return list(nx_comm.louvain_communities(graph, seed=self.CLUSTERING_SEED))
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
         elif algorithm == "leiden":
-            return list(nx_comm.louvain_communities(graph))
+            return list(nx_comm.louvain_communities(graph, seed=self.CLUSTERING_SEED))
         else:
             logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
             return list(nx.community.greedy_modularity_communities(graph))

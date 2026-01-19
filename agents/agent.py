@@ -286,6 +286,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 return self._try_parse(message, parser)
             parser = PydanticOutputParser(pydantic_object=return_type)
             return self._try_parse(response, parser)
+        except AttributeError as e:
+            # Workaround for trustcall bug: https://github.com/hinthornw/trustcall/issues/47
+            # 'ExtractionState' object has no attribute 'tool_call_id' occurs during validation retry
+            if "tool_call_id" in str(e):
+                logger.warning(f"Trustcall bug encountered, falling back to Pydantic parser: {e}")
+                parser = PydanticOutputParser(pydantic_object=return_type)
+                return self._try_parse(response, parser)
+            raise
         except IndexError as e:
             # try to parse with the json parser if possible
             logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
