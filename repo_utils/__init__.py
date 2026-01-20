@@ -95,20 +95,42 @@ def get_repo_name(repo_url: str):
 def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
     repo_url = sanitize_repo_url(repo_url)
     if not remote_repo_exists(repo_url):
-        raise RepoDontExistError()
+        raise RepoDontExistError(repo_url)
 
     repo_name = get_repo_name(repo_url)
 
     dest = target_dir / repo_name
     if dest.exists():
-        logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+        logger.info(f"Repository {repo_name} already exists at {dest}, updating...")
         repo = Repo(dest)
+        # Fetch first - always works even in detached HEAD state
+        repo.remotes.origin.fetch()
+        # Get default branch name (usually 'main' or 'master')
+        default_branch = _get_default_branch(repo)
+        # Checkout the default branch and pull to get latest
+        repo.git.checkout(default_branch)
         repo.remotes.origin.pull()
     else:
         logger.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
     logger.info("Cloning finished!")
     return repo_name
+
+
+def _get_default_branch(repo) -> str:
+    """Get the default branch name (main or master) for a repository."""
+    # Check remote HEAD to find default branch
+    try:
+        # Try to get from remote HEAD reference
+        for ref in repo.remotes.origin.refs:
+            if ref.name == "origin/main":
+                return "main"
+            if ref.name == "origin/master":
+                return "master"
+    except Exception:
+        pass
+    # Fallback to 'main'
+    return "main"
 
 
 @require_git_import()
@@ -120,6 +142,21 @@ def checkout_repo(repo_dir: Path, branch: str = "main") -> None:
     logger.info(f"Checking out branch {branch}.")
     repo.git.checkout(branch)
     repo.git.pull()  # Ensure we have the latest changes
+
+
+@require_git_import()
+def checkout_commit(repo_dir: Path, commit_hash: str) -> None:
+    """
+    Checkout a specific commit in the repository.
+
+    Args:
+        repo_dir: Path to the repository
+        commit_hash: Full or short commit hash to checkout
+    """
+    repo = Repo(repo_dir)
+    logger.info(f"Checking out commit {commit_hash[:7]}...")
+    repo.git.checkout(commit_hash)
+    logger.info(f"Successfully checked out commit {commit_hash[:7]}")
 
 
 def store_token():
@@ -175,6 +212,10 @@ def get_git_commit_hash(repo_dir: str) -> str:
 def get_branch(repo_dir: Path) -> str:
     """
     Get the current branch name of the repository.
+    Returns the commit hash if HEAD is detached.
     """
     repo = Repo(repo_dir)
-    return repo.active_branch.name if repo.active_branch else "main"
+    if repo.head.is_detached:
+        # Checked out to a specific commit
+        return repo.head.commit.hexsha[:7]
+    return repo.active_branch.name

@@ -116,6 +116,7 @@ class DatasetEntry(BaseModel):
     graph_id: str = ""
     code_size: str = ""
     level_of_depth: int = 1
+    ground_truth_commit: str | None = None  # Git commit hash the ground truth was labelled for
     data: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
@@ -124,6 +125,7 @@ class DatasetEntry(BaseModel):
             graph_id=raw.get("graph_id", ""),
             code_size=raw.get("code_size", ""),
             level_of_depth=raw.get("level_of_depth", 1),
+            ground_truth_commit=raw.get("ground_truth_commit"),
             data=raw,
         )
 

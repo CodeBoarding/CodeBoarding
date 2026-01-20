@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import requests
@@ -13,7 +14,14 @@ from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
-from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
+from repo_utils import (
+    clone_repository,
+    checkout_commit,
+    get_branch,
+    get_repo_name,
+    store_token,
+    upload_onboarding_materials,
+)
 from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
 from monitoring import monitor_execution
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
@@ -181,6 +189,7 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    commit: str | None = None,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -198,6 +207,10 @@ def process_remote_repository(
     # Clone repository
     repo_name = clone_repository(repo_url, repo_root)
     repo_path = repo_root / repo_name
+
+    # Checkout specific commit if specified
+    if commit:
+        checkout_commit(repo_path, commit)
 
     temp_folder = create_temp_repo_folder()
 
@@ -352,6 +365,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
     )
+    parser.add_argument("--commit", type=str, help="Specific commit hash to checkout after cloning (remote repos only)")
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
@@ -448,6 +462,7 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
+                            commit=args.commit,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")

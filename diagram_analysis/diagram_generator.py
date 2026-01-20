@@ -27,6 +27,7 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import StaticAnalyzer
 from static_analyzer.scanner import ProjectScanner
+from static_analyzer.analysis_result import StaticAnalysisResults
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,30 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+
+    def _get_static_analysis(self):
+        """Get static analysis results, using cache if available."""
+
+        cache_dir = os.environ.get("STATIC_ANALYSIS_CACHE_DIR")
+        expected_commit = os.environ.get("STATIC_ANALYSIS_CACHE_COMMIT")
+
+        # Try to load from cache if env vars are set
+        if cache_dir and expected_commit:
+            cache_path = Path(cache_dir)
+            cached = StaticAnalysisResults.load_from_cache(cache_path, expected_commit)
+            if cached is not None:
+                return cached
+
+        # Run fresh static analysis
+        static_analysis = StaticAnalyzer(self.repo_location).analyze()
+
+        # Save to cache if env vars are set
+        if cache_dir and expected_commit:
+            cache_path = Path(cache_dir)
+            # Use expected_commit for cache key so subsequent runs can find it
+            static_analysis.save_to_cache(cache_path, expected_commit)
+
+        return static_analysis
 
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
@@ -113,7 +138,7 @@ class DiagramGenerator:
 
     def pre_analysis(self):
         analysis_start_time = time.time()
-        static_analysis = StaticAnalyzer(self.repo_location).analyze()
+        static_analysis = self._get_static_analysis()
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}

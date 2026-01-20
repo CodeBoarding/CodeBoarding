@@ -98,6 +98,7 @@ class ProjectSpec:
     expected_language: str = ""
     env_vars: dict[str, str] = field(default_factory=dict)
     code_size: str | None = None  # e.g. "small", "medium", "large"
+    ground_truth_commit: str | None = None  # Git commit hash the ground truth was labelled for
 
 
 @dataclass

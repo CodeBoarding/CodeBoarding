@@ -5,6 +5,8 @@ import sys
 from typing import Any, Tuple
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Ensure we can import from parent directory if run as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -35,6 +37,13 @@ def parse_args():
         "--report-only",
         action="store_true",
         help="Skip pipeline execution and generate reports from existing artifacts",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Run N projects concurrently (default: sequential)",
     )
     return parser.parse_args()
 
@@ -67,7 +76,12 @@ def main():
 
     for eval_instance, projects, extra_args in evals_to_run:
         try:
-            eval_instance.run(projects, extra_args, report_only=args.report_only)
+            eval_instance.run(
+                projects,
+                extra_args,
+                report_only=args.report_only,
+                max_concurrency=args.parallel,
+            )
         except Exception as e:
             logger.error(f"Evaluation {eval_instance.name} failed: {e}")
             # We continue to next eval if one fails

@@ -1,9 +1,72 @@
+import logging
+import pickle
+from pathlib import Path
+from typing import Any
+
 from static_analyzer.graph import Node, CallGraph
+
+logger = logging.getLogger(__name__)
 
 
 class StaticAnalysisResults:
     def __init__(self):
         self.results = {}
+
+    def save_to_cache(self, cache_dir: Path, commit_hash: str) -> None:
+        """Save static analysis results to cache using pickle.
+
+        The cache file is named after the commit hash (e.g., ae0528d.pkl).
+        """
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = cache_dir / f"{commit_hash}.pkl"
+
+        try:
+            with open(cache_file, "wb") as f:
+                pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            logger.info(f"💾 Static analysis cached for commit {commit_hash[:7]} at {cache_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save static analysis cache: {e}")
+            if cache_file.exists():
+                cache_file.unlink()
+
+    @classmethod
+    def load_from_cache(cls, cache_dir: Path, expected_commit: str) -> "StaticAnalysisResults | None":
+        """Load static analysis results from cache if commit matches.
+
+        Looks for a pickle file named after the expected commit (e.g., ae0528d.pkl).
+        """
+        cache_file = cache_dir / f"{expected_commit}.pkl"
+
+        logger.debug(f"Looking for cache at: {cache_file}")
+
+        if not cache_file.exists():
+            logger.info(f"📭 Static analysis cache miss: {cache_file} not found")
+            return None
+
+        # Check if cache file is empty or too small to be valid
+        if cache_file.stat().st_size < 100:
+            logger.info(f"📭 Static analysis cache miss: {cache_file} is empty or corrupted")
+            return None
+
+        try:
+            with open(cache_file, "rb") as f:
+                result = pickle.load(f)
+
+            # Validate it's the right type
+            if not isinstance(result, cls):
+                logger.warning(f"📭 Static analysis cache miss: unexpected type {type(result)}")
+                return None
+
+            logger.info(f"✨ Static analysis cache hit for commit {expected_commit[:7]}")
+            return result
+
+        except (pickle.UnpicklingError, EOFError) as e:
+            logger.warning(f"📭 Static analysis cache miss: corrupted pickle data: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"📭 Static analysis cache miss: error loading cache: {e}")
+            return None
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """

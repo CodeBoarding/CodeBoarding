@@ -486,6 +486,11 @@ class LSPClient(ABC):
                         logger.error(f"Exception processing {file_path}: {e}")
                     finally:
                         pbar.update(1)
+                        # Log progress to the log file every 10% or at completion
+                        if pbar.n % max(1, total_files // 10) == 0 or pbar.n == pbar.total:
+                            logger.info(
+                                f"[Unified Analysis] Progress: {pbar.n}/{pbar.total} files ({(pbar.n/pbar.total)*100:.1f}%)"
+                            )
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 

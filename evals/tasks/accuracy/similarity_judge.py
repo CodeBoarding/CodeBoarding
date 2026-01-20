@@ -162,10 +162,15 @@ class DiagramSimilarityJudge:
                     time.sleep(backoff)
                     backoff *= BACKOFF_MULTIPLIER
                 else:
-                    logger.exception(
+                    logger.error(
                         "LLM call failed after %d attempts: %s",
                         MAX_RETRIES,
                         last_exception,
+                        exc_info=True,
                     )
 
+        logger.error(
+            "Returning invalid SimilarityScore (score=None) due to scoring failure. "
+            "Check previous warnings/errors for details."
+        )
         return SimilarityScore()

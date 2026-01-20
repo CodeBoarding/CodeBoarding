@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import json
 import logging
@@ -26,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 class BaseEval(ABC):
     def __init__(self, name: str, output_dir: Path):
-        load_dotenv()
         self.name = name
         self.output_dir = output_dir
         self.results: list[EvalResult] = []
@@ -94,6 +94,9 @@ class BaseEval(ABC):
             project_name,
             "--load-env-variables",
         ]
+        # Checkout specific commit if ground_truth_commit is specified
+        if project.ground_truth_commit:
+            cmd.extend(["--commit", project.ground_truth_commit])
         if extra_args:
             cmd.extend(extra_args)
 
@@ -132,6 +135,83 @@ class BaseEval(ABC):
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
+    async def run_pipeline_async(
+        self,
+        project: ProjectSpec,
+        extra_args: list[str] | None = None,
+        env_vars: dict[str, str] | None = None,
+    ) -> PipelineResult:
+        """Async version of run_pipeline using asyncio subprocess."""
+        repo_url = project.url
+        project_name = project.name
+        output_dir = self.project_root / "evals/artifacts" / project_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Running pipeline for {project_name} ({repo_url})")
+
+        env = os.environ.copy()
+        env["ENABLE_MONITORING"] = "true"
+        if not env.get("REPO_ROOT"):
+            env["REPO_ROOT"] = "repos"
+
+        if project.env_vars:
+            env.update(project.env_vars)
+
+        if env_vars:
+            env.update(env_vars)
+
+        cmd = [
+            sys.executable,
+            "main.py",
+            repo_url,
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            project_name,
+            "--load-env-variables",
+        ]
+        # Checkout specific commit if ground_truth_commit is specified
+        if project.ground_truth_commit:
+            cmd.extend(["--commit", project.ground_truth_commit])
+        if extra_args:
+            cmd.extend(extra_args)
+
+        start_time = time.time()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=self.project_root,
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1800)
+                duration = time.time() - start_time
+                return PipelineResult(
+                    success=proc.returncode == 0,
+                    stderr=stderr.decode()[-500:] if stderr else "",
+                    pipeline_duration=duration,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return PipelineResult(
+                    success=False,
+                    stderr="Pipeline timed out (30 minutes)",
+                    pipeline_duration=time.time() - start_time,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+        except Exception as e:
+            return PipelineResult(
+                success=False,
+                stderr=str(e),
+                pipeline_duration=time.time() - start_time,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+
     @abstractmethod
     def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
         """Subclasses must implement this to pick what they care about."""
@@ -142,25 +222,89 @@ class BaseEval(ABC):
         """Subclasses must implement this to format their specific Markdown report."""
         pass
 
-    def run(
-        self, projects: list[ProjectSpec], extra_args: list[str] | None = None, report_only: bool = False
-    ) -> dict[str, Any]:
-        """Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report"""
-        logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
+    def _process_project(
+        self,
+        project: ProjectSpec,
+        extra_args: list[str] | None,
+        report_only: bool,
+    ) -> EvalResult:
+        """Process a single project: run pipeline, get data, extract metrics."""
+        logger.info(f"\n{'='*60}\nProject: {project.name}\n{'='*60}")
 
-        start_time = time.time()
-        self.results = []
-        for project in projects:
+        pipeline_result = None
+
+        # 1. Run Pipeline
+        if not report_only:
+            pipeline_result = self.run_pipeline(project, extra_args)
+
+        # 2. Get Data
+        run_data = self.get_latest_run_data(project.name)
+
+        if report_only:
+            meta = run_data.metadata
+            if meta:
+                pipeline_result = PipelineResult(
+                    success=meta.get("success", False),
+                    stderr=meta.get("error") or "",
+                    pipeline_duration=meta.get("duration_seconds", 0.0),
+                    timestamp=meta.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                )
+            else:
+                logger.warning(f"No run data found for {project.name}, skipping report generation for this project.")
+                pipeline_result = PipelineResult(
+                    success=False,
+                    stderr="No previous run data found for report generation",
+                    pipeline_duration=0.0,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+
+        # 3. Extract Metrics
+        metrics = self.extract_metrics(project, run_data)
+
+        assert pipeline_result is not None
+
+        eval_result = EvalResult(
+            project=project.name,
+            url=project.url,
+            expected_language=project.expected_language,
+            success=pipeline_result.success,
+            duration_seconds=pipeline_result.pipeline_duration,
+            timestamp=pipeline_result.timestamp,
+            error=pipeline_result.stderr if not pipeline_result.success else None,
+            metrics=metrics,
+        )
+
+        if pipeline_result.success:
+            meta = run_data.metadata
+            if meta:
+                eval_result.duration_seconds = meta.get("duration_seconds", eval_result.duration_seconds)
+
+        if eval_result.success:
+            logger.info(f"✅ {project.name} completed in {eval_result.duration_seconds:.1f}s")
+        else:
+            logger.error(f"❌ {project.name} failed: {str(eval_result.error)[:100]}")
+
+        return eval_result
+
+    async def _process_project_async(
+        self,
+        project: ProjectSpec,
+        extra_args: list[str] | None,
+        report_only: bool,
+        semaphore: asyncio.Semaphore,
+    ) -> EvalResult:
+        """Async version: process a single project with semaphore for concurrency control."""
+        async with semaphore:
             logger.info(f"\n{'='*60}\nProject: {project.name}\n{'='*60}")
 
             pipeline_result = None
 
             # 1. Run Pipeline
             if not report_only:
-                pipeline_result = self.run_pipeline(project, extra_args)
+                pipeline_result = await self.run_pipeline_async(project, extra_args)
 
-            # 2. Get Data
-            run_data = self.get_latest_run_data(project.name)
+            # 2. Get Data (sync, run in thread pool)
+            run_data = await asyncio.to_thread(self.get_latest_run_data, project.name)
 
             if report_only:
                 meta = run_data.metadata
@@ -182,13 +326,11 @@ class BaseEval(ABC):
                         timestamp=datetime.now(timezone.utc).isoformat(),
                     )
 
-            # 3. Extract Metrics
-            metrics = self.extract_metrics(project, run_data)
+            # 3. Extract Metrics (may involve LLM calls, run in thread pool)
+            metrics = await asyncio.to_thread(self.extract_metrics, project, run_data)
 
-            # Ensure pipeline_result is set
             assert pipeline_result is not None
 
-            # Construct EvalResult
             eval_result = EvalResult(
                 project=project.name,
                 url=project.url,
@@ -200,18 +342,86 @@ class BaseEval(ABC):
                 metrics=metrics,
             )
 
-            # Also pull success/error from metadata if available and successful
             if pipeline_result.success:
                 meta = run_data.metadata
                 if meta:
                     eval_result.duration_seconds = meta.get("duration_seconds", eval_result.duration_seconds)
 
-            self.results.append(eval_result)
-
             if eval_result.success:
                 logger.info(f"✅ {project.name} completed in {eval_result.duration_seconds:.1f}s")
             else:
                 logger.error(f"❌ {project.name} failed: {str(eval_result.error)[:100]}")
+
+            return eval_result
+
+    async def _run_concurrent(
+        self,
+        projects: list[ProjectSpec],
+        extra_args: list[str] | None,
+        report_only: bool,
+        max_concurrency: int,
+    ) -> list[EvalResult]:
+        """Run all projects concurrently with semaphore-based backpressure."""
+        semaphore = asyncio.Semaphore(max_concurrency)
+        logger.info(f"Running {len(projects)} projects concurrently (max_concurrency={max_concurrency})")
+
+        tasks = [self._process_project_async(project, extra_args, report_only, semaphore) for project in projects]
+
+        # gather with return_exceptions=True so one failure doesn't stop others
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert exceptions to failed EvalResults
+        eval_results: list[EvalResult] = []
+        for project, result in zip(projects, results):
+            if isinstance(result, Exception):
+                logger.error(f"❌ {project.name} raised exception: {result}")
+                eval_results.append(
+                    EvalResult(
+                        project=project.name,
+                        url=project.url,
+                        expected_language=project.expected_language,
+                        success=False,
+                        duration_seconds=0.0,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                        error=str(result),
+                        metrics={},
+                    )
+                )
+            else:
+                eval_results.append(result)
+
+        return eval_results
+
+    def run(
+        self,
+        projects: list[ProjectSpec],
+        extra_args: list[str] | None = None,
+        report_only: bool = False,
+        max_concurrency: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Orchestrator: Runs pipeline -> Extracts metrics -> Generates Report.
+
+        Args:
+            projects: List of projects to evaluate
+            extra_args: Additional CLI args to pass to the pipeline
+            report_only: Skip pipeline, generate report from existing artifacts
+            max_concurrency: Number of projects to run in parallel.
+                             None = sequential (default), 1+ = parallel with that limit.
+        """
+        logger.info(f"Starting {self.name} evaluation for {len(projects)} projects")
+
+        start_time = time.time()
+
+        if max_concurrency is not None and max_concurrency >= 1:
+            # Parallel execution
+            self.results = asyncio.run(self._run_concurrent(projects, extra_args, report_only, max_concurrency))
+        else:
+            # Sequential execution (original behavior)
+            self.results = []
+            for project in projects:
+                eval_result = self._process_project(project, extra_args, report_only)
+                self.results.append(eval_result)
 
         # 4. Generate & Save Report
         self.total_duration_seconds = time.time() - start_time

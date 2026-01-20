@@ -17,7 +17,7 @@ from evals.tasks.accuracy.models import (
 )
 from evals.tasks.accuracy.score_history import ScoreHistoryStore, get_system_specs
 from evals.tasks.accuracy.similarity_judge import DiagramSimilarityJudge
-from evals.schemas import EvalResult, ProjectSpec, RunData
+from evals.schemas import EvalResult, PipelineResult, ProjectSpec, RunData
 from evals.utils import get_git_commit_short
 
 from evals.tasks.accuracy.level_two import (  # noqa: F401
@@ -100,6 +100,7 @@ class AccuracyEval(BaseEval):
                         expected_language=project.expected_language,
                         env_vars=env_vars,
                         code_size=project.code_size,
+                        ground_truth_commit=project.ground_truth_commit,
                     )
                 )
 
@@ -120,13 +121,54 @@ class AccuracyEval(BaseEval):
             depth_level=depth_level,
         )
 
+        # Warn if ground truth commit doesn't match config commit
+        self._check_commit_mismatch(project, entries)
+
         return [self._dataset_manager.get_raw_data(e) for e in entries]
+
+    def _check_commit_mismatch(
+        self,
+        project: ProjectSpec,
+        entries: list,
+    ) -> None:
+        """Warn if the ground truth commit doesn't match the project config commit."""
+        from evals.tasks.accuracy.models import DatasetEntry
+
+        config_commit = project.ground_truth_commit
+        if not config_commit:
+            return
+
+        for entry in entries:
+            if not isinstance(entry, DatasetEntry):
+                continue
+
+            dataset_commit = entry.ground_truth_commit
+            if not dataset_commit:
+                logger.warning(
+                    "Dataset entry '%s' (depth=%d) has no ground_truth_commit specified. "
+                    "Consider adding it to ensure evaluation consistency.",
+                    entry.graph_id,
+                    entry.level_of_depth,
+                )
+                continue
+
+            if dataset_commit != config_commit:
+                logger.warning(
+                    "Commit mismatch for '%s' (depth=%d): "
+                    "config specifies '%s' but ground truth was labelled for '%s'. "
+                    "Results may not be accurate if the codebase has changed.",
+                    entry.graph_id,
+                    entry.level_of_depth,
+                    config_commit,
+                    dataset_commit,
+                )
 
     def run(
         self,
         projects: list[ProjectSpec],
         extra_args: list[str] | None = None,
         report_only: bool = False,
+        max_concurrency: int | None = None,
     ) -> dict[str, Any]:
         # Ensure datasets are downloaded from Hugging Face before starting evaluation
         logger.info("Ensuring evaluation datasets are available...")
@@ -134,15 +176,46 @@ class AccuracyEval(BaseEval):
 
         self._report_only = report_only
         expanded_projects = self._expand_projects_for_depths(projects)
-        return super().run(expanded_projects, extra_args, report_only=report_only)
+        return super().run(
+            expanded_projects,
+            extra_args,
+            report_only=report_only,
+            max_concurrency=max_concurrency,
+        )
 
     def run_pipeline(
         self,
         project: ProjectSpec,
         extra_args: list[str] | None = None,
         env_vars: dict[str, str] | None = None,
-    ):
-        return super().run_pipeline(project, extra_args=extra_args, env_vars=env_vars)
+    ) -> PipelineResult:
+        # Set up static analysis cache directory for this project
+        cache_env = self._get_static_analysis_cache_env(project)
+        merged_env = {**(env_vars or {}), **cache_env}
+        return super().run_pipeline(project, extra_args=extra_args, env_vars=merged_env)
+
+    async def run_pipeline_async(
+        self,
+        project: ProjectSpec,
+        extra_args: list[str] | None = None,
+        env_vars: dict[str, str] | None = None,
+    ) -> PipelineResult:
+        # Set up static analysis cache directory for this project
+        cache_env = self._get_static_analysis_cache_env(project)
+        merged_env = {**(env_vars or {}), **cache_env}
+        return await super().run_pipeline_async(project, extra_args=extra_args, env_vars=merged_env)
+
+    def _get_static_analysis_cache_env(self, project: ProjectSpec) -> dict[str, str]:
+        """Get environment variables for static analysis caching."""
+        if not project.ground_truth_commit:
+            return {}
+
+        # Cache directory: evals/artifacts/<project>/static_analysis_cache/
+        cache_dir = self.project_root / "evals" / "artifacts" / project.name / "static_analysis_cache"
+        return {
+            "STATIC_ANALYSIS_CACHE_DIR": str(cache_dir),
+            "STATIC_ANALYSIS_CACHE_COMMIT": project.ground_truth_commit,
+        }
 
     def extract_metrics(self, project: ProjectSpec, run_data: RunData) -> dict[str, Any]:
         try:
