@@ -1,43 +1,143 @@
 {
-  "description": "",
+  "description": "Language Server Protocol client for performing static analysis of codebases. Manages LSP server lifecycle, performs workspace initialization, and analyzes source files to extract symbols, call relationships, and class hierarchies.",
   "components": [
     {
       "name": "Initialize Workspace",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Starts the LSP server process, performs initialization handshake, and configures workspace capabilities for symbol analysis, call hierarchy, and type hierarchy.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.__init__",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 68,
+          "reference_end_line": 94
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.start",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 96,
+          "reference_end_line": 106
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._initialize",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 232,
+          "reference_end_line": 250
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/client.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Prepare for Analysis",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Handles LSP message reading, request/response management, and notification handling. Manages the communication protocol with the language server.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._send_request",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 108,
+          "reference_end_line": 127
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._read_messages",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 143,
+          "reference_end_line": 173
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._wait_for_response",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 175,
+          "reference_end_line": 183
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/client.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Get Classes",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Extracts class symbols from source files, finds class hierarchies including superclasses and subclasses, and resolves fully qualified class names.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._find_classes_in_symbols",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 1009,
+          "reference_end_line": 1017
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._find_subclasses",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 929,
+          "reference_end_line": 971
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._resolve_class_name",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 973,
+          "reference_end_line": 1007
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/client.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Analyze Single File",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Performs comprehensive analysis of a single source file, extracting document symbols, call relationships, imports, and class hierarchies.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.FileAnalysisResult",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 43,
+          "reference_end_line": 56
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._extract_imports_from_symbols",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 1019,
+          "reference_end_line": 1062
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._find_external_references",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 1102,
+          "reference_end_line": 1115
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/client.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Static Analysis Results",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Container for aggregated static analysis results including call graph, class hierarchies, package dependencies, and symbol references.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": 4,
+          "reference_end_line": 176
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": 118,
+          "reference_end_line": 808
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/graph.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     }

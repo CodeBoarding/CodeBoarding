@@ -23,7 +23,26 @@
     {
       "name": "LSP Client",
       "description": "Abstract base class implementing the Language Server Protocol for code analysis. Manages LSP server lifecycle, sends/receives JSON-RPC messages, extracts document symbols, call hierarchies, type hierarchies, and references from source files.",
-      "key_entities": [],
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.__init__",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 68,
+          "reference_end_line": 94
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.start",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 96,
+          "reference_end_line": 106
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._initialize",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 232,
+          "reference_end_line": 257
+        }
+      ],
       "assigned_files": [
         "./static_analyzer/__init__.py",
         "./static_analyzer/lsp_client/__init__.py",
@@ -63,7 +82,20 @@
     {
       "name": "Static Analysis Results",
       "description": "Data structures and utilities for storing and querying analysis outputs. Contains CallGraph (nodes, edges, clustering), StaticAnalysisResults (CFG, hierarchies, dependencies, references per language), and ReferenceResolverMixin for resolving qualified names to source locations.",
-      "key_entities": [],
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": 4,
+          "reference_end_line": 176
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": 118,
+          "reference_end_line": 808
+        }
+      ],
       "assigned_files": [
         "./static_analyzer/graph.py",
         "./static_analyzer/analysis_result.py",

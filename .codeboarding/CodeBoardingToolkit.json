@@ -27,7 +27,7 @@
           "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
           "reference_file": "./static_analyzer/analysis_result.py",
           "reference_start_line": 4,
-          "reference_end_line": 177
+          "reference_end_line": 176
         }
       ],
       "assigned_files": [
@@ -46,7 +46,7 @@
           "qualified_name": "agents.tools.base.RepoContext",
           "reference_file": "./agents/tools/base.py",
           "reference_start_line": 10,
-          "reference_end_line": 54
+          "reference_end_line": 55
         },
         {
           "qualified_name": "agents.tools.base.BaseRepoTool",
@@ -211,8 +211,8 @@
         {
           "qualified_name": "repo_utils.git_diff.FileChange",
           "reference_file": "./repo_utils/git_diff.py",
-          "reference_start_line": 1,
-          "reference_end_line": 50
+          "reference_start_line": 7,
+          "reference_end_line": 23
         }
       ],
       "assigned_files": [

@@ -9,7 +9,7 @@
           "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
           "reference_file": "./static_analyzer/analysis_result.py",
           "reference_start_line": 4,
-          "reference_end_line": 177
+          "reference_end_line": 176
         }
       ],
       "assigned_files": [
@@ -73,13 +73,13 @@
           "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
           "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": 35,
-          "reference_end_line": 217
+          "reference_end_line": 112
         },
         {
           "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
           "reference_file": "agents/prompts/abstract_prompt_factory.py",
           "reference_start_line": 10,
-          "reference_end_line": 88
+          "reference_end_line": 87
         }
       ],
       "assigned_files": [
@@ -104,7 +104,7 @@
           "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
           "reference_file": "agents/tools/toolkit.py",
           "reference_start_line": 20,
-          "reference_end_line": 118
+          "reference_end_line": 117
         }
       ],
       "assigned_files": [
@@ -120,7 +120,12 @@
         "./agents/tools/read_file.py",
         "./agents/tools/external_deps.py",
         "./agents/tools/base.py",
-        "./agents/tools/read_structure.py"
+        "./agents/tools/read_structure.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./repo_utils/ignore.py",
+        "./repo_utils/git_diff.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -146,21 +151,19 @@
       "name": "DetailsAgent",
       "description": "An agent that generates detailed documentation for individual components by analyzing their CFG subgraphs, code structure, and relationships. Executes a multi-step pipeline: CFG filtering, CFG analysis, structure enhancement, and final analysis generation with feedback integration.",
       "key_entities": [
-         {
+        {
           "qualified_name": "agents.details_agent.DetailsAgent",
           "reference_file": "agents/details_agent.py",
           "reference_start_line": 31,
-          "reference_end_line": 175
+          "reference_end_line": 174
         }
       ],
       "assigned_files": [
         "./agents/details_agent.py",
         "./agents/agent_responses.py",
         "./agents/cluster_methods_mixin.py",
-        "./agents/tools/toolkit.py",
         "./static_analyzer/reference_resolve_mixin.py",
-        "./static_analyzer/graph.py",
-        "./static_analyzer/analysis_result.py"
+        "./static_analyzer/graph.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -169,21 +172,21 @@
       "name": "AbstractionAgent",
       "description": "An agent that performs high-level architectural analysis by interpreting CFG clusters to identify abstract components and their relationships. Generates project-wide AnalysisInsights by analyzing cluster patterns and producing component groupings with validated source code references.",
       "key_entities": [
-         {
+        {
           "qualified_name": "agents.abstraction_agent.AbstractionAgent",
           "reference_file": "agents/abstraction_agent.py",
           "reference_start_line": 27,
-          "reference_end_line": 106
+          "reference_end_line": 105
         }
       ],
       "assigned_files": [
         "./agents/abstraction_agent.py",
         "./agents/cluster_methods_mixin.py",
         "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/__init__.py",
         "./agents/tools/toolkit.py",
         "./static_analyzer/graph.py",
-        "./static_analyzer/reference_resolve_mixin.py",
-        "./diagram_analysis/analysis_json.py"
+        "./static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -196,15 +199,16 @@
           "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
           "reference_file": "agents/diff_analyzer.py",
           "reference_start_line": 21,
-          "reference_end_line": 212
+          "reference_end_line": 211
         }
       ],
       "assigned_files": [
-        "./diagram_analysis/version.py",
         "./agents/diff_analyzer.py",
+        "./agents/agent_responses.py",
         "./agents/tools/toolkit.py",
-        "./repo_utils/git_diff.py",
-        "./repo_utils/ignore.py"
+        "./agents/tools/read_git_diff.py",
+        "./diagram_analysis/version.py",
+        "./repo_utils/git_diff.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -217,13 +221,15 @@
           "qualified_name": "agents.meta_agent.MetaAgent",
           "reference_file": "agents/meta_agent.py",
           "reference_start_line": 16,
-          "reference_end_line": 41
+          "reference_end_line": 40
         }
       ],
       "assigned_files": [
         "./agents/meta_agent.py",
-        "./agents/tools/toolkit.py",
-        "./agents/agent_responses.py"
+        "./agents/agent_responses.py",
+        "./agents/tools/read_docs.py",
+        "./agents/tools/external_deps.py",
+        "./agents/tools/read_file_structure.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -236,13 +242,13 @@
           "qualified_name": "agents.planner_agent.PlannerAgent",
           "reference_file": "agents/planner_agent.py",
           "reference_start_line": 13,
-          "reference_end_line": 34
+          "reference_end_line": 33
         }
       ],
       "assigned_files": [
         "./agents/planner_agent.py",
-        "./agents/tools/toolkit.py",
-        "./agents/agent_responses.py"
+        "./agents/agent_responses.py",
+        "./agents/tools/toolkit.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -260,7 +266,6 @@
       ],
       "assigned_files": [
         "./agents/validator_agent.py",
-        "./agents/tools/toolkit.py",
         "./agents/agent_responses.py",
         "./agents/prompts/prompt_factory.py",
         "./static_analyzer/analysis_result.py"

@@ -9,7 +9,7 @@
           "qualified_name": "agents.agent_responses.Component",
           "reference_file": "agents/agent_responses.py",
           "reference_start_line": 116,
-          "reference_end_line": 146
+          "reference_end_line": 147
         }
       ],
       "assigned_files": [
@@ -26,13 +26,13 @@
           "qualified_name": "static_analyzer.graph.CallGraph",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": 118,
-          "reference_end_line": 232
+          "reference_end_line": 231
         },
         {
           "qualified_name": "static_analyzer.graph.CallGraph.subgraph",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": 233,
-          "reference_end_line": 280
+          "reference_end_line": 278
         }
       ],
       "assigned_files": [

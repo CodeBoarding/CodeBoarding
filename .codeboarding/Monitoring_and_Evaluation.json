@@ -1,43 +1,257 @@
 {
-  "description": "",
+  "description": "Provides runtime monitoring, event callbacks, statistics tracking, and evaluation framework for measuring pipeline performance across different projects and configurations.",
   "components": [
     {
       "name": "Monitor Execution Start",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Initializes monitoring lifecycle with context management, sets up JSONL tracing for execution events, and manages the global RunStats container for thread-safe statistics collection.",
+      "key_entities": [
+        {
+          "entity_name": "monitor_execution",
+          "entity_type": "function",
+          "file_path": "monitoring/context.py",
+          "line": 19
+        },
+        {
+          "entity_name": "MonitorContext",
+          "entity_type": "class",
+          "file_path": "monitoring/context.py",
+          "line": 73
+        },
+        {
+          "entity_name": "trace",
+          "entity_type": "function",
+          "file_path": "monitoring/context.py",
+          "line": 116
+        },
+        {
+          "entity_name": "current_step",
+          "entity_type": "variable",
+          "file_path": "monitoring/context.py",
+          "line": 13
+        }
+      ],
+      "assigned_files": [
+        "monitoring/context.py",
+        "monitoring/mixin.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
       "name": "Event Callbacks",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Captures LLM events (token usage, tool invocations, errors) using LangChain's callback system, tags events with the current execution step, and updates statistics in real-time.",
+      "key_entities": [
+        {
+          "entity_name": "MonitoringCallback",
+          "entity_type": "class",
+          "file_path": "monitoring/callbacks.py",
+          "line": 16
+        },
+        {
+          "entity_name": "MonitoringMixin",
+          "entity_type": "class",
+          "file_path": "monitoring/mixin.py",
+          "line": 5
+        },
+        {
+          "entity_name": "on_llm_end",
+          "entity_type": "method",
+          "file_path": "monitoring/callbacks.py",
+          "line": 43
+        },
+        {
+          "entity_name": "on_tool_start",
+          "entity_type": "method",
+          "file_path": "monitoring/callbacks.py",
+          "line": 63
+        },
+        {
+          "entity_name": "on_tool_end",
+          "entity_type": "method",
+          "file_path": "monitoring/callbacks.py",
+          "line": 80
+        },
+        {
+          "entity_name": "on_tool_error",
+          "entity_type": "method",
+          "file_path": "monitoring/callbacks.py",
+          "line": 90
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py",
+        "monitoring/mixin.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
       "name": "Run Recordings",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Persists monitoring data including LLM usage stats, run metadata, and code statistics to JSON files. Handles periodic streaming writes and atomic file operations.",
+      "key_entities": [
+        {
+          "entity_name": "StreamingStatsWriter",
+          "entity_type": "class",
+          "file_path": "monitoring/writers.py",
+          "line": 18
+        },
+        {
+          "entity_name": "save_static_stats",
+          "entity_type": "function",
+          "file_path": "monitoring/writers.py",
+          "line": 175
+        },
+        {
+          "entity_name": "RunStats",
+          "entity_type": "class",
+          "file_path": "monitoring/stats.py",
+          "line": 10
+        },
+        {
+          "entity_name": "current_stats",
+          "entity_type": "variable",
+          "file_path": "monitoring/stats.py",
+          "line": 49
+        },
+        {
+          "entity_name": "get_monitoring_run_dir",
+          "entity_type": "function",
+          "file_path": "monitoring/paths.py",
+          "line": 12
+        },
+        {
+          "entity_name": "get_latest_run_dir",
+          "entity_type": "function",
+          "file_path": "monitoring/paths.py",
+          "line": 27
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/stats.py",
+        "monitoring/paths.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
       "name": "Evaluation",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Framework for running and evaluating pipeline executions across different projects. Supports static analysis, end-to-end, and scalability evaluations with configurable project specifications.",
+      "key_entities": [
+        {
+          "entity_name": "BaseEval",
+          "entity_type": "class",
+          "file_path": "evals/base.py",
+          "line": 27
+        },
+        {
+          "entity_name": "main",
+          "entity_type": "function",
+          "file_path": "evals/cli.py",
+          "line": 37
+        },
+        {
+          "entity_name": "parse_args",
+          "entity_type": "function",
+          "file_path": "evals/cli.py",
+          "line": 23
+        },
+        {
+          "entity_name": "ProjectSpec",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 95
+        },
+        {
+          "entity_name": "EvalResult",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 119
+        },
+        {
+          "entity_name": "RunData",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 103
+        },
+        {
+          "entity_name": "PROJECTS_STATIC_ANALYSIS",
+          "entity_type": "variable",
+          "file_path": "evals/config.py",
+          "line": 3
+        },
+        {
+          "entity_name": "PROJECTS_E2E",
+          "entity_type": "variable",
+          "file_path": "evals/config.py",
+          "line": 13
+        },
+        {
+          "entity_name": "PROJECTS_SCALING",
+          "entity_type": "variable",
+          "file_path": "evals/config.py",
+          "line": 19
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/schemas.py",
+        "evals/definitions/static_analysis.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
       "name": "Reports and Visuals",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Generates Markdown reports with evaluation results, system specifications, and aggregated metrics. Outputs both human-readable reports and JSON data for further analysis.",
+      "key_entities": [
+        {
+          "entity_name": "generate_report",
+          "entity_type": "method",
+          "file_path": "evals/base.py",
+          "line": 138
+        },
+        {
+          "entity_name": "generate_header",
+          "entity_type": "function",
+          "file_path": "evals/utils.py",
+          "line": 9
+        },
+        {
+          "entity_name": "generate_system_specs",
+          "entity_type": "function",
+          "file_path": "evals/utils.py",
+          "line": 18
+        },
+        {
+          "entity_name": "EndToEndMetrics",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 40
+        },
+        {
+          "entity_name": "ScalabilityMetrics",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 53
+        },
+        {
+          "entity_name": "StaticAnalysisMetrics",
+          "entity_type": "class",
+          "file_path": "evals/schemas.py",
+          "line": 83
+        }
+      ],
+      "assigned_files": [
+        "evals/utils.py",
+        "evals/reports/end-to-end-report.md",
+        "evals/reports/scalability-report.md",
+        "evals/reports/static-analysis-report.md"
+      ],
       "source_cluster_ids": [],
       "can_expand": true
     }

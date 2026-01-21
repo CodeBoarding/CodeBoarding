@@ -15,19 +15,19 @@
           "qualified_name": "main.process_local_repository",
           "reference_file": "main.py",
           "reference_start_line": 237,
-          "reference_end_line": 267
+          "reference_end_line": 268
         },
         {
           "qualified_name": "main.define_cli_arguments",
           "reference_file": "main.py",
           "reference_start_line": 316,
-          "reference_end_line": 358
+          "reference_end_line": 357
         },
         {
           "qualified_name": "main.main",
           "reference_file": "main.py",
           "reference_start_line": 359,
-          "reference_end_line": 459
+          "reference_end_line": 462
         }
       ],
       "assigned_files": [
@@ -44,7 +44,7 @@
           "qualified_name": "local_app.start_generation_job",
           "reference_file": "local_app.py",
           "reference_start_line": 190,
-          "reference_end_line": 242
+          "reference_end_line": 199
         }
       ],
       "assigned_files": [
@@ -62,7 +62,7 @@
           "qualified_name": "github_action.generate_analysis",
           "reference_file": "github_action.py",
           "reference_start_line": 108,
-          "reference_end_line": 145
+          "reference_end_line": 144
         }
       ],
       "assigned_files": [
@@ -77,7 +77,7 @@
       "key_entities": [
         {
           "qualified_name": "repo_utils",
-          "reference_file": "./repo_utils/__init__.py",
+          "reference_file": "repo_utils/__init__.py",
           "reference_start_line": null,
           "reference_end_line": null
         }

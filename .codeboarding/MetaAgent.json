@@ -1,53 +1,113 @@
 {
-  "description": "",
+  "description": "Analyzes repository metadata using LLM with tools to gather project context, external dependencies, and documentation. Produces MetaAnalysisInsights containing project name, description, and architectural context.",
   "components": [
     {
       "name": "Repository",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Input repository directory path and project name used to initialize the agent and provide context for metadata analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent.__init__",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 18,
+          "reference_end_line": 29
+        }
+      ],
+      "assigned_files": [
+        "./agents/meta_agent.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "LLM Agent",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "React agent configured with meta analysis system message and tools for reading documentation, external dependencies, and file structure. Invokes LLM to analyze project metadata.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent.agent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 26,
+          "reference_end_line": 29
+        },
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent.analyze_project_metadata",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 31,
+          "reference_end_line": 40
+        }
+      ],
+      "assigned_files": [
+        "./agents/meta_agent.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Read Docs Tool",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Tool for reading project documentation files (README, .md, .rst) to understand project purpose and architecture.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_docs.ReadDocsTool",
+          "reference_file": "agents/tools/read_docs.py",
+          "reference_start_line": 22,
+          "reference_end_line": 132
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_docs.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "External Deps Tool",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Tool for identifying project dependency files (requirements.txt, pyproject.toml, package.json) to understand external libraries used.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.external_deps.ExternalDepsTool",
+          "reference_file": "agents/tools/external_deps.py",
+          "reference_start_line": 17,
+          "reference_end_line": 95
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/external_deps.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Read File Structure Tool",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Tool for reading project directory structure as a tree representation to understand codebase organization.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_file_structure.FileStructureTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": 21,
+          "reference_end_line": 99
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_file_structure.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Project Metadata Information",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Output model containing analyzed project metadata including name, description, and architectural context gathered from documentation and dependencies.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.MetaAnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 167,
+          "reference_end_line": 183
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     }
   ],
   "components_relations": [

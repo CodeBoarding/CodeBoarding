@@ -1,53 +1,139 @@
 {
-  "description": "",
+  "description": "Analyzes git diff changes against existing architectural analysis to determine update requirements. Loads existing analysis, retrieves git diff, filters to supported file extensions, and uses LLM to assess impact on components.",
   "components": [
     {
       "name": "load_analysis",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Loads existing AnalysisInsights from .codeboarding/analysis.json file. Validates schema compatibility and handles missing or incompatible analysis files.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.get_analysis",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 41,
+          "reference_end_line": 55
+        },
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.analysis_exists",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 132,
+          "reference_end_line": 140
+        }
+      ],
+      "assigned_files": [
+        "./agents/diff_analyzer.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "get git diff",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Retrieves git diff from repository using stored version commit hash. Reads codeboarding_version.json to get the baseline commit for comparison.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.get_diff_data",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 70,
+          "reference_end_line": 83
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.get_git_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": 26,
+          "reference_end_line": 62
+        }
+      ],
+      "assigned_files": [
+        "./agents/diff_analyzer.py",
+        "./repo_utils/git_diff.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "filter git diff",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Filters diff changes to only include files with supported extensions from static analysis config. Logs skipped files for debugging.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.filter_diff",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 85,
+          "reference_end_line": 107
+        },
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent._get_supported_extensions",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 57,
+          "reference_end_line": 68
+        }
+      ],
+      "assigned_files": [
+        "./agents/diff_analyzer.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "LLM analyze diff",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Uses LLM agent to analyze filtered diff data against existing analysis. Determines update degree (0-10) and provides feedback on required changes.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.check_for_updates",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 146,
+          "reference_end_line": 171
+        },
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent.check_for_component_updates",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 182,
+          "reference_end_line": 211
+        }
+      ],
+      "assigned_files": [
+        "./agents/diff_analyzer.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "CodeBoarding toolkit",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Provides agent tools including ReadDiffTool for examining individual file changes during LLM analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        },
+        {
+          "qualified_name": "agents.tools.read_git_diff.ReadDiffTool",
+          "reference_file": "agents/tools/read_git_diff.py",
+          "reference_start_line": 22,
+          "reference_end_line": 131
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py",
+        "./agents/tools/read_git_diff.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "UpdateAnalysis",
-      "description": "",
-      "key_entities": [],
-      "assigned_files": [],
+      "description": "Output model containing update_degree (0-10 scale) and feedback describing required changes to the architectural analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.UpdateAnalysis",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 223,
+          "reference_end_line": 235
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     }
   ],
   "components_relations": [

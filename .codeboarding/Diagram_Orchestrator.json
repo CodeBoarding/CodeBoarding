@@ -9,21 +9,30 @@
           "qualified_name": "static_analyzer.StaticAnalyzer",
           "reference_file": "./static_analyzer/__init__.py",
           "reference_start_line": 75,
-          "reference_end_line": 104
+          "reference_end_line": 103
         },
         {
           "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
           "reference_file": "./static_analyzer/analysis_result.py",
-          "reference_start_line": 13,
-          "reference_end_line": 34
+          "reference_start_line": 4,
+          "reference_end_line": 176
         }
       ],
       "assigned_files": [
-        "./static_analyzer/analysis_result.py",
         "./static_analyzer/__init__.py",
-        "./diagram_analysis/version.py",
-        "./diagram_analysis/__init__.py",
-        "./diagram_analysis/diagram_generator.py"
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./static_analyzer/scanner.py",
+        "./static_analyzer/programming_language.py",
+        "./static_analyzer/lsp_client/__init__.py",
+        "./static_analyzer/lsp_client/client.py",
+        "./static_analyzer/lsp_client/typescript_client.py",
+        "./static_analyzer/lsp_client/java_client.py",
+        "./static_analyzer/typescript_config_scanner.py",
+        "./static_analyzer/java_config_scanner.py",
+        "./static_analyzer/java_utils.py",
+        "./static_analyzer/servers/jdtls/bin/jdtls.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -33,18 +42,18 @@
       "description": "Analyzes git diffs to determine if existing analysis needs updating. Compares the current repository state against a stored version hash, filters changes by supported file extensions, and provides update degree assessments (no update, partial update, full regeneration) with targeted feedback for incremental analysis updates.",
       "key_entities": [
         {
-          "qualified_name": "agents.diff_analyzer.DiffAgent",
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
           "reference_file": "./agents/diff_analyzer.py",
-          "reference_start_line": 19,
-          "reference_end_line": 210
+          "reference_start_line": 21,
+          "reference_end_line": 211
         }
       ],
       "assigned_files": [
-        "./diagram_analysis/version.py",
         "./agents/diff_analyzer.py",
-        "./repo_utils/git_diff.py",
-        "./repo_utils/ignore.py",
-        "./agents/tools/toolkit.py"
+        "./agents/agent_responses.py",
+        "./agents/tools/toolkit.py",
+        "./agents/tools/read_git_diff.py",
+        "./repo_utils/git_diff.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -64,10 +73,8 @@
         "./agents/details_agent.py",
         "./agents/agent_responses.py",
         "./agents/cluster_methods_mixin.py",
-        "./agents/tools/toolkit.py",
-        "./static_analyzer/reference_resolve_mixin.py",
         "./static_analyzer/graph.py",
-        "./static_analyzer/analysis_result.py"
+        "./static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -80,11 +87,12 @@
           "qualified_name": "agents.planner_agent.PlannerAgent",
           "reference_file": "./agents/planner_agent.py",
           "reference_start_line": 13,
-          "reference_end_line": 34
+          "reference_end_line": 33
         }
       ],
       "assigned_files": [
         "./agents/planner_agent.py",
+        "./agents/agent_responses.py",
         "./agents/tools/toolkit.py"
       ],
       "source_cluster_ids": [],
@@ -98,17 +106,17 @@
           "qualified_name": "agents.abstraction_agent.AbstractionAgent",
           "reference_file": "./agents/abstraction_agent.py",
           "reference_start_line": 27,
-          "reference_end_line": 106
+          "reference_end_line": 105
         }
       ],
       "assigned_files": [
         "./agents/abstraction_agent.py",
         "./agents/cluster_methods_mixin.py",
         "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/__init__.py",
         "./agents/tools/toolkit.py",
         "./static_analyzer/graph.py",
-        "./static_analyzer/reference_resolve_mixin.py",
-        "./diagram_analysis/analysis_json.py"
+        "./static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -128,7 +136,7 @@
         "./agents/validator_agent.py",
         "./agents/agent_responses.py",
         "./agents/prompts/prompt_factory.py",
-        "./agents/tools/toolkit.py"
+        "./static_analyzer/analysis_result.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -136,10 +144,21 @@
     {
       "name": "MetaAgent",
       "description": "Extracts project metadata to provide architectural context and bias for other agents. Reads documentation, external dependencies, and file structure to determine project type, frameworks used, and domain-specific patterns that inform component identification and naming.",
-      "key_entities": [],
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "./agents/meta_agent.py",
+          "reference_start_line": 16,
+          "reference_end_line": 40
+        }
+      ],
       "assigned_files": [
         "./agents/meta_agent.py",
-        "./agents/tools/toolkit.py"
+        "./agents/agent_responses.py",
+        "./agents/tools/toolkit.py",
+        "./agents/tools/read_docs.py",
+        "./agents/tools/external_deps.py",
+        "./agents/tools/read_file_structure.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

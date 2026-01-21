@@ -9,7 +9,7 @@
           "qualified_name": "static_analyzer.graph.CallGraph",
           "reference_file": "static_analyzer/graph.py",
           "reference_start_line": 118,
-          "reference_end_line": 809
+          "reference_end_line": 808
         }
       ],
       "assigned_files": [
@@ -42,7 +42,7 @@
         {
           "qualified_name": "agents.abstraction_agent.AbstractionAgent.analyze_clusters",
           "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": 53,
+          "reference_start_line": 52,
           "reference_end_line": 72
         }
       ],
@@ -60,11 +60,12 @@
           "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
           "reference_file": "agents/prompts/prompt_factory.py",
           "reference_start_line": 35,
-          "reference_end_line": 113
+          "reference_end_line": 112
         }
       ],
       "assigned_files": [
-        "./agents/prompts/prompt_factory.py"
+        "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/__init__.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -77,7 +78,7 @@
           "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
           "reference_file": "agents/tools/toolkit.py",
           "reference_start_line": 20,
-          "reference_end_line": 116
+          "reference_end_line": 117
         }
       ],
       "assigned_files": [
@@ -93,7 +94,7 @@
         {
           "qualified_name": "agents.abstraction_agent.AbstractionAgent.generate_analysis",
           "reference_file": "agents/abstraction_agent.py",
-          "reference_start_line": 75,
+          "reference_start_line": 74,
           "reference_end_line": 90
         }
       ],
@@ -117,7 +118,7 @@
           "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._ensure_unique_key_entities",
           "reference_file": "agents/cluster_methods_mixin.py",
           "reference_start_line": 116,
-          "reference_end_line": 170
+          "reference_end_line": 171
         },
         {
           "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",

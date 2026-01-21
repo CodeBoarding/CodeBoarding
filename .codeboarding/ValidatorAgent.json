@@ -139,8 +139,8 @@
         {
           "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
           "reference_file": "static_analyzer/analysis_result.py",
-          "reference_start_line": null,
-          "reference_end_line": null
+          "reference_start_line": 4,
+          "reference_end_line": 176
         }
       ],
       "assigned_files": [
