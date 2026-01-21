@@ -4,11 +4,25 @@ import pathspec
 
 logger = logging.getLogger(__name__)
 
+CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
+# Add patterns here for files and directories that should be excluded from CodeBoarding analysis.
+# Use the same format as .gitignore (gitignore syntax / gitwildmatch patterns).
+#
+# Examples:
+# - Ignore a specific directory: my_generated_files/
+# - Ignore a file pattern: *.temp
+# - Ignore nested patterns: **/cache/
+# - Negate a pattern (stop ignoring): !important_file.txt
+#
+# This file is automatically loaded by CodeBoarding analysis tools to exclude
+# specified paths from code analysis, architecture generation, and other processing.
+"""
+
 
 class RepoIgnoreManager:
     """
     Centralized manager for handling file and directory exclusions across the repository.
-    Combines .gitignore patterns with a default set of common directories to ignore.
+    Combines patterns from .gitignore, .codeboardingignore, and a default set of common directories to ignore.
     """
 
     DEFAULT_IGNORED_DIRS = {
@@ -43,10 +57,21 @@ class RepoIgnoreManager:
         self.reload()
 
     def reload(self):
-        """Reload ignore patterns from .gitignore."""
-        self.spec = self._load_gitignore()
+        """Reload ignore patterns from .gitignore and .codeboardingignore."""
+        patterns = self._load_gitignore_patterns()
+        patterns.extend(self._load_codeboardingignore_patterns())
 
-    def _load_gitignore(self) -> pathspec.PathSpec:
+        # Always add default ignored directories as patterns
+        for d in self.DEFAULT_IGNORED_DIRS:
+            patterns.append(f"{d}/\n")
+
+        # Add default ignored file patterns (build artifacts, minified files, etc.)
+        for pattern in self.DEFAULT_IGNORED_FILE_PATTERNS:
+            patterns.append(f"{pattern}\n")
+
+        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+
+    def _load_gitignore_patterns(self) -> list[str]:
         """Load and parse .gitignore file if it exists."""
         gitignore_path = self.repo_root / ".gitignore"
         patterns = []
@@ -58,15 +83,21 @@ class RepoIgnoreManager:
             except Exception as e:
                 logger.warning(f"Failed to read .gitignore at {gitignore_path}: {e}")
 
-        # Always add default ignored directories as patterns
-        for d in self.DEFAULT_IGNORED_DIRS:
-            patterns.append(f"{d}/\n")
+        return patterns
 
-        # Add default ignored file patterns (build artifacts, minified files, etc.)
-        for pattern in self.DEFAULT_IGNORED_FILE_PATTERNS:
-            patterns.append(f"{pattern}\n")
+    def _load_codeboardingignore_patterns(self) -> list[str]:
+        """Load and parse .codeboardingignore file from .codeboarding directory if it exists."""
+        codeboardingignore_path = self.repo_root / ".codeboarding" / ".codeboardingignore"
+        patterns = []
 
-        return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+        if codeboardingignore_path.exists():
+            try:
+                with codeboardingignore_path.open("r", encoding="utf-8") as f:
+                    patterns = f.readlines()
+            except Exception as e:
+                logger.warning(f"Failed to read .codeboardingignore at {codeboardingignore_path}: {e}")
+
+        return patterns
 
     def should_ignore(self, path: Path) -> bool:
         """
@@ -105,3 +136,20 @@ class RepoIgnoreManager:
     def filter_paths(self, paths: list[Path]) -> list[Path]:
         """Filter a list of paths, returning only those that should not be ignored."""
         return [p for p in paths if not self.should_ignore(p)]
+
+
+def initialize_codeboardingignore(output_dir: Path) -> None:
+    """
+    Initialize .codeboardingignore file in the .codeboarding directory if it doesn't exist.
+
+    Args:
+        output_dir: Path to the .codeboarding directory
+    """
+    codeboardingignore_path = output_dir / ".codeboardingignore"
+
+    if not codeboardingignore_path.exists():
+        try:
+            codeboardingignore_path.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
+            logger.debug(f"Created .codeboardingignore file at {codeboardingignore_path}")
+        except Exception as e:
+            logger.warning(f"Failed to create .codeboardingignore at {codeboardingignore_path}: {e}")

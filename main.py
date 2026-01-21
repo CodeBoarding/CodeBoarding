@@ -14,6 +14,7 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
+from repo_utils.ignore import initialize_codeboardingignore
 from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
 from monitoring import monitor_execution
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
@@ -115,6 +116,8 @@ def partial_update(
     """
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
+
+    initialize_codeboardingignore(output_dir)
 
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -246,6 +249,8 @@ def process_local_repository(
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    initialize_codeboardingignore(output_dir)
+
     # Handle partial updates
     if component_name and analysis_name:
         partial_update(
@@ -272,6 +277,8 @@ def copy_files(temp_folder: Path, output_dir: Path):
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Created output directory: {output_dir}")
+
+    initialize_codeboardingignore(output_dir)
 
     # Copy markdown files
     markdown_files = list(temp_folder.glob("*.md"))
