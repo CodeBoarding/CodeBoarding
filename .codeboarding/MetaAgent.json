@@ -1,0 +1,80 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "Repository",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Agent",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Read Docs Tool",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "External Deps Tool",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Read File Structure Tool",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Metadata Information",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Repo object",
+      "src_name": "Repository",
+      "dst_name": "LLM Agent"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent",
+      "dst_name": "Read Docs Tool"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent",
+      "dst_name": "External Deps Tool"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent",
+      "dst_name": "Read File Structure Tool"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LLM Agent",
+      "dst_name": "Project Metadata Information"
+    }
+  ]
+}

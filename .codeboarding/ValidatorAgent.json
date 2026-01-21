@@ -1,0 +1,210 @@
+{
+  "description": "Validates architectural analysis by checking component definitions, relations, and source code references. Uses a multi-step validation process combining LLM-based semantic validation with deterministic code-based validation against static analysis results.",
+  "components": [
+    {
+      "name": "Validation Orchestrator",
+      "description": "Main entry point that orchestrates the four-step validation process. Runs component validation, relation validation, reference validation, and component relation validation sequentially, aggregating all validation insights into a final report.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.run",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 141,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Component Validation",
+      "description": "First validation step using LLM to semantically validate component definitions. Checks that components have meaningful names, accurate descriptions, and appropriate granularity using model-specific prompts.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.validate_components",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 35,
+          "reference_end_line": 37
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Relation Validation",
+      "description": "Second validation step using LLM to semantically validate component relations. Verifies that relations are meaningful, correctly labeled, and accurately represent the architectural dependencies between components.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.validate_relations",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 39,
+          "reference_end_line": 41
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Source Code Reference Validation",
+      "description": "Third validation step that deterministically validates source code references against static analysis. Ensures each component has at least one reference, validates file paths exist, and cross-checks qualified names against the static analysis symbol table.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.validate_references",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 43,
+          "reference_end_line": 120
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Component Relation Integrity Check",
+      "description": "Fourth validation step that ensures all relations reference existing components. Checks that both source and destination component names in each relation exist in the analysis, preventing dangling references.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.validate_component_relations",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 122,
+          "reference_end_line": 139
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Validation Report",
+      "description": "Output model containing validation status and detailed feedback. Aggregates validation results from all steps, indicating overall validity and providing specific feedback for any issues found.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.ValidationInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 211,
+          "reference_end_line": 220
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Model Specific Prompts",
+      "description": "Factory-provided prompts optimized for different LLM types. Supplies validator system message, component validation prompt, and relationships validation prompt based on configured model (Gemini, Claude, GPT).",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.get_validator_system_message",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 187,
+          "reference_end_line": 188
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.get_component_validation_component",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 191,
+          "reference_end_line": 192
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.get_relationships_validation",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 195,
+          "reference_end_line": 196
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Results",
+      "description": "Provides access to static analysis data for reference validation. Used to look up symbol references by qualified name, validate file paths, and cross-check line number ranges against parsed code structure.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "first step",
+      "src_name": "Validation Orchestrator",
+      "dst_name": "LLM Component Validation"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LLM Component Validation",
+      "dst_name": "Validation Report"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Component Validation",
+      "dst_name": "Model Specific Prompts"
+    },
+    {
+      "relation": "second step",
+      "src_name": "Validation Orchestrator",
+      "dst_name": "LLM Relation Validation"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LLM Relation Validation",
+      "dst_name": "Validation Report"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Relation Validation",
+      "dst_name": "Model Specific Prompts"
+    },
+    {
+      "relation": "third step",
+      "src_name": "Validation Orchestrator",
+      "dst_name": "Source Code Reference Validation"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Source Code Reference Validation",
+      "dst_name": "Validation Report"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Source Code Reference Validation",
+      "dst_name": "Static Analysis Results"
+    },
+    {
+      "relation": "fourth step",
+      "src_name": "Validation Orchestrator",
+      "dst_name": "Component Relation Integrity Check"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Component Relation Integrity Check",
+      "dst_name": "Validation Report"
+    }
+  ]
+}

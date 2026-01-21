@@ -1,0 +1,175 @@
+{
+  "description": "Generates high-level architectural analysis by clustering CFG nodes into logical components. Uses a two-phase LLM approach: first analyzing clusters to identify groupings, then generating final component analysis with descriptions and relations. Applies validation feedback and ensures unique key entities with valid source code references.",
+  "components": [
+    {
+      "name": "Control Flow Graph",
+      "description": "Graph data structure representing call relationships between code symbols. Provides deterministic clustering via Louvain/Leiden algorithms with cached results, and bidirectional file-to-cluster mappings. Supports subgraph extraction for focused analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": 118,
+          "reference_end_line": 809
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ClusterMethodsMixin",
+      "description": "Mixin providing shared cluster-related functionality for agents. Builds cluster strings for LLM consumption, assigns files to components based on cluster IDs and key entities, validates cluster IDs against static analysis, and ensures unique key entities across components.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
+          "reference_file": "agents/cluster_methods_mixin.py",
+          "reference_start_line": 12,
+          "reference_end_line": 200
+        }
+      ],
+      "assigned_files": [
+        "./agents/cluster_methods_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Cluster analysis",
+      "description": "First phase of abstraction that analyzes CFG clusters using LLM. Builds cluster strings from static analysis, formats prompts with project metadata and cluster information, and invokes LLM to produce initial ClusterAnalysis identifying logical groupings.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent.analyze_clusters",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 53,
+          "reference_end_line": 72
+        }
+      ],
+      "assigned_files": [
+        "./agents/abstraction_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Model specific prompts",
+      "description": "Factory for dynamically selecting prompts based on LLM type (Gemini, Claude, GPT) and configuration (bidirectional/unidirectional). Provides model-optimized prompts for cluster analysis, final analysis, feedback, and other agent operations.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 35,
+          "reference_end_line": 113
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeboardingToolkit",
+      "description": "Manages lifecycle and dependency injection for repository-aware tools. Provides lazy-loaded tools for reading source references, package relations, code structure, file structure, CFG, method invocations, documentation, and external dependencies.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 116
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM component analysis",
+      "description": "Second phase that generates final AnalysisInsights from ClusterAnalysis. Takes cluster groupings, formats them with project metadata, and produces components with descriptions, key entities, relations, and source cluster IDs.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent.generate_analysis",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 75,
+          "reference_end_line": 90
+        }
+      ],
+      "assigned_files": [
+        "./agents/abstraction_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Component Validation",
+      "description": "Post-processing validation ensuring analysis quality. Validates cluster IDs exist in static analysis, ensures key entities are unique across components (keeping entities in most relevant component), and resolves source code reference lines using multiple strategies including LLM fallback.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._validate_cluster_ids",
+          "reference_file": "agents/cluster_methods_mixin.py",
+          "reference_start_line": 180,
+          "reference_end_line": 200
+        },
+        {
+          "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._ensure_unique_key_entities",
+          "reference_file": "agents/cluster_methods_mixin.py",
+          "reference_start_line": 116,
+          "reference_end_line": 170
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": 22,
+          "reference_end_line": 31
+        }
+      ],
+      "assigned_files": [
+        "./agents/abstraction_agent.py",
+        "./agents/cluster_methods_mixin.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "passed",
+      "src_name": "Control Flow Graph",
+      "dst_name": "ClusterMethodsMixin"
+    },
+    {
+      "relation": "produces clusters",
+      "src_name": "ClusterMethodsMixin",
+      "dst_name": "LLM Cluster analysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Cluster analysis",
+      "dst_name": "Model specific prompts"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Cluster analysis",
+      "dst_name": "CodeboardingToolkit"
+    },
+    {
+      "relation": "passes analysis",
+      "src_name": "LLM Cluster analysis",
+      "dst_name": "LLM component analysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM component analysis",
+      "dst_name": "Model specific prompts"
+    },
+    {
+      "relation": "produces components",
+      "src_name": "LLM component analysis",
+      "dst_name": "Component Validation"
+    }
+  ]
+}

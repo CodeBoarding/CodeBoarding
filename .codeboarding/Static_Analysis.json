@@ -1,0 +1,123 @@
+{
+  "description": "Performs static code analysis on repositories using Language Server Protocol (LSP) clients to extract call graphs, class hierarchies, symbol definitions, and package dependencies for supported programming languages.",
+  "components": [
+    {
+      "name": "Repo",
+      "description": "The source code repository to be analyzed, providing the raw source files as input to the static analysis pipeline.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Scanner",
+      "description": "Scans the repository using Tokei to detect programming languages, calculate code statistics (size, percentage), and determine which LSP servers are needed for analysis. Builds ProgrammingLanguage objects with server configurations.",
+      "key_entities": [],
+      "assigned_files": [
+          "./static_analyzer/scanner.py",
+          "./static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSP Client",
+      "description": "Abstract base class implementing the Language Server Protocol for code analysis. Manages LSP server lifecycle, sends/receives JSON-RPC messages, extracts document symbols, call hierarchies, type hierarchies, and references from source files.",
+      "key_entities": [],
+      "assigned_files": [
+        "./static_analyzer/__init__.py",
+        "./static_analyzer/lsp_client/__init__.py",
+        "./static_analyzer/lsp_client/client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "TS Client",
+      "description": "TypeScript/JavaScript-specific LSP client that extends LSPClient. Handles TypeScript server initialization, workspace configuration, dependency checking (node_modules), and processes tsconfig.json/jsconfig.json files.",
+      "key_entities": [],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/__init__.py",
+        "./static_analyzer/lsp_client/client.py",
+        "./static_analyzer/lsp_client/typescript_client.py",
+        "./static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Java Client",
+      "description": "Java-specific LSP client using Eclipse JDT Language Server (JDTLS). Manages JDTLS lifecycle, workspace creation, project import tracking, JDK detection, and handles Maven/Gradle build system configurations.",
+      "key_entities": [],
+      "assigned_files": [
+        "./static_analyzer/lsp_client/__init__.py",
+        "./static_analyzer/lsp_client/client.py",
+        "./static_analyzer/lsp_client/java_client.py",
+        "./static_analyzer/servers/jdtls/bin/jdtls.py",
+        "./static_analyzer/java_config_scanner.py",
+        "./static_analyzer/java_utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Results",
+      "description": "Data structures and utilities for storing and querying analysis outputs. Contains CallGraph (nodes, edges, clustering), StaticAnalysisResults (CFG, hierarchies, dependencies, references per language), and ReferenceResolverMixin for resolving qualified names to source locations.",
+      "key_entities": [],
+      "assigned_files": [
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "sends source code to",
+      "src_name": "Repo",
+      "dst_name": "Project Scanner"
+    },
+    {
+      "relation": "sends programming languages to",
+      "src_name": "Project Scanner",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "sends programming languages to",
+      "src_name": "Project Scanner",
+      "dst_name": "TS Client"
+    },
+    {
+      "relation": "sends programming languages to",
+      "src_name": "Project Scanner",
+      "dst_name": "Java Client"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "TS Client",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "Java Client",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LSP Client",
+      "dst_name": "Static Analysis Results"
+    },
+    {
+      "relation": "produces",
+      "src_name": "TS Client",
+      "dst_name": "Static Analysis Results"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Java Client",
+      "dst_name": "Static Analysis Results"
+    }
+  ]
+}

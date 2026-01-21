@@ -1,0 +1,28 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "Tokei",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Convert Json to Programming Language",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "produces json analysis",
+      "src_name": "Tokei",
+      "dst_name": "Convert Json to Programming Language"
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "BaseEval",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Eval",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "E2E Eval",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Stability Eval",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analyzer",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Full Pipeline Execution",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Metric Extractor",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Report Generation",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Markdown Report",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "BaseEval",
+      "dst_name": "Static Analysis Eval"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "BaseEval",
+      "dst_name": "E2E Eval"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "BaseEval",
+      "dst_name": "Stability Eval"
+    },
+    {
+      "relation": "starts",
+      "src_name": "Stability Eval",
+      "dst_name": "Static Analyzer"
+    },
+    {
+      "relation": "starts",
+      "src_name": "E2E Eval",
+      "dst_name": "Full Pipeline Execution"
+    },
+    {
+      "relation": "starts",
+      "src_name": "Stability Eval",
+      "dst_name": "Full Pipeline Execution"
+    },
+    {
+      "relation": "produces metrics",
+      "src_name": "Full Pipeline Execution",
+      "dst_name": "Metric Extractor"
+    },
+    {
+      "relation": "produces results",
+      "src_name": "Static Analyzer",
+      "dst_name": "Static Analysis Eval"
+    },
+    {
+      "relation": "triggers",
+      "src_name": "Metric Extractor",
+      "dst_name": "Report Generation"
+    },
+    {
+      "relation": "produces report",
+      "src_name": "Report Generation",
+      "dst_name": "Markdown Report"
+    }
+  ]
+}

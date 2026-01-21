@@ -1,0 +1,101 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "Static Analysis",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repo Context",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoarding Toolkit",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ReAct LLM Agent",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "parse_invoke",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "timed out/retriable LLM Agent invocation",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "trust call type extractor",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "BaseLLM Response",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "pass",
+      "src_name": "Static Analysis",
+      "dst_name": "CodeBoarding Toolkit"
+    },
+    {
+      "relation": "pass",
+      "src_name": "Repo Context",
+      "dst_name": "CodeBoarding Toolkit"
+    },
+    {
+      "relation": "pass",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "ReAct LLM Agent"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "parse_invoke",
+      "dst_name": "timed out/retriable LLM Agent invocation"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "timed out/retriable LLM Agent invocation",
+      "dst_name": "trust call type extractor"
+    },
+    {
+      "relation": "produces",
+      "src_name": "trust call type extractor",
+      "dst_name": "BaseLLM Response"
+    }
+  ]
+}

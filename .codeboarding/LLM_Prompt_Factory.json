@@ -1,0 +1,191 @@
+{
+  "description": "The LLM Prompt Factory subsystem implements the Abstract Factory pattern to provide LLM-specific prompt templates for CodeBoarding's analysis agents. It dynamically selects prompts based on the target LLM provider (Claude, Gemini, GPT) and analysis direction (bidirectional for interactive exploration, unidirectional for single-pass efficiency), ensuring optimal prompt engineering for each model's strengths.",
+  "components": [
+    {
+      "name": "Prompt Factory",
+      "description": "The main factory class that dynamically selects and creates the appropriate prompt factory implementation based on LLM type (Gemini, Claude, GPT) and prompt direction (bidirectional/unidirectional). Provides convenience methods for retrieving prompts and supports global factory initialization for application-wide prompt access.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "./agents/prompts/prompt_factory.py",
+          "reference_start_line": 35,
+          "reference_end_line": 112
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.LLMType",
+          "reference_file": "./agents/prompts/prompt_factory.py",
+          "reference_start_line": 25,
+          "reference_end_line": 32
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptType",
+          "reference_file": "./agents/prompts/prompt_factory.py",
+          "reference_start_line": 18,
+          "reference_end_line": 22
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Abstract Prompt Factory",
+      "description": "The abstract base class defining the contract for all prompt factory implementations. Declares abstract methods for all prompt types used by agents: system messages, cluster analysis, final analysis, feedback, details, validation, diff analysis, meta analysis, and file classification prompts.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
+          "reference_file": "./agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 87
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/abstract_prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Claude Unidirectional Prompts",
+      "description": "Prompt factory implementation optimized for Claude models in unidirectional (single-pass) analysis mode. Provides streamlined prompts designed for efficiency with minimal tool usage, focusing on extracting architectural insights in a single analysis pass with diagram generation optimization.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.claude_prompts_unidirectional.ClaudeUnidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/claude_prompts_unidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 415
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/claude_prompts_unidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Claude Bidirectional Prompts",
+      "description": "Prompt factory implementation optimized for Claude models in bidirectional (interactive) analysis mode. Provides comprehensive prompts that encourage tool usage for information gathering and support iterative refinement of architectural analysis with interactive visual diagram generation.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.claude_prompts_bidirectional.ClaudeBidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/claude_prompts_bidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 416
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/claude_prompts_bidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Gemini Flash Unidirectional Prompts",
+      "description": "Prompt factory implementation optimized for Gemini Flash models in unidirectional analysis mode. Emphasizes efficient single-pass CFG analysis with clear one-way data flow relationships, avoiding return relationships to minimize diagram clutter.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_unidirectional.GeminiFlashUnidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/gemini_flash_prompts_unidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 407
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/gemini_flash_prompts_unidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Gemini Flash Bidirectional Prompts",
+      "description": "Prompt factory implementation optimized for Gemini Flash models in bidirectional analysis mode. Provides prompts that leverage Gemini's strengths for iterative CFG analysis with tool usage, generating comprehensive component architectures with clear visual boundaries.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_bidirectional.GeminiFlashBidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/gemini_flash_prompts_bidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 405
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/gemini_flash_prompts_bidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "GPT Unidirectional Prompts",
+      "description": "Prompt factory implementation optimized for GPT-4 models in unidirectional analysis mode. Uses structured markdown formatting with clear directives and bullet points optimized for GPT's instruction-following capabilities, focusing on single-pass architectural analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_unidirectional.GPTUnidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/gpt_prompts_unidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 965
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/gpt_prompts_unidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "GPT Bidirectional Prompts",
+      "description": "Prompt factory implementation optimized for GPT-4 models in bidirectional analysis mode. Provides comprehensive prompts with structured role definitions and analysis approaches, designed for iterative exploration and interactive diagram creation suitable for quick developer onboarding.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_bidirectional.GPTBidirectionalPromptFactory",
+          "reference_file": "./agents/prompts/gpt_prompts_bidirectional.py",
+          "reference_start_line": 1,
+          "reference_end_line": 561
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/gpt_prompts_bidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "Prompt Factory",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "Claude Unidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "Claude Bidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "Gemini Flash Unidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "Gemini Flash Bidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "GPT Unidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "GPT Bidirectional Prompts",
+      "dst_name": "Abstract Prompt Factory"
+    }
+  ]
+}

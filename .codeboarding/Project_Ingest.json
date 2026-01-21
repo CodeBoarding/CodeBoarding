@@ -1,0 +1,111 @@
+{
+  "description": "The project selection subsystem is designed to unify multiple entry points for identifying a target codebase. Inputs may originate from a local command-line interface (CLI), a FastAPI-based REST service, or an automated GitHub Action. Each of these sources provides project-identifying information—such as a local path, repository URL, or branch name—to a centralized `Project Selector`. The Project Selector normalizes these inputs and relies on shared `Git Utils` to resolve repositories, branches, and working directories, producing a consistent project context for downstream analysis.",
+  "components": [
+    {
+      "name": "CLI Setup",
+      "description": "Provides a local, developer-facing interface for configuring and launching analysis. It captures the project’s local filesystem location and forwards it to the Project Selector.",
+      "key_entities": [
+         {
+          "qualified_name": "main.process_remote_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 176,
+          "reference_end_line": 234
+        },
+        {
+          "qualified_name": "main.process_local_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 237,
+          "reference_end_line": 267
+        },
+        {
+          "qualified_name": "main.define_cli_arguments",
+          "reference_file": "main.py",
+          "reference_start_line": 316,
+          "reference_end_line": 358
+        },
+        {
+          "qualified_name": "main.main",
+          "reference_file": "main.py",
+          "reference_start_line": 359,
+          "reference_end_line": 459
+        }
+      ],
+      "assigned_files": [
+        "./main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "FastAPI REST",
+      "description": "Exposes an HTTP-based API for remote or service-driven usage. It accepts inputs such as a GitHub repository URL and forwards them to the Project Selector for resolution.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app.start_generation_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": 190,
+          "reference_end_line": 242
+        }
+      ],
+      "assigned_files": [
+        "./duckdb_crud.py",
+        "./local_app.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "GitHub Action",
+      "description": "Enables automated invocation from CI/CD pipelines. It supplies GitHub-specific context—such as repository metadata and branch names—to the Project Selector.",
+      "key_entities": [
+        {
+          "qualified_name": "github_action.generate_analysis",
+          "reference_file": "github_action.py",
+          "reference_start_line": 108,
+          "reference_end_line": 145
+        }
+      ],
+      "assigned_files": [
+         "./github_action.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Git Utils",
+      "description": "Provides low-level utilities for interacting with Git repositories. This includes cloning repositories, checking out branches, resolving commit states, and preparing working directories for analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils",
+          "reference_file": "./repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "./repo_utils/__init__.py",
+        "./repo_utils/errors.py",
+        "./utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides project location to",
+      "src_name": "CLI Setup",
+      "dst_name": "Git Utils"
+    },
+    {
+      "relation": "provides GitHub repository URL to",
+      "src_name": "FastAPI REST",
+      "dst_name": "Git Utils"
+    },
+    {
+      "relation": "provides GitHub branch context to",
+      "src_name": "GitHub Action",
+      "dst_name": "Git Utils"
+    }
+  ]
+}

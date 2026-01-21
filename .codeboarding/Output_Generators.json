@@ -1,0 +1,113 @@
+{
+  "description": "Transforms project analysis data into various documentation formats. AnalysisInsights provides the structured data model containing components and their relations, which is then consumed by specialized generators to produce HTML, Markdown, MDX, and Sphinx RST documentation with interactive diagrams.",
+  "components": [
+    {
+      "name": "AnalysisInsights",
+      "description": "Pydantic data model representing project analysis insights including a description, list of components, and their relations. Provides serialization methods for LLM consumption and serves as the canonical input format for all output generators.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 149,
+          "reference_end_line": 166
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "HTML Generator",
+      "description": "Generates interactive HTML documentation with Cytoscape.js-based graph visualization. Converts AnalysisInsights into navigable HTML pages with clickable component nodes linking to detailed documentation.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.html.generate_html_file",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": 125,
+          "reference_end_line": 153
+        }
+      ],
+      "assigned_files": [
+        "./output_generators/html.py",
+        "./output_generators/html_template.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Markdown Generator",
+      "description": "Generates GitHub-flavored Markdown documentation with embedded Mermaid diagrams. Produces clickable architecture graphs and detailed component tables with links to source code.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown_file",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": 104,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [
+        "./output_generators/markdown.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MDX Generator",
+      "description": "Generates MDX documentation files with frontmatter metadata and Mermaid diagrams. Designed for integration with documentation platforms like Mintlify, producing component pages with navigation links.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.mdx.generate_mdx_file",
+          "reference_file": "output_generators/mdx.py",
+          "reference_start_line": 140,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "./output_generators/mdx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Sphinx Generator",
+      "description": "Generates reStructuredText (RST) documentation compatible with Sphinx. Produces RST files with embedded Mermaid diagrams, toctree references, and component detail sections for building comprehensive documentation sites.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.sphinx.generate_rst_file",
+          "reference_file": "output_generators/sphinx.py",
+          "reference_start_line": 136,
+          "reference_end_line": 154
+        }
+      ],
+      "assigned_files": [
+        "./output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "feeds into",
+      "src_name": "AnalysisInsights",
+      "dst_name": "HTML Generator"
+    },
+    {
+      "relation": "feeds into",
+      "src_name": "AnalysisInsights",
+      "dst_name": "Markdown Generator"
+    },
+    {
+      "relation": "feeds into",
+      "src_name": "AnalysisInsights",
+      "dst_name": "MDX Generator"
+    },
+    {
+      "relation": "feeds into",
+      "src_name": "AnalysisInsights",
+      "dst_name": "Sphinx Generator"
+    }
+  ]
+}

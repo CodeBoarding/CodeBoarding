@@ -1,0 +1,225 @@
+{
+  "description": "Orchestrates the generation of architectural diagrams for a codebase by coordinating multiple specialized agents. The DiagramGenerator drives the analysis pipeline: it first runs static analysis to extract CFG/symbols, then uses MetaAgent for project context, AbstractionAgent for high-level component identification, ValidatorAgent for quality assurance, PlannerAgent for expansion decisions, DetailsAgent for deep-dive analysis, and DiffAgent for incremental updates based on git changes.",
+  "components": [
+    {
+      "name": "Static Analysis",
+      "description": "Performs language-aware static code analysis using LSP clients to extract call graphs (CFG), class hierarchies, package dependencies, and symbol references. Supports multiple languages (TypeScript, Java, Python) with mono-repo awareness, creating separate clients per project configuration.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.StaticAnalyzer",
+          "reference_file": "./static_analyzer/__init__.py",
+          "reference_start_line": 75,
+          "reference_end_line": 104
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "./static_analyzer/analysis_result.py",
+          "reference_start_line": 13,
+          "reference_end_line": 34
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/__init__.py",
+        "./diagram_analysis/version.py",
+        "./diagram_analysis/__init__.py",
+        "./diagram_analysis/diagram_generator.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAgent",
+      "description": "Analyzes git diffs to determine if existing analysis needs updating. Compares the current repository state against a stored version hash, filters changes by supported file extensions, and provides update degree assessments (no update, partial update, full regeneration) with targeted feedback for incremental analysis updates.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAgent",
+          "reference_file": "./agents/diff_analyzer.py",
+          "reference_start_line": 19,
+          "reference_end_line": 210
+        }
+      ],
+      "assigned_files": [
+        "./diagram_analysis/version.py",
+        "./agents/diff_analyzer.py",
+        "./repo_utils/git_diff.py",
+        "./repo_utils/ignore.py",
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "Performs deep-dive analysis on individual components by extracting relevant CFG subgraphs, enhancing structural understanding, and generating detailed component documentation. Uses multi-step prompting (subcfg analysis, structure enhancement, final analysis) with validation feedback loops to produce comprehensive component insights.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "./agents/details_agent.py",
+          "reference_start_line": 31,
+          "reference_end_line": 174
+        }
+      ],
+      "assigned_files": [
+        "./agents/details_agent.py",
+        "./agents/agent_responses.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/tools/toolkit.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "PlannerAgent",
+      "description": "Determines which components in an analysis should be expanded for deeper investigation. Evaluates each component using expansion prompts and returns the list of components that warrant further detailed analysis, enabling hierarchical depth-first exploration of the codebase architecture.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "./agents/planner_agent.py",
+          "reference_start_line": 13,
+          "reference_end_line": 34
+        }
+      ],
+      "assigned_files": [
+        "./agents/planner_agent.py",
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent",
+      "description": "Generates high-level architectural analysis by clustering CFG nodes into logical components. Analyzes cluster relationships using project metadata context, produces initial component groupings with descriptions and relations, and applies validation feedback to refine the abstraction. Ensures unique key entities and valid source code references.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "./agents/abstraction_agent.py",
+          "reference_start_line": 27,
+          "reference_end_line": 106
+        }
+      ],
+      "assigned_files": [
+        "./agents/abstraction_agent.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/tools/toolkit.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./diagram_analysis/analysis_json.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidatorAgent",
+      "description": "Validates analysis quality by checking component definitions, inter-component relationships, and source code references. Uses a multi-step validation process combining LLM-based semantic validation with deterministic code-based validation against static analysis results.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "./agents/validator_agent.py",
+          "reference_start_line": 20,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py",
+        "./agents/agent_responses.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MetaAgent",
+      "description": "Extracts project metadata to provide architectural context and bias for other agents. Reads documentation, external dependencies, and file structure to determine project type, frameworks used, and domain-specific patterns that inform component identification and naming.",
+      "key_entities": [],
+      "assigned_files": [
+        "./agents/meta_agent.py",
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides CFG and symbols to",
+      "src_name": "Static Analysis",
+      "dst_name": "DiffAgent"
+    },
+    {
+      "relation": "provides CFG and symbols to",
+      "src_name": "Static Analysis",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "provides CFG and symbols to",
+      "src_name": "Static Analysis",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "provides CFG and symbols to",
+      "src_name": "Static Analysis",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "provides CFG and symbols to",
+      "src_name": "Static Analysis",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "sends git diff to",
+      "src_name": "DiffAgent",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "sends git diff to",
+      "src_name": "DiffAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "sends components to expand to",
+      "src_name": "PlannerAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "produces analysis for",
+      "src_name": "AbstractionAgent",
+      "dst_name": "PlannerAgent"
+    },
+    {
+      "relation": "produces analysis for",
+      "src_name": "AbstractionAgent",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "provides project metadata report to",
+      "src_name": "MetaAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "provides project metadata report to",
+      "src_name": "MetaAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "sends validation report to",
+      "src_name": "ValidatorAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "sends validation report to",
+      "src_name": "ValidatorAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "sends detailed analysis to",
+      "src_name": "DetailsAgent",
+      "dst_name": "ValidatorAgent"
+    }
+  ]
+}

@@ -1,205 +1,316 @@
 {
-  "description": "The system architecture is designed around a modular, AI-driven code analysis pipeline. It begins with the Repository & Project Setup component, which is responsible for ingesting and preparing codebases for analysis. This prepared code is then fed into the Static Analysis Engine, which performs in-depth code examination and identifies changes. The structural insights from this analysis, such as call graphs and code clusters, are managed by the Code Structure & Clustering component. The core intelligence of the system resides in the AI Analysis Orchestrator, which leverages these structural insights and interacts with LLM Prompting & Interface to generate and refine analysis. Finally, the Output Generation & Job Management component handles the persistence of analysis jobs and the generation of various documentation formats, while the Monitoring & Evaluation component continuously tracks the performance and events of the analysis process.",
+  "description": "CodeBoarding is a system designed to analyze codebases and generate a high-level diagrammatic representation of their architecture and structure. The system leverages static analysis techniques alongside large language model (LLM) agents to extract both structural and semantic insights from the code. The core component, the Diagram Orchestrator, coordinates the workflow by invoking static analysis tools to produce control-flow graphs (CFGs) and other artifacts, which are then interpreted by LLM agents to generate a comprehensive architectural overview. The final output is presented in a user-friendly format, such as mermaid diagrams, html, etc. facilitating better understanding of complex codebases.",
   "components": [
     {
-      "name": "Repository & Project Setup",
-      "description": "Manages the acquisition and initial configuration of code repositories, including cloning, language detection, and project-specific setup (e.g., Java build systems).",
+      "name": "Project Ingest",
+      "description": "Responsible for locating, loading, and preparing the target codebase for analysis. It establishes the initial context and hands off the discovered project structure to the Diagram Orchestrator.",
       "key_entities": [
         {
-          "qualified_name": "ProjectScanner",
-          "reference_file": "static_analyzer/scanner.py",
-          "reference_start_line": 13,
-          "reference_end_line": 85
-        },
-        {
-          "qualified_name": "GitDiff",
-          "reference_file": "repo_utils/git_diff.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        }
-      ],
-      "assigned_files": [
-        "repo_utils/git_diff.py",
-        "static_analyzer/scanner.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "Performs detailed static code analysis using Language Server Protocols (LSP), stores the analysis results, resolves source references, and identifies code changes.",
-      "key_entities": [
-        {
-          "qualified_name": "LSP",
-          "reference_file": "agents/tools/read_cfg.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "AnalysisResultStore",
-          "reference_file": "duckdb_crud.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "CodeDiffAnalyzer",
-          "reference_file": "agents/diff_analyzer.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        }
-      ],
-      "assigned_files": [
-        "agents/diff_analyzer.py",
-        "duckdb_crud.py",
-        "agents/tools/read_cfg.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Code Structure & Clustering",
-      "description": "Constructs and manipulates call graphs, identifies code clusters, and provides utilities for managing these structural insights.",
-      "key_entities": [
-        {
-          "qualified_name": "CallGraphBuilder",
-          "reference_file": "agents/tools/get_method_invocations.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "CodeClusterer",
-          "reference_file": "agents/cluster_methods_mixin.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        }
-      ],
-      "assigned_files": [
-        "agents/tools/get_method_invocations.py",
-        "agents/cluster_methods_mixin.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "LLM Prompting & Interface",
-      "description": "Responsible for generating and managing structured prompts for various Large Language Models (LLMs), abstracting the LLM interaction layer.",
-      "key_entities": [
-        {
-          "qualified_name": "PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        }
-      ],
-      "assigned_files": [
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/prompt_factory.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "AI Analysis Orchestrator",
-      "description": "The central intelligence hub that orchestrates the analysis process, invokes LLMs, utilizes specialized tools, and refines structural insights based on AI feedback.",
-      "key_entities": [
-        {
-          "qualified_name": "MetaAgent",
-          "reference_file": "agents/meta_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "DetailedAnalysisAgent",
-          "reference_file": "agents/details_agent.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "AgentToolkit",
-          "reference_file": "agents/tools/toolkit.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "AgentResponses",
-          "reference_file": "agents/agent_responses.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        }
-      ],
-      "assigned_files": [
-        "agents/agent_responses.py",
-        "agents/meta_agent.py",
-        "agents/details_agent.py",
-        "agents/tools/toolkit.py"
-      ],
-      "source_cluster_ids": [],
-      "can_expand": true
-    },
-    {
-      "name": "Output Generation & Job Management",
-      "description": "Manages the overall analysis workflow, persists job states, and generates diverse documentation outputs based on the AI-driven analysis.",
-      "key_entities": [
-        {
-          "qualified_name": "WorkflowOrchestrator",
+          "qualified_name": "main.process_remote_repository",
           "reference_file": "main.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
+          "reference_start_line": 176,
+          "reference_end_line": 234
         },
         {
-          "qualified_name": "JobPersistenceManager",
-          "reference_file": "duckdb_crud.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
+          "qualified_name": "main.process_local_repository",
+          "reference_file": "main.py",
+          "reference_start_line": 237,
+          "reference_end_line": 267
         },
         {
-          "qualified_name": "DocumentationGenerator",
-          "reference_file": "output_generators/markdown.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
+          "qualified_name": "local_app.start_generation_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": 191,
+          "reference_end_line": 199
+        },
+        {
+          "qualified_name": "local_app.load_codeboarding_config",
+          "reference_file": "local_app.py",
+          "reference_start_line": 121,
+          "reference_end_line": 137
+        },
+        {
+          "qualified_name": "github_action.generate_analysis",
+          "reference_file": "github_action.py",
+          "reference_start_line": 108,
+          "reference_end_line": 144
         }
       ],
       "assigned_files": [
-        "output_generators/markdown.py",
-        "main.py",
-        "duckdb_crud.py"
+        "./main.py",
+        "./duckdb_crud.py",
+        "./github_action.py",
+        "./repo_utils/__init__.py",
+        "./repo_utils/errors.py",
+        "./utils.py",
+        "./local_app.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "Monitoring & Evaluation",
-      "description": "Captures, streams, and processes monitoring statistics and events from LLM and tool executions, providing a framework for performance tracking and evaluation.",
+      "name": "Diagram Orchestrator",
+      "description": "Acts as the central coordination layer for the system. It receives the ingested project, invokes static analysis and LLM agents, aggregates their results, and manages the overall flow of data through the pipeline.",
       "key_entities": [
-        {
-          "qualified_name": "MonitoringCallbacks",
-          "reference_file": "monitoring/callbacks.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
+         {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 199,
+          "reference_end_line": 298
         },
         {
-          "qualified_name": "EventHandler",
-          "reference_file": "monitoring/mixin.py",
-          "reference_start_line": 1,
-          "reference_end_line": 100
-        },
-        {
-          "qualified_name": "EvaluationFramework",
-          "reference_file": "evals/base.py",
-          "reference_start_line": 27,
-          "reference_end_line": 246
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.process_component",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 69,
+          "reference_end_line": 112
         }
       ],
       "assigned_files": [
-        "monitoring/mixin.py",
-        "monitoring/callbacks.py",
-        "evals/base.py"
+        "./diagram_analysis/version.py",
+        "./diagram_analysis/__init__.py",
+        "./diagram_analysis/diagram_generator.py",
+        "./diagram_analysis/analysis_json.py",
+        "./repo_utils/git_diff.py",
+        "./repo_utils/ignore.py",
+        "./agents/details_agent.py",
+        "./agents/validator_agent.py",
+        "./agents/planner_agent.py",
+        "./agents/meta_agent.py",
+        "./agents/abstraction_agent.py",
+        "./agents/diff_analyzer.py",
+        "./agents/agent.py",
+        "./agents/agent_responses.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/tools/toolkit.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/__init__.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis",
+      "description": "Performs structural analysis of the codebase, producing control-flow graphs (CFGs) and other static analysis artifacts. These results are shared with both the Diagram Orchestrator and the LLM Agents to inform higher-level reasoning.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.scanner.Scanner.scan",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 17,
+          "reference_end_line": 67
+        },
+        {
+          "qualified_name": "static_analyzer.__init__.StaticAnalyzer",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": 75,
+          "reference_end_line": 104
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.build_static_analysis",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 417,
+          "reference_end_line": 540
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/scanner.py",
+        "./static_analyzer/typescript_config_scanner.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/__init__.py",
+        "./static_analyzer/lsp_client/client.py",
+        "./static_analyzer/lsp_client/java_client.py",
+        "./static_analyzer/lsp_client/typescript_client.py",
+        "./static_analyzer/lsp_client/__init__.py",
+        "./static_analyzer/programming_language.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./static_analyzer/servers/jdtls/bin/jdtls.py",
+        "./static_analyzer/java_config_scanner.py",
+        "./static_analyzer/java_utils.py",
+        "./repo_utils/ignore.py",
+        "./vscode_constants.py",
+        "./setup.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Agents",
+      "description": "A collection of language-model-driven agents that analyze the codebase using static analysis outputs and contextual information. They generate semantic insights, architectural interpretations, and higher-level analysis results.",
+      "key_entities": [
+         {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 199,
+          "reference_end_line": 298
+        },
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.validator_agent.ValidationAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "./agents/details_agent.py",
+        "./agents/tools/read_source.py",
+        "./agents/tools/read_git_diff.py",
+        "./agents/tools/toolkit.py",
+        "./agents/tools/read_packages.py",
+        "./agents/tools/read_docs.py",
+        "./agents/tools/get_method_invocations.py",
+        "./agents/tools/read_file_structure.py",
+        "./agents/tools/__init__.py",
+        "./agents/tools/read_cfg.py",
+        "./agents/tools/read_file.py",
+        "./agents/tools/external_deps.py",
+        "./agents/tools/base.py",
+        "./agents/tools/read_structure.py",
+        "./agents/meta_agent.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/planner_agent.py",
+        "./agents/__init__.py",
+        "./agents/validator_agent.py",
+        "./agents/agent.py",
+        "./agents/prompts/gpt_prompts_bidirectional.py",
+        "./agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "./agents/prompts/__init__.py",
+        "./agents/prompts/gpt_prompts_unidirectional.py",
+        "./agents/prompts/abstract_prompt_factory.py",
+        "./agents/prompts/claude_prompts_unidirectional.py",
+        "./agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/claude_prompts_bidirectional.py",
+        "./agents/abstraction_agent.py",
+        "./agents/llm_config.py",
+        "./agents/agent_responses.py",
+        "./agents/diff_analyzer.py",
+        "./setup.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generators",
+      "description": "Consumes the aggregated analysis produced by the Diagram Orchestrator and transforms it into final user-facing outputs, such as diagrams, reports, or documentation.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.markdown",
+          "reference_file": "./output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.sphinx",
+          "reference_file": "./output_generators/sphinx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.mdx",
+          "reference_file": "./output_generators/mdx.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html",
+          "reference_file": "./output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html_template",
+          "reference_file": "./output_generators/html_template.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "./output_generators/sphinx.py",
+        "./output_generators/mdx.py",
+        "./output_generators/html.py",
+        "./output_generators/__init__.py",
+        "./output_generators/markdown.py",
+        "./output_generators/html_template.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring and Evaluation",
+      "description": "Monitors the execution of the Diagram Orchestrator and the overall system. It captures metrics, tracks execution behavior, and supports evaluation of analysis quality and system performance.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli",
+          "reference_file": "./evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.config",
+          "reference_file": "./evals/config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.schemas",
+          "reference_file": "./evals/schemas.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "./evals/config.py",
+        "./evals/schemas.py",
+        "./evals/cli.py",
+        "./evals/utils.py",
+        "./evals/definitions/end_to_end.py",
+        "./evals/definitions/scalability.py",
+        "./evals/definitions/static_analysis.py",
+        "./evals/base.py",
+        "./monitoring/paths.py",
+        "./monitoring/mixin.py",
+        "./monitoring/__init__.py",
+        "./monitoring/writers.py",
+        "./monitoring/context.py",
+        "./monitoring/stats.py",
+        "./monitoring/callbacks.py",
+        "./logging_config.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -207,44 +318,44 @@
   ],
   "components_relations": [
     {
-      "relation": "Provides codebase for analysis.",
-      "src_name": "Repository & Project Setup",
-      "dst_name": "Static Analysis Engine"
+      "relation": "locates and provides the codebase to",
+      "src_name": "Project Ingest",
+      "dst_name": "Diagram Orchestrator"
     },
     {
-      "relation": "Provides raw analysis data for graph construction.",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "Code Structure & Clustering"
+      "relation": "invokes",
+      "src_name": "Diagram Orchestrator",
+      "dst_name": "Static Analysis"
     },
     {
-      "relation": "Provides detailed static analysis results.",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "AI Analysis Orchestrator"
+      "relation": "invokes",
+      "src_name": "Diagram Orchestrator",
+      "dst_name": "LLM Agents"
     },
     {
-      "relation": "Provides structural insights and code clusters.",
-      "src_name": "Code Structure & Clustering",
-      "dst_name": "AI Analysis Orchestrator"
+      "relation": "produces analysis consumed by",
+      "src_name": "Diagram Orchestrator",
+      "dst_name": "Output Generator"
     },
     {
-      "relation": "Requests LLM interaction and prompt generation.",
-      "src_name": "AI Analysis Orchestrator",
-      "dst_name": "LLM Prompting & Interface"
+      "relation": "provides CFG and static analysis results to",
+      "src_name": "Static Analysis",
+      "dst_name": "Diagram Orchestrator"
     },
     {
-      "relation": "Sends final, interpreted analysis results for documentation.",
-      "src_name": "AI Analysis Orchestrator",
-      "dst_name": "Output Generation & Job Management"
+      "relation": "provides CFG and static analysis results to",
+      "src_name": "Static Analysis",
+      "dst_name": "LLM Agents"
     },
     {
-      "relation": "Streams agent and tool usage data.",
-      "src_name": "AI Analysis Orchestrator",
-      "dst_name": "Monitoring & Evaluation"
+      "relation": "provides LLM-generated analysis outputs to",
+      "src_name": "LLM Agents",
+      "dst_name": "Diagram Orchestrator"
     },
     {
-      "relation": "Streams LLM call metrics and usage data.",
-      "src_name": "LLM Prompting & Interface",
-      "dst_name": "Monitoring & Evaluation"
+      "relation": "monitors",
+      "src_name": "Evaluation & Monitoring",
+      "dst_name": "Diagram Orchestrator"
     }
   ]
 }

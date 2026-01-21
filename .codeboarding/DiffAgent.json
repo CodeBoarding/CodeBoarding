@@ -1,0 +1,80 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "load_analysis",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "get git diff",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "filter git diff",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM analyze diff",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoarding toolkit",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "UpdateAnalysis",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "passes AnalysisInsight",
+      "src_name": "load_analysis",
+      "dst_name": "get git diff"
+    },
+    {
+      "relation": "all git diffs",
+      "src_name": "get git diff",
+      "dst_name": "filter git diff"
+    },
+    {
+      "relation": "filtered git diffs",
+      "src_name": "filter git diff",
+      "dst_name": "LLM analyze diff"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM analyze diff",
+      "dst_name": "CodeBoarding toolkit"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LLM analyze diff",
+      "dst_name": "UpdateAnalysis"
+    }
+  ]
+}

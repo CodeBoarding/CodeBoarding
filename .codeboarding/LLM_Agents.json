@@ -1,0 +1,376 @@
+{
+  "description": "The LLM Agents subsystem provides the core AI-powered analysis pipeline for CodeBoarding. It orchestrates multiple specialized agents that use LLMs to analyze codebases, generate architectural insights, validate results, and produce documentation. The system uses a toolkit of repository-aware tools and configurable prompts to enable agents to understand code structure, dependencies, and relationships.",
+  "components": [
+    {
+      "name": "Static Analysis Result",
+      "description": "A container for storing and retrieving static analysis data including control flow graphs (CFGs), class hierarchies, package dependencies, and source code references organized by programming language.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
+          "reference_file": "./static_analyzer/analysis_result.py",
+          "reference_start_line": 4,
+          "reference_end_line": 177
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Config",
+      "description": "Configuration system for LLM providers that defines model settings, API keys, temperature parameters, and provider-specific options. Supports multiple providers (OpenAI, Anthropic, Google, AWS Bedrock, Cerebras, Ollama) with automatic provider selection based on available API keys.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 15,
+          "reference_end_line": 52
+        },
+        {
+          "qualified_name": "agents.llm_config.LLM_PROVIDERS",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": 56,
+          "reference_end_line": 139
+        }
+      ],
+      "assigned_files": [
+        "./agents/llm_config.py",
+        "./setup.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "CodeBoarding Agent",
+      "description": "The base agent class that provides core LLM interaction capabilities including agent invocation with retry logic, response parsing using Pydantic models, and integration with the CodeBoardingToolkit. Manages timeouts, exponential backoff, and monitoring callbacks for all agent operations.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 36,
+          "reference_end_line": 347
+        }
+      ],
+      "assigned_files": [
+        "./agents/__init__.py",
+        "./agents/agent.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Prompt Factory",
+      "description": "A factory system for dynamically selecting and providing prompts based on LLM type (Gemini, Claude, GPT-4) and prompt direction (bidirectional/unidirectional). Implements the abstract factory pattern with specialized prompt implementations for each LLM provider.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 35,
+          "reference_end_line": 217
+        },
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 88
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/gpt_prompts_bidirectional.py",
+        "./agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "./agents/prompts/__init__.py",
+        "./agents/prompts/gpt_prompts_unidirectional.py",
+        "./agents/prompts/abstract_prompt_factory.py",
+        "./agents/prompts/claude_prompts_unidirectional.py",
+        "./agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/prompts/claude_prompts_bidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeboardingToolkit",
+      "description": "A professional-grade toolkit that manages the lifecycle and dependency injection for all repository-aware tools. Provides lazy-loaded access to tools for reading source code, file structures, packages, CFGs, method invocations, documentation, and git diffs.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 118
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_source.py",
+        "./agents/tools/read_git_diff.py",
+        "./agents/tools/toolkit.py",
+        "./agents/tools/read_packages.py",
+        "./agents/tools/read_docs.py",
+        "./agents/tools/get_method_invocations.py",
+        "./agents/tools/read_file_structure.py",
+        "./agents/tools/__init__.py",
+        "./agents/tools/read_cfg.py",
+        "./agents/tools/read_file.py",
+        "./agents/tools/external_deps.py",
+        "./agents/tools/base.py",
+        "./agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LargeModelAgent",
+      "description": "A specialized agent subclass that automatically initializes with the configured large/agent model from environment variables. Serves as the base class for all task-specific agents (DetailsAgent, AbstractionAgent, etc.) that require full reasoning capabilities.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.LargeModelAgent",
+          "reference_file": "./agents/agent.py",
+          "reference_start_line": 341,
+          "reference_end_line": 346
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "An agent that generates detailed documentation for individual components by analyzing their CFG subgraphs, code structure, and relationships. Executes a multi-step pipeline: CFG filtering, CFG analysis, structure enhancement, and final analysis generation with feedback integration.",
+      "key_entities": [
+         {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": 31,
+          "reference_end_line": 175
+        }
+      ],
+      "assigned_files": [
+        "./agents/details_agent.py",
+        "./agents/agent_responses.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/tools/toolkit.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent",
+      "description": "An agent that performs high-level architectural analysis by interpreting CFG clusters to identify abstract components and their relationships. Generates project-wide AnalysisInsights by analyzing cluster patterns and producing component groupings with validated source code references.",
+      "key_entities": [
+         {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 27,
+          "reference_end_line": 106
+        }
+      ],
+      "assigned_files": [
+        "./agents/abstraction_agent.py",
+        "./agents/cluster_methods_mixin.py",
+        "./agents/prompts/prompt_factory.py",
+        "./agents/tools/toolkit.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/reference_resolve_mixin.py",
+        "./diagram_analysis/analysis_json.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAnalyzingAgent",
+      "description": "An agent that analyzes git diffs to determine if existing analyses need updating. Compares code changes against the current analysis state, filters changes by supported file extensions, and produces UpdateAnalysis responses indicating the degree of update required for both project-level and component-level analyses.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 212
+        }
+      ],
+      "assigned_files": [
+        "./diagram_analysis/version.py",
+        "./agents/diff_analyzer.py",
+        "./agents/tools/toolkit.py",
+        "./repo_utils/git_diff.py",
+        "./repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MetaAgent",
+      "description": "An agent that analyzes project metadata to provide architectural context and bias for subsequent analysis. Uses documentation, external dependencies, and file structure tools to determine project type, domain, technology stack, architectural patterns, and expected components.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 16,
+          "reference_end_line": 41
+        }
+      ],
+      "assigned_files": [
+        "./agents/meta_agent.py",
+        "./agents/tools/toolkit.py",
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "PlannerAgent",
+      "description": "An agent that determines which components should be expanded for detailed analysis. Evaluates each component using expansion prompts and returns a list of components that warrant deeper investigation based on their complexity and importance.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": 13,
+          "reference_end_line": 34
+        }
+      ],
+      "assigned_files": [
+        "./agents/planner_agent.py",
+        "./agents/tools/toolkit.py",
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidatorAgent",
+      "description": "An agent that validates analysis results for correctness and consistency. Uses a four-step validation pipeline: LLM-based component validation, LLM-based relation validation, deterministic source code reference validation against static analysis, and component relation integrity checks.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 20,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "./agents/validator_agent.py",
+        "./agents/tools/toolkit.py",
+        "./agents/agent_responses.py",
+        "./agents/prompts/prompt_factory.py",
+        "./static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AgentResponse",
+      "description": "Pydantic-based response models used by all agents for structured LLM output parsing. Includes LLMBaseModel as the abstract base with extractor_str() for trustcall integration, plus specialized models for components, relations, source code references, validation insights, and analysis results.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.LLMBaseModel",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 8,
+          "reference_end_line": 38
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "sends",
+      "src_name": "Static Analysis Result",
+      "dst_name": "CodeBoarding Agent"
+    },
+    {
+      "relation": "provides",
+      "src_name": "LLM Config",
+      "dst_name": "CodeBoarding Agent"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Agent",
+      "dst_name": "LLM Prompt Factory"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Agent",
+      "dst_name": "CodeboardingToolkit"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "LargeModelAgent",
+      "dst_name": "CodeBoarding Agent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "DetailsAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "AbstractionAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "MetaAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "PlannerAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "ValidatorAgent",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "produces",
+      "src_name": "DetailsAgent",
+      "dst_name": "AgentResponse"
+    },
+    {
+      "relation": "produces",
+      "src_name": "AbstractionAgent",
+      "dst_name": "AgentResponse"
+    },
+    {
+      "relation": "produces",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "AgentResponse"
+    },
+    {
+      "relation": "produces",
+      "src_name": "MetaAgent",
+      "dst_name": "AgentResponse"
+    },
+    {
+      "relation": "produces",
+      "src_name": "PlannerAgent",
+      "dst_name": "AgentResponse"
+    },
+    {
+      "relation": "produces",
+      "src_name": "ValidatorAgent",
+      "dst_name": "AgentResponse"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "Initialize Workspace",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Prepare for Analysis",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Get Classes",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analyze Single File",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Results",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initialized workspace",
+      "src_name": "Initialize Workspace",
+      "dst_name": "Prepare for Analysis"
+    },
+    {
+      "relation": "flows to",
+      "src_name": "Prepare for Analysis",
+      "dst_name": "Get Classes"
+    },
+    {
+      "relation": "flows to",
+      "src_name": "Get Classes",
+      "dst_name": "Analyze Single File"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Analyze Single File",
+      "dst_name": "Static Analysis Results"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "AnalysisInsights",
+      "description": "",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 149,
+          "reference_end_line": 166
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Judge",
+      "description": "",
+      "key_entities": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent.agent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": 17,
+          "reference_end_line": 17
+        }
+      ],
+      "assigned_files": [
+        "./agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoarding toolkit",
+      "description": "",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 118
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Expandable Components",
+      "description": "",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.Component",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 116,
+          "reference_end_line": 148
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "passes",
+      "src_name": "AnalysisInsights",
+      "dst_name": "LLM Judge"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Judge",
+      "dst_name": "CodeBoarding toolkit"
+    },
+    {
+      "relation": "produces",
+      "src_name": "LLM Judge",
+      "dst_name": "Expandable Components"
+    }
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "description": "The CodeBoarding Toolkit subsystem provides a comprehensive set of repository-aware tools for LLM agents to interact with and analyze codebases. It manages tool lifecycle and dependency injection through a centralized toolkit class, enabling agents to read source code, navigate file structures, analyze control flow graphs, retrieve package dependencies, and examine git diffs.",
+  "components": [
+    {
+      "name": "CodeBoarding Toolkit",
+      "description": "The main toolkit class that manages the lifecycle and dependency injection for all repository-aware tools. Provides lazy-loaded property accessors for each tool and methods to retrieve tool sets for different agent use cases.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "./agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py",
+        "./agents/tools/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "StaticAnalysis",
+      "description": "Container for static analysis results including control flow graphs, class hierarchies, and package dependencies. Provides the underlying data that tools query to retrieve code structure information.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "./static_analyzer/analysis_result.py",
+          "reference_start_line": 4,
+          "reference_end_line": 177
+        }
+      ],
+      "assigned_files": [
+        "./static_analyzer/analysis_result.py",
+        "./static_analyzer/graph.py",
+        "./static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "RepoContext",
+      "description": "Encapsulates shared dependencies for repository-aware tools including the repository directory path, ignore manager, static analysis results, and cached file/directory lists to prevent redundant filesystem walks.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.base.RepoContext",
+          "reference_file": "./agents/tools/base.py",
+          "reference_start_line": 10,
+          "reference_end_line": 54
+        },
+        {
+          "qualified_name": "agents.tools.base.BaseRepoTool",
+          "reference_file": "./agents/tools/base.py",
+          "reference_start_line": 57,
+          "reference_end_line": 96
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/base.py",
+        "./repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "ExternalDepsTool",
+      "description": "Identifies project dependency files (requirements.txt, pyproject.toml, package.json, etc.) in the repository by searching for common dependency file patterns in the root and standard subdirectories.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.external_deps.ExternalDepsTool",
+          "reference_file": "./agents/tools/external_deps.py",
+          "reference_start_line": 17,
+          "reference_end_line": 95
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/external_deps.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "ReadDocsTool",
+      "description": "Reads project documentation files (README, .md, .rst, .txt) to help agents understand project purpose and architecture early in analysis. Defaults to README.md and provides paginated content around specified line numbers.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_docs.ReadDocsTool",
+          "reference_file": "./agents/tools/read_docs.py",
+          "reference_start_line": 22,
+          "reference_end_line": 132
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_docs.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "CodeReferenceTool",
+      "description": "Retrieves source code for specific classes, methods, or functions by their fully qualified import path. Uses static analysis data to locate code references and supports loose matching when exact matches are not found.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_source.CodeReferenceReader",
+          "reference_file": "./agents/tools/read_source.py",
+          "reference_start_line": 24,
+          "reference_end_line": 105
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_source.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "PackageRelationsTool",
+      "description": "Retrieves package dependencies for a root package, showing hierarchical relationships between modules and sub-packages. Returns import relationships (what a package imports and what imports it).",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_packages.PackageRelationsTool",
+          "reference_file": "./agents/tools/read_packages.py",
+          "reference_start_line": 26,
+          "reference_end_line": 60
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_packages.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "CodeStructureTool",
+      "description": "Retrieves class hierarchy and structure for a specific class by its fully qualified name. Provides information about superclasses and subclasses to help understand inheritance patterns.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_structure.CodeStructureTool",
+          "reference_file": "./agents/tools/read_structure.py",
+          "reference_start_line": 14,
+          "reference_end_line": 49
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "FileStructureTool",
+      "description": "Returns project directory structure as a tree representation. Automatically adjusts depth limits to stay within output size constraints and respects the repository's ignore patterns.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_file_structure.FileStructureTool",
+          "reference_file": "./agents/tools/read_file_structure.py",
+          "reference_start_line": 21,
+          "reference_end_line": 99
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_file_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "GetCFGTool",
+      "description": "Retrieves the complete project control flow graph (CFG) showing all method calls and execution flow. Primary analysis tool that provides graphical representation of function/method relationships across the codebase.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_cfg.GetCFGTool",
+          "reference_file": "./agents/tools/read_cfg.py",
+          "reference_start_line": 10,
+          "reference_end_line": 62
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_cfg.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "MethodInvocationsTool",
+      "description": "Retrieves method invocations for a specific method, showing both callers (methods that call this method) and callees (methods this method calls) from the control flow graph.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.get_method_invocations.MethodInvocationsTool",
+          "reference_file": "./agents/tools/get_method_invocations.py",
+          "reference_start_line": 14,
+          "reference_end_line": 47
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/get_method_invocations.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "ReadDiffTool",
+      "description": "Reads git diff for a specified file showing additions (+) and deletions (-). Supports pagination for large diffs and is dynamically instantiated with diff data rather than being cached in the toolkit.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_git_diff.ReadDiffTool",
+          "reference_file": "./agents/tools/read_git_diff.py",
+          "reference_start_line": 22,
+          "reference_end_line": 131
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.FileChange",
+          "reference_file": "./repo_utils/git_diff.py",
+          "reference_start_line": 1,
+          "reference_end_line": 50
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_git_diff.py",
+        "./repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "ReadFileTool",
+      "description": "Reads specific file content around a target line number, returning 300 lines centered on the requested line. Uses cached file lists for efficient path resolution and supports relative paths from the repository root.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_file.ReadFileTool",
+          "reference_file": "./agents/tools/read_file.py",
+          "reference_start_line": 19,
+          "reference_end_line": 90
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/read_file.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "StaticAnalysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "ExternalDepsTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "ReadDocsTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "CodeReferenceTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "PackageRelationsTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "CodeStructureTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "FileStructureTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "GetCFGTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "MethodInvocationsTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "ReadDiffTool"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "CodeBoarding Toolkit",
+      "dst_name": "ReadFileTool"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "ExternalDepsTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "ReadDocsTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "CodeReferenceTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "PackageRelationsTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "CodeStructureTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "FileStructureTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "GetCFGTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "MethodInvocationsTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "ReadDiffTool",
+      "dst_name": "RepoContext"
+    },
+    {
+      "relation": "inherits",
+      "src_name": "ReadFileTool",
+      "dst_name": "RepoContext"
+    }
+  ]
+}

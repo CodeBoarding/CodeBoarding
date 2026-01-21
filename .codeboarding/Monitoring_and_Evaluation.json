@@ -1,0 +1,67 @@
+{
+  "description": "",
+  "components": [
+    {
+      "name": "Monitor Execution Start",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Event Callbacks",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Run Recordings",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Reports and Visuals",
+      "description": "",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "triggers",
+      "src_name": "Monitor Execution Start",
+      "dst_name": "Event Callbacks"
+    },
+    {
+      "relation": "save",
+      "src_name": "Event Callbacks",
+      "dst_name": "Run Recordings"
+    },
+    {
+      "relation": "are loaded",
+      "src_name": "Run Recordings",
+      "dst_name": "Evaluation"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Evaluation",
+      "dst_name": "Reports and Visuals"
+    }
+  ]
+}
