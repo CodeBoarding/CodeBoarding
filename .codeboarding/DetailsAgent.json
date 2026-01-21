@@ -2,14 +2,14 @@
   "description": "The DetailsAgent performs deep analysis of individual components by filtering the CFG to relevant clusters and running multi-step LLM analysis including CFG interpretation, structure enhancement, and final analysis with validation.",
   "components": [
     {
-      "name": "Component",
+      "name": "Component Input",
       "description": "Input component containing name, description, key entities, and source cluster IDs that define which parts of the codebase belong to this component.",
       "key_entities": [
         {
           "qualified_name": "agents.agent_responses.Component",
           "reference_file": "agents/agent_responses.py",
           "reference_start_line": 116,
-          "reference_end_line": 147
+          "reference_end_line": 146
         }
       ],
       "assigned_files": [
@@ -19,7 +19,7 @@
       "can_expand": false
     },
     {
-      "name": "CFG",
+      "name": "Control Flow Graph",
       "description": "Control Flow Graph representing method calls and relationships between code entities, used as the source for component-specific subgraph extraction.",
       "key_entities": [
         {
@@ -39,7 +39,7 @@
         "./static_analyzer/graph.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
       "name": "Filter CFG",
@@ -59,14 +59,13 @@
         }
       ],
       "assigned_files": [
-        "./agents/details_agent.py",
-        "./agents/cluster_methods_mixin.py"
+        "./agents/details_agent.py"
       ],
       "source_cluster_ids": [],
       "can_expand": false
     },
     {
-      "name": "LLM Agent cluster analysis",
+      "name": "LLM Agent Cluster Analysis",
       "description": "Analyzes the filtered CFG to identify components and their relationships within the cluster, producing CFGAnalysisInsights.",
       "key_entities": [
         {
@@ -90,7 +89,7 @@
       "can_expand": false
     },
     {
-      "name": "LLM Agent structure analysis",
+      "name": "LLM Agent Structure Analysis",
       "description": "Enhances the CFG analysis by refining component structure, descriptions, and relationships based on project context.",
       "key_entities": [
         {
@@ -107,7 +106,7 @@
       "can_expand": false
     },
     {
-      "name": "LLM Agent finalize analysis",
+      "name": "LLM Agent Finalize Analysis",
       "description": "Produces the final AnalysisInsights with complete component definitions, key entities, and inter-component relations.",
       "key_entities": [
         {
@@ -115,20 +114,76 @@
           "reference_file": "agents/details_agent.py",
           "reference_start_line": 142,
           "reference_end_line": 158
-        },
-        {
-          "qualified_name": "agents.agent_responses.AnalysisInsights",
-          "reference_file": "agents/agent_responses.py",
-          "reference_start_line": 149,
-          "reference_end_line": 164
         }
       ],
       "assigned_files": [
-        "./agents/details_agent.py",
-        "./agents/agent_responses.py"
+        "./agents/details_agent.py"
       ],
       "source_cluster_ids": [],
       "can_expand": false
+    },
+    {
+      "name": "Analysis Orchestration",
+      "description": "Main run method that orchestrates the multi-step analysis, applies feedback loops, and coordinates validation steps.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent.run",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": 167,
+          "reference_end_line": 174
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent.apply_feedback",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": 160,
+          "reference_end_line": 165
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent.__init__",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": 32,
+          "reference_end_line": 62
+        }
+      ],
+      "assigned_files": [
+        "./agents/details_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Model Specific Prompts",
+      "description": "Factory-provided prompts for details analysis including system message and step-specific prompts, optimized for the configured LLM type.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.get_details_system_message",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": 159,
+          "reference_end_line": 160
+        }
+      ],
+      "assigned_files": [
+        "./agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoarding Toolkit",
+      "description": "Provides agent tools including read_cfg_tool for examining CFG during LLM analysis steps.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
     },
     {
       "name": "Analysis Validation",
@@ -138,7 +193,7 @@
           "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._validate_cluster_ids",
           "reference_file": "agents/cluster_methods_mixin.py",
           "reference_start_line": 180,
-          "reference_end_line": 200
+          "reference_end_line": 199
         },
         {
           "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
@@ -152,39 +207,91 @@
         "./static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisInsights Output",
+      "description": "Output data model containing project description, list of components with key entities, and inter-component relations for the expanded component.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 149,
+          "reference_end_line": 164
+        }
+      ],
+      "assigned_files": [
+        "./agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
       "can_expand": false
     }
   ],
   "components_relations": [
     {
       "relation": "sent",
-      "src_name": "Component",
+      "src_name": "Component Input",
       "dst_name": "Filter CFG"
     },
     {
       "relation": "sent",
-      "src_name": "CFG",
+      "src_name": "Control Flow Graph",
       "dst_name": "Filter CFG"
     },
     {
       "relation": "filtered CFG",
       "src_name": "Filter CFG",
-      "dst_name": "LLM Agent cluster analysis"
+      "dst_name": "LLM Agent Cluster Analysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent Cluster Analysis",
+      "dst_name": "Model Specific Prompts"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent Cluster Analysis",
+      "dst_name": "CodeBoarding Toolkit"
     },
     {
       "relation": "analysis",
-      "src_name": "LLM Agent cluster analysis",
-      "dst_name": "LLM Agent structure analysis"
+      "src_name": "LLM Agent Cluster Analysis",
+      "dst_name": "LLM Agent Structure Analysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent Structure Analysis",
+      "dst_name": "Model Specific Prompts"
     },
     {
       "relation": "analysis",
-      "src_name": "LLM Agent structure analysis",
-      "dst_name": "LLM Agent finalize analysis"
+      "src_name": "LLM Agent Structure Analysis",
+      "dst_name": "LLM Agent Finalize Analysis"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Agent Finalize Analysis",
+      "dst_name": "Model Specific Prompts"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Analysis Orchestration",
+      "dst_name": "Filter CFG"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Analysis Orchestration",
+      "dst_name": "LLM Agent Cluster Analysis"
     },
     {
       "relation": "analysis",
-      "src_name": "LLM Agent finalize analysis",
+      "src_name": "LLM Agent Finalize Analysis",
       "dst_name": "Analysis Validation"
+    },
+    {
+      "relation": "produces",
+      "src_name": "Analysis Validation",
+      "dst_name": "AnalysisInsights Output"
     }
   ]
 }

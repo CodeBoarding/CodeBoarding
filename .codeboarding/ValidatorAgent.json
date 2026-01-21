@@ -10,13 +10,19 @@
           "reference_file": "agents/validator_agent.py",
           "reference_start_line": 141,
           "reference_end_line": 167
+        },
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent.__init__",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 21,
+          "reference_end_line": 33
         }
       ],
       "assigned_files": [
         "./agents/validator_agent.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "LLM Component Validation",
@@ -33,7 +39,7 @@
         "./agents/validator_agent.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "LLM Relation Validation",
@@ -50,7 +56,7 @@
         "./agents/validator_agent.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Source Code Reference Validation",
@@ -67,7 +73,7 @@
         "./agents/validator_agent.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Component Relation Integrity Check",
@@ -82,6 +88,23 @@
       ],
       "assigned_files": [
         "./agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "CodeBoarding Toolkit",
+      "description": "Provides agent tools for reading source code and project structure during validation. Used by LLM validation steps to examine actual code.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        }
+      ],
+      "assigned_files": [
+        "./agents/tools/toolkit.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -101,7 +124,7 @@
         "./agents/agent_responses.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": true
+      "can_expand": false
     },
     {
       "name": "Model Specific Prompts",
@@ -167,6 +190,11 @@
       "dst_name": "Model Specific Prompts"
     },
     {
+      "relation": "uses",
+      "src_name": "LLM Component Validation",
+      "dst_name": "CodeBoarding Toolkit"
+    },
+    {
       "relation": "second step",
       "src_name": "Validation Orchestrator",
       "dst_name": "LLM Relation Validation"
@@ -180,6 +208,11 @@
       "relation": "uses",
       "src_name": "LLM Relation Validation",
       "dst_name": "Model Specific Prompts"
+    },
+    {
+      "relation": "uses",
+      "src_name": "LLM Relation Validation",
+      "dst_name": "CodeBoarding Toolkit"
     },
     {
       "relation": "third step",

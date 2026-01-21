@@ -192,11 +192,11 @@
       "can_expand": true
     },
     {
-      "name": "DiffAnalyzingAgent",
+      "name": "DiffAgent",
       "description": "An agent that analyzes git diffs to determine if existing analyses need updating. Compares code changes against the current analysis state, filters changes by supported file extensions, and produces UpdateAnalysis responses indicating the degree of update required for both project-level and component-level analyses.",
       "key_entities": [
         {
-          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "qualified_name": "agents.diff_analyzer.DiffAgent",
           "reference_file": "agents/diff_analyzer.py",
           "reference_start_line": 21,
           "reference_end_line": 211
@@ -329,7 +329,7 @@
     },
     {
       "relation": "inherits",
-      "src_name": "DiffAnalyzingAgent",
+      "src_name": "DiffAgent",
       "dst_name": "LargeModelAgent"
     },
     {
