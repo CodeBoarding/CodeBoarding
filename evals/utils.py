@@ -35,7 +35,7 @@ def get_git_commit_short() -> str:
 
 
 def generate_header(title: str, timestamp: str | None = None, extra_lines: list[str] | None = None) -> str:
-    ts = timestamp or datetime.now(timezone.utc).isoformat()
+    ts = timestamp or datetime.now(timezone.cet).isoformat()
     lines = [f"# {title}", "", f"**Generated:** {ts}", ""]
     if extra_lines:
         lines.extend(extra_lines)
