@@ -1,0 +1,21 @@
+repo_name,commit,md_added,datetime,gap_minutes,gap_hours,counted,bin_index
+Ruli,e10b604,7,2025-08-13 01:54:27,7,0.13,True,1
+Scrapegraph-ai,288ab57,8,2025-08-14 17:56:04,10,0.18,True,1
+craft-application,1d6dbeb,6,2025-08-12 11:59:17,10,0.18,True,1
+vit-pytorch,8b1edca,7,2025-08-14 03:08:49,12,0.21,True,1
+mkdocs,7d4b8bc,5,2025-08-14 18:10:49,14,0.25,True,1
+BitNet,dae280f,6,2025-08-14 18:25:44,14,0.25,True,2
+LLaVA,8213044,7,2025-08-14 03:25:03,16,0.27,True,2
+matharena,4554dde,5,2025-08-11 12:17:57,16,0.28,True,2
+cli,4e77cdc,6,2025-08-11 12:01:00,19,0.33,True,2
+dash,1e47d95,7,2025-08-14 02:56:27,20,0.34,True,2
+kotaemon,5f0752b,7,2025-08-14 03:48:54,23,0.4,True,3
+mlc-llm,b733a4b,6,2025-08-14 17:45:13,24,0.41,True,3
+basic_verilog,fec1f22,7,2025-08-20 15:43:05,30,0.51,True,3
+GeneAgent,decb004,4,2025-08-16 11:06:57,33,0.56,True,3
+mlflow,c2f0f8e,8,2025-08-14 17:20:19,39,0.66,True,3
+livekit,d706dc7,7,2025-08-11 13:01:45,43,0.73,True,4
+lmql,faf87fa,9,2025-08-11 11:41:02,45,0.76,True,4
+MetaGPT,697843f,6,2025-08-11 13:46:58,45,0.75,True,4
+poml,dc28517,7,2025-08-12 15:32:03,51,0.85,True,4
+minGPT,7f4ff32,2,2025-08-14 04:45:11,56,0.94,True,4

@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from git import Repo
 
+
+# Only count python lines, this is basically everything we could handle back then, and use this to calculate LOC:
+# https://codetabs.com/count-loc/count-loc-online.html
 # Mapping of repo names (last word in commit message) to lines of code
 REPO_LOC = {
     "lmql": 18622,
