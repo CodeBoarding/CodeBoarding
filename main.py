@@ -59,6 +59,7 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    estimate_only: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -68,6 +69,7 @@ def generate_analysis(
         depth_level=depth_level,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
+        estimate_only=estimate_only,
     )
     return generator.generate_analysis()
 
@@ -242,6 +244,7 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
+    estimate_only: bool = False,
 ):
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -264,6 +267,7 @@ def process_local_repository(
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
+            estimate_only=estimate_only,
         )
 
 
@@ -331,6 +335,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
+    parser.add_argument(
+        "--estimate-only",
+        action="store_true",
+        help="Estimate execution time without running the full analysis",
+    )
     parser.add_argument(
         "--load-env-variables",
         action="store_true",
@@ -419,6 +428,7 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
+            estimate_only=args.estimate_only,
         )
         logger.info(f"Documentation generated successfully in {args.output_dir or './analysis'}")
     else:

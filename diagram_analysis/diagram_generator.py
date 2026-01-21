@@ -1,7 +1,7 @@
 import json
 import logging
-import math
 import os
+import sys
 import time
 from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,6 +19,7 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
 from agents.validator_agent import ValidatorAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
+from diagram_analysis.estimation import estimate_pipeline_time
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
@@ -42,6 +43,7 @@ class DiagramGenerator:
         output_dir: Path,
         depth_level: int,
         static_only: bool = False,
+        estimate_only: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -52,6 +54,7 @@ class DiagramGenerator:
         self.output_dir = output_dir
         self.depth_level = depth_level
         self.static_only = static_only
+        self.estimate_only = estimate_only
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -66,41 +69,6 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
-
-    def _estimate_pipeline_time(self, loc_by_language: dict[str, int]):
-        total_loc = sum(loc_by_language.values())
-        if total_loc <= 0:
-            return
-
-        # Multipliers relative to Python (1.0)
-        # These reflect relative complexity/time for static analysis and agent exploring the codebase.
-        multipliers = {
-            "python": 1.0,
-            "java": 2.0,
-            "go": 1.0,
-            "typescript": 1.0,
-            "javascript": 1.0,
-            "php": 1.0,
-        }
-
-        # Calculate weighted multiplier based on LOC distribution
-        weighted_sum = 0.0
-        for lang, loc in loc_by_language.items():
-            multiplier = multipliers.get(lang.lower(), 1.0)
-            weighted_sum += loc * multiplier
-
-        effective_multiplier = weighted_sum / total_loc
-
-        # Formula: time = a * log10(LOC) + b, where a = 14.8590, b = -43.1970
-        # See branch: estimate-running-times for how interpolation was derived.
-        a, b = 14.8590, -43.1970
-        base_time_minutes = a * math.log10(total_loc) + b
-        estimated_time_minutes = max(0, base_time_minutes) * effective_multiplier
-
-        logger.info(
-            f"Estimated pipeline time: {estimated_time_minutes:.1f} minutes "
-            f"(based on {total_loc:,} LOC, effective multiplier: {effective_multiplier:.2f})"
-        )
 
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
@@ -159,7 +127,7 @@ class DiagramGenerator:
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
 
         # Calculate and display estimated pipeline time using log model
-        self._estimate_pipeline_time(loc_by_language)
+        estimate_pipeline_time(loc_by_language, estimate_only=self.estimate_only)
 
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)
