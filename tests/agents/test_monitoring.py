@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from monitoring import MonitoringCallback
 from monitoring.stats import RunStats
+from monitoring.context import current_step
 from langchain_core.outputs import LLMResult
 
 
@@ -92,6 +93,31 @@ class TestMonitoringCallback(unittest.TestCase):
         # Should not crash, counts remain 0
         self.assertEqual(self.callback.stats.input_tokens, 0)
         self.assertEqual(self.callback.stats.output_tokens, 0)
+
+    def test_on_llm_end_logs_expected_format(self):
+        # Ensure the log format remains stable for downstream parsing
+        llm_output = {
+            "token_usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 2,
+                "total_tokens": 3,
+            }
+        }
+        response = LLMResult(generations=[], llm_output=llm_output)
+
+        token = current_step.set("dummyStep")
+        try:
+            self.callback.model_name = "dummyModel"
+            with patch("monitoring.callbacks.logger.info") as mock_info:
+                self.callback.on_llm_end(response)
+
+                expected = (
+                    "Token Usage: step=dummyStep model=dummyModel "
+                    'usage={"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}'
+                )
+                mock_info.assert_called_once_with(expected)
+        finally:
+            current_step.reset(token)
 
     def test_on_tool_start(self):
         # Test on_tool_start
