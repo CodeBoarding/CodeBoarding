@@ -127,7 +127,7 @@ class DiagramGenerator:
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
 
         # Calculate and display estimated pipeline time using log model
-        estimate_pipeline_time(loc_by_language, estimate_only=self.estimate_only)
+        estimate_pipeline_time(loc_by_language, depth_level=self.depth_level, estimate_only=self.estimate_only)
 
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)

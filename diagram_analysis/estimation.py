@@ -6,7 +6,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-def estimate_pipeline_time(loc_by_language: dict[str, int], estimate_only: bool = False) -> None:
+def estimate_pipeline_time(loc_by_language: dict[str, int], depth_level: int, estimate_only: bool = False) -> None:
     """
     Calculate and log the estimated pipeline time based on lines of code (LOC)
     per language, using a log-based model.
@@ -38,11 +38,21 @@ def estimate_pipeline_time(loc_by_language: dict[str, int], estimate_only: bool 
     # See branch: estimate-running-times for how interpolation was derived.
     a, b = 14.8590, -43.1970
     base_time_minutes = a * math.log10(total_loc) + b
-    estimated_time_minutes = max(0, base_time_minutes) * effective_multiplier
+
+    # Adjust base time based on depth_level
+    # Current estimates (from interpolation) are for level 2
+    # Level 1: 0.5x, Level 2: 1.0x, Level 3: 2.0x
+    depth_multiplier = 1.0
+    if depth_level == 1:
+        depth_multiplier = 0.5
+    elif depth_level == 3:
+        depth_multiplier = 2.0
+
+    estimated_time_minutes = max(0, base_time_minutes) * effective_multiplier * depth_multiplier
 
     logger.info(
         f"Estimated pipeline time: {estimated_time_minutes:.1f} minutes "
-        f"(based on {total_loc:,} LOC, effective multiplier: {effective_multiplier:.2f})"
+        f"(based on {total_loc:,} LOC, depth level: {depth_level}, effective multiplier: {effective_multiplier:.2f})"
     )
 
     if estimate_only:
