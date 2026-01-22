@@ -95,6 +95,7 @@ class TestMonitoringCallback(unittest.TestCase):
         self.assertEqual(self.callback.stats.output_tokens, 0)
 
     def test_on_llm_end_logs_expected_format(self):
+        # As we use the logs as communication at the moment, I am adding a test to validate that the structure doesn't change
         # Ensure the log format remains stable for downstream parsing
         llm_output = {
             "token_usage": {
