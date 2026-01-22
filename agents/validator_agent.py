@@ -6,6 +6,7 @@ from langgraph.prebuilt import create_react_agent
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import ValidationInsights, AnalysisInsights
+from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
     get_component_validation_component,
     get_relationships_validation,
@@ -17,7 +18,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class ValidatorAgent(LargeModelAgent):
+class ValidatorAgent(ClusterMethodsMixin, LargeModelAgent):
     def __init__(self, repo_dir, static_analysis: StaticAnalysisResults):
         super().__init__(repo_dir, static_analysis, get_validator_system_message())
         self.agent = create_react_agent(
@@ -138,6 +139,38 @@ class ValidatorAgent(LargeModelAgent):
             return ValidationInsights(is_valid=False, additional_info="\n".join(info))
         return ValidationInsights(is_valid=True, additional_info="All component relations are valid.")
 
+    @trace
+    def validate_cluster_coverage(self, analysis: AnalysisInsights):
+        """
+        Validate that all original cluster IDs from static analysis are covered in source_cluster_ids.
+
+        This ensures no clusters from the static analysis are silently lost during the grouping process.
+        If any clusters are uncovered, returns invalid with a message that can be sent back to the LLM for correction.
+        """
+        valid_cluster_ids = self._get_valid_cluster_ids()
+
+        # Collect all cluster IDs referenced in the analysis
+        covered_cluster_ids: set[int] = set()
+        for component in analysis.components:
+            if component.source_cluster_ids:
+                covered_cluster_ids.update(component.source_cluster_ids)
+
+        # Find uncovered clusters
+        uncovered_ids = valid_cluster_ids - covered_cluster_ids
+
+        if uncovered_ids:
+            sorted_uncovered = sorted(uncovered_ids)
+            msg = (
+                f"Cluster coverage validation failed: Clusters {sorted_uncovered} are not referenced in any component's source_cluster_ids. "
+                f"All {len(valid_cluster_ids)} clusters from static analysis must be covered. "
+                f"Please review the cluster grouping and ensure each cluster is assigned to exactly one component."
+            )
+            logger.warning(f"[ValidatorAgent] {msg}")
+            return ValidationInsights(is_valid=False, additional_info=msg)
+
+        logger.info(f"[ValidatorAgent] All {len(valid_cluster_ids)} cluster IDs are covered in the analysis")
+        return ValidationInsights(is_valid=True, additional_info="All clusters are covered.")
+
     def run(self, analysis: AnalysisInsights):
         """
         Run the validation process on the provided analysis.
@@ -146,6 +179,13 @@ class ValidatorAgent(LargeModelAgent):
         logger.info(f"[ValidatorAgent] Running validation on the analysis.")
         insights = ""
         valid = True
+
+        # Validate cluster coverage first
+        cluster_coverage = self.validate_cluster_coverage(analysis)
+        if not cluster_coverage.is_valid:
+            insights += f"{cluster_coverage.llm_str()}\n\n"
+            valid = False
+
         invalid_components = self.validate_components(analysis)
         if not invalid_components.is_valid:
             insights += f"{invalid_components.llm_str()}\n\n"
