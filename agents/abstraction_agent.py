@@ -107,16 +107,13 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         # Step 3: Validate that invalid cluster IDs are removed
         self._validate_cluster_ids(analysis)
 
-        # Step 4: Validate that all original cluster IDs are covered in the analysis
-        self._validate_all_clusters_covered(analysis)
-
-        # Step 5: Assign files to components based on source_cluster_ids
+        # Step 4: Assign files to components based on source_cluster_ids
         self.classify_files(analysis)
 
-        # Step 6: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
 
-        # Step 7: Ensure unique key entities across components
+        # Step 6: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis

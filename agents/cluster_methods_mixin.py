@@ -198,37 +198,3 @@ class ClusterMethodsMixin:
                     logger.warning(
                         f"[ClusterMethodsMixin] Removed invalid cluster IDs {removed_ids} from component '{component.name}'"
                     )
-
-    def _validate_all_clusters_covered(self, analysis: AnalysisInsights) -> None:
-        """
-        Validate that all original cluster IDs from static analysis are covered in source_cluster_ids.
-
-        This ensures no clusters from the static analysis are silently lost during the grouping process.
-        Logs an error if any clusters are not referenced in any component.
-
-        Args:
-            analysis: The analysis to validate
-
-        Raises:
-            ValueError: If any clusters are not covered. The validator_agent will catch this
-                        and communicate the issue back to the LLM for correction.
-        """
-        valid_cluster_ids = self._get_valid_cluster_ids()
-
-        # Collect all cluster IDs referenced in the analysis
-        covered_cluster_ids: set[int] = set()
-        for component in analysis.components:
-            if component.source_cluster_ids:
-                covered_cluster_ids.update(component.source_cluster_ids)
-
-        # Find uncovered clusters
-        uncovered_ids = valid_cluster_ids - covered_cluster_ids
-
-        if uncovered_ids:
-            sorted_uncovered = sorted(uncovered_ids)
-            logger.warning(
-                f"[ClusterMethodsMixin] Uncovered cluster IDs: {sorted_uncovered}. "
-                f"All {len(valid_cluster_ids)} clusters from static analysis must be covered."
-            )
-        else:
-            logger.info(f"[ClusterMethodsMixin] All {len(valid_cluster_ids)} cluster IDs are covered in the analysis")
