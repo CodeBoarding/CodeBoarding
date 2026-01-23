@@ -77,7 +77,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_create_subgraph_from_component(self, mock_static_init):
+    def test_create_strict_component_subgraph(self, mock_static_init):
         # Test creating subgraph from component assigned files
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
@@ -101,16 +101,18 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result
-        mock_cfg.subgraph.return_value = mock_subgraph
+        # Ensure filter_by_files returns our mock subgraph
+        mock_cfg.filter_by_files.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
-        subgraph_str, subgraph_cluster_results = agent._create_subgraph_from_component(self.test_component)
+        subgraph_str, subgraph_cluster_results = agent._create_strict_component_subgraph(self.test_component)
 
         self.assertIn("Component CFG String", subgraph_str)
-        self.assertIn("python", subgraph_cluster_results)
-        self.assertIs(subgraph_cluster_results["python"], mock_sub_cluster_result)
+        self.mock_static_analysis.get_cfg.assert_called_with("python")
+        mock_cfg.filter_by_files.assert_called_with(abs_assigned)
+        mock_subgraph.cluster.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
@@ -219,7 +221,7 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result
-        mock_cfg.subgraph.return_value = mock_subgraph
+        mock_cfg.filter_by_files.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg

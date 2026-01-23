@@ -526,8 +526,8 @@ class TestCallGraph(unittest.TestCase):
         # Check that file_to_clusters and cluster_to_files are populated
         self.assertTrue(len(result.file_to_clusters) > 0 or result.strategy in ("empty", "none"))
 
-    def test_subgraph_creates_new_callgraph(self):
-        """Test that subgraph() creates a new CallGraph instance."""
+    def test_filter_by_files_creates_new_callgraph(self):
+        """Test that filter_by_files() creates a new CallGraph instance."""
         graph = CallGraph()
 
         for i in range(10):
@@ -540,26 +540,26 @@ class TestCallGraph(unittest.TestCase):
         cluster_result = graph.cluster()
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.subgraph({first_cluster_id})
+            sub_graph = graph.filter_by_files({first_cluster_id})
 
             self.assertIsInstance(sub_graph, CallGraph)
             self.assertIsNot(sub_graph, graph)
             # Subgraph should have fewer or equal nodes
             self.assertLessEqual(len(sub_graph.nodes), len(graph.nodes))
 
-    def test_subgraph_empty_cluster_ids(self):
-        """Test subgraph() with empty cluster IDs returns empty graph."""
+    def test_filter_by_files_empty_cluster_ids(self):
+        """Test filter_by_files() with empty cluster IDs returns empty graph."""
         graph = CallGraph()
         node = Node("module.func", 12, "/file.py", 1, 10)
         graph.add_node(node)
 
-        sub_graph = graph.subgraph(set())
+        sub_graph = graph.filter_by_files(set())
 
         self.assertEqual(len(sub_graph.nodes), 0)
         self.assertEqual(len(sub_graph.edges), 0)
 
-    def test_subgraph_preserves_edges(self):
-        """Test that subgraph() preserves edges between included nodes."""
+    def test_filter_by_files_preserves_edges(self):
+        """Test that filter_by_files() preserves edges between included nodes."""
         graph = CallGraph()
 
         node1 = Node("module.func1", 12, "/file.py", 1, 10)
@@ -575,17 +575,17 @@ class TestCallGraph(unittest.TestCase):
 
         cluster_result = graph.cluster()
         if cluster_result.clusters:
-            # Get a cluster and create subgraph
+            # Get a cluster and create filter_by_files
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.subgraph({first_cluster_id})
+            sub_graph = graph.filter_by_files({first_cluster_id})
 
-            # All edges in subgraph should connect nodes that exist in subgraph
+            # All edges in filter_by_files should connect nodes that exist in filter_by_files
             for edge in sub_graph.edges:
                 self.assertIn(edge.get_source(), sub_graph.nodes)
                 self.assertIn(edge.get_destination(), sub_graph.nodes)
 
-    def test_subgraph_can_be_clustered(self):
-        """Test that subgraph can itself be clustered."""
+    def test_filter_by_files_can_be_clustered(self):
+        """Test that filter_by_files can itself be clustered."""
         graph = CallGraph()
 
         for i in range(20):
@@ -598,7 +598,7 @@ class TestCallGraph(unittest.TestCase):
         cluster_result = graph.cluster()
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.subgraph({first_cluster_id})
+            sub_graph = graph.filter_by_files({first_cluster_id})
 
             # Subgraph should be clusterable
             sub_result = sub_graph.cluster()

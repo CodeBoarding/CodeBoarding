@@ -16,7 +16,6 @@ from agents.details_agent import DetailsAgent
 from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
-from agents.validator_agent import ValidatorAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
@@ -58,7 +57,6 @@ class DiagramGenerator:
         self.details_agent: DetailsAgent | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.planner_agent: PlannerAgent | None = None
-        self.validator_agent: ValidatorAgent | None = None
         self.diff_analyzer_agent: DiffAnalyzingAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
@@ -72,7 +70,6 @@ class DiagramGenerator:
             # Now before we try doing anything, we need to check if the component already exists:
             assert self.diff_analyzer_agent is not None
             assert self.details_agent is not None
-            assert self.validator_agent is not None
             assert self.planner_agent is not None
 
             update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
@@ -92,9 +89,6 @@ class DiagramGenerator:
                 analysis = self.details_agent.apply_feedback(analysis, update_insight)
             else:
                 analysis, subgraph_cluster_results = self.details_agent.run(component)
-                feedback = self.validator_agent.run(analysis, subgraph_cluster_results)
-                if not feedback.is_valid:
-                    analysis = self.details_agent.apply_feedback(analysis, feedback)
             # Get new components to analyze
             new_components = self.planner_agent.plan_analysis(analysis)
 
@@ -152,9 +146,6 @@ class DiagramGenerator:
             self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
             self._monitoring_agents["PlannerAgent"] = self.planner_agent
 
-            self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-            self._monitoring_agents["ValidatorAgent"] = self.validator_agent
-
             self.diff_analyzer_agent = DiffAnalyzingAgent(
                 repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
             )
@@ -202,12 +193,7 @@ class DiagramGenerator:
         """
         files: list[str] = []
 
-        if (
-            self.details_agent is None
-            or self.abstraction_agent is None
-            or self.planner_agent is None
-            or self.validator_agent is None
-        ):
+        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None:
             self.pre_analysis()
 
         # Start monitoring (tracks start time)
@@ -222,7 +208,6 @@ class DiagramGenerator:
 
             assert self.diff_analyzer_agent is not None
             assert self.abstraction_agent is not None
-            assert self.validator_agent is not None
             assert self.planner_agent is not None
 
             update_analysis = self.diff_analyzer_agent.check_for_updates()
@@ -242,9 +227,6 @@ class DiagramGenerator:
                     cluster_results[lang] = cfg.cluster()
             elif update_analysis.update_degree >= 8:
                 analysis, cluster_results = self.abstraction_agent.run()
-                feedback = self.validator_agent.run(analysis, cluster_results)
-                if not feedback.is_valid:
-                    analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
             else:
                 analysis = self.diff_analyzer_agent.get_analysis()
             assert analysis is not None, "Analysis should not be None at this point"

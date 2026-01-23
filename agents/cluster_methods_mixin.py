@@ -195,3 +195,55 @@ class ClusterMethodsMixin:
                     logger.warning(
                         f"[ClusterMethodsMixin] Removed invalid cluster IDs {removed_ids} from component '{component.name}'"
                     )
+
+    def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
+        """
+        Create a strict subgraph containing ONLY nodes from the component's assigned files.
+        This ensures the analysis is strictly scoped to the component's boundaries.
+
+        Args:
+            component: Component with assigned_files to filter by
+
+        Returns:
+            Tuple of (formatted cluster string, cluster_results dict)
+            where cluster_results maps language -> ClusterResult for the subgraph
+        """
+        if not component.assigned_files:
+            logger.warning(f"[ClusterMethodsMixin] Component {component.name} has no assigned_files")
+            return "No assigned files found for this component.", {}
+
+        # Convert assigned files to absolute paths for comparison
+        assigned_file_set = set()
+        for f in component.assigned_files:
+            abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
+            assigned_file_set.add(abs_path)
+
+        result_parts = []
+        cluster_results = {}
+
+        for lang in self.static_analysis.get_languages():
+            cfg = self.static_analysis.get_cfg(lang)
+
+            # Use strict filtering logic
+            sub_cfg = cfg.filter_by_files(assigned_file_set)
+
+            if sub_cfg.nodes:
+                # Calculate clusters for the subgraph
+                sub_cluster_result = sub_cfg.cluster()
+                cluster_results[lang] = sub_cluster_result
+
+                cluster_str = sub_cfg.to_cluster_string()
+                if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
+                    result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
+                    result_parts.append(cluster_str)
+                    result_parts.append("\n")
+
+        result = "".join(result_parts)
+
+        if not result.strip():
+            logger.warning(
+                f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component.assigned_files)} assigned files"
+            )
+            return "No relevant CFG clusters found for this component.", cluster_results
+
+        return result, cluster_results

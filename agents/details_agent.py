@@ -49,69 +49,6 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
-    def _create_subgraph_from_component(self, component: Component) -> tuple[str, dict]:
-        """
-        Create a subgraph containing only nodes from the component's assigned files.
-
-        Args:
-            component: Component with assigned_files to filter by
-
-        Returns:
-            Tuple of (formatted cluster string, cluster_results dict)
-            where cluster_results maps language -> ClusterResult for the subgraph
-        """
-        if not component.assigned_files:
-            logger.warning(f"[DetailsAgent] Component {component.name} has no assigned_files")
-            return "No assigned files found for this component.", {}
-
-        # Convert assigned files to absolute paths for comparison
-        assigned_file_set = set()
-        for f in component.assigned_files:
-            abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
-            assigned_file_set.add(abs_path)
-
-        result_parts = []
-        cluster_results = {}
-
-        for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            cluster_result = cfg.cluster()
-
-            # Find all cluster IDs that contain files from assigned_files
-            relevant_cluster_ids = set()
-            for cluster_id in cluster_result.get_cluster_ids():
-                cluster_files = cluster_result.get_files_for_cluster(cluster_id)
-                # If any file in this cluster is in assigned_files, include the cluster
-                if cluster_files & assigned_file_set:
-                    relevant_cluster_ids.add(cluster_id)
-
-            if not relevant_cluster_ids:
-                continue
-
-            # Create subgraph with only relevant clusters
-            sub_cfg = cfg.subgraph(relevant_cluster_ids)
-
-            if sub_cfg.nodes:
-                # Get the cluster result for the subgraph
-                sub_cluster_result = sub_cfg.cluster()
-                cluster_results[lang] = sub_cluster_result
-
-                cluster_str = sub_cfg.to_cluster_string()
-                if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
-                    result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
-                    result_parts.append(cluster_str)
-                    result_parts.append("\n")
-
-        result = "".join(result_parts)
-
-        if not result.strip():
-            logger.warning(
-                f"[DetailsAgent] No CFG found for component {component.name} with {len(component.assigned_files)} assigned files"
-            )
-            return "No relevant CFG clusters found for this component.", cluster_results
-
-        return result, cluster_results
-
     @trace
     def step_cluster_grouping(self, component: Component, subgraph_cluster_str: str) -> ClusterAnalysis:
         """
@@ -186,8 +123,8 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         """
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
 
-        # Step 1: Create subgraph from component's assigned files
-        subgraph_str, subgraph_cluster_results = self._create_subgraph_from_component(component)
+        # Step 1: Create subgraph from component's assigned files using strict filtering
+        subgraph_str, subgraph_cluster_results = self._create_strict_component_subgraph(component)
 
         # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_cluster_grouping(component, subgraph_str)
