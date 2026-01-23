@@ -55,18 +55,6 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_validator_system_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_component_validation_component(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_relationships_validation(self) -> str:
-        pass
-
-    @abstractmethod
     def get_system_diff_analysis_message(self) -> str:
         pass
 

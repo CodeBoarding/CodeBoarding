@@ -20,6 +20,7 @@ from agents.prompts import (
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_helpers import build_all_cluster_results
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +99,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
 
     def run(self):
         # Build full cluster results dict for all languages
-        cluster_results = {}
-        for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            cluster_results[lang] = cfg.cluster()
+        cluster_results = build_all_cluster_results(self.static_analysis)
 
         # Step 1: Group related clusters together into logical components
         cluster_analysis = self.step_clusters_grouping()

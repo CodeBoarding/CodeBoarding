@@ -212,19 +212,12 @@ class DiagramGenerator:
 
             update_analysis = self.diff_analyzer_agent.check_for_updates()
 
-            cluster_results = None
-
             if 4 < update_analysis.update_degree < 8:
                 # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
                 analysis = self.abstraction_agent.apply_feedback(
                     self.diff_analyzer_agent.get_analysis(), update_insight
                 )
-                # Need to build cluster results for validation
-                cluster_results = {}
-                for lang in self.abstraction_agent.static_analysis.get_languages():
-                    cfg = self.abstraction_agent.static_analysis.get_cfg(lang)
-                    cluster_results[lang] = cfg.cluster()
             elif update_analysis.update_degree >= 8:
                 analysis, cluster_results = self.abstraction_agent.run()
             else:

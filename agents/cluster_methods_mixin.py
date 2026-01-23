@@ -1,11 +1,11 @@
 import logging
 import os
 from pathlib import Path
-from typing import Dict
 
 from agents.agent_responses import Component, AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_helpers import get_files_for_cluster_ids, get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +32,18 @@ class ClusterMethodsMixin:
     repo_dir: Path
     static_analysis: StaticAnalysisResults
 
-    def _get_files_for_clusters(self, cluster_ids: list[int], cluster_results: Dict[str, ClusterResult]) -> set[str]:
+    def _get_files_for_clusters(self, cluster_ids: list[int], cluster_results: dict[str, ClusterResult]) -> set[str]:
         """
         Get all files that belong to the given cluster IDs.
 
         Args:
             cluster_ids: List of cluster IDs to get files for
-            cluster_results: Dict mapping language -> ClusterResult
+            cluster_results: dict mapping language -> ClusterResult
 
         Returns:
             Set of file paths
         """
-        files: set[str] = set()
-        for lang, cluster_result in cluster_results.items():
-            for cluster_id in cluster_ids:
-                files.update(cluster_result.get_files_for_cluster(cluster_id))
-        return files
+        return get_files_for_cluster_ids(cluster_ids, cluster_results)
 
     def _build_cluster_string(self, programming_langs: list[str], cluster_ids: set[int] | None = None) -> str:
         """
@@ -74,7 +70,7 @@ class ClusterMethodsMixin:
 
         return "".join(cluster_lines)
 
-    def _assign_files_to_component(self, component: Component, cluster_results: Dict[str, ClusterResult]) -> None:
+    def _assign_files_to_component(self, component: Component, cluster_results: dict[str, ClusterResult]) -> None:
         """
         Assign files to a component.
         1. Get all files from component's clusters (instant lookup)
@@ -83,7 +79,7 @@ class ClusterMethodsMixin:
 
         Args:
             component: Component to assign files to
-            cluster_results: Dict mapping language -> ClusterResult
+            cluster_results: dict mapping language -> ClusterResult
         """
         assigned: set[str] = set()
 
@@ -168,7 +164,7 @@ class ClusterMethodsMixin:
         self,
         analysis: AnalysisInsights,
         valid_cluster_ids: set[int] | None = None,
-        cluster_results: Dict[str, ClusterResult] | None = None,
+        cluster_results: dict[str, ClusterResult] | None = None,
     ) -> None:
         """
         Sanitize cluster IDs in the analysis by removing invalid ones.
@@ -177,14 +173,13 @@ class ClusterMethodsMixin:
         Args:
             analysis: The analysis to sanitize
             valid_cluster_ids: Optional set of valid IDs. If None, derives from cluster_results.
-            cluster_results: Dict mapping language -> ClusterResult. Required if valid_cluster_ids is None.
+            cluster_results: dict mapping language -> ClusterResult. Required if valid_cluster_ids is None.
         """
         if valid_cluster_ids is None:
             if cluster_results is None:
-                raise ValueError("Must provide either valid_cluster_ids or cluster_results")
-            valid_cluster_ids = set()
-            for cluster_result in cluster_results.values():
-                valid_cluster_ids.update(cluster_result.get_cluster_ids())
+                logger.error("Must provide either valid_cluster_ids or cluster_results")
+                return
+            valid_cluster_ids = get_all_cluster_ids(cluster_results)
 
         for component in analysis.components:
             if component.source_cluster_ids:
