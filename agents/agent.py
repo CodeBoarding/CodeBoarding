@@ -351,7 +351,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         """
         # Pass 1: Deterministic assignment (uses mixin methods)
         for comp in analysis.components:
-            self._assign_files_to_component(comp, cluster_results)  # From ClusterMethodsMixin
+            self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]  # From ClusterMethodsMixin
 
         # Pass 2: LLM classification of unassigned files
         self._classify_unassigned_files_llm(analysis, cluster_results)

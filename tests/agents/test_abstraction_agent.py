@@ -65,14 +65,14 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(agent.project_name, self.project_name)
         self.assertEqual(agent.meta_context, self.mock_meta_context)
-        self.assertIn("analyze_clusters", agent.prompts)
+        self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
         self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_analyze_clusters_single_language(self, mock_parse_invoke, mock_static_init):
-        # Test analyze_clusters with single language
+    def test_step_clusters_grouping_single_language(self, mock_parse_invoke, mock_static_init):
+        # Test step_clusters_grouping with single language
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
@@ -86,15 +86,15 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.analyze_clusters()
+        result = agent.step_clusters_grouping()
 
         self.assertEqual(result, mock_response)
         mock_parse_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_analyze_clusters_multiple_languages(self, mock_parse_invoke, mock_static_init):
-        # Test analyze_clusters with multiple languages
+    def test_step_clusters_grouping_multiple_languages(self, mock_parse_invoke, mock_static_init):
+        # Test step_clusters_grouping with multiple languages
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
@@ -110,15 +110,15 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.analyze_clusters()
+        result = agent.step_clusters_grouping()
 
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_analyze_clusters_no_languages(self, mock_parse_invoke, mock_static_init):
-        # Test analyze_clusters with no languages detected
+    def test_step_clusters_grouping_no_languages(self, mock_parse_invoke, mock_static_init):
+        # Test step_clusters_grouping with no languages detected
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = []
 
@@ -134,14 +134,14 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.analyze_clusters()
+        result = agent.step_clusters_grouping()
 
         self.assertEqual(result, mock_response)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_generate_analysis(self, mock_parse_invoke, mock_static_init):
-        # Test generate_analysis
+    def test_step_final_analysis(self, mock_parse_invoke, mock_static_init):
+        # Test step_final_analysis
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
@@ -161,7 +161,7 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_response
 
-        result = agent.generate_analysis(cluster_analysis)
+        result = agent.step_final_analysis(cluster_analysis)
 
         self.assertEqual(result, mock_response)
 
