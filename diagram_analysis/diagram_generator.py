@@ -1,12 +1,10 @@
 import json
 import logging
 import os
-import sys
 import time
 from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
-from datetime import datetime
 from pathlib import Path
 
 from tqdm import tqdm
@@ -23,13 +21,11 @@ from diagram_analysis.estimation import estimate_pipeline_time
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
-from agents.agent import CodeBoardingAgent
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import StaticAnalyzer
 from static_analyzer.scanner import ProjectScanner
-from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
