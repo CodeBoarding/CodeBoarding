@@ -91,8 +91,8 @@ class DiagramGenerator:
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
                 analysis = self.details_agent.apply_feedback(analysis, update_insight)
             else:
-                analysis = self.details_agent.run(component)
-                feedback = self.validator_agent.run(analysis)
+                analysis, subgraph_cluster_results = self.details_agent.run(component)
+                feedback = self.validator_agent.run(analysis, subgraph_cluster_results)
                 if not feedback.is_valid:
                     analysis = self.details_agent.apply_feedback(analysis, feedback)
             # Get new components to analyze
@@ -101,8 +101,6 @@ class DiagramGenerator:
             safe_name = sanitize(component.name)
             output_path = os.path.join(self.output_dir, f"{safe_name}.json")
 
-            # Assign files to sub-components
-            self.details_agent.classify_files(analysis)
             with open(output_path, "w") as f:
                 f.write(from_analysis_to_json(analysis, new_components))
 
@@ -229,15 +227,22 @@ class DiagramGenerator:
 
             update_analysis = self.diff_analyzer_agent.check_for_updates()
 
+            cluster_results = None
+
             if 4 < update_analysis.update_degree < 8:
                 # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
                 update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
                 analysis = self.abstraction_agent.apply_feedback(
                     self.diff_analyzer_agent.get_analysis(), update_insight
                 )
+                # Need to build cluster results for validation
+                cluster_results = {}
+                for lang in self.abstraction_agent.static_analysis.get_languages():
+                    cfg = self.abstraction_agent.static_analysis.get_cfg(lang)
+                    cluster_results[lang] = cfg.cluster()
             elif update_analysis.update_degree >= 8:
-                analysis = self.abstraction_agent.run()
-                feedback = self.validator_agent.run(analysis)
+                analysis, cluster_results = self.abstraction_agent.run()
+                feedback = self.validator_agent.run(analysis, cluster_results)
                 if not feedback.is_valid:
                     analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
             else:
@@ -250,8 +255,6 @@ class DiagramGenerator:
 
             # Save the root analysis
             analysis_path = os.path.join(self.output_dir, "analysis.json")
-            # Classify files for the root analysis as last step before saving
-            self.abstraction_agent.classify_files(analysis)
             with open(analysis_path, "w") as f:
                 f.write(from_analysis_to_json(analysis, current_level_components))
             files.append(analysis_path)

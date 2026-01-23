@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Dict
 
 from agents.agent_responses import Component, AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -22,30 +23,28 @@ class ClusterMethodsMixin:
     - Deterministic cluster IDs (seed=42)
     - Cached results
     - File <-> cluster bidirectional mappings
+
+    IMPORTANT: All methods are stateless with respect to ClusterResult.
+    Cluster results must be passed explicitly as parameters.
     """
 
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
 
-    def _get_cluster_result(self, lang: str) -> ClusterResult:
-        """Get cached cluster result for a language."""
-        cfg = self.static_analysis.get_cfg(lang)
-        return cfg.cluster()
-
-    def _get_files_for_clusters(self, cluster_ids: list[int]) -> set[str]:
+    def _get_files_for_clusters(self, cluster_ids: list[int], cluster_results: Dict[str, ClusterResult]) -> set[str]:
         """
         Get all files that belong to the given cluster IDs.
 
         Args:
             cluster_ids: List of cluster IDs to get files for
+            cluster_results: Dict mapping language -> ClusterResult
 
         Returns:
             Set of file paths
         """
         files: set[str] = set()
-        for lang in self.static_analysis.get_languages():
-            cluster_result = self._get_cluster_result(lang)
+        for lang, cluster_result in cluster_results.items():
             for cluster_id in cluster_ids:
                 files.update(cluster_result.get_files_for_cluster(cluster_id))
         return files
@@ -75,18 +74,22 @@ class ClusterMethodsMixin:
 
         return "".join(cluster_lines)
 
-    def _assign_files_to_component(self, component: Component) -> None:
+    def _assign_files_to_component(self, component: Component, cluster_results: Dict[str, ClusterResult]) -> None:
         """
         Assign files to a component.
         1. Get all files from component's clusters (instant lookup)
         2. Add resolved key_entity files
         3. Convert to relative paths
+
+        Args:
+            component: Component to assign files to
+            cluster_results: Dict mapping language -> ClusterResult
         """
         assigned: set[str] = set()
 
         # Step 1: Files from clusters
         if component.source_cluster_ids:
-            cluster_files = self._get_files_for_clusters(component.source_cluster_ids)
+            cluster_files = self._get_files_for_clusters(component.source_cluster_ids, cluster_results)
             assigned.update(cluster_files)
 
         # Step 2: Files from key_entities (already resolved by ReferenceResolverMixin)
@@ -104,14 +107,6 @@ class ClusterMethodsMixin:
 
         # Convert to relative paths
         component.assigned_files = [os.path.relpath(f, self.repo_dir) if os.path.isabs(f) else f for f in assigned]
-
-    def classify_files(self, analysis: AnalysisInsights) -> None:
-        """
-        Assign files to all components based on clusters and key_entities.
-        Modifies the analysis object directly.
-        """
-        for comp in analysis.components:
-            self._assign_files_to_component(comp)
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """
@@ -169,25 +164,27 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
-    def _get_valid_cluster_ids(self) -> set[int]:
-        """Get all valid cluster IDs from the static analysis across all languages."""
-        valid_ids: set[int] = set()
-        for lang in self.static_analysis.get_languages():
-            cluster_result = self._get_cluster_result(lang)
-            valid_ids.update(cluster_result.get_cluster_ids())
-        return valid_ids
-
-    def _validate_cluster_ids(self, analysis: AnalysisInsights, valid_cluster_ids: set[int] | None = None) -> None:
+    def _sanitize_component_cluster_ids(
+        self,
+        analysis: AnalysisInsights,
+        valid_cluster_ids: set[int] | None = None,
+        cluster_results: Dict[str, ClusterResult] | None = None,
+    ) -> None:
         """
-        Validate and fix cluster IDs in the analysis.
-        Removes invalid cluster IDs that don't exist in the static analysis.
+        Sanitize cluster IDs in the analysis by removing invalid ones.
+        Removes cluster IDs that don't exist in the static analysis.
 
         Args:
-            analysis: The analysis to validate
-            valid_cluster_ids: Optional set of valid IDs. If None, fetches from static analysis.
+            analysis: The analysis to sanitize
+            valid_cluster_ids: Optional set of valid IDs. If None, derives from cluster_results.
+            cluster_results: Dict mapping language -> ClusterResult. Required if valid_cluster_ids is None.
         """
         if valid_cluster_ids is None:
-            valid_cluster_ids = self._get_valid_cluster_ids()
+            if cluster_results is None:
+                raise ValueError("Must provide either valid_cluster_ids or cluster_results")
+            valid_cluster_ids = set()
+            for cluster_result in cluster_results.values():
+                valid_cluster_ids.update(cluster_result.get_cluster_ids())
 
         for component in analysis.components:
             if component.source_cluster_ids:

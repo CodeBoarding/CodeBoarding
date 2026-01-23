@@ -312,7 +312,17 @@ class TestDetailsAgent(unittest.TestCase):
         mock_exists.return_value = True
         mock_relpath.side_effect = lambda path, start: Path(path).name
 
-        agent.classify_files(analysis)
+        # Create mock cluster_results for subgraph
+        from static_analyzer.graph import ClusterResult
+
+        mock_cluster_result = ClusterResult(
+            clusters={1: {"node1"}},
+            file_to_clusters={str(self.repo_dir / "cluster_file.py"): {1}},
+            cluster_to_files={1: {str(self.repo_dir / "cluster_file.py")}},
+        )
+        cluster_results = {"python": mock_cluster_result}
+
+        agent.classify_files(analysis, cluster_results)
 
         # Check files were assigned from both clusters and key_entities
         self.assertIn("cluster_file.py", sub_component.assigned_files)

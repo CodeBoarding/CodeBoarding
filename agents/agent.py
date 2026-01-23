@@ -337,6 +337,95 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
+    def classify_files(self, analysis, cluster_results: dict) -> None:
+        """
+        Two-pass file assignment for AnalysisInsights:
+        1. Deterministic: assign files from cluster_ids and key_entities
+        2. LLM-based: classify remaining unassigned files
+
+        Args:
+            analysis: AnalysisInsights object to classify files for
+            cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+
+        Requires self to be a mixin with ClusterMethodsMixin for helper methods.
+        """
+        # Pass 1: Deterministic assignment (uses mixin methods)
+        for comp in analysis.components:
+            self._assign_files_to_component(comp, cluster_results)  # From ClusterMethodsMixin
+
+        # Pass 2: LLM classification of unassigned files
+        self._classify_unassigned_files_llm(analysis, cluster_results)
+
+    def _classify_unassigned_files_llm(self, analysis, cluster_results: dict) -> None:
+        """
+        Classify files from static analysis that weren't assigned to any component.
+        Uses a single LLM call to classify all unassigned files.
+
+        Args:
+            analysis: AnalysisInsights object
+            cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+        """
+        # 1. Gather all assigned files
+        assigned_files = set()
+        for comp in analysis.components:
+            for f in comp.assigned_files:
+                abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
+                assigned_files.add(os.path.relpath(abs_path, self.repo_dir))
+
+        # 2. Get all files from cluster results (uses passed cluster_results instead of fetching from static analysis)
+        all_files = set()
+        for lang, cluster_result in cluster_results.items():
+            for cluster_id in cluster_result.get_cluster_ids():
+                for file_path in cluster_result.get_files_for_cluster(cluster_id):
+                    rel_path = os.path.relpath(file_path, self.repo_dir) if os.path.isabs(file_path) else file_path
+                    all_files.add(rel_path)
+
+        # 3. Find unassigned files
+        unassigned_files = sorted(all_files - assigned_files)
+
+        if not unassigned_files:
+            logger.info("[Agent] All files already assigned, skipping LLM classification")
+            return
+
+        logger.info(f"[Agent] Found {len(unassigned_files)} unassigned files, using LLM classification")
+
+        # 4. Build component summary for LLM using llm_str()
+        valid_components = [comp for comp in analysis.components if comp.name != "Unclassified"]
+        components_summary = "\n\n".join([comp.llm_str() for comp in valid_components])
+        component_map = {comp.name: comp for comp in valid_components}
+
+        # 5. Classify all unassigned files with LLM
+        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary)
+
+        # 6. Append successfully classified files to components
+        for fc in classifications:
+            if fc.component_name in component_map:
+                comp = component_map[fc.component_name]
+                if fc.file_path not in comp.assigned_files:
+                    comp.assigned_files.append(fc.file_path)
+                    logger.debug(f"[Agent] Assigned {fc.file_path} to {fc.component_name}")
+            else:
+                logger.warning(
+                    f"[Agent] Invalid component name '{fc.component_name}' for file {fc.file_path}, skipping"
+                )
+
+        logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
+
+    def _classify_unassigned_files_with_llm(self, unassigned_files: list[str], components_summary: str) -> list:
+        """
+        Classify unassigned files using LLM.
+        Returns list of FileClassification objects.
+        """
+        from agents.prompts import get_unassigned_files_classification_message
+        from agents.agent_responses import ComponentFiles
+
+        prompt = PromptTemplate(
+            template=get_unassigned_files_classification_message(), input_variables=["unassigned_files", "components"]
+        ).format(unassigned_files="\n".join(unassigned_files), components=components_summary)
+
+        file_classifications = self._parse_invoke(prompt, ComponentFiles)
+        return file_classifications.file_paths
+
 
 class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
