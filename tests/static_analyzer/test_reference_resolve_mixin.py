@@ -423,6 +423,238 @@ class TestReferenceResolverMixin(unittest.TestCase):
         # Should have attempted both languages before falling back to LLM
         self.assertEqual(self.mock_static_analysis.get_reference.call_count, 2)
 
+    def test_remove_unresolved_references(self):
+        """Test that unresolved references are removed after resolution attempts"""
+        # Create a mix of resolved and unresolved references
+        resolved_ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file=str(self.repo_dir / "test.py"),
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        unresolved_ref_none = SourceCodeReference(
+            qualified_name="nonexistent.Class",
+            reference_file=None,  # Never resolved
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+
+        unresolved_ref_invalid = SourceCodeReference(
+            qualified_name="invalid.path",
+            reference_file="nonexistent_file.py",  # Resolved but file doesn't exist
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        component = Component(
+            name="TestComponent",
+            description="Test",
+            key_entities=[resolved_ref, unresolved_ref_none, unresolved_ref_invalid],
+            assigned_files=["test.py"],
+        )
+
+        analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
+
+        # Call the cleanup method
+        self.resolver._remove_unresolved_references(analysis)
+
+        # Only resolved reference should remain
+        self.assertEqual(len(component.key_entities), 1)
+        self.assertEqual(component.key_entities[0].qualified_name, "test.TestClass")
+        self.assertEqual(component.key_entities[0].reference_file, str(self.repo_dir / "test.py"))
+
+    def test_remove_unresolved_assigned_files(self):
+        """Test that unresolved assigned files are removed"""
+        resolved_ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file=str(self.repo_dir / "test.py"),
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        component = Component(
+            name="TestComponent",
+            description="Test",
+            key_entities=[resolved_ref],
+            assigned_files=[
+                "test.py",  # Exists (relative path)
+                "module/file.py",  # Exists (relative path)
+                "nonexistent.py",  # Doesn't exist
+                "also_nonexistent/file.py",  # Doesn't exist
+            ],
+        )
+
+        analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
+
+        # Call the cleanup method
+        self.resolver._remove_unresolved_references(analysis)
+
+        # Only existing files should remain
+        self.assertEqual(len(component.assigned_files), 2)
+        self.assertIn("test.py", component.assigned_files)
+        self.assertIn("module/file.py", component.assigned_files)
+        self.assertNotIn("nonexistent.py", component.assigned_files)
+        self.assertNotIn("also_nonexistent/file.py", component.assigned_files)
+
+    def test_remove_unresolved_assigned_files_absolute_paths(self):
+        """Test that assigned files with absolute paths are handled correctly"""
+        resolved_ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file=str(self.repo_dir / "test.py"),
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        abs_existing_path = str(self.repo_dir / "test.py")
+        abs_nonexistent_path = "/some/nonexistent/path.py"
+
+        component = Component(
+            name="TestComponent",
+            description="Test",
+            key_entities=[resolved_ref],
+            assigned_files=[
+                abs_existing_path,  # Absolute path that exists
+                abs_nonexistent_path,  # Absolute path that doesn't exist
+                "module/file.py",  # Relative path that exists
+            ],
+        )
+
+        analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
+
+        # Call the cleanup method
+        self.resolver._remove_unresolved_references(analysis)
+
+        # Only existing files should remain
+        self.assertEqual(len(component.assigned_files), 2)
+        self.assertIn(abs_existing_path, component.assigned_files)
+        self.assertIn("module/file.py", component.assigned_files)
+        self.assertNotIn(abs_nonexistent_path, component.assigned_files)
+
+    def test_fix_source_code_reference_lines_removes_unresolved(self):
+        """Test that fix_source_code_reference_lines removes unresolved references after resolution"""
+        # Create references where some will fail resolution
+        good_ref = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file="test.py",  # Will be resolved to absolute path
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        bad_ref = SourceCodeReference(
+            qualified_name="nonexistent.Class",
+            reference_file=None,
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+
+        component = Component(
+            name="TestComponent",
+            description="Test",
+            key_entities=[good_ref, bad_ref],
+            assigned_files=["test.py"],
+        )
+
+        analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
+
+        # Make all resolution strategies fail for bad_ref
+        self.mock_static_analysis.get_reference.side_effect = ValueError("Not found")
+        self.mock_static_analysis.get_loose_reference.side_effect = Exception("Not found")
+
+        # Mock LLM to return nonexistent file
+        mock_file_path = FilePath(file_path="nonexistent.py", start_line=1, end_line=2)
+        self.resolver.mock_parse_invoke.return_value = mock_file_path
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        # Only the good reference should remain (converted to relative path)
+        self.assertEqual(len(component.key_entities), 1)
+        self.assertEqual(component.key_entities[0].qualified_name, "test.TestClass")
+        self.assertEqual(component.key_entities[0].reference_file, "test.py")
+
+    def test_remove_unresolved_references_multiple_components(self):
+        """Test that unresolved references and assigned files are removed from multiple components"""
+        # Component 1: mix of resolved and unresolved
+        comp1_resolved = SourceCodeReference(
+            qualified_name="test.TestClass",
+            reference_file=str(self.repo_dir / "test.py"),
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+        comp1_unresolved = SourceCodeReference(
+            qualified_name="bad.ref",
+            reference_file=None,
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+
+        component1 = Component(
+            name="Component1",
+            description="Test 1",
+            key_entities=[comp1_resolved, comp1_unresolved],
+            assigned_files=["test.py", "nonexistent1.py"],
+        )
+
+        # Component 2: all unresolved
+        comp2_unresolved1 = SourceCodeReference(
+            qualified_name="bad.ref1",
+            reference_file=None,
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+        comp2_unresolved2 = SourceCodeReference(
+            qualified_name="bad.ref2",
+            reference_file="nonexistent.py",
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        component2 = Component(
+            name="Component2",
+            description="Test 2",
+            key_entities=[comp2_unresolved1, comp2_unresolved2],
+            assigned_files=["nonexistent2.py", "nonexistent3.py"],
+        )
+
+        # Component 3: all resolved
+        comp3_resolved = SourceCodeReference(
+            qualified_name="module.file",
+            reference_file=str(self.repo_dir / "module" / "file.py"),
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+
+        component3 = Component(
+            name="Component3",
+            description="Test 3",
+            key_entities=[comp3_resolved],
+            assigned_files=["module/file.py", "test.py"],
+        )
+
+        analysis = AnalysisInsights(
+            description="Test", components=[component1, component2, component3], components_relations=[]
+        )
+
+        # Call the cleanup method
+        self.resolver._remove_unresolved_references(analysis)
+
+        # Component 1 should have 1 reference and 1 assigned file
+        self.assertEqual(len(component1.key_entities), 1)
+        self.assertEqual(component1.key_entities[0].qualified_name, "test.TestClass")
+        self.assertEqual(len(component1.assigned_files), 1)
+        self.assertIn("test.py", component1.assigned_files)
+
+        # Component 2 should have 0 references and 0 assigned files
+        self.assertEqual(len(component2.key_entities), 0)
+        self.assertEqual(len(component2.assigned_files), 0)
+
+        # Component 3 should still have 1 reference and 2 assigned files
+        self.assertEqual(len(component3.key_entities), 1)
+        self.assertEqual(component3.key_entities[0].qualified_name, "module.file")
+        self.assertEqual(len(component3.assigned_files), 2)
+        self.assertIn("module/file.py", component3.assigned_files)
+        self.assertIn("test.py", component3.assigned_files)
+
 
 if __name__ == "__main__":
     unittest.main()

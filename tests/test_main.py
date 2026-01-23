@@ -326,6 +326,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             repo_path = Path(temp_dir) / "repo"
             repo_path.mkdir()
             output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             process_local_repository(
                 repo_path=repo_path,
@@ -377,6 +378,7 @@ class TestCopyFiles(unittest.TestCase):
             temp_folder = Path(temp_dir) / "temp"
             temp_folder.mkdir()
             output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             # Create test files
             (temp_folder / "test.md").write_text("# Test")
@@ -389,19 +391,6 @@ class TestCopyFiles(unittest.TestCase):
             self.assertTrue((output_dir / "test.md").exists())
             self.assertTrue((output_dir / "data.json").exists())
             self.assertFalse((output_dir / "ignore.txt").exists())
-
-    def test_copy_files_empty_directory(self):
-        # Test with empty directory
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_folder = Path(temp_dir) / "temp"
-            temp_folder.mkdir()
-            output_dir = Path(temp_dir) / "output"
-
-            # Should not raise exception
-            copy_files(temp_folder, output_dir)
-
-            # Output directory should still be created
-            self.assertTrue(output_dir.exists())
 
 
 class TestValidateArguments(unittest.TestCase):

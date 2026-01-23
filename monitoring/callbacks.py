@@ -58,6 +58,7 @@ class MonitoringCallback(BaseCallbackHandler):
         # Log Event
         if self.log_results:
             model = self.model_name or "unknown"
+            # IMPORTANT: Do not change this log line format. Any change must be approved by IVAN.
             logger.info(f"Token Usage: step={step_name} model={model} usage={json.dumps(usage)}")
 
     def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:

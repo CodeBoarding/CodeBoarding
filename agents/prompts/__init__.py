@@ -20,7 +20,7 @@ from .prompt_factory import (
 # Import all the convenience functions for backward compatibility
 from .prompt_factory import (
     get_system_message,
-    get_cluster_analysis_message,
+    get_cluster_grouping_message,
     get_final_analysis_message,
     get_feedback_message,
     get_system_details_message,
@@ -30,14 +30,12 @@ from .prompt_factory import (
     get_details_message,
     get_planner_system_message,
     get_expansion_prompt,
-    get_validator_system_message,
-    get_component_validation_component,
-    get_relationships_validation,
     get_system_diff_analysis_message,
     get_diff_analysis_message,
     get_system_meta_analysis_message,
     get_meta_information_prompt,
     get_file_classification_message,
+    get_unassigned_files_classification_message,
 )
 
 
@@ -69,7 +67,7 @@ __all__ = [
     "get_prompt",
     # Convenience functions
     "get_system_message",
-    "get_cluster_analysis_message",
+    "get_cluster_grouping_message",
     "get_final_analysis_message",
     "get_feedback_message",
     "get_system_details_message",
@@ -79,17 +77,15 @@ __all__ = [
     "get_details_message",
     "get_planner_system_message",
     "get_expansion_prompt",
-    "get_validator_system_message",
-    "get_component_validation_component",
-    "get_relationships_validation",
     "get_system_diff_analysis_message",
     "get_diff_analysis_message",
     "get_system_meta_analysis_message",
     "get_meta_information_prompt",
     "get_file_classification_message",
+    "get_unassigned_files_classification_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
-    "CLUSTER_ANALYSIS_MESSAGE",
+    "CLUSTER_GROUPING_MESSAGE",
     "FINAL_ANALYSIS_MESSAGE",
     "FEEDBACK_MESSAGE",
     "SYSTEM_DETAILS_MESSAGE",
@@ -99,12 +95,10 @@ __all__ = [
     "DETAILS_MESSAGE",
     "PLANNER_SYSTEM_MESSAGE",
     "EXPANSION_PROMPT",
-    "VALIDATOR_SYSTEM_MESSAGE",
-    "COMPONENT_VALIDATION_COMPONENT",
-    "RELATIONSHIPS_VALIDATION",
     "SYSTEM_DIFF_ANALYSIS_MESSAGE",
     "DIFF_ANALYSIS_MESSAGE",
     "SYSTEM_META_ANALYSIS_MESSAGE",
     "META_INFORMATION_PROMPT",
     "FILE_CLASSIFICATION_MESSAGE",
+    "UNASSIGNED_FILES_CLASSIFICATION_MESSAGE",
 ]
