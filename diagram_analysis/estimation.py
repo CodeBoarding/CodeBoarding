@@ -1,13 +1,9 @@
-import json
 import logging
 import math
-import sys
 from pathlib import Path
 
-from static_analyzer.scanner import ProjectScanner
-
+# Use a module-level logger
 logger = logging.getLogger(__name__)
-
 
 def estimate_pipeline_time(source: Path, depth_level: int) -> None:
     """
@@ -18,6 +14,9 @@ def estimate_pipeline_time(source: Path, depth_level: int) -> None:
         source: Either a dictionary of LOC by language or a Path to the repository.
         depth_level: The analysis depth level.
     """
+    # Import inside the function to avoid circular/heavy imports at module level
+    from static_analyzer.scanner import ProjectScanner
+    
     scanner = ProjectScanner(source)
     loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
 
