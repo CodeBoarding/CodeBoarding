@@ -14,6 +14,7 @@ from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
+from repo_utils.ignore import initialize_codeboardingignore
 from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
 from monitoring import monitor_execution
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
@@ -113,9 +114,6 @@ def partial_update(
     """
     Update a specific component in an existing analysis.
     """
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,
@@ -243,9 +241,6 @@ def process_local_repository(
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
 ):
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-
     # Handle partial updates
     if component_name and analysis_name:
         partial_update(
@@ -269,10 +264,6 @@ def process_local_repository(
 
 def copy_files(temp_folder: Path, output_dir: Path):
     """Copy all markdown and JSON files from temp folder to output directory."""
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created output directory: {output_dir}")
-
     # Copy markdown files
     markdown_files = list(temp_folder.glob("*.md"))
     # Copy JSON files
@@ -410,17 +401,27 @@ Examples:
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
 
+    output_dir = args.output_dir
+    if is_local:
+        output_dir = output_dir or Path("./analysis")
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created output directory: {output_dir}")
+
+    initialize_codeboardingignore(output_dir)
+
     if is_local:
         process_local_repository(
             repo_path=args.local,
-            output_dir=args.output_dir or Path("./analysis"),
+            output_dir=output_dir,
             project_name=args.project_name,
             depth_level=args.depth_level,
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
         )
-        logger.info(f"Documentation generated successfully in {args.output_dir or './analysis'}")
+        logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
             if args.upload:
@@ -442,7 +443,7 @@ Examples:
                     try:
                         process_remote_repository(
                             repo_url=repo,
-                            output_dir=args.output_dir,
+                            output_dir=output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
                             cache_check=not args.no_cache_check,
