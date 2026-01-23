@@ -11,6 +11,7 @@ from tqdm import tqdm
 from agents.agent_responses import AnalysisInsights
 from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis import DiagramGenerator
+from diagram_analysis.estimation import estimate_pipeline_time
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
@@ -59,7 +60,6 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
-    estimate_only: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -69,7 +69,6 @@ def generate_analysis(
         depth_level=depth_level,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
-        estimate_only=estimate_only,
     )
     return generator.generate_analysis()
 
@@ -183,6 +182,7 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    estimate_only: bool = False,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -200,6 +200,10 @@ def process_remote_repository(
     # Clone repository
     repo_name = clone_repository(repo_url, repo_root)
     repo_path = repo_root / repo_name
+
+    if estimate_only:
+        estimate_pipeline_time(repo_path, depth_level)
+        return
 
     temp_folder = create_temp_repo_folder()
 
@@ -249,6 +253,10 @@ def process_local_repository(
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    if estimate_only:
+        estimate_pipeline_time(repo_path, depth_level)
+        return
+
     # Handle partial updates
     if component_name and analysis_name:
         partial_update(
@@ -267,7 +275,6 @@ def process_local_repository(
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
-            estimate_only=estimate_only,
         )
 
 
@@ -458,6 +465,7 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
+                            estimate_only=args.estimate_only,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")

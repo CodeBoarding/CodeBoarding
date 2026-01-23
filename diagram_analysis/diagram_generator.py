@@ -43,7 +43,6 @@ class DiagramGenerator:
         output_dir: Path,
         depth_level: int,
         static_only: bool = False,
-        estimate_only: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -54,7 +53,6 @@ class DiagramGenerator:
         self.output_dir = output_dir
         self.depth_level = depth_level
         self.static_only = static_only
-        self.estimate_only = estimate_only
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -127,7 +125,7 @@ class DiagramGenerator:
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
 
         # Calculate and display estimated pipeline time using log model
-        estimate_pipeline_time(loc_by_language, depth_level=self.depth_level, estimate_only=self.estimate_only)
+        estimate_pipeline_time(self.repo_location, depth_level=self.depth_level)
 
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)

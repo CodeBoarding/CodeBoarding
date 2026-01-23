@@ -2,18 +2,28 @@ import json
 import logging
 import math
 import sys
+from pathlib import Path
+
+from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
 
 
-def estimate_pipeline_time(loc_by_language: dict[str, int], depth_level: int, estimate_only: bool = False) -> None:
+def estimate_pipeline_time(source: Path, depth_level: int) -> None:
     """
     Calculate and log the estimated pipeline time based on lines of code (LOC)
     per language, using a log-based model.
+
+    Args:
+        source: Either a dictionary of LOC by language or a Path to the repository.
+        depth_level: The analysis depth level.
     """
+    scanner = ProjectScanner(source)
+    loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+
     total_loc = sum(loc_by_language.values())
     if total_loc <= 0:
-        return None
+        return
 
     # Multipliers relative to Python (1.0)
     # These reflect relative complexity/time for static analysis and agent exploring the codebase.
@@ -34,10 +44,10 @@ def estimate_pipeline_time(loc_by_language: dict[str, int], depth_level: int, es
 
     effective_multiplier = weighted_sum / total_loc
 
-    # Formula: time = a * log10(LOC) + b, where a = 14.8590, b = -43.1970
+    # Formula: time = slope * log10(LOC) + intercept, where slope = 14.8590, intercept = -43.1970
     # See branch: estimate-running-times for how interpolation was derived.
-    a, b = 14.8590, -43.1970
-    base_time_minutes = a * math.log10(total_loc) + b
+    slope, intercept = 14.8590, -43.1970
+    base_time_minutes = slope * math.log10(total_loc) + intercept
 
     # Adjust base time based on depth_level
     # Current estimates (from interpolation) are for level 2
@@ -54,6 +64,3 @@ def estimate_pipeline_time(loc_by_language: dict[str, int], depth_level: int, es
         f"Estimated pipeline time: {estimated_time_minutes:.1f} minutes "
         f"(based on {total_loc:,} LOC, depth level: {depth_level}, effective multiplier: {effective_multiplier:.2f})"
     )
-
-    if estimate_only:
-        sys.exit(0)
