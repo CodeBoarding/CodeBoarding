@@ -87,28 +87,32 @@ class Relation(LLMBaseModel):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
 
-class ClusterComponent(LLMBaseModel):
-    """A component derived from cluster analysis."""
+class ClustersComponent(LLMBaseModel):
+    """A grouped component from cluster analysis - may contain multiple clusters."""
 
-    cluster_id: int = Field(description="The cluster ID from the CFG analysis (e.g., 1, 2, 3)")
-    name: str = Field(description="Descriptive name for this cluster/component (2-4 words)")
-    description: str = Field(description="One sentence explaining what this cluster does")
+    cluster_ids: list[int] = Field(
+        description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
+    )
+    description: str = Field(
+        description="Explanation of what this component does, its main flow, and WHY these clusters are grouped together"
+    )
 
     def llm_str(self):
-        return f"**Cluster {self.cluster_id}: {self.name}**\n   {self.description}"
+        ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
+        return f"**Clusters [{ids_str}]**\n   {self.description}"
 
 
 class ClusterAnalysis(LLMBaseModel):
-    """Analysis results containing interpreted cluster components."""
+    """Analysis results containing grouped cluster components."""
 
-    cluster_components: list[ClusterComponent] = Field(
-        description="Interpretation of each cluster. Use cluster_id to reference clusters from the CFG."
+    cluster_components: list[ClustersComponent] = Field(
+        description="Grouped clusters into logical components. Multiple cluster IDs can be grouped together if they work as a cohesive unit."
     )
 
     def llm_str(self):
         if not self.cluster_components:
             return "No clusters analyzed."
-        title = "# Cluster-Based Components\n"
+        title = "# Grouped Cluster Components\n"
         body = "\n".join(cc.llm_str() for cc in self.cluster_components)
         return title + body
 

@@ -230,52 +230,32 @@ class CallGraph:
         )
         return self._cluster_cache
 
-    def subgraph(self, cluster_ids: Set[int]) -> "CallGraph":
+    def filter_by_files(self, file_paths: set[str]) -> "CallGraph":
         """
-        Create a new CallGraph containing only nodes from specified clusters.
-
-        The returned CallGraph is fully functional and can be clustered again,
-        converted to string, etc.
-
-        Args:
-            cluster_ids: Set of cluster IDs to include
-
-        Returns:
-            New CallGraph instance with only the specified clusters' nodes and their edges
+        Create a new CallGraph containing only nodes from the specified files.
+        Only includes edges where both source and target nodes are in the specified files.
         """
-        cluster_result = self.cluster()
+        relevant_nodes = {node_id: node for node_id, node in self.nodes.items() if node.file_path in file_paths}
 
-        # Collect all nodes from requested clusters
-        nodes_to_include: Set[str] = set()
-        for cluster_id in cluster_ids:
-            nodes_to_include.update(cluster_result.get_nodes_for_cluster(cluster_id))
-
-        if not nodes_to_include:
-            logger.warning(f"No nodes found for cluster IDs: {cluster_ids}")
-            return CallGraph(language=self.language)
-
-        # Build new graph with filtered nodes and edges
-        new_nodes: Dict[str, Node] = {}
-        new_edges: List[Edge] = []
-
-        for node_name in nodes_to_include:
-            if node_name in self.nodes:
-                new_nodes[node_name] = self.nodes[node_name]
-
+        # Filter edges: both source and target must be in relevant_nodes
+        relevant_edges = []
         for edge in self.edges:
-            src = edge.get_source()
-            dst = edge.get_destination()
-            if src in nodes_to_include and dst in nodes_to_include:
-                new_edges.append(edge)
+            source_name = edge.get_source()
+            target_name = edge.get_destination()
 
-        new_graph = CallGraph(nodes=new_nodes, edges=new_edges, language=self.language)
-        # Rebuild edge set for the new graph
-        new_graph._edge_set = {(e.get_source(), e.get_destination()) for e in new_edges}
+            if self.nodes[source_name].file_path in file_paths and self.nodes[target_name].file_path in file_paths:
+                relevant_edges.append((source_name, target_name))
 
-        logger.info(
-            f"Created subgraph with {len(new_nodes)} nodes and {len(new_edges)} edges from clusters {cluster_ids}"
-        )
-        return new_graph
+        filtered_edges = []
+        for src, dst in relevant_edges:
+            filtered_edges.append(Edge(self.nodes[src], self.nodes[dst]))
+
+        # Create new graph
+        sub_graph = CallGraph()
+        sub_graph.nodes = relevant_nodes
+        sub_graph.edges = filtered_edges
+
+        return sub_graph
 
     def to_cluster_string(self, cluster_ids: Optional[Set[int]] = None) -> str:
         """

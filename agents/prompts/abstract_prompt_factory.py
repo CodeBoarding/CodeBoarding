@@ -15,7 +15,7 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_cluster_analysis_message(self) -> str:
+    def get_cluster_grouping_message(self) -> str:
         pass
 
     @abstractmethod
@@ -55,18 +55,6 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_validator_system_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_component_validation_component(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_relationships_validation(self) -> str:
-        pass
-
-    @abstractmethod
     def get_system_diff_analysis_message(self) -> str:
         pass
 
@@ -84,4 +72,8 @@ class AbstractPromptFactory(ABC):
 
     @abstractmethod
     def get_file_classification_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_unassigned_files_classification_message(self) -> str:
         pass

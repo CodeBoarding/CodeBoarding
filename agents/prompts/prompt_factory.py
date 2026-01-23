@@ -144,8 +144,8 @@ def get_system_message() -> str:
     return get_global_factory()._prompt_factory.get_system_message()
 
 
-def get_cluster_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_cluster_analysis_message()
+def get_cluster_grouping_message() -> str:
+    return get_global_factory()._prompt_factory.get_cluster_grouping_message()
 
 
 def get_final_analysis_message() -> str:
@@ -184,18 +184,6 @@ def get_expansion_prompt() -> str:
     return get_global_factory()._prompt_factory.get_expansion_prompt()
 
 
-def get_validator_system_message() -> str:
-    return get_global_factory()._prompt_factory.get_validator_system_message()
-
-
-def get_component_validation_component() -> str:
-    return get_global_factory()._prompt_factory.get_component_validation_component()
-
-
-def get_relationships_validation() -> str:
-    return get_global_factory()._prompt_factory.get_relationships_validation()
-
-
 def get_system_diff_analysis_message() -> str:
     return get_global_factory()._prompt_factory.get_system_diff_analysis_message()
 
@@ -214,3 +202,7 @@ def get_meta_information_prompt() -> str:
 
 def get_file_classification_message() -> str:
     return get_global_factory()._prompt_factory.get_file_classification_message()
+
+
+def get_unassigned_files_classification_message() -> str:
+    return get_global_factory()._prompt_factory.get_unassigned_files_classification_message()

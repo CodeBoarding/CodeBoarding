@@ -7,8 +7,7 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import LargeModelAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    CFGAnalysisInsights,
-    LLMBaseModel,
+    ClusterAnalysis,
     ValidationInsights,
     Component,
     MetaAnalysisInsights,
@@ -17,8 +16,6 @@ from agents.prompts import (
     get_system_details_message,
     get_cfg_details_message,
     get_details_message,
-    get_subcfg_details_message,
-    get_enhance_structure_message,
     get_feedback_message,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
@@ -41,16 +38,9 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         self.meta_context = meta_context
 
         self.prompts = {
-            "subcfg": PromptTemplate(
-                template=get_subcfg_details_message(), input_variables=["project_name", "cfg_str", "component"]
-            ),
-            "cfg": PromptTemplate(
+            "group_clusters": PromptTemplate(
                 template=get_cfg_details_message(),
-                input_variables=["cfg_str", "project_name", "meta_context", "project_type"],
-            ),
-            "structure": PromptTemplate(
-                template=get_enhance_structure_message(),
-                input_variables=["insight_so_far", "component", "project_name", "meta_context", "project_type"],
+                input_variables=["project_name", "cfg_str", "component", "meta_context", "project_type"],
             ),
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
@@ -59,98 +49,52 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
             "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
-        self.context: dict[str, LLMBaseModel | str] = {}
-
-    def _extract_relevant_cfg(self, component: Component) -> str:
-        """
-        Extract CFG clusters relevant to this component.
-        Uses component.source_cluster_ids to create a subgraph.
-        """
-        if not component.source_cluster_ids:
-            logger.warning(f"[DetailsAgent] Component {component.name} has no source_cluster_ids, using fallback")
-            return self.read_cfg_tool.component_cfg(component)  # type: ignore[return-value]
-
-        cluster_ids = set(component.source_cluster_ids)
-        result_parts = []
-
-        for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            sub_cfg = cfg.subgraph(cluster_ids)
-
-            if sub_cfg.nodes:
-                cluster_str = sub_cfg.to_cluster_string()
-                if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
-                    result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
-                    result_parts.append(cluster_str)
-                    result_parts.append("\n")
-
-        result = "".join(result_parts)
-
-        if not result.strip():
-            logger.warning(f"[DetailsAgent] No CFG found for component {component.name}, cluster IDs: {cluster_ids}")
-            return "No relevant CFG clusters found for this component."
-
-        return result
-
-    def step_subcfg(self, component: Component):
-        logger.info(
-            f"[DetailsAgent] Filtering CFG for {component.name} using cluster IDs: {component.source_cluster_ids}"
-        )
-        filtered_cfg = self._extract_relevant_cfg(component)
-        self.context["subcfg_insight"] = filtered_cfg
-
     @trace
-    def step_cfg(self, component: Component) -> CFGAnalysisInsights:
-        logger.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
+    def step_cluster_grouping(self, component: Component, subgraph_cluster_str: str) -> ClusterAnalysis:
+        """
+        Group clusters within the component's subgraph into logical sub-components.
+
+        Args:
+            component: The component being analyzed
+            subgraph_cluster_str: String representation of the component's CFG subgraph
+
+        Returns:
+            ClusterAnalysis with grouped clusters for this component
+        """
+        logger.info(f"[DetailsAgent] Grouping clusters for component: {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
-        prompt = self.prompts["cfg"].format(
+        prompt = self.prompts["group_clusters"].format(
             project_name=self.project_name,
-            cfg_str=self.context["subcfg_insight"],
+            cfg_str=subgraph_cluster_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
         )
-        parsed = self._parse_invoke(prompt, CFGAnalysisInsights)
-        self.context["cfg_insight"] = parsed  # Store for next step
-        return parsed
+        cluster_analysis = self._parse_invoke(prompt, ClusterAnalysis)
+        return cluster_analysis
 
     @trace
-    def step_enhance_structure(self, component: Component) -> AnalysisInsights:
-        logger.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
+    def step_final_analysis(self, component: Component, cluster_analysis: ClusterAnalysis) -> AnalysisInsights:
+        """
+        Generate detailed final analysis from grouped clusters.
+
+        Args:
+            component: The component being analyzed
+            cluster_analysis: The clustered structure from step_cluster_grouping
+
+        Returns:
+            AnalysisInsights with detailed component information
+        """
+        logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
-        cfg_insight = self.context.get("cfg_insight")
-        cfg_insight_str = (
-            cfg_insight.llm_str()
-            if cfg_insight and isinstance(cfg_insight, LLMBaseModel)
-            else "No CFG insight available."
-        )
-        prompt = self.prompts["structure"].format(
-            project_name=self.project_name,
-            insight_so_far=cfg_insight_str,
-            component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type,
-        )
-        parsed = self._parse_invoke(prompt, AnalysisInsights)
-        self.context["structure_insight"] = parsed
-        return parsed
+        cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
-    @trace
-    def step_analysis(self, component: Component) -> AnalysisInsights:
-        logger.info("[DetailsAgent] Generating details documentation")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        structure_insight = self.context["structure_insight"]
-        insight_str = (
-            structure_insight.llm_str() if isinstance(structure_insight, LLMBaseModel) else str(structure_insight)
-        )
         prompt = self.prompts["final_analysis"].format(
-            insight_so_far=insight_str,
+            insight_so_far=cluster_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -165,10 +109,39 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         return self.fix_source_code_reference_lines(analysis)
 
     def run(self, component: Component):
-        logger.info(f"Processing component: {component.name}")
-        self.step_subcfg(component)
-        self.step_cfg(component)
-        self.step_enhance_structure(component)
-        analysis = self.step_analysis(component)
-        self._validate_cluster_ids(analysis)
-        return self.fix_source_code_reference_lines(analysis)
+        """
+        Analyze a component in detail by creating a subgraph and analyzing its structure.
+
+        This follows the same pattern as AbstractionAgent but operates on a component-level
+        subgraph instead of the full codebase.
+
+        Args:
+            component: Component to analyze in detail
+
+        Returns:
+            Tuple of (AnalysisInsights, cluster_results dict) with detailed component information
+        """
+        logger.info(f"[DetailsAgent] Processing component: {component.name}")
+
+        # Step 1: Create subgraph from component's assigned files using strict filtering
+        subgraph_str, subgraph_cluster_results = self._create_strict_component_subgraph(component)
+
+        # Step 2: Group clusters within the subgraph
+        cluster_analysis = self.step_cluster_grouping(component, subgraph_str)
+
+        # Step 3: Generate detailed analysis from grouped clusters
+        analysis = self.step_final_analysis(component, cluster_analysis)
+
+        # Step 4: Sanitize cluster IDs (remove invalid ones) - use subgraph's cluster results
+        self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
+
+        # Step 5: Assign files to components (deterministic + LLM-based) - use subgraph's cluster results
+        self.classify_files(analysis, subgraph_cluster_results)
+
+        # Step 6: Fix source code reference lines (resolves reference_file paths)
+        analysis = self.fix_source_code_reference_lines(analysis)
+
+        # Step 7: Ensure unique key entities across components
+        self._ensure_unique_key_entities(analysis)
+
+        return analysis, subgraph_cluster_results

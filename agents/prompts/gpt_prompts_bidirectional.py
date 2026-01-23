@@ -29,26 +29,40 @@ Meta: {meta_context}
 - Interactive diagram elements
 - Documentation for quick developer onboarding"""
 
-CLUSTER_ANALYSIS_MESSAGE = """Analyze the Control Flow Graph clusters for `{project_name}`.
+CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
 
 Project Context:
 {meta_context}
+
+Project Type: {project_type}
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
 CFG Clusters:
 {cfg_clusters}
 
+Your Task:
+GROUP similar clusters together into logical components based on their relationships and purpose.
+
 Instructions:
-1. For each cluster shown above, provide:
-   - The cluster ID (exactly as shown, e.g., "1", "2", "3")
-   - A short descriptive name (2-4 words)
-   - One sentence explaining what this cluster does
+1. Analyze the clusters shown above and identify which ones work together or are functionally related
+2. Group related clusters into meaningful components
+3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+4. For each grouped component, provide:
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation including:
+     * What this component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
 
-2. Focus on the {project_type} architectural patterns
-3. Give semantic meaning to the clusters based on the method names and call patterns
+Focus on:
+- Creating cohesive, logical groupings that reflect the actual {project_type} architecture
+- Semantic meaning based on method names, call patterns, and architectural context
+- Clear justification for why clusters belong together
 
-Output only the cluster interpretations. Keep descriptions concise."""
+Output Format:
+Return a ClusterAnalysis with cluster_components using ClustersComponent model.
+Each component should have cluster_ids (list) and description (comprehensive explanation with rationale)."""
 
 FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
 
@@ -499,6 +513,34 @@ For each file:
 
 **Goal:** Understand file organization to inform component analysis and diagram generation."""
 
+UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """
+You are classifying source files into software components.
+
+Context:
+The following files were not automatically assigned to any component during cluster-based analysis:
+
+{unassigned_files}
+
+Available Components:
+{components}
+
+Task:
+For EACH unassigned file listed above, determine which component it logically belongs to based on:
+- File name and directory structure
+- Likely functionality (inferred from path/name)
+- Best architectural fit with the component descriptions
+
+Critical Rules:
+1. You MUST assign EVERY file to exactly ONE component
+2. You MUST use the exact component name from the "Available Components" list above
+3. You MUST use the exact file path from the unassigned files list above
+4. Do NOT invent new component names
+5. Do NOT skip any files
+
+Output Format:
+Return a ComponentFiles object with file_paths list containing FileClassification for each file.
+"""
+
 
 class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 bidirectional mode."""
@@ -506,8 +548,8 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cluster_analysis_message(self) -> str:
-        return CLUSTER_ANALYSIS_MESSAGE
+    def get_cluster_grouping_message(self) -> str:
+        return CLUSTER_GROUPING_MESSAGE
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
@@ -559,3 +601,6 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
+
+    def get_unassigned_files_classification_message(self) -> str:
+        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE

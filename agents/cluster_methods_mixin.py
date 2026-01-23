@@ -5,6 +5,7 @@ from pathlib import Path
 from agents.agent_responses import Component, AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_helpers import get_files_for_cluster_ids, get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -22,33 +23,27 @@ class ClusterMethodsMixin:
     - Deterministic cluster IDs (seed=42)
     - Cached results
     - File <-> cluster bidirectional mappings
+
+    IMPORTANT: All methods are stateless with respect to ClusterResult.
+    Cluster results must be passed explicitly as parameters.
     """
 
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
 
-    def _get_cluster_result(self, lang: str) -> ClusterResult:
-        """Get cached cluster result for a language."""
-        cfg = self.static_analysis.get_cfg(lang)
-        return cfg.cluster()
-
-    def _get_files_for_clusters(self, cluster_ids: list[int]) -> set[str]:
+    def _get_files_for_clusters(self, cluster_ids: list[int], cluster_results: dict[str, ClusterResult]) -> set[str]:
         """
         Get all files that belong to the given cluster IDs.
 
         Args:
             cluster_ids: List of cluster IDs to get files for
+            cluster_results: dict mapping language -> ClusterResult
 
         Returns:
             Set of file paths
         """
-        files: set[str] = set()
-        for lang in self.static_analysis.get_languages():
-            cluster_result = self._get_cluster_result(lang)
-            for cluster_id in cluster_ids:
-                files.update(cluster_result.get_files_for_cluster(cluster_id))
-        return files
+        return get_files_for_cluster_ids(cluster_ids, cluster_results)
 
     def _build_cluster_string(self, programming_langs: list[str], cluster_ids: set[int] | None = None) -> str:
         """
@@ -75,18 +70,22 @@ class ClusterMethodsMixin:
 
         return "".join(cluster_lines)
 
-    def _assign_files_to_component(self, component: Component) -> None:
+    def _assign_files_to_component(self, component: Component, cluster_results: dict[str, ClusterResult]) -> None:
         """
         Assign files to a component.
         1. Get all files from component's clusters (instant lookup)
         2. Add resolved key_entity files
         3. Convert to relative paths
+
+        Args:
+            component: Component to assign files to
+            cluster_results: dict mapping language -> ClusterResult
         """
         assigned: set[str] = set()
 
         # Step 1: Files from clusters
         if component.source_cluster_ids:
-            cluster_files = self._get_files_for_clusters(component.source_cluster_ids)
+            cluster_files = self._get_files_for_clusters(component.source_cluster_ids, cluster_results)
             assigned.update(cluster_files)
 
         # Step 2: Files from key_entities (already resolved by ReferenceResolverMixin)
@@ -104,14 +103,6 @@ class ClusterMethodsMixin:
 
         # Convert to relative paths
         component.assigned_files = [os.path.relpath(f, self.repo_dir) if os.path.isabs(f) else f for f in assigned]
-
-    def classify_files(self, analysis: AnalysisInsights) -> None:
-        """
-        Assign files to all components based on clusters and key_entities.
-        Modifies the analysis object directly.
-        """
-        for comp in analysis.components:
-            self._assign_files_to_component(comp)
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """
@@ -169,25 +160,26 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
-    def _get_valid_cluster_ids(self) -> set[int]:
-        """Get all valid cluster IDs from the static analysis across all languages."""
-        valid_ids: set[int] = set()
-        for lang in self.static_analysis.get_languages():
-            cluster_result = self._get_cluster_result(lang)
-            valid_ids.update(cluster_result.get_cluster_ids())
-        return valid_ids
-
-    def _validate_cluster_ids(self, analysis: AnalysisInsights, valid_cluster_ids: set[int] | None = None) -> None:
+    def _sanitize_component_cluster_ids(
+        self,
+        analysis: AnalysisInsights,
+        valid_cluster_ids: set[int] | None = None,
+        cluster_results: dict[str, ClusterResult] | None = None,
+    ) -> None:
         """
-        Validate and fix cluster IDs in the analysis.
-        Removes invalid cluster IDs that don't exist in the static analysis.
+        Sanitize cluster IDs in the analysis by removing invalid ones.
+        Removes cluster IDs that don't exist in the static analysis.
 
         Args:
-            analysis: The analysis to validate
-            valid_cluster_ids: Optional set of valid IDs. If None, fetches from static analysis.
+            analysis: The analysis to sanitize
+            valid_cluster_ids: Optional set of valid IDs. If None, derives from cluster_results.
+            cluster_results: dict mapping language -> ClusterResult. Required if valid_cluster_ids is None.
         """
         if valid_cluster_ids is None:
-            valid_cluster_ids = self._get_valid_cluster_ids()
+            if cluster_results is None:
+                logger.error("Must provide either valid_cluster_ids or cluster_results")
+                return
+            valid_cluster_ids = get_all_cluster_ids(cluster_results)
 
         for component in analysis.components:
             if component.source_cluster_ids:
@@ -198,3 +190,55 @@ class ClusterMethodsMixin:
                     logger.warning(
                         f"[ClusterMethodsMixin] Removed invalid cluster IDs {removed_ids} from component '{component.name}'"
                     )
+
+    def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
+        """
+        Create a strict subgraph containing ONLY nodes from the component's assigned files.
+        This ensures the analysis is strictly scoped to the component's boundaries.
+
+        Args:
+            component: Component with assigned_files to filter by
+
+        Returns:
+            Tuple of (formatted cluster string, cluster_results dict)
+            where cluster_results maps language -> ClusterResult for the subgraph
+        """
+        if not component.assigned_files:
+            logger.warning(f"[ClusterMethodsMixin] Component {component.name} has no assigned_files")
+            return "No assigned files found for this component.", {}
+
+        # Convert assigned files to absolute paths for comparison
+        assigned_file_set = set()
+        for f in component.assigned_files:
+            abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
+            assigned_file_set.add(abs_path)
+
+        result_parts = []
+        cluster_results = {}
+
+        for lang in self.static_analysis.get_languages():
+            cfg = self.static_analysis.get_cfg(lang)
+
+            # Use strict filtering logic
+            sub_cfg = cfg.filter_by_files(assigned_file_set)
+
+            if sub_cfg.nodes:
+                # Calculate clusters for the subgraph
+                sub_cluster_result = sub_cfg.cluster()
+                cluster_results[lang] = sub_cluster_result
+
+                cluster_str = sub_cfg.to_cluster_string()
+                if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
+                    result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
+                    result_parts.append(cluster_str)
+                    result_parts.append("\n")
+
+        result = "".join(result_parts)
+
+        if not result.strip():
+            logger.warning(
+                f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component.assigned_files)} assigned files"
+            )
+            return "No relevant CFG clusters found for this component.", cluster_results
+
+        return result, cluster_results
