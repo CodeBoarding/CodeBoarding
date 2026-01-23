@@ -295,14 +295,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_pre_analysis(
         self,
         mock_git_hash,
         mock_diff_agent,
-        mock_validator,
         mock_planner,
         mock_abstraction,
         mock_details,
@@ -353,14 +351,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_process_component_no_update_needed(
         self,
         mock_git_hash,
         mock_diff_agent_class,
-        mock_validator_class,
         mock_planner_class,
         mock_abstraction,
         mock_details_class,
@@ -415,14 +411,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_process_component_partial_update(
         self,
         mock_git_hash,
         mock_diff_agent_class,
-        mock_validator_class,
         mock_planner_class,
         mock_abstraction,
         mock_details_class,
@@ -482,14 +476,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_process_component_full_update(
         self,
         mock_git_hash,
         mock_diff_agent_class,
-        mock_validator_class,
         mock_planner_class,
         mock_abstraction,
         mock_details_class,
@@ -524,7 +516,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         # Mock analysis
         new_analysis = AnalysisInsights(description="New component analysis", components=[], components_relations=[])
-        gen.details_agent.run.return_value = new_analysis
+        gen.details_agent.run.return_value = (new_analysis, {})
         gen.details_agent.classify_files.return_value = None
 
         # Mock planner
@@ -544,14 +536,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_process_component_with_invalid_feedback(
         self,
         mock_git_hash,
         mock_diff_agent_class,
-        mock_validator_class,
         mock_planner_class,
         mock_abstraction,
         mock_details_class,
@@ -574,14 +564,15 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.planner_agent = Mock()
 
-        # Mock update analysis - full update needed
+        # Mock update analysis - partial update needed (4 < degree < 8) to trigger apply_feedback
         update_analysis = Mock()
-        update_analysis.update_degree = 10
+        update_analysis.update_degree = 6
+        update_analysis.feedback = "Needs correction"
         gen.diff_analyzer_agent.check_for_component_updates.return_value = update_analysis
 
-        # Mock analysis
-        initial_analysis = AnalysisInsights(description="Initial analysis", components=[], components_relations=[])
-        gen.details_agent.run.return_value = initial_analysis
+        # Mock existing analysis for partial update path
+        existing_analysis = AnalysisInsights(description="Existing analysis", components=[], components_relations=[])
+        gen.diff_analyzer_agent.get_component_analysis.return_value = existing_analysis
 
         # Mock apply_feedback
         corrected_analysis = AnalysisInsights(description="Corrected analysis", components=[], components_relations=[])
@@ -637,14 +628,12 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.ValidatorAgent")
     @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_generate_analysis_no_updates_needed(
         self,
         mock_git_hash,
         mock_diff_agent_class,
-        mock_validator_class,
         mock_planner_class,
         mock_abstraction_class,
         mock_details_class,
