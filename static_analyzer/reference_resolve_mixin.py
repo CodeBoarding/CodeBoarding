@@ -28,6 +28,10 @@ class ReferenceResolverMixin:
                     continue
 
                 self._resolve_single_reference(reference, component.assigned_files)
+
+        # Remove unresolved references
+        self._remove_unresolved_references(analysis)
+
         return self._relative_paths(analysis)
 
     def _resolve_single_reference(self, reference, assigned_files):
@@ -164,6 +168,37 @@ class ReferenceResolverMixin:
             if reference.reference_file is None:
                 logger.error(
                     f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language."
+                )
+
+    def _remove_unresolved_references(self, analysis: AnalysisInsights):
+        """Remove references and assigned files that couldn't be resolved to existing files."""
+        for component in analysis.components:
+            # Remove unresolved key_entities
+            original_ref_count = len(component.key_entities)
+            component.key_entities = [
+                ref
+                for ref in component.key_entities
+                if ref.reference_file is not None and os.path.exists(ref.reference_file)
+            ]
+            removed_ref_count = original_ref_count - len(component.key_entities)
+            if removed_ref_count > 0:
+                logger.info(
+                    f"[Reference Resolution] Removed {removed_ref_count} unresolved reference(s) "
+                    f"from component '{component.name}'"
+                )
+
+            # Remove unresolved assigned_files
+            original_file_count = len(component.assigned_files)
+            component.assigned_files = [
+                f
+                for f in component.assigned_files
+                if os.path.exists(os.path.join(self.repo_dir, f)) or os.path.exists(f)
+            ]
+            removed_file_count = original_file_count - len(component.assigned_files)
+            if removed_file_count > 0:
+                logger.info(
+                    f"[Reference Resolution] Removed {removed_file_count} unresolved assigned file(s) "
+                    f"from component '{component.name}'"
                 )
 
     def _relative_paths(self, analysis: AnalysisInsights):
