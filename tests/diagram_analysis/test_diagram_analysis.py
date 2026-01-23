@@ -342,7 +342,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
         self.assertIsNotNone(gen.planner_agent)
-        self.assertIsNotNone(gen.validator_agent)
         self.assertIsNotNone(gen.diff_analyzer_agent)
 
         # Verify version file was created
@@ -391,7 +390,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Setup agents
         gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock update analysis - no update needed (degree < 4)
@@ -450,7 +448,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Setup agents
         gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock update analysis - partial update needed (4 < degree < 8)
@@ -518,7 +515,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Setup agents
         gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock update analysis - full update needed (degree >= 8)
@@ -530,11 +526,6 @@ class TestDiagramGenerator(unittest.TestCase):
         new_analysis = AnalysisInsights(description="New component analysis", components=[], components_relations=[])
         gen.details_agent.run.return_value = new_analysis
         gen.details_agent.classify_files.return_value = None
-
-        # Mock validator - valid
-        validation = Mock()
-        validation.is_valid = True
-        gen.validator_agent.run.return_value = validation
 
         # Mock planner
         gen.planner_agent.plan_analysis.return_value = []
@@ -581,7 +572,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Setup agents
         gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock update analysis - full update needed
@@ -592,12 +582,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Mock analysis
         initial_analysis = AnalysisInsights(description="Initial analysis", components=[], components_relations=[])
         gen.details_agent.run.return_value = initial_analysis
-
-        # Mock validator - invalid first, then valid
-        invalid_feedback = Mock()
-        invalid_feedback.is_valid = False
-        invalid_feedback.additional_info = "Needs improvement"
-        gen.validator_agent.run.return_value = invalid_feedback
 
         # Mock apply_feedback
         corrected_analysis = AnalysisInsights(description="Corrected analysis", components=[], components_relations=[])
@@ -634,7 +618,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Setup agents
         gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock to raise exception
@@ -692,7 +675,6 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.diff_analyzer_agent = Mock()
         gen.abstraction_agent = Mock()
-        gen.validator_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock update check - no update needed

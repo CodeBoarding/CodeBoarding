@@ -540,7 +540,8 @@ class TestCallGraph(unittest.TestCase):
         cluster_result = graph.cluster()
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.filter_by_files({first_cluster_id})
+            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
+            sub_graph = graph.filter_by_files(file_paths)
 
             self.assertIsInstance(sub_graph, CallGraph)
             self.assertIsNot(sub_graph, graph)
@@ -577,7 +578,8 @@ class TestCallGraph(unittest.TestCase):
         if cluster_result.clusters:
             # Get a cluster and create filter_by_files
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.filter_by_files({first_cluster_id})
+            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
+            sub_graph = graph.filter_by_files(file_paths)
 
             # All edges in filter_by_files should connect nodes that exist in filter_by_files
             for edge in sub_graph.edges:
@@ -598,7 +600,8 @@ class TestCallGraph(unittest.TestCase):
         cluster_result = graph.cluster()
         if cluster_result.clusters:
             first_cluster_id = next(iter(cluster_result.clusters.keys()))
-            sub_graph = graph.filter_by_files({first_cluster_id})
+            file_paths = cluster_result.cluster_to_files.get(first_cluster_id, set())
+            sub_graph = graph.filter_by_files(file_paths)
 
             # Subgraph should be clusterable
             sub_result = sub_graph.cluster()
