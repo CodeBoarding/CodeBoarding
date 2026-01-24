@@ -387,6 +387,16 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """The result produced by analyzing is:
+{original_output}
+
+However, the following issues were found:
+{feedback_list}
+
+Please carefully review the issues above and provide a corrected version of the output that addresses all problems.
+
+{original_prompt}"""
+
 
 class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
     """Concrete prompt factory for Gemini Flash unidirectional prompts."""
@@ -450,3 +460,6 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE

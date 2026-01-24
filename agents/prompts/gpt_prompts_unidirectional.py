@@ -105,7 +105,6 @@ Constraints:
 - Exclude utility/logging components
 - Components should translate well to flow diagram representation"""
 
-
 FEEDBACK_MESSAGE = """Revise architectural analysis based on validation feedback for {project_name}.
 
 **Validation Feedback:**
@@ -945,6 +944,16 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """The result you produced:
+{original_output}
+
+Validation identified these issues:
+{feedback_list}
+
+Please correct the output to address all validation issues. Focus on accuracy and completeness.
+
+{original_prompt}"""
+
 
 class GPTUnidirectionalPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 unidirectional mode."""
@@ -1008,3 +1017,6 @@ class GPTUnidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE

@@ -36,6 +36,7 @@ from .prompt_factory import (
     get_meta_information_prompt,
     get_file_classification_message,
     get_unassigned_files_classification_message,
+    get_validation_feedback_message,
 )
 
 
@@ -83,6 +84,7 @@ __all__ = [
     "get_meta_information_prompt",
     "get_file_classification_message",
     "get_unassigned_files_classification_message",
+    "get_validation_feedback_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
     "CLUSTER_GROUPING_MESSAGE",
@@ -101,4 +103,5 @@ __all__ = [
     "META_INFORMATION_PROMPT",
     "FILE_CLASSIFICATION_MESSAGE",
     "UNASSIGNED_FILES_CLASSIFICATION_MESSAGE",
+    "VALIDATION_FEEDBACK_MESSAGE",
 ]

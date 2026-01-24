@@ -115,8 +115,8 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    def test_step_cluster_grouping(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_cluster_grouping(self, mock_validation_invoke, mock_static_init):
         # Test step_cluster_grouping
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
@@ -126,16 +126,16 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
         )
         mock_response = ClusterAnalysis(cluster_components=[])
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_cluster_grouping(self.test_component, "Mock CFG data")
+        result = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
 
         self.assertEqual(result, mock_response)
-        mock_parse_invoke.assert_called_once()
+        mock_validation_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    def test_step_final_analysis(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
         # Test step_final_analysis
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = DetailsAgent(
@@ -149,50 +149,13 @@ class TestDetailsAgent(unittest.TestCase):
             components=[],
             components_relations=[],
         )
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
         cluster_analysis = ClusterAnalysis(cluster_components=[])
-        result = agent.step_final_analysis(self.test_component, cluster_analysis)
+        result = agent.step_final_analysis(self.test_component, cluster_analysis, {})
 
         self.assertEqual(result, mock_response)
-        mock_parse_invoke.assert_called_once()
-
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.details_agent.DetailsAgent._parse_invoke")
-    @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
-    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
-        # Test apply_feedback
-        mock_static_init.return_value = (MagicMock(), "test-model")
-        agent = DetailsAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-        )
-
-        analysis = AnalysisInsights(
-            description="Original analysis",
-            components=[],
-            components_relations=[],
-        )
-
-        feedback = ValidationInsights(
-            additional_info="Please improve",
-            is_valid=False,
-        )
-
-        updated_analysis = AnalysisInsights(
-            description="Updated analysis",
-            components=[],
-            components_relations=[],
-        )
-        mock_parse_invoke.return_value = updated_analysis
-        mock_fix_ref.return_value = updated_analysis
-
-        result = agent.apply_feedback(analysis, feedback)
-
-        mock_parse_invoke.assert_called_once()
-        mock_fix_ref.assert_called_once_with(updated_analysis)
+        mock_validation_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")

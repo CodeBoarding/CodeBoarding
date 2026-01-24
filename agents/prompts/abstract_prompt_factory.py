@@ -77,3 +77,19 @@ class AbstractPromptFactory(ABC):
     @abstractmethod
     def get_unassigned_files_classification_message(self) -> str:
         pass
+
+    @abstractmethod
+    def get_validation_feedback_message(self) -> str:
+        """
+        Get the validation feedback prompt template.
+
+        This prompt is used when LLM output fails validation checks and needs to be corrected.
+        The returned string should be a template with placeholders for:
+        - {original_output}: The LLM's original output that failed validation
+        - {feedback_list}: Bulleted list of validation issues found
+        - {original_prompt}: The original prompt that generated the output
+
+        Returns:
+            Prompt template string for validation feedback
+        """
+        pass

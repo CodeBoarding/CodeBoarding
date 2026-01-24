@@ -257,20 +257,24 @@ class CallGraph:
 
         return sub_graph
 
-    def to_cluster_string(self, cluster_ids: Optional[Set[int]] = None) -> str:
+    def to_cluster_string(
+        self, cluster_ids: Optional[Set[int]] = None, cluster_result: Optional[ClusterResult] = None
+    ) -> str:
         """
         Generate a human-readable string representation of clusters.
 
         If cluster_ids is provided, only those clusters are included.
-        Uses cached cluster() result for consistency.
+        Uses provided cluster_result or calls cluster() if not provided.
 
         Args:
             cluster_ids: Optional set of cluster IDs to include. If None, includes all.
+            cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
         """
-        cluster_result = self.cluster()
+        if cluster_result is None:
+            cluster_result = self.cluster()
 
         if not cluster_result.clusters:
             return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."

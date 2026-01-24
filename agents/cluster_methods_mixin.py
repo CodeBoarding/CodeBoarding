@@ -45,12 +45,18 @@ class ClusterMethodsMixin:
         """
         return get_files_for_cluster_ids(cluster_ids, cluster_results)
 
-    def _build_cluster_string(self, programming_langs: list[str], cluster_ids: set[int] | None = None) -> str:
+    def _build_cluster_string(
+        self,
+        programming_langs: list[str],
+        cluster_results: dict[str, ClusterResult],
+        cluster_ids: set[int] | None = None,
+    ) -> str:
         """
-        Build a cluster string for LLM consumption.
+        Build a cluster string for LLM consumption using pre-computed cluster results.
 
         Args:
             programming_langs: List of languages to include
+            cluster_results: Pre-computed cluster results mapping language -> ClusterResult
             cluster_ids: Optional set of cluster IDs to filter by
 
         Returns:
@@ -60,7 +66,9 @@ class ClusterMethodsMixin:
 
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
-            cluster_str = cfg.to_cluster_string(cluster_ids)
+            # Get cluster result for this language
+            cluster_result = cluster_results.get(lang)
+            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result)
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                 header = "Component CFG" if cluster_ids else "Clusters"
@@ -227,7 +235,7 @@ class ClusterMethodsMixin:
                 sub_cluster_result = sub_cfg.cluster()
                 cluster_results[lang] = sub_cluster_result
 
-                cluster_str = sub_cfg.to_cluster_string()
+                cluster_str = sub_cfg.to_cluster_string(cluster_result=sub_cluster_result)
                 if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                     result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
                     result_parts.append(cluster_str)

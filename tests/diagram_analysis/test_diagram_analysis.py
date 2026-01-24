@@ -10,7 +10,6 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
-    UpdateAnalysis,
 )
 from diagram_analysis.analysis_json import (
     AnalysisInsightsJson,
@@ -295,12 +294,10 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_pre_analysis(
         self,
         mock_git_hash,
-        mock_diff_agent,
         mock_planner,
         mock_abstraction,
         mock_details,
@@ -340,256 +337,10 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
         self.assertIsNotNone(gen.planner_agent)
-        self.assertIsNotNone(gen.diff_analyzer_agent)
 
         # Verify version file was created
         version_file = self.output_dir / "codeboarding_version.json"
         self.assertTrue(version_file.exists())
-
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_process_component_no_update_needed(
-        self,
-        mock_git_hash,
-        mock_diff_agent_class,
-        mock_planner_class,
-        mock_abstraction,
-        mock_details_class,
-        mock_meta,
-        mock_static,
-    ):
-        # Test processing a component that doesn't need update
-        mock_git_hash.return_value = "abc123"
-
-        # Setup mocks
-        mock_static_instance = Mock()
-        mock_static_instance.analyze.return_value = {"test": "data"}
-        mock_static.return_value = mock_static_instance
-
-        mock_meta_instance = Mock()
-        mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
-        mock_meta.return_value = mock_meta_instance
-
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-        )
-
-        # Setup agents
-        gen.diff_analyzer_agent = Mock()
-        gen.details_agent = Mock()
-        gen.planner_agent = Mock()
-
-        # Mock update analysis - no update needed (degree < 4)
-        update_analysis = Mock()
-        update_analysis.update_degree = 2
-        gen.diff_analyzer_agent.check_for_component_updates.return_value = update_analysis
-
-        # Mock existing analysis
-        existing_analysis = AnalysisInsights(description="Test component", components=[], components_relations=[])
-        gen.diff_analyzer_agent.get_component_analysis.return_value = existing_analysis
-
-        # Create test component
-        component = Component(name="TestComponent", description="Test", key_entities=[])
-
-        result_path, new_components = gen.process_component(component)
-
-        # Should return path and no new components since update not needed
-        self.assertIsNotNone(result_path)
-        self.assertEqual(new_components, [])
-
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_process_component_partial_update(
-        self,
-        mock_git_hash,
-        mock_diff_agent_class,
-        mock_planner_class,
-        mock_abstraction,
-        mock_details_class,
-        mock_meta,
-        mock_static,
-    ):
-        # Test processing a component that needs partial update
-        mock_git_hash.return_value = "abc123"
-
-        # Setup mocks
-        mock_static_instance = Mock()
-        mock_static_instance.analyze.return_value = {"test": "data"}
-        mock_static.return_value = mock_static_instance
-
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-        )
-
-        # Setup agents
-        gen.diff_analyzer_agent = Mock()
-        gen.details_agent = Mock()
-        gen.planner_agent = Mock()
-
-        # Mock update analysis - partial update needed (4 < degree < 8)
-        update_analysis = Mock()
-        update_analysis.update_degree = 6
-        update_analysis.feedback = "Needs minor updates"
-        gen.diff_analyzer_agent.check_for_component_updates.return_value = update_analysis
-
-        # Mock existing analysis
-        existing_analysis = AnalysisInsights(description="Test component", components=[], components_relations=[])
-        gen.diff_analyzer_agent.get_component_analysis.return_value = existing_analysis
-
-        # Mock apply_feedback
-        updated_analysis = AnalysisInsights(description="Updated component", components=[], components_relations=[])
-        gen.details_agent.apply_feedback.return_value = updated_analysis
-        gen.details_agent.classify_files.return_value = None
-
-        # Mock planner
-        gen.planner_agent.plan_analysis.return_value = []
-
-        # Create test component
-        component = Component(name="TestComponent", description="Test", key_entities=[])
-
-        result_path, new_components = gen.process_component(component)
-
-        # Should apply feedback and return result
-        self.assertIsNotNone(result_path)
-        gen.details_agent.apply_feedback.assert_called_once()
-
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_process_component_full_update(
-        self,
-        mock_git_hash,
-        mock_diff_agent_class,
-        mock_planner_class,
-        mock_abstraction,
-        mock_details_class,
-        mock_meta,
-        mock_static,
-    ):
-        # Test processing a component that needs full update
-        mock_git_hash.return_value = "abc123"
-
-        # Setup mocks
-        mock_static_instance = Mock()
-        mock_static_instance.analyze.return_value = {"test": "data"}
-        mock_static.return_value = mock_static_instance
-
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-        )
-
-        # Setup agents
-        gen.diff_analyzer_agent = Mock()
-        gen.details_agent = Mock()
-        gen.planner_agent = Mock()
-
-        # Mock update analysis - full update needed (degree >= 8)
-        update_analysis = Mock()
-        update_analysis.update_degree = 10
-        gen.diff_analyzer_agent.check_for_component_updates.return_value = update_analysis
-
-        # Mock analysis
-        new_analysis = AnalysisInsights(description="New component analysis", components=[], components_relations=[])
-        gen.details_agent.run.return_value = (new_analysis, {})
-        gen.details_agent.classify_files.return_value = None
-
-        # Mock planner
-        gen.planner_agent.plan_analysis.return_value = []
-
-        # Create test component
-        component = Component(name="TestComponent", description="Test", key_entities=[])
-
-        result_path, new_components = gen.process_component(component)
-
-        # Should run full analysis
-        self.assertIsNotNone(result_path)
-        gen.details_agent.run.assert_called_once_with(component)
-
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_process_component_with_invalid_feedback(
-        self,
-        mock_git_hash,
-        mock_diff_agent_class,
-        mock_planner_class,
-        mock_abstraction,
-        mock_details_class,
-        mock_meta,
-        mock_static,
-    ):
-        # Test processing a component with invalid feedback that needs correction
-        mock_git_hash.return_value = "abc123"
-
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-        )
-
-        # Setup agents
-        gen.diff_analyzer_agent = Mock()
-        gen.details_agent = Mock()
-        gen.planner_agent = Mock()
-
-        # Mock update analysis - partial update needed (4 < degree < 8) to trigger apply_feedback
-        update_analysis = Mock()
-        update_analysis.update_degree = 6
-        update_analysis.feedback = "Needs correction"
-        gen.diff_analyzer_agent.check_for_component_updates.return_value = update_analysis
-
-        # Mock existing analysis for partial update path
-        existing_analysis = AnalysisInsights(description="Existing analysis", components=[], components_relations=[])
-        gen.diff_analyzer_agent.get_component_analysis.return_value = existing_analysis
-
-        # Mock apply_feedback
-        corrected_analysis = AnalysisInsights(description="Corrected analysis", components=[], components_relations=[])
-        gen.details_agent.apply_feedback.return_value = corrected_analysis
-        gen.details_agent.classify_files.return_value = None
-
-        # Mock planner
-        gen.planner_agent.plan_analysis.return_value = []
-
-        # Create test component
-        component = Component(name="TestComponent", description="Test", key_entities=[])
-
-        result_path, new_components = gen.process_component(component)
-
-        # Should apply feedback after invalid validation
-        self.assertIsNotNone(result_path)
-        gen.details_agent.apply_feedback.assert_called_once()
 
     @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
     def test_process_component_with_exception(self, mock_static):
@@ -607,12 +358,11 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
         # Setup agents
-        gen.diff_analyzer_agent = Mock()
         gen.details_agent = Mock()
         gen.planner_agent = Mock()
 
         # Mock to raise exception
-        gen.diff_analyzer_agent.check_for_component_updates.side_effect = Exception("Test error")
+        gen.details_agent.run.side_effect = Exception("Test error")
 
         # Create test component
         component = Component(name="TestComponent", description="Test", key_entities=[])
@@ -622,66 +372,6 @@ class TestDiagramGenerator(unittest.TestCase):
         # Should return None and empty list on exception
         self.assertIsNone(result_path)
         self.assertEqual(new_components, [])
-
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    @patch("diagram_analysis.diagram_generator.MetaAgent")
-    @patch("diagram_analysis.diagram_generator.DetailsAgent")
-    @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
-    @patch("diagram_analysis.diagram_generator.DiffAnalyzingAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_generate_analysis_no_updates_needed(
-        self,
-        mock_git_hash,
-        mock_diff_agent_class,
-        mock_planner_class,
-        mock_abstraction_class,
-        mock_details_class,
-        mock_meta_class,
-        mock_static,
-    ):
-        # Test generate_analysis when no updates are needed
-        mock_git_hash.return_value = "abc123"
-
-        # Setup mocks
-        mock_static_instance = Mock()
-        mock_static_instance.analyze.return_value = {"test": "data"}
-        mock_static.return_value = mock_static_instance
-
-        mock_meta_instance = Mock()
-        mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
-        mock_meta_class.return_value = mock_meta_instance
-
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="test_repo",
-            output_dir=self.output_dir,
-            depth_level=1,  # Only process one level
-        )
-
-        # Setup agents
-        gen.details_agent = Mock()
-        gen.diff_analyzer_agent = Mock()
-        gen.abstraction_agent = Mock()
-        gen.planner_agent = Mock()
-
-        # Mock update check - no update needed
-        update_analysis = UpdateAnalysis(update_degree=2, feedback="")
-        gen.diff_analyzer_agent.check_for_updates.return_value = update_analysis
-
-        # Mock existing analysis
-        existing_analysis = AnalysisInsights(description="Existing analysis", components=[], components_relations=[])
-        gen.diff_analyzer_agent.get_analysis.return_value = existing_analysis
-        gen.abstraction_agent.classify_files.return_value = None
-
-        # Mock planner
-        gen.planner_agent.plan_analysis.return_value = []
-
-        files = gen.generate_analysis()
-
-        # Should generate at least the root analysis file
-        self.assertGreater(len(files), 0)
 
 
 if __name__ == "__main__":

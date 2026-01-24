@@ -70,8 +70,8 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_clusters_grouping_single_language(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
+    def test_step_clusters_grouping_single_language(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with single language
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
@@ -84,16 +84,22 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_clusters_grouping()
+        # Create mock cluster_results
+        from static_analyzer.graph import ClusterResult
+
+        mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
+        cluster_results = {"python": mock_cluster_result}
+
+        result = agent.step_clusters_grouping(cluster_results)
 
         self.assertEqual(result, mock_response)
-        mock_parse_invoke.assert_called_once()
+        mock_validation_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_clusters_grouping_multiple_languages(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
+    def test_step_clusters_grouping_multiple_languages(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with multiple languages
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
@@ -108,16 +114,22 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_clusters_grouping()
+        # Create mock cluster_results for both languages
+        from static_analyzer.graph import ClusterResult
+
+        mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
+        cluster_results = {"python": mock_cluster_result, "javascript": mock_cluster_result}
+
+        result = agent.step_clusters_grouping(cluster_results)
 
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_clusters_grouping_no_languages(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
+    def test_step_clusters_grouping_no_languages(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with no languages detected
         mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = []
@@ -132,15 +144,18 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_clusters_grouping()
+        # Empty cluster_results for no languages
+        cluster_results: dict = {}
+
+        result = agent.step_clusters_grouping(cluster_results)
 
         self.assertEqual(result, mock_response)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    def test_step_final_analysis(self, mock_parse_invoke, mock_static_init):
+    @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
+    def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
         # Test step_final_analysis
         mock_static_init.return_value = (MagicMock(), "test-model")
         agent = AbstractionAgent(
@@ -159,48 +174,17 @@ class TestAbstractionAgent(unittest.TestCase):
             components=[],
             components_relations=[],
         )
-        mock_parse_invoke.return_value = mock_response
+        mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_final_analysis(cluster_analysis)
+        # Create mock cluster_results
+        from static_analyzer.graph import ClusterResult
+
+        mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
+        cluster_results = {"python": mock_cluster_result}
+
+        result = agent.step_final_analysis(cluster_analysis, cluster_results)
 
         self.assertEqual(result, mock_response)
-
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    @patch("agents.abstraction_agent.AbstractionAgent._parse_invoke")
-    @patch("agents.abstraction_agent.AbstractionAgent.fix_source_code_reference_lines")
-    def test_apply_feedback(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
-        # Test apply_feedback
-        mock_static_init.return_value = (MagicMock(), "test-model")
-        agent = AbstractionAgent(
-            repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
-            project_name=self.project_name,
-            meta_context=self.mock_meta_context,
-        )
-
-        analysis = AnalysisInsights(
-            description="Original analysis",
-            components=[],
-            components_relations=[],
-        )
-
-        feedback = ValidationInsights(
-            additional_info="Please improve the analysis",
-            is_valid=False,
-        )
-
-        updated_analysis = AnalysisInsights(
-            description="Updated analysis",
-            components=[],
-            components_relations=[],
-        )
-        mock_parse_invoke.return_value = updated_analysis
-        mock_fix_ref.return_value = updated_analysis
-
-        result = agent.apply_feedback(analysis, feedback)
-
-        mock_parse_invoke.assert_called_once()
-        mock_fix_ref.assert_called_once_with(updated_analysis)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")

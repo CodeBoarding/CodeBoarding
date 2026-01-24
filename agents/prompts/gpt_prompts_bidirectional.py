@@ -2,7 +2,6 @@
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-
 SYSTEM_MESSAGE = """You are an expert software architect analyzing {project_name}. Your task is to create comprehensive documentation and interactive diagrams that help new engineers understand the codebase within their first week.
 
 **Your Role:**
@@ -100,7 +99,6 @@ Constraints:
 - Focus on highest level architectural components
 - Exclude utility/logging components
 - Components should translate well to flow diagram representation"""
-
 
 FEEDBACK_MESSAGE = """Improve the analysis based on validation feedback.
 
@@ -541,6 +539,16 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """The result you produced:
+{original_output}
+
+Validation identified these issues:
+{feedback_list}
+
+Please correct the output to address all validation issues.
+
+{original_prompt}"""
+
 
 class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 bidirectional mode."""
@@ -604,3 +612,6 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE

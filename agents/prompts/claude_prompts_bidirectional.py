@@ -97,7 +97,6 @@ Constraints:
 - Exclude utility/logging components
 - Components should translate well to flow diagram representation"""
 
-
 FEEDBACK_MESSAGE = """Improve analysis based on validation feedback for documentation and comprehensive diagram optimization.
 
 <context>
@@ -396,6 +395,16 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """Your previous analysis produced the following result:
+{original_output}
+
+However, upon validation, the following issues were identified:
+{feedback_list}
+
+Please provide a corrected analysis that addresses these validation issues while maintaining the quality and depth of your original analysis.
+
+{original_prompt}"""
+
 
 class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
     """Optimized prompt factory for Claude bidirectional prompts."""
@@ -459,3 +468,6 @@ class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE

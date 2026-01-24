@@ -2,7 +2,7 @@ lsp_servers:
   python:
     name: Pyright Language Server
     command:
-      - ./static_analyzer/servers/node_modules/.bin/pyright-langserver
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver
       - --stdio
     languages:
       - python
@@ -13,7 +13,7 @@ lsp_servers:
   typescript:
     name: TypeScript Language Server
     command:
-      - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
       - --stdio
       - --log-level=2
     languages:
@@ -25,7 +25,7 @@ lsp_servers:
   javascript:
     name: TypeScript Language Server
     command:
-      - ./static_analyzer/servers/node_modules/.bin/typescript-language-server
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/typescript-language-server
       - --stdio
       - --log-level=2
     languages:
@@ -37,7 +37,7 @@ lsp_servers:
   go:
     name: Go Language Server (gopls)
     command:
-      - ./static_analyzer/servers/gopls
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/gopls
       - serve
     languages:
       - go
@@ -47,7 +47,7 @@ lsp_servers:
   php:
     name: Intelephense
     command:
-      - ./static_analyzer/servers/node_modules/.bin/intelephense
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/intelephense
       - --stdio
     languages:
       - php
@@ -57,20 +57,20 @@ lsp_servers:
   java:
     name: Eclipse JDT Language Server
     command:
-    - java # Placeholder - actual command constructed by JavaClient
+      - java # Placeholder - actual command constructed by JavaClient
     languages:
-    - java
+      - java
     file_extensions:
-    - .java
-    install_commands: | 
+      - .java
+    install_commands: |
       wget https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz
-      tar -xzf jdt-language-server-*.tar.gz -C ./static_analyzer/servers/jdtls
-    jdtls_root: ./static_analyzer/servers/jdtls
+      tar -xzf jdt-language-server-*.tar.gz -C /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/jdtls
+    jdtls_root: /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/jdtls
 tools:
   tokei:
     name: tokei
     command:
-      - ./static_analyzer/servers/tokei
+      - /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/tokei
       - -o
       - json
     description: Analyze repository languages and file types

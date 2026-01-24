@@ -19,8 +19,14 @@ from agents.prompts import (
     get_feedback_message,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.validation import (
+    ValidationContext,
+    validate_cluster_coverage,
+    validate_component_relationships,
+)
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_helpers import get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +56,16 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         }
 
     @trace
-    def step_cluster_grouping(self, component: Component, subgraph_cluster_str: str) -> ClusterAnalysis:
+    def step_cluster_grouping(
+        self, component: Component, subgraph_cluster_str: str, subgraph_cluster_results: dict
+    ) -> ClusterAnalysis:
         """
         Group clusters within the component's subgraph into logical sub-components.
 
         Args:
             component: The component being analyzed
             subgraph_cluster_str: String representation of the component's CFG subgraph
+            subgraph_cluster_results: Cluster results for the subgraph (from _create_strict_component_subgraph)
 
         Returns:
             ClusterAnalysis with grouped clusters for this component
@@ -72,17 +81,29 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
             meta_context=meta_context_str,
             project_type=project_type,
         )
-        cluster_analysis = self._parse_invoke(prompt, ClusterAnalysis)
+
+        # Build validation context using subgraph cluster results
+        context = ValidationContext(
+            cluster_results=subgraph_cluster_results,
+            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
+        )
+
+        cluster_analysis = self._validation_invoke(
+            prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context
+        )
         return cluster_analysis
 
     @trace
-    def step_final_analysis(self, component: Component, cluster_analysis: ClusterAnalysis) -> AnalysisInsights:
+    def step_final_analysis(
+        self, component: Component, cluster_analysis: ClusterAnalysis, subgraph_cluster_results: dict
+    ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
 
         Args:
             component: The component being analyzed
             cluster_analysis: The clustered structure from step_cluster_grouping
+            subgraph_cluster_results: Cluster results for the subgraph (for validation)
 
         Returns:
             AnalysisInsights with detailed component information
@@ -99,14 +120,16 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
             meta_context=meta_context_str,
             project_type=project_type,
         )
-        return self._parse_invoke(prompt, AnalysisInsights)
 
-    @trace
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights) -> AnalysisInsights:
-        logger.info(f"[DetailsAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
+        # Build validation context with subgraph CFG graphs for edge checking
+        context = ValidationContext(
+            cluster_results=subgraph_cluster_results,
+            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+        )
+
+        return self._validation_invoke(
+            prompt, AnalysisInsights, validators=[validate_component_relationships], context=context
+        )
 
     def run(self, component: Component):
         """
@@ -127,15 +150,15 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         subgraph_str, subgraph_cluster_results = self._create_strict_component_subgraph(component)
 
         # Step 2: Group clusters within the subgraph
-        cluster_analysis = self.step_cluster_grouping(component, subgraph_str)
+        cluster_analysis = self.step_cluster_grouping(component, subgraph_str, subgraph_cluster_results)
 
         # Step 3: Generate detailed analysis from grouped clusters
-        analysis = self.step_final_analysis(component, cluster_analysis)
+        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
 
         # Step 4: Sanitize cluster IDs (remove invalid ones) - use subgraph's cluster results
         self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
 
-        # Step 5: Assign files to components (deterministic + LLM-based) - use subgraph's cluster results
+        # Step 5: Assign files to components (deterministic + LLM-based with validation)
         self.classify_files(analysis, subgraph_cluster_results)
 
         # Step 6: Fix source code reference lines (resolves reference_file paths)
