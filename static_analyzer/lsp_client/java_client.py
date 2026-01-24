@@ -292,104 +292,37 @@ class JavaClient(LSPClient):
         total_time = time.time() - start
         logger.info(f"Project import completed in {total_time:.1f}s")
 
-        # Validate project loaded
-        self._validate_project_loaded()
-
-    def _validate_project_loaded(self, max_wait: int = 60):
+    def _prepare_for_analysis(self):
         """
-        Verify project loaded successfully by polling workspace symbols.
+        Prepare for analysis by validating the Java project is indexed.
 
-        JDTLS may take additional time after import to index the workspace.
-        This method polls workspace/symbol until symbols are available or timeout.
+        This is called before file-by-file analysis starts. If workspace indexing
+        is successful, we can use optimized class hierarchy analysis later.
+        If not, we fall back to per-file analysis.
 
-        Args:
-            max_wait: Maximum time to wait for symbols in seconds (default: 60s)
+        First attempts quick validation, then if needed retries with longer timeout.
         """
         logger.info("Validating project is fully indexed...")
-        start = time.time()
-        last_log = start
 
-        while time.time() - start < max_wait:
-            try:
-                # Test workspace/symbol request
-                params = {"query": ""}
-                req_id = self._send_request("workspace/symbol", params)
-                response = self._wait_for_response(req_id, timeout=10)
-
-                if "error" in response:
-                    logger.debug(f"workspace/symbol error: {response['error']}")
-                    time.sleep(2)
-                    continue
-
-                symbols = response.get("result", [])
-
-                if symbols:
-                    self.workspace_indexed = True
-                    logger.info(f"Project loaded and indexed successfully ({len(symbols)} symbols available)")
-                    return True
-
-                # Log progress every 10 seconds
-                elapsed = time.time() - start
-                if time.time() - last_log >= 10:
-                    logger.info(f"Waiting for workspace indexing... ({int(elapsed)}s elapsed)")
-                    last_log = time.time()
-
-                time.sleep(2)
-
-            except Exception as e:
-                logger.debug(f"Error checking workspace symbols: {e}")
-                time.sleep(2)
-
-        # Timeout reached
-        logger.warning(
-            f"No workspace symbols found after {max_wait}s - project may not be fully indexed. "
-            "Continuing with file-by-file analysis."
+        # Try a few quick attempts (3 seconds total) to see if workspace/symbol works
+        symbols = self._retry_workspace_symbol_request(
+            query="",
+            max_attempts=3,
+            retry_delay=1.0,
+            request_timeout=5,
+            log_prefix="validation/workspace/symbol",
         )
-        return False
 
-    def _get_all_classes_in_workspace(self) -> list:
-        """
-        Get all class symbols in workspace with retry for JDTLS.
-
-        If workspace isn't indexed yet, retry for up to 30 seconds.
-        """
-        # If we know workspace is indexed, use base implementation
-        if self.workspace_indexed:
-            return super()._get_all_classes_in_workspace()
-
-        # Otherwise, retry for a short time
-        logger.info("Workspace symbols not yet available, retrying...")
-        max_wait = 30
-        start = time.time()
-
-        while time.time() - start < max_wait:
-            try:
-                params = {"query": ""}
-                req_id = self._send_request("workspace/symbol", params)
-                response = self._wait_for_response(req_id, timeout=10)
-
-                if "error" in response:
-                    logger.debug(f"workspace/symbol error: {response['error']}")
-                    time.sleep(2)
-                    continue
-
-                symbols = response.get("result", [])
-                if symbols:
-                    self.workspace_indexed = True
-                    # Filter for class symbols (kind 5)
-                    classes = [s for s in symbols if s.get("kind") == 5]
-                    logger.info(f"Found {len(classes)} class symbols via workspace/symbol")
-                    return classes
-
-                time.sleep(2)
-
-            except Exception as e:
-                logger.debug(f"Error getting workspace symbols: {e}")
-                time.sleep(2)
-
-        # Timeout - return empty list and let file-by-file analysis handle it
-        logger.warning("Workspace symbols still not available after retry. Proceeding with file-by-file analysis.")
-        return []
+        if symbols:
+            self.workspace_indexed = True
+            logger.info(f"Project loaded and indexed successfully ({len(symbols)} symbols available)")
+        else:
+            # workspace/symbol didn't work, but that's OK - per-file analysis will work anyway
+            logger.debug(
+                "workspace/symbol not available after validation and retry. "
+                "This is normal for large projects. Per-file analysis will still work."
+            )
+            self.workspace_indexed = False
 
     def handle_notification(self, method: str, params: dict):
         """

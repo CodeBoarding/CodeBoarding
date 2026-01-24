@@ -283,6 +283,80 @@ class LSPClient(ABC):
         response = self._wait_for_response(req_id)
         return response.get("result", [])
 
+    def _prepare_call_hierarchy_batch(self, file_uri: str, positions: list[dict]) -> dict[int, list]:
+        """
+        Batch prepare call hierarchy for multiple positions.
+
+        Args:
+            file_uri: The file URI
+            positions: List of position dicts with 'line' and 'character' keys
+
+        Returns:
+            Dict mapping position index to call hierarchy items
+        """
+        request_ids = {}
+        for idx, pos in enumerate(positions):
+            params = {
+                "textDocument": {"uri": file_uri},
+                "position": {"line": pos["line"], "character": pos["character"]},
+            }
+            req_id = self._send_request("textDocument/prepareCallHierarchy", params)
+            request_ids[req_id] = idx
+
+        # Collect all responses
+        results = {}
+        for req_id, idx in request_ids.items():
+            response = self._wait_for_response(req_id)
+            results[idx] = response.get("result", [])
+
+        return results
+
+    def _get_outgoing_calls_batch(self, items: list[dict]) -> dict[int, list]:
+        """
+        Batch get outgoing calls for multiple call hierarchy items.
+
+        Args:
+            items: List of call hierarchy items
+
+        Returns:
+            Dict mapping item index to outgoing calls
+        """
+        request_ids = {}
+        for idx, item in enumerate(items):
+            req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
+            request_ids[req_id] = idx
+
+        # Collect all responses
+        results = {}
+        for req_id, idx in request_ids.items():
+            response = self._wait_for_response(req_id)
+            results[idx] = response.get("result", [])
+
+        return results
+
+    def _get_incoming_calls_batch(self, items: list[dict]) -> dict[int, list]:
+        """
+        Batch get incoming calls for multiple call hierarchy items.
+
+        Args:
+            items: List of call hierarchy items
+
+        Returns:
+            Dict mapping item index to incoming calls
+        """
+        request_ids = {}
+        for idx, item in enumerate(items):
+            req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
+            request_ids[req_id] = idx
+
+        # Collect all responses
+        results = {}
+        for req_id, idx in request_ids.items():
+            response = self._wait_for_response(req_id)
+            results[idx] = response.get("result", [])
+
+        return results
+
     def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> list[dict]:
         """
         Find positions of function/method calls within a line range.
@@ -453,7 +527,14 @@ class LSPClient(ABC):
         self._prepare_for_analysis()
 
         # Get all classes in workspace for hierarchy analysis
-        all_classes = self._get_all_classes_in_workspace()
+        all_symbols = self._retry_workspace_symbol_request(
+            query="",
+            max_attempts=1,
+            request_timeout=360,
+            log_prefix="analysis/workspace/symbol",
+        )
+        # Filter for class symbols (kind 5)
+        all_classes = [s for s in all_symbols if s.get("kind") == 5]
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
         cpu_count = os.cpu_count()
@@ -610,70 +691,88 @@ class LSPClient(ABC):
             # 3. CALL GRAPH - Process function/method calls
             result.function_symbols = self._flatten_symbols(symbols)
 
-            # Find call relationships - we need BOTH incoming AND outgoing calls
-            for symbol in result.function_symbols:
-                pos = symbol["selectionRange"]["start"]
-                current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
+            # OPTIMIZED: Batch prepare call hierarchy for all functions at once
+            try:
+                positions = []
+                symbol_map = {}  # Map position index to symbol
+                for idx, symbol in enumerate(result.function_symbols):
+                    pos = symbol["selectionRange"]["start"]
+                    positions.append({"line": pos["line"], "character": pos["character"]})
+                    symbol_map[idx] = symbol
 
-                # Prepare the call hierarchy at the function's position
-                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos["line"], pos["character"])
-                if not hierarchy_items:
-                    continue
+                if positions:
+                    # Batch prepare all call hierarchies
+                    hierarchy_results = self._prepare_call_hierarchy_batch(file_uri, positions)
 
-                for item in hierarchy_items:
-                    # METHOD 1: Get OUTGOING calls (what this function calls)
-                    # This is the PRIMARY method - captures all calls made by this function
-                    try:
-                        outgoing_calls = self._get_outgoing_calls(item)
-                        if outgoing_calls:
-                            for call in outgoing_calls:
-                                callee_item = call["to"]
-                                try:
-                                    callee_uri = callee_item["uri"]
-                                    if callee_uri.startswith("file://"):
-                                        callee_path = uri_to_path(callee_uri)
-                                        callee_qualified_name = self._create_qualified_name(
-                                            callee_path, callee_item["name"]
-                                        )
+                    # Collect all hierarchy items with their corresponding symbols
+                    all_items = []
+                    item_to_symbol_map = {}
+                    for symbol_idx, items in hierarchy_results.items():
+                        for item in items:
+                            item_idx = len(all_items)
+                            all_items.append(item)
+                            item_to_symbol_map[item_idx] = symbol_map[symbol_idx]
 
-                                        # Add edge: current_function -> called_function
-                                        result.call_relationships.append(
-                                            (current_qualified_name, callee_qualified_name)
-                                        )
-                                        logger.debug(
-                                            f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}"
-                                        )
-                                except Exception as e:
-                                    logger.debug(f"Error processing outgoing call: {e}")
-                    except Exception as e:
-                        logger.debug(f"Error getting outgoing calls: {e}")
+                    if all_items:
+                        # Batch get outgoing calls for all items
+                        outgoing_results = self._get_outgoing_calls_batch(all_items)
+                        # Batch get incoming calls for all items
+                        incoming_results = self._get_incoming_calls_batch(all_items)
 
-                    # METHOD 2: Get INCOMING calls (who calls this function)
-                    # This is SUPPLEMENTARY - helps catch calls we might have missed
-                    try:
-                        incoming_calls = self._get_incoming_calls(item)
-                        if incoming_calls:
-                            for call in incoming_calls:
-                                caller_item = call["from"]
-                                try:
-                                    caller_uri = caller_item["uri"]
-                                    if caller_uri.startswith("file://"):
-                                        caller_path = uri_to_path(caller_uri)
-                                        caller_qualified_name = self._create_qualified_name(
-                                            caller_path, caller_item["name"]
-                                        )
+                        # Process all results
+                        for item_idx, item in enumerate(all_items):
+                            symbol = item_to_symbol_map[item_idx]
+                            current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
 
-                                        # Add edge: calling_function -> current_function
-                                        result.call_relationships.append(
-                                            (caller_qualified_name, current_qualified_name)
-                                        )
-                                        logger.debug(
-                                            f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
-                                        )
-                                except Exception as e:
-                                    logger.debug(f"Error processing incoming call: {e}")
-                    except Exception as e:
-                        logger.debug(f"Error getting incoming calls: {e}")
+                            # Process outgoing calls
+                            try:
+                                outgoing_calls = outgoing_results.get(item_idx, [])
+                                if outgoing_calls:
+                                    for call in outgoing_calls:
+                                        callee_item = call["to"]
+                                        try:
+                                            callee_uri = callee_item["uri"]
+                                            if callee_uri.startswith("file://"):
+                                                callee_path = uri_to_path(callee_uri)
+                                                callee_qualified_name = self._create_qualified_name(
+                                                    callee_path, callee_item["name"]
+                                                )
+                                                result.call_relationships.append(
+                                                    (current_qualified_name, callee_qualified_name)
+                                                )
+                                                logger.debug(
+                                                    f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}"
+                                                )
+                                        except Exception as e:
+                                            logger.debug(f"Error processing outgoing call: {e}")
+                            except Exception as e:
+                                logger.debug(f"Error processing outgoing calls: {e}")
+
+                            # Process incoming calls
+                            try:
+                                incoming_calls = incoming_results.get(item_idx, [])
+                                if incoming_calls:
+                                    for call in incoming_calls:
+                                        caller_item = call["from"]
+                                        try:
+                                            caller_uri = caller_item["uri"]
+                                            if caller_uri.startswith("file://"):
+                                                caller_path = uri_to_path(caller_uri)
+                                                caller_qualified_name = self._create_qualified_name(
+                                                    caller_path, caller_item["name"]
+                                                )
+                                                result.call_relationships.append(
+                                                    (caller_qualified_name, current_qualified_name)
+                                                )
+                                                logger.debug(
+                                                    f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
+                                                )
+                                        except Exception as e:
+                                            logger.debug(f"Error processing incoming call: {e}")
+                            except Exception as e:
+                                logger.debug(f"Error processing incoming calls: {e}")
+            except Exception as e:
+                logger.debug(f"Error in batched call hierarchy processing: {e}")
 
             # METHOD 3: Body-level calls by finding call positions
             try:
@@ -764,27 +863,70 @@ class LSPClient(ABC):
         """Override in subclasses to perform language-specific preparation before analysis."""
         pass
 
-    def _get_all_classes_in_workspace(self) -> list:
-        """Get all class symbols in the workspace using workspace/symbol."""
-        try:
-            params = {"query": ""}
-            req_id = self._send_request("workspace/symbol", params)
-            # Use longer timeout for workspace-wide symbol search
-            response = self._wait_for_response(req_id, timeout=360)
+    def _retry_workspace_symbol_request(
+        self,
+        query: str = "",
+        max_attempts: int = 1,
+        retry_delay: float = 1.0,
+        request_timeout: int = 10,
+        log_prefix: str = "workspace/symbol",
+    ) -> list:
+        """
+        Retry workspace/symbol request with configurable attempt-based strategy.
 
-            if "error" in response:
-                error_msg = response["error"]
-                logger.error(f"workspace/symbol failed: {error_msg}")
-                return []
+        This is a unified helper for workspace symbol fetching with retry logic.
+        Subclasses can specify max_attempts for different retry behaviors.
 
-            symbols = response.get("result", [])
-            # Filter for class symbols (kind 5)
-            classes = [s for s in symbols if s.get("kind") == 5]
-            logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
-            return classes
-        except Exception as e:
-            logger.error(f"Error getting workspace symbols: {e}")
+        Args:
+            query: Symbol query string (empty for all symbols)
+            max_attempts: Maximum number of attempts (default: 1 for single attempt)
+            retry_delay: Time in seconds to wait between retry attempts
+            request_timeout: Timeout in seconds for each LSP request
+            log_prefix: Prefix for log messages (for context)
+
+        Returns:
+            List of symbol dictionaries, or empty list on failure
+        """
+        params = {"query": query}
+
+        if max_attempts <= 0:
+            logger.debug(f"{log_prefix}: max_attempts must be > 0")
             return []
+
+        if max_attempts == 1:
+            logger.debug(f"{log_prefix}: Single attempt (no retry)")
+        else:
+            logger.debug(f"{log_prefix}: Retrying with {max_attempts} attempts, {retry_delay}s between attempts")
+
+        for attempt in range(max_attempts):
+            try:
+                req_id = self._send_request("workspace/symbol", params)
+                response = self._wait_for_response(req_id, timeout=request_timeout)
+
+                if "error" in response:
+                    logger.debug(
+                        f"{log_prefix}: error (attempt {attempt + 1}/{max_attempts}): {response.get('error', {})}"
+                    )
+                else:
+                    symbols = response.get("result", [])
+                    if symbols:
+                        logger.debug(
+                            f"{log_prefix}: Found {len(symbols)} symbols (attempt {attempt + 1}/{max_attempts})"
+                        )
+                        return symbols
+                    logger.debug(f"{log_prefix}: Empty result (attempt {attempt + 1}/{max_attempts})")
+
+            except TimeoutError:
+                logger.debug(f"{log_prefix}: timeout (attempt {attempt + 1}/{max_attempts})")
+            except Exception as e:
+                logger.debug(f"{log_prefix}: exception (attempt {attempt + 1}/{max_attempts}): {e}")
+
+            # Wait before next attempt (but not after last attempt)
+            if attempt < max_attempts - 1:
+                time.sleep(retry_delay)
+
+        logger.debug(f"{log_prefix}: No results after {max_attempts} attempt(s)")
+        return []
 
     def _find_superclasses(self, file_uri: str, class_symbol: dict, content: str, file_path: Path) -> list:
         """Find superclasses using textDocument/definition and text analysis."""

@@ -283,7 +283,6 @@ class TestJavaClient(unittest.TestCase):
             self.project_config,
             self.mock_ignore_manager,
         )
-        client._validate_project_loaded = Mock()  # type: ignore[method-assign]
 
         # Simulate import completing after 2 seconds
         def mark_complete(*args):
@@ -293,8 +292,8 @@ class TestJavaClient(unittest.TestCase):
 
         client.wait_for_import(timeout=10)
 
-        # Should have validated project
-        client._validate_project_loaded.assert_called_once()
+        # Should have completed
+        self.assertTrue(client.import_complete)
 
     @patch("time.sleep")
     @patch("time.time")
@@ -309,18 +308,17 @@ class TestJavaClient(unittest.TestCase):
             self.project_config,
             self.mock_ignore_manager,
         )
-        client._validate_project_loaded = Mock()  # type: ignore[method-assign]
 
         # Import never completes
         client.import_complete = False
 
         client.wait_for_import(timeout=1)
 
-        # Should still validate even after timeout
-        client._validate_project_loaded.assert_called_once()
+        # Should have timed out but logged it
+        self.assertFalse(client.import_complete)
 
-    def test_validate_project_loaded_success(self):
-        """Test project validation with workspace symbols."""
+    def test_prepare_for_analysis_success(self):
+        """Test prepare for analysis with successful workspace indexing."""
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -331,12 +329,15 @@ class TestJavaClient(unittest.TestCase):
         client._wait_for_response = Mock(return_value={"result": [{"name": "MyClass"}]})  # type: ignore[method-assign]
 
         # Should not raise
-        client._validate_project_loaded()
+        client._prepare_for_analysis()
 
-        client._send_request.assert_called_with("workspace/symbol", {"query": ""})
+        # Should have set workspace_indexed to True
+        self.assertTrue(client.workspace_indexed)
+        # Verify workspace/symbol was called
+        self.assertTrue(client._send_request.called)
 
-    def test_validate_project_loaded_no_symbols(self):
-        """Test project validation with no symbols."""
+    def test_prepare_for_analysis_no_symbols(self):
+        """Test prepare for analysis with no symbols found."""
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -345,36 +346,14 @@ class TestJavaClient(unittest.TestCase):
         )
         client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
         client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
+        # Mock the retry method to return empty (no symbols) immediately instead of waiting 30 seconds
+        client._retry_workspace_symbol_request = Mock(return_value=[])  # type: ignore[method-assign]
 
         # Should not raise, just log warning
-        client._validate_project_loaded()
+        client._prepare_for_analysis()
 
-    def test_validate_project_loaded_error(self):
-        """Test project validation with error."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
-        client._wait_for_response = Mock(return_value={"error": "Failed"})  # type: ignore[method-assign]
-
-        # Should not raise, just log warning
-        client._validate_project_loaded()
-
-    def test_validate_project_loaded_exception(self):
-        """Test project validation with exception."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-        client._send_request = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
-
-        # Should not raise, just log warning
-        client._validate_project_loaded()
+        # Should have set workspace_indexed to False after retry timeout
+        self.assertFalse(client.workspace_indexed)
 
     def test_handle_notification_import_started(self):
         """Test handling import started notification."""
@@ -655,10 +634,8 @@ class TestJavaClient(unittest.TestCase):
         # Should not crash (this is logged but doesn't set import_complete)
         self.assertFalse(client.import_complete)
 
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_validate_project_loaded_with_symbols(self, mock_time, mock_sleep):
-        """Test _validate_project_loaded when symbols are immediately available."""
+    def test_prepare_for_analysis_error_then_success(self):
+        """Test prepare_for_analysis with retry that eventually succeeds."""
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -666,152 +643,22 @@ class TestJavaClient(unittest.TestCase):
             self.mock_ignore_manager,
         )
 
-        # Mock time.time() to avoid timeout
-        mock_time.side_effect = [0, 0, 1]  # start, last_log, elapsed check
-
-        # Mock the LSP request/response
-        with patch.object(client, "_send_request", return_value=1) as mock_send:
-            with patch.object(
-                client, "_wait_for_response", return_value={"result": [{"name": "TestClass", "kind": 5}]}
-            ) as mock_wait:
-                result = client._validate_project_loaded(max_wait=60)
-
-                self.assertTrue(result)
-                self.assertTrue(client.workspace_indexed)
-                mock_send.assert_called_once()
-                mock_wait.assert_called_once()
-
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_validate_project_loaded_timeout(self, mock_time, mock_sleep):
-        """Test _validate_project_loaded when symbols never appear."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-
-        # Mock time to simulate timeout
-        # Need many values since loop calls time.time() repeatedly (start, last_log, each iteration)
-        times = [0, 0]  # start, last_log
-        for i in range(0, 70, 2):  # Generate times that will eventually exceed max_wait
-            times.append(i)
-        mock_time.side_effect = times
-
-        # Mock the LSP request/response to return empty symbols
-        with patch.object(client, "_send_request", return_value=1):
-            with patch.object(client, "_wait_for_response", return_value={"result": []}):
-                result = client._validate_project_loaded(max_wait=60)
-
-                self.assertFalse(result)
-                self.assertFalse(client.workspace_indexed)
-
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_validate_project_loaded_error_then_success(self, mock_time, mock_sleep):
-        """Test _validate_project_loaded with initial errors then success."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-
-        # Mock time
-        mock_time.side_effect = [0, 0, 2, 4]
-
-        # Mock responses: first error, then success
-        responses = [{"error": {"message": "Not ready"}}, {"result": [{"name": "TestClass", "kind": 5}]}]
+        # The _prepare_for_analysis method calls _retry_workspace_symbol_request
+        # with max_attempts=3, retry_delay=1.0
+        # Each attempt calls _send_request and _wait_for_response
+        # Simulate: 2 attempts with errors, then success on 3rd attempt
+        responses = [
+            {"error": {"message": "Not ready"}},  # attempt 1 fails
+            {"error": {"message": "Not ready"}},  # attempt 2 fails
+            {"result": [{"name": "TestClass", "kind": 5}]},  # attempt 3 succeeds
+        ]
 
         with patch.object(client, "_send_request", return_value=1):
             with patch.object(client, "_wait_for_response", side_effect=responses):
-                result = client._validate_project_loaded(max_wait=60)
+                client._prepare_for_analysis()
 
-                self.assertTrue(result)
+                # Should have found symbols on the 3rd attempt
                 self.assertTrue(client.workspace_indexed)
-
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_get_all_classes_when_indexed(self, mock_time, mock_sleep):
-        """Test _get_all_classes_in_workspace when workspace is already indexed."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-
-        # Mark as indexed
-        client.workspace_indexed = True
-
-        # Mock the base class method
-        with patch("static_analyzer.lsp_client.client.LSPClient._get_all_classes_in_workspace") as mock_base:
-            mock_base.return_value = [{"name": "Class1", "kind": 5}]
-
-            result = client._get_all_classes_in_workspace()
-
-            # Should use base implementation
-            mock_base.assert_called_once()
-            self.assertEqual(len(result), 1)
-
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_get_all_classes_with_retry(self, mock_time, mock_sleep):
-        """Test _get_all_classes_in_workspace with retry when not indexed."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-
-        # Not indexed initially
-        self.assertFalse(client.workspace_indexed)
-
-        # Mock time
-        mock_time.side_effect = [0, 2, 4]
-
-        # Mock responses: first empty, then with symbols
-        responses = [{"result": []}, {"result": [{"name": "Class1", "kind": 5}, {"name": "Interface1", "kind": 11}]}]
-
-        with patch.object(client, "_send_request", return_value=1):
-            with patch.object(client, "_wait_for_response", side_effect=responses):
-                result = client._get_all_classes_in_workspace()
-
-                # Should have retried and found classes
-                self.assertTrue(client.workspace_indexed)
-                self.assertEqual(len(result), 1)  # Only class symbols (kind 5)
-                self.assertEqual(result[0]["name"], "Class1")
-
-    @patch("time.sleep", return_value=None)
-    @patch("time.time")
-    def test_get_all_classes_retry_timeout(self, mock_time, mock_sleep):
-        """Test _get_all_classes_in_workspace timeout during retry."""
-        client = JavaClient(
-            self.project_path,
-            self.mock_language,
-            self.project_config,
-            self.mock_ignore_manager,
-        )
-
-        # Not indexed
-        self.assertFalse(client.workspace_indexed)
-
-        # Mock time to simulate timeout - need more values for the loop
-        times = [0]  # start
-        for i in range(0, 35, 2):  # Generate times that will eventually exceed 30s timeout
-            times.append(i)
-        mock_time.side_effect = times
-
-        # Mock response to always return empty
-        with patch.object(client, "_send_request", return_value=1):
-            with patch.object(client, "_wait_for_response", return_value={"result": []}):
-                result = client._get_all_classes_in_workspace()
-
-                # Should timeout and return empty list
-                self.assertFalse(client.workspace_indexed)
-                self.assertEqual(len(result), 0)
 
 
 if __name__ == "__main__":

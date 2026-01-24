@@ -207,29 +207,18 @@ class TypeScriptClient(LSPClient):
         logger.info("Waiting additional time for TypeScript server to fully initialize...")
         time.sleep(2)
 
-        if not self._validate_typescript_project():
-            logger.warning("TypeScript project not properly loaded. Analysis may be limited.")
+        logger.debug("Validating TypeScript project is loaded...")
 
-    def _validate_typescript_project(self) -> bool:
-        """Validate that TypeScript server has a project loaded."""
-        try:
-            logger.debug("Validating TypeScript project is loaded...")
-            params = {"query": "test"}
-            req_id = self._send_request("workspace/symbol", params)
-            response = self._wait_for_response(req_id)
+        # Use unified retry helper with single attempt
+        symbols = self._retry_workspace_symbol_request(
+            query="",
+            max_attempts=1,
+            request_timeout=10,
+            log_prefix="validation/typescript/workspace/symbol",
+        )
 
-            if "error" in response:
-                error_msg = response["error"]
-                if "No Project" in str(error_msg):
-                    logger.error("TypeScript server reports 'No Project' - project not properly loaded")
-                    return False
-                else:
-                    logger.warning(f"workspace/symbol test failed but may work: {error_msg}")
-                    return True
-
+        # If we got symbols, project is loaded
+        if symbols:
             logger.debug("TypeScript project validation successful")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to validate TypeScript project: {e}")
-            return False
+        else:
+            logger.warning("TypeScript project validation inconclusive, but continuing")
