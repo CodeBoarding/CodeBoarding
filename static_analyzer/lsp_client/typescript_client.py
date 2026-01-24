@@ -194,6 +194,20 @@ class TypeScriptClient(LSPClient):
 
         self._close_bootstrap_files(sample_files)
 
+    def _validate_typescript_project(self) -> bool:
+        """Validate that the TypeScript project is properly loaded."""
+        try:
+            # Try to get workspace symbols as a validation check
+            symbols = self._retry_workspace_symbol_request(
+                query="",
+                max_attempts=1,
+                request_timeout=5,
+                log_prefix="validation/typescript/bootstrap",
+            )
+            return bool(symbols)
+        except Exception:
+            return False
+
     def _close_bootstrap_files(self, sample_files: list):
         """Close bootstrap files that were opened for project initialization."""
         for file_path in sample_files:
@@ -209,16 +223,7 @@ class TypeScriptClient(LSPClient):
 
         logger.debug("Validating TypeScript project is loaded...")
 
-        # Use unified retry helper with single attempt
-        symbols = self._retry_workspace_symbol_request(
-            query="",
-            max_attempts=1,
-            request_timeout=10,
-            log_prefix="validation/typescript/workspace/symbol",
-        )
-
-        # If we got symbols, project is loaded
-        if symbols:
+        if self._validate_typescript_project():
             logger.debug("TypeScript project validation successful")
         else:
             logger.warning("TypeScript project validation inconclusive, but continuing")

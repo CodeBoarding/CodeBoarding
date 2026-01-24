@@ -1173,7 +1173,7 @@ class DerivedClass(BaseClass):
         client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
         client.filter_src_files = Mock(return_value=[test_file1, test_file2])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
-        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign, attr-defined]
 
         # Create mock results
         result1 = FileAnalysisResult(
@@ -1244,7 +1244,7 @@ class DerivedClass(BaseClass):
         client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
-        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign, attr-defined]
 
         # Create result with error
         error_result = FileAnalysisResult(
@@ -1296,7 +1296,7 @@ class DerivedClass(BaseClass):
         client.get_exclude_dirs = Mock(return_value=Mock())  # type: ignore[method-assign]
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
-        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign, attr-defined]
 
         # Mock future that raises exception
         mock_future = Mock()

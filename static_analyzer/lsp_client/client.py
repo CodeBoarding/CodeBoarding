@@ -705,7 +705,7 @@ class LSPClient(ABC):
                     hierarchy_results = self._prepare_call_hierarchy_batch(file_uri, positions)
 
                     # Collect all hierarchy items with their corresponding symbols
-                    all_items = []
+                    all_items: list[dict] = []
                     item_to_symbol_map = {}
                     for symbol_idx, items in hierarchy_results.items():
                         for item in items:
