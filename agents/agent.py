@@ -311,7 +311,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
             result = self._parse_invoke(feedback_prompt, return_type)
 
-        return result  # Return last result even if validation still fails
+        return result
 
     def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
         if attempt >= max_retries:

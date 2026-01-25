@@ -88,6 +88,8 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
     for component in result.components:
         component_clusters[component.name] = component.source_cluster_ids
 
+    cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
+
     invalid_relations: list[str] = []
 
     for relation in result.components_relations:
@@ -99,7 +101,7 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
 
         # Check if any cluster pair has an edge
         has_edge = _check_edge_between_cluster_sets(
-            src_clusters, dst_clusters, context.cluster_results, context.cfg_graphs
+            src_clusters, dst_clusters, context.cluster_results, context.cfg_graphs, cluster_edge_lookup
         )
 
         if not has_edge:
@@ -142,15 +144,19 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     feedback_messages = []
 
+    def _normalize_path(path: str) -> str:
+        if context.repo_dir and os.path.isabs(path):
+            path = os.path.relpath(path, context.repo_dir)
+        path = os.path.normpath(path)
+        if os.sep != "/":
+            path = path.replace(os.sep, "/")
+        return path
+
     # Get classified file paths from result
-    classified_files = {fc.file_path for fc in result.file_paths}
+    classified_files = {_normalize_path(fc.file_path) for fc in result.file_paths}
 
     # Normalize paths for comparison
-    expected_files_normalized = set()
-    for file_path in context.expected_files:
-        if context.repo_dir and os.path.isabs(file_path):
-            file_path = os.path.relpath(file_path, context.repo_dir)
-        expected_files_normalized.add(file_path)
+    expected_files_normalized = {_normalize_path(file_path) for file_path in context.expected_files}
 
     # Check 1: Are all unassigned files classified?
     missing_files = expected_files_normalized - classified_files
@@ -188,11 +194,42 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
+def _build_cluster_edge_lookup(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, CallGraph],
+) -> dict[str, set[tuple[int, int]]]:
+    """Build a lookup of (src_cluster_id, dst_cluster_id) edges per language."""
+    cluster_edge_lookup: dict[str, set[tuple[int, int]]] = {}
+
+    for lang, cfg in cfg_graphs.items():
+        cluster_result = cluster_results.get(lang)
+        if not cluster_result:
+            continue
+
+        node_to_cluster: dict[str, int] = {}
+        for cluster_id, nodes in cluster_result.clusters.items():
+            for node in nodes:
+                node_to_cluster[node] = cluster_id
+
+        cluster_edges: set[tuple[int, int]] = set()
+        for edge in cfg.edges:
+            src_cluster = node_to_cluster.get(edge.get_source())
+            dst_cluster = node_to_cluster.get(edge.get_destination())
+            if src_cluster is None or dst_cluster is None:
+                continue
+            cluster_edges.add((src_cluster, dst_cluster))
+
+        cluster_edge_lookup[lang] = cluster_edges
+
+    return cluster_edge_lookup
+
+
 def _check_edge_between_cluster_sets(
     src_cluster_ids: list[int],
     dst_cluster_ids: list[int],
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, CallGraph],
+    cluster_edge_lookup: dict[str, set[tuple[int, int]]] | None = None,
 ) -> bool:
     """
     Check if there's an edge between any pair of clusters from two sets.
@@ -202,35 +239,23 @@ def _check_edge_between_cluster_sets(
         dst_cluster_ids: Destination cluster IDs
         cluster_results: dict mapping language -> ClusterResult
         cfg_graphs: dict mapping language -> CallGraph
+        cluster_edge_lookup: Optional precomputed (src_cluster, dst_cluster) edges per language
 
     Returns:
         True if any edge exists between the cluster sets
     """
-    # For each language, check if there's an edge
-    for lang, cfg in cfg_graphs.items():
-        cluster_result = cluster_results.get(lang)
-        if not cluster_result:
-            continue
+    if not src_cluster_ids or not dst_cluster_ids:
+        return False
 
-        # Build node -> cluster mapping
-        node_to_cluster: dict[str, int] = {}
-        for cluster_id, nodes in cluster_result.clusters.items():
-            for node in nodes:
-                node_to_cluster[node] = cluster_id
+    if cluster_edge_lookup is None:
+        cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
 
-        # Get networkx graph
-        nx_graph = cfg.to_networkx()
+    src_set = set(src_cluster_ids)
+    dst_set = set(dst_cluster_ids)
 
-        # Check edges
-        for src_node, dst_node in nx_graph.edges():
-            src_cluster = node_to_cluster.get(src_node)
-            dst_cluster = node_to_cluster.get(dst_node)
-
-            if src_cluster is None or dst_cluster is None:
-                continue
-
-            # Check if this edge connects our cluster sets
-            if src_cluster in src_cluster_ids and dst_cluster in dst_cluster_ids:
+    for cluster_edges in cluster_edge_lookup.values():
+        for src_cluster, dst_cluster in cluster_edges:
+            if src_cluster in src_set and dst_cluster in dst_set:
                 return True
 
     return False

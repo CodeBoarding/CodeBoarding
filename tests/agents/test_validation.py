@@ -1,7 +1,4 @@
 import unittest
-from unittest.mock import MagicMock
-
-import networkx as nx
 
 from agents.validation import (
     ValidationContext,
