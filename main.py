@@ -156,6 +156,7 @@ def generate_docs_remote(
     local_dev: bool = False,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    commit_hash: str | None = None,
 ):
     """
     Clone a git repo and generate documentation (backward compatibility wrapper used by local_app).
@@ -168,6 +169,7 @@ def generate_docs_remote(
         cache_check=True,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
+        commit_hash=commit_hash,
     )
 
 
@@ -179,6 +181,7 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    commit_hash: str | None = None,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -188,13 +191,13 @@ def process_remote_repository(
 
     repo_name = get_repo_name(repo_url)
 
-    # Check cache if enabled
-    if cache_check and caching_enabled() and onboarding_materials_exist(repo_name):
+    # Check cache if enabled (skip if a specific commit is requested)
+    if not commit_hash and cache_check and caching_enabled() and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
 
     # Clone repository
-    repo_name = clone_repository(repo_url, repo_root)
+    repo_name = clone_repository(repo_url, repo_root, commit_hash=commit_hash)
     repo_path = repo_root / repo_name
 
     temp_folder = create_temp_repo_folder()
@@ -303,6 +306,10 @@ def validate_arguments(args, parser, is_local: bool):
     if args.partial_analysis and not args.partial_component:
         parser.error("--partial-component is required when using --partial-analysis")
 
+    # Validate commit argument
+    if args.commit and is_local:
+        parser.error("--commit can only be used with remote repositories")
+
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
     """
@@ -322,6 +329,7 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
+    parser.add_argument("--commit", type=str, help="Specific commit hash to analyze (remote repositories only)")
     parser.add_argument(
         "--load-env-variables",
         action="store_true",
@@ -449,6 +457,7 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
+                            commit_hash=args.commit,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")

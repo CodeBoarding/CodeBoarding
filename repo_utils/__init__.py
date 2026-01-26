@@ -92,7 +92,7 @@ def get_repo_name(repo_url: str):
 
 
 @require_git_import()
-def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
+def clone_repository(repo_url: str, target_dir: Path = Path("./repos"), commit_hash: str | None = None) -> str:
     repo_url = sanitize_repo_url(repo_url)
     if not remote_repo_exists(repo_url):
         raise RepoDontExistError()
@@ -101,12 +101,31 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
 
     dest = target_dir / repo_name
     if dest.exists():
-        logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
-        repo.remotes.origin.pull()
+        if commit_hash:
+            logger.info(f"Repository {repo_name} already exists. Fetching and checking out {commit_hash}.")
+            repo.remotes.origin.fetch()
+            repo.git.checkout(commit_hash)
+        else:
+            if repo.head.is_detached:
+                logger.info(f"Repository {repo_name} is in detached HEAD state. Checking out default branch.")
+                # Try to determine default branch
+                default_branch = "main"
+                if "main" in repo.heads:
+                    default_branch = "main"
+                elif "master" in repo.heads:
+                    default_branch = "master"
+                repo.git.checkout(default_branch)
+
+            logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+            repo.remotes.origin.pull()
     else:
         logger.info(f"Cloning {repo_url} into {dest}")
-        Repo.clone_from(repo_url, dest)
+        repo = Repo.clone_from(repo_url, dest)
+        if commit_hash:
+            logger.info(f"Checking out commit {commit_hash}")
+            repo.git.checkout(commit_hash)
+
     logger.info("Cloning finished!")
     return repo_name
 
@@ -175,6 +194,12 @@ def get_git_commit_hash(repo_dir: str) -> str:
 def get_branch(repo_dir: Path) -> str:
     """
     Get the current branch name of the repository.
+    Returns the commit hash if in detached HEAD state.
     """
     repo = Repo(repo_dir)
-    return repo.active_branch.name if repo.active_branch else "main"
+    if repo.head.is_detached:
+        return repo.head.commit.hexsha
+    try:
+        return repo.active_branch.name
+    except TypeError:
+        return repo.head.commit.hexsha
