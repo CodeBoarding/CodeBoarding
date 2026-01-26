@@ -6,6 +6,10 @@ lsp_servers:
       - --stdio
     languages:
       - python
+    file_extensions:
+      - .py
+      - .pyi
+    install_commands: npm install pyright
   typescript:
     name: TypeScript Language Server
     command:
@@ -13,6 +17,11 @@ lsp_servers:
       - --stdio
       - --log-level=2
     languages:
+      - typescript
+    file_extensions:
+      - .ts
+      - .tsx
+    install_commands: npm install --save-dev typescript-language-server typescript
   javascript:
     name: TypeScript Language Server
     command:
@@ -20,6 +29,11 @@ lsp_servers:
       - --stdio
       - --log-level=2
     languages:
+      - javascript
+    file_extensions:
+      - .js
+      - .jsx
+    install_commands: npm install --save-dev typescript-language-server typescript
   go:
     name: Go Language Server (gopls)
     command:
@@ -27,6 +41,9 @@ lsp_servers:
       - serve
     languages:
       - go
+    file_extensions:
+      - .go
+    install_commands: go install golang.org/x/tools/gopls@latest
   php:
     name: Intelephense
     command:
@@ -34,15 +51,18 @@ lsp_servers:
       - --stdio
     languages:
       - php
+    file_extensions:
+      - .php
+    install_commands: npm install intelephense
   java:
     name: Eclipse JDT Language Server
     command:
-      - java # Placeholder - actual command constructed by JavaClient
+    - java # Placeholder - actual command constructed by JavaClient
     languages:
-      - java
+    - java
     file_extensions:
-      - .java
-    install_commands: |
+    - .java
+    install_commands: | 
       wget https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz
       tar -xzf jdt-language-server-*.tar.gz -C ./static_analyzer/servers/jdtls
     jdtls_root: ./static_analyzer/servers/jdtls

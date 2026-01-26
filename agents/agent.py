@@ -20,7 +20,7 @@ from agents.llm_config import LLM_PROVIDERS
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from agents.prompts import get_unassigned_files_classification_message, get_validation_feedback_message
-from agents.agent_responses import ComponentFiles
+from agents.agent_responses import AnalysisInsights, ComponentFiles
 from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
@@ -384,7 +384,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(self, analysis, cluster_results: dict) -> None:
+    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -403,7 +403,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         # Pass 2: LLM classification of unassigned files
         self._classify_unassigned_files_llm(analysis, cluster_results)
 
-    def _classify_unassigned_files_llm(self, analysis, cluster_results: dict) -> None:
+    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
         """
         Classify files from static analysis that weren't assigned to any component.
         Uses a single LLM call to classify all unassigned files.
@@ -442,7 +442,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         component_map = {comp.name: comp for comp in valid_components}
 
         # 5. Classify all unassigned files with LLM
-        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary)
+        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary, analysis)
 
         # 6. Append successfully classified files to components
         for fc in classifications:
@@ -458,7 +458,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
 
-    def _classify_unassigned_files_with_llm(self, unassigned_files: list[str], components_summary: str) -> list:
+    def _classify_unassigned_files_with_llm(
+        self, unassigned_files: list[str], components_summary: str, analysis: AnalysisInsights
+    ) -> list:
         """
         Classify unassigned files using LLM with validation.
         Returns list of FileClassification objects.
@@ -470,14 +472,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         # Get valid component names from the components_summary
         # Parse component names from the summary (components have format "**Component:** `ComponentName`")
-        valid_component_names = set()
-        for line in components_summary.split("\n"):
-            if line.strip().startswith("**Component:**"):
-                # Extract component name between backticks
-                start_idx = line.find("`")
-                end_idx = line.find("`", start_idx + 1)
-                if start_idx != -1 and end_idx != -1:
-                    valid_component_names.add(line[start_idx + 1 : end_idx])
+        valid_component_names = set([comp.name for comp in analysis.components])
 
         # Build validation context
         context = ValidationContext(

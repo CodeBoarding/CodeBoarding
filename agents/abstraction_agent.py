@@ -8,14 +8,12 @@ from agents.agent import LargeModelAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ValidationInsights,
     MetaAnalysisInsights,
 )
 from agents.prompts import (
     get_system_message,
     get_cluster_grouping_message,
     get_final_analysis_message,
-    get_feedback_message,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.validation import (
@@ -53,7 +51,6 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
                 template=get_final_analysis_message(),
                 input_variables=["project_name", "cluster_analysis", "meta_context", "project_type"],
             ),
-            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
     @trace

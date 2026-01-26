@@ -74,7 +74,6 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(agent.meta_context, self.mock_meta_context)
         self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
-        self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_create_strict_component_subgraph(self, mock_static_init):

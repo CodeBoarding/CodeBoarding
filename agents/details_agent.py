@@ -8,16 +8,10 @@ from agents.agent import LargeModelAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ValidationInsights,
     Component,
     MetaAnalysisInsights,
 )
-from agents.prompts import (
-    get_system_details_message,
-    get_cfg_details_message,
-    get_details_message,
-    get_feedback_message,
-)
+from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.validation import (
     ValidationContext,
@@ -52,7 +46,6 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
                 template=get_details_message(),
                 input_variables=["insight_so_far", "component", "meta_context", "project_type"],
             ),
-            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
     @trace

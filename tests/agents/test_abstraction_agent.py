@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
@@ -9,9 +9,9 @@ from agents.agent_responses import (
     Component,
     MetaAnalysisInsights,
     SourceCodeReference,
-    ValidationInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import ClusterResult
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -67,7 +67,6 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(agent.meta_context, self.mock_meta_context)
         self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
-        self.assertIn("feedback", agent.prompts)
 
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
@@ -85,9 +84,6 @@ class TestAbstractionAgent(unittest.TestCase):
             cluster_components=[],
         )
         mock_validation_invoke.return_value = mock_response
-
-        # Create mock cluster_results
-        from static_analyzer.graph import ClusterResult
 
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result}
