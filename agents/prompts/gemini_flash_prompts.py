@@ -14,7 +14,7 @@ Instructions:
 Your analysis must include:
 - Central modules/functions (maximum 20) from CFG data with clear interaction patterns
 - Logical component groupings with clear responsibilities suitable for flow graph representation
-- Component relationships and interactions that translate to clear data flow arrows, avoid multiple relationships between the same components, keep the flow clear and one way, no need for return relationships if there is a call relationship
+- Component relationships and interactions that translate to clear data flow arrows
 - Reference to relevant source files for interactive diagram elements
 
 Start with the provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
@@ -74,7 +74,6 @@ Guidelines for {project_type} projects:
 - Merge related clusters that serve a common purpose
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
-- Only 1 relationship per component pair (no bidirectional arrows)
 
 Required outputs:
 - Description: One paragraph explaining the main flow and purpose
@@ -83,15 +82,14 @@ Required outputs:
   * description: What this component does
   * source_cluster_ids: Which cluster IDs belong to this component
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 1 relationship per component pair
+- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 
 Note: assigned_files will be populated later via deterministic file classification.
 
 Constraints:
 - Focus on highest level architectural components
 - Exclude utility/logging components
-- Components should translate well to flow diagram representation
-- Keep relationships unidirectional for clear flow"""
+- Components should translate well to flow diagram representation"""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert evaluating component expansion needs.
 
@@ -143,7 +141,7 @@ RELATIONSHIPS_VALIDATION = """Validate component relationships:
 
 Instructions:
 1. Check relationship clarity and necessity
-2. Verify max 1 relationship per component pair
+2. Verify max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 3. Assess relationship logical consistency
 
 Output:
@@ -237,7 +235,7 @@ VALIDATION_FEEDBACK_MESSAGE = """The result produced by analyzing is:
 However, the following issues were found:
 {feedback_list}
 
-Please carefully review the issues above and provide a corrected version of the output that addresses all problems.
+Please correct the output based on the above issues.
 
 {original_prompt}"""
 
@@ -272,7 +270,7 @@ Instructions:
 Required outputs:
 - Subsystem modules/functions from CFG
 - Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair)
+- Component interactions (max 10 components, 2 relationships per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 - Justification based on {project_type} patterns
 
 Focus on core subsystem functionality only."""
@@ -292,13 +290,13 @@ Required outputs:
 1. Final component structure from provided data
 2. Max 8 components following {project_type} patterns
 3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair)
+4. Component interactions (max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 
 Justify component choices based on fundamental architectural importance."""
 
 
-class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
-    """Concrete prompt factory for Gemini Flash unidirectional prompts."""
+class GeminiFlashPromptFactory(AbstractPromptFactory):
+    """Prompt factory for Gemini Flash models."""
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE

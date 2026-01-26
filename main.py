@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
-from agents.prompts import initialize_global_factory, PromptType, LLMType
+
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
@@ -330,12 +330,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
     parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
     parser.add_argument(
-        "--prompt-type",
-        choices=["bidirectional", "unidirectional"],
-        default=None,
-        help="Prompt type to use (default: bidirectional for remote, unidirectional for local)",
-    )
-    parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
@@ -388,13 +382,6 @@ Examples:
     if args.load_env_variables:
         load_dotenv()
         validate_env_vars()
-
-    if args.prompt_type:
-        prompt_type = PromptType.BIDIRECTIONAL if args.prompt_type == "bidirectional" else PromptType.UNIDIRECTIONAL
-    else:
-        prompt_type = PromptType.UNIDIRECTIONAL if is_local else PromptType.BIDIRECTIONAL
-
-    initialize_global_factory(LLMType.GEMINI_FLASH, prompt_type)
 
     if args.binary_location:
         update_config(args.binary_location)

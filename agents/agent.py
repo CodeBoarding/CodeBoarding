@@ -19,7 +19,12 @@ from trustcall import create_extractor
 from agents.llm_config import LLM_PROVIDERS
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
-from agents.prompts import get_unassigned_files_classification_message, get_validation_feedback_message
+from agents.prompts import (
+    get_unassigned_files_classification_message,
+    get_validation_feedback_message,
+    initialize_global_factory,
+    LLMType,
+)
 from agents.agent_responses import AnalysisInsights, ComponentFiles
 from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.callbacks import MonitoringCallback
@@ -109,6 +114,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         for name, config in LLM_PROVIDERS.items():
             if not config.is_active():
                 continue
+
+            # Initialize global prompt factory based on provider (only once, for agent model)
+            if not is_parsing:
+                initialize_global_factory(config.llm_type)
+                logger.info(f"Initialized prompt factory for {name} with {config.llm_type.value}")
 
             # Determine model name
             default_model = config.parsing_model if is_parsing else config.agent_model
