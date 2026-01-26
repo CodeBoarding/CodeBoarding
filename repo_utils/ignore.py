@@ -26,6 +26,9 @@ class RepoIgnoreManager:
         "runs",  # Monitoring runs
         "test",
         "tests",
+        "__tests__",  # JavaScript/TypeScript convention
+        ".pytest_cache",  # Pytest cache
+        ".nyc_output",  # Code coverage cache
     }
 
     # Build artifacts, minified files, and test files that should be ignored
@@ -36,22 +39,10 @@ class RepoIgnoreManager:
         "*.min.css",  # Minified CSS
         "*.chunk.js",  # Code-split chunks
         "*.chunk.js.map",  # Source maps for chunks
-        # Test files across multiple languages
-        "*test.py",  # Python test files
-        "*tests.py",  # Python test package
-        "*test.ts",  # TypeScript test files
-        "*test.tsx",  # TypeScript React test files
-        "*test.js",  # JavaScript test files
-        "*test.jsx",  # JavaScript React test files
-        "*Test.java",  # Java test files
-        "*Tests.java",  # Java test package
-        "*_test.go",  # Go test files
-        "*test.php",  # PHP test files
-        "*Test.cs",  # C# test files
-        "*.test.ts",  # Jest/Vitest patterns
-        "*.test.js",  # Jest/Vitest patterns
         "*.spec.ts",  # Jest/Mocha patterns
         "*.spec.js",  # Jest/Mocha patterns
+        "*.spec.tsx",  # TypeScript React specs
+        "*.spec.jsx",  # JavaScript React specs
         "conftest.py",  # Pytest configuration
         "pytest.ini",  # Pytest config files
     ]

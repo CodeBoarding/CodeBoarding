@@ -691,7 +691,7 @@ class LSPClient(ABC):
             # 3. CALL GRAPH - Process function/method calls
             result.function_symbols = self._flatten_symbols(symbols)
 
-            # OPTIMIZED: Batch prepare call hierarchy for all functions at once
+            # 4. Batch prepare call hierarchy for all functions at once
             try:
                 positions = []
                 symbol_map = {}  # Map position index to symbol
@@ -774,7 +774,7 @@ class LSPClient(ABC):
             except Exception as e:
                 logger.debug(f"Error in batched call hierarchy processing: {e}")
 
-            # METHOD 3: Body-level calls by finding call positions
+            # METHOD 5: Body-level calls by finding call positions
             try:
                 for func_symbol in result.function_symbols:
                     func_range = func_symbol.get("range", {})
@@ -794,7 +794,7 @@ class LSPClient(ABC):
             except Exception as e:
                 logger.debug(f"Error processing body calls for {file_path}: {e}")
 
-            # 4. CLASS HIERARCHIES - Process class inheritance
+            # 6. CLASS HIERARCHIES - Process class inheritance
             result.class_symbols = self._find_classes_in_symbols(symbols)
 
             for class_symbol in result.class_symbols:
@@ -823,7 +823,7 @@ class LSPClient(ABC):
 
                 result.class_hierarchies[qualified_name] = class_info
 
-            # 5. EXTERNAL REFERENCES
+            # 7. EXTERNAL REFERENCES
             result.external_references = self._find_external_references(file_uri, symbols)
 
             self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
