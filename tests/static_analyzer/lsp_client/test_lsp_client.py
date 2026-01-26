@@ -464,7 +464,7 @@ class TestLSPClient(unittest.TestCase):
         # Should match patterns from .gitignore
         self.assertTrue(spec.match_file("test.pyc"))
         self.assertTrue(spec.match_file("__pycache__/file.py"))
-        self.assertTrue(spec.match_file("test.py"))  # Ignore test files
+        self.assertFalse(spec.match_file("test.py"))
         self.assertFalse(spec.match_file("main.py"))  # Regular Python file should not be ignored
 
     @patch("static_analyzer.lsp_client.client.threading.Thread")
