@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pickle
 import time
 from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,6 +41,7 @@ class DiagramGenerator:
         output_dir: Path,
         depth_level: int,
         static_only: bool = False,
+        cache_static: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -50,6 +52,7 @@ class DiagramGenerator:
         self.output_dir = output_dir
         self.depth_level = depth_level
         self.static_only = static_only
+        self.cache_static = cache_static
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -105,7 +108,31 @@ class DiagramGenerator:
 
     def pre_analysis(self):
         analysis_start_time = time.time()
-        static_analysis = StaticAnalyzer(self.repo_location).analyze()
+
+        commit_hash = get_git_commit_hash(self.repo_location)
+        cache_dir = self.repo_location / ".codeboarding" / "cache"
+        cache_file = cache_dir / f"{commit_hash[:7]}.pkl"
+
+        static_analysis = None
+        if self.cache_static and cache_file.exists():
+            try:
+                with open(cache_file, "rb") as f:
+                    static_analysis = pickle.load(f)
+                logger.info(f"Loaded static analysis from cache: {cache_file}")
+            except Exception as e:
+                logger.warning(f"Failed to load static analysis cache: {e}")
+
+        if static_analysis is None:
+            static_analysis = StaticAnalyzer(self.repo_location).analyze()
+
+            if self.cache_static:
+                try:
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    with open(cache_file, "wb") as f:
+                        pickle.dump(static_analysis, f)
+                    logger.info(f"Saved static analysis to cache: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to save static analysis cache: {e}")
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
