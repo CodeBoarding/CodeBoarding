@@ -27,8 +27,32 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
+from static_analyzer.symbol_diff import SymbolDiff
 
 logger = logging.getLogger(__name__)
+
+
+# Prompt template for lightweight description update
+DESCRIPTION_UPDATE_PROMPT = """You are updating the description of a software component based on implementation changes.
+
+## Component Information
+**Name:** {component_name}
+**Current Description:** {current_description}
+
+## Implementation Changes
+The following functions/methods have had their implementations modified (but their signatures remain the same):
+{changed_functions}
+
+## Instructions
+Based on the implementation changes described above, determine if the component description needs updating.
+
+If the changes are minor bug fixes or performance improvements that don't change the component's purpose or behavior,
+respond with the original description unchanged.
+
+If the changes are significant enough to warrant a description update (e.g., new functionality within existing methods,
+changed behavior, new integration points), provide an updated description that reflects these changes.
+
+Respond with ONLY the updated description (or the original if no update needed). Do not include any other text."""
 
 
 class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
@@ -168,3 +192,79 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results
+
+    @trace
+    def update_description_only(
+        self,
+        component: Component,
+        symbol_diffs: list[SymbolDiff],
+    ) -> Component:
+        """Update only the description of a component based on implementation changes.
+
+        This is a lightweight operation for when only internal implementation changes
+        are detected (no API changes). It avoids full re-analysis by just updating
+        the description if needed.
+
+        Args:
+            component: The component to update
+            symbol_diffs: List of SymbolDiff objects showing implementation changes
+
+        Returns:
+            Updated Component with potentially modified description
+        """
+        logger.info(f"[DetailsAgent] Lightweight description update for: {component.name}")
+
+        # Collect all implementation-only changes
+        changed_functions = []
+        for diff in symbol_diffs:
+            for symbol in diff.implementation_only:
+                changed_functions.append(f"- {symbol.name} in {diff.file_path}")
+
+        if not changed_functions:
+            logger.info(f"[DetailsAgent] No implementation changes to describe for: {component.name}")
+            return component
+
+        # Format the changes for the prompt
+        changes_str = "\n".join(changed_functions[:20])  # Limit to 20 for prompt size
+        if len(changed_functions) > 20:
+            changes_str += f"\n... and {len(changed_functions) - 20} more"
+
+        prompt = DESCRIPTION_UPDATE_PROMPT.format(
+            component_name=component.name,
+            current_description=component.description,
+            changed_functions=changes_str,
+        )
+
+        # Use simple invoke without structured output - just get text response
+        try:
+            updated_description = self._simple_invoke(prompt)
+            updated_description = updated_description.strip()
+
+            # Only update if the description actually changed
+            if updated_description and updated_description != component.description:
+                logger.info(f"[DetailsAgent] Description updated for: {component.name}")
+                return Component(
+                    name=component.name,
+                    description=updated_description,
+                    key_entities=component.key_entities,
+                    assigned_files=component.assigned_files,
+                    source_cluster_ids=component.source_cluster_ids,
+                )
+            else:
+                logger.info(f"[DetailsAgent] Description unchanged for: {component.name}")
+                return component
+        except Exception as e:
+            logger.warning(f"[DetailsAgent] Failed to update description for {component.name}: {e}")
+            return component
+
+    def _simple_invoke(self, prompt: str) -> str:
+        """Simple LLM invoke without structured output parsing.
+
+        This is used for simple text generation tasks like description updates.
+        """
+        from langchain_core.messages import HumanMessage
+
+        response = self.llm.invoke([HumanMessage(content=prompt)])
+        if hasattr(response, "content"):
+            return str(response.content)
+        return str(response)
