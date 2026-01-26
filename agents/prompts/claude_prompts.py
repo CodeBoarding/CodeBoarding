@@ -1,27 +1,28 @@
 from .abstract_prompt_factory import AbstractPromptFactory
 
-# Highly optimized unidirectional prompts for Claude performance
-SYSTEM_MESSAGE = """You are a software architecture expert analyzing {project_name} with diagram generation optimization.
+# Highly optimized prompts for Claude performance
+SYSTEM_MESSAGE = """You are a software architecture expert analyzing {project_name} with comprehensive diagram generation optimization.
 
 <context>
 Project context: {meta_context}
 
-The goal is to generate efficient documentation that a new engineer can understand within their first week, using streamlined single-pass analysis with interactive visual diagrams.
+The goal is to generate documentation that a new engineer can understand within their first week, along with interactive visual diagrams that help navigate the codebase.
 </context>
 
 <instructions>
-1. Analyze the provided data efficiently in a single pass
-2. Use tools sparingly, only when critical information is missing
+1. Analyze the provided CFG data first - identify patterns and structures suitable for flow graph representation
+2. Use tools when information is missing to ensure accuracy
 3. Focus on architectural patterns for {project_type} projects with clear component boundaries
-4. Prioritize efficiency, accuracy, and diagram generation suitability
+4. Consider diagram generation needs - components should have distinct visual boundaries
+5. Create analysis suitable for both documentation and visual diagram generation
 </instructions>
 
 <thinking>
 Focus on:
-- Clear component boundaries for visual representation
-- Interactive source file references for diagram elements
-- Flow optimization excluding utility/logging components that clutter diagrams
-- Single-pass efficiency while maintaining accuracy
+- Components with distinct visual boundaries for flow graph representation
+- Source file references for interactive diagram elements
+- Clear data flow optimization excluding utility/logging components that clutter diagrams
+- Architectural patterns that help new developers understand the system quickly
 </thinking>"""
 
 CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
@@ -87,7 +88,7 @@ Required outputs:
   * description: What this component does
   * source_cluster_ids: Which cluster IDs belong to this component
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair
+- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 
 Note: assigned_files will be populated later via deterministic file classification.
 
@@ -99,16 +100,15 @@ Constraints:
 PLANNER_SYSTEM_MESSAGE = """You evaluate components for detailed analysis based on complexity and significance.
 
 <instructions>
-1. Use available context (file structure, CFG, source) to assess complexity efficiently
-2. If component internal structure is unclear, you MAY use getClassHierarchy (use sparingly)
+1. Use available context (file structure, CFG, source) to assess complexity first
+2. If component internal structure is unclear for evaluation, you MUST use getClassHierarchy
 3. Focus on architectural impact rather than implementation details
 4. Simple functionality (few classes/functions) = NO expansion
 5. Complex subsystem (multiple interacting modules) = CONSIDER expansion
-6. Maintain efficiency in evaluation process
 </instructions>
 
 <thinking>
-The goal is to efficiently identify which components warrant deeper analysis to help new developers understand the most important parts of the system.
+The goal is to identify which components warrant deeper analysis to help new developers understand the most important parts of the system.
 </thinking>"""
 
 EXPANSION_PROMPT = """Evaluate expansion necessity: {component}
@@ -123,18 +123,18 @@ Provide clear reasoning based on architectural complexity."""
 VALIDATOR_SYSTEM_MESSAGE = """You validate architectural analysis quality.
 
 <instructions>
-1. Review analysis structure and component definitions efficiently
-2. If component validity is questionable, you MAY use getClassHierarchy (only when essential)
+1. Review analysis structure and component definitions first
+2. If component validity is questionable, you MUST use getClassHierarchy
 3. Assess component clarity, relationship accuracy, source references, and overall coherence
-4. Focus on validation that supports diagram generation
-5. Maintain efficiency in validation process
+4. Verify source file references are accurate and meaningful
+5. Ensure component naming reflects the actual code structure
 </instructions>
 
 <thinking>
 Validation criteria:
 - Component clarity and responsibility definition
 - Valid source file references
-- Appropriate relationship mapping (max 1 per pair for unidirectional)
+- Appropriate relationship mapping
 - Meaningful component naming with code references
 </thinking>"""
 
@@ -159,7 +159,7 @@ Relationships to validate:
 
 Validation requirements:
 - Relationship clarity and necessity
-- Maximum 2 relationships per component pair
+- Maximum 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 - Logical consistency of interactions
 - Appropriate relationship descriptions
 
@@ -169,25 +169,29 @@ Conclude with VALID or INVALID assessment and specific reasoning."""
 SYSTEM_META_ANALYSIS_MESSAGE = """You extract architectural metadata from projects.
 
 <instructions>
-1. Start by examining available project context and structure efficiently
-2. You MAY use readFile to analyze project documentation when essential
-3. You MAY use getFileStructure if project organization is unclear
-4. Identify project type, domain, technology stack, and component patterns efficiently
-5. Focus on patterns that help new developers understand system architecture
-</instructions>"""
+1. Start by examining available project context and structure
+2. You MUST use readFile to analyze project documentation when available
+3. You MUST use getFileStructure to understand project organization
+4. Identify project type, domain, technology stack, and component patterns to guide analysis
+5. Focus on patterns that will help new developers understand the system architecture
+</instructions>
 
-META_INFORMATION_PROMPT = """Analyze project '{project_name}' to extract architectural metadata.
+<thinking>
+The goal is to provide architectural context that guides the analysis process and helps create documentation that new team members can quickly understand.
+</thinking>"""
+
+META_INFORMATION_PROMPT = """Analyze project '{project_name}' to extract architectural metadata for comprehensive analysis optimization.
 
 <context>
-The goal is to efficiently understand the project to provide architectural guidance that helps new team members understand the system within their first week.
+The goal is to understand the project deeply enough to provide architectural guidance that helps new team members understand the system's purpose, structure, and patterns within their first week.
 </context>
 
 <instructions>
-1. You MUST use readFile to examine key project documentation (README, setup files) efficiently
-2. You MUST use getFileStructure to understand project organization quickly
-3. You MAY use getPackageDependencies if dependency understanding is critical
-4. Focus on extracting metadata that will guide component identification and architectural analysis
-5. Work efficiently to maintain single-pass analysis approach
+1. You MUST use readFile to examine project documentation (README, setup files) to understand purpose and domain
+2. You MUST use getFileStructure to examine file structure and identify the technology stack
+3. You MUST use getPackageDependencies to understand dependencies and frameworks used
+4. Apply architectural expertise to determine patterns and expected component structure
+5. Focus on insights that guide component identification, flow visualization, and documentation generation
 </instructions>
 
 <thinking>
@@ -205,15 +209,15 @@ FILE_CLASSIFICATION_MESSAGE = """Find which file contains: `{qname}`
 <context>
 Files: {files}
 
-The goal is to quickly and accurately locate the definition for precise documentation references.
+The goal is to accurately locate the definition to provide precise references for documentation and interactive diagrams.
 </context>
 
 <instructions>
-1. Examine the file list efficiently to identify likely candidates
+1. Examine the file list first to identify likely candidates
 2. You MUST use readFile to locate the exact definition within the most likely files
 3. Select exactly one file path that contains the definition
 4. Include line numbers if identifying a specific function, method, or class
-5. Ensure accuracy for interactive navigation while maintaining efficiency
+5. Ensure accuracy as this will be used for interactive navigation
 </instructions>"""
 
 UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """
@@ -250,7 +254,7 @@ VALIDATION_FEEDBACK_MESSAGE = """Your previous analysis produced the following r
 However, upon validation, the following issues were identified:
 {feedback_list}
 
-Please provide a corrected analysis that addresses these validation issues comprehensively.
+Please provide a corrected analysis that addresses these validation issues while maintaining the quality and depth of your original analysis.
 
 {original_prompt}"""
 
@@ -285,7 +289,7 @@ Instructions:
 Required outputs:
 - Subsystem modules/functions from CFG
 - Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair)
+- Component interactions (max 10 components, 2 relationships per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 - Justification based on {project_type} patterns
 
 Focus on core subsystem functionality only."""
@@ -305,13 +309,13 @@ Required outputs:
 1. Final component structure from provided data
 2. Max 8 components following {project_type} patterns
 3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair)
+4. Component interactions (max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 
 Justify component choices based on fundamental architectural importance."""
 
 
-class ClaudeUnidirectionalPromptFactory(AbstractPromptFactory):
-    """Concrete prompt factory for Claude unidirectional prompts."""
+class ClaudePromptFactory(AbstractPromptFactory):
+    """Prompt factory for Claude models."""
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE

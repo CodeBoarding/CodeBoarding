@@ -2,15 +2,11 @@
 Prompts module - Dynamic prompt selection system
 
 This module provides backward compatibility with the old prompt system while enabling
-dynamic selection of prompts based on LLM type and configuration flags.
-
-The system will automatically choose between bidirectional and unidirectional prompts
-based on the configuration or runtime context.
+dynamic selection of prompts based on LLM type.
 """
 
 from .prompt_factory import (
     PromptFactory,
-    PromptType,
     LLMType,
     initialize_global_factory,
     get_global_factory,
@@ -56,7 +52,6 @@ def __getattr__(name: str):
 __all__ = [
     # Classes and functions
     "PromptFactory",
-    "PromptType",
     "LLMType",
     "initialize_global_factory",
     "get_global_factory",

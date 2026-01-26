@@ -1,4 +1,4 @@
-"""Prompt factory implementation for GPT-4 models in bidirectional analysis mode."""
+"""Prompt factory implementation for GPT-4 models."""
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
@@ -91,7 +91,7 @@ Required outputs:
   * description: What this component does
   * source_cluster_ids: Which cluster IDs belong to this component
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair
+- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 
 Note: assigned_files will be populated later via deterministic file classification.
 
@@ -179,7 +179,7 @@ COMPONENT_VALIDATION_COMPONENT = """Validate component definition and structure.
    - [ ] All relationships are valid
    - [ ] Relationship types are appropriate
    - [ ] No missing critical relationships
-   - [ ] No redundant relationships (max 2 per pair)
+   - [ ] No redundant relationships (max 2 per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 
 4. **Documentation Quality:**
    - [ ] Clear for new developers
@@ -208,13 +208,13 @@ RELATIONSHIPS_VALIDATION = """Validate component relationships for accuracy and 
    - [ ] Relationship strength/importance is appropriate
 
 3. **Quality:**
-   - [ ] Maximum 2 relationships per component pair
+   - [ ] Maximum 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
    - [ ] Relationships support diagram clarity
    - [ ] Relationship descriptions are clear
 
 4. **Consistency:**
    - [ ] Relationships align with project type patterns
-   - [ ] Bidirectional relationships are correctly represented
+   - [ ] Relationships are correctly represented
    - [ ] No contradictory relationships
 
 **Instructions:**
@@ -378,7 +378,7 @@ Instructions:
 Required outputs:
 - Subsystem modules/functions from CFG
 - Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair)
+- Component interactions (max 10 components, 2 relationships per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 - Justification based on {project_type} patterns
 
 Focus on core subsystem functionality only."""
@@ -398,13 +398,13 @@ Required outputs:
 1. Final component structure from provided data
 2. Max 8 components following {project_type} patterns
 3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair)
+4. Component interactions (max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
 
 Justify component choices based on fundamental architectural importance."""
 
 
-class GPTBidirectionalPromptFactory(AbstractPromptFactory):
-    """Prompt factory for GPT-4 bidirectional mode."""
+class GPTPromptFactory(AbstractPromptFactory):
+    """Prompt factory for GPT-4 models."""
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
