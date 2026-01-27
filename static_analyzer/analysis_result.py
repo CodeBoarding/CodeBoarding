@@ -1,17 +1,35 @@
 import pickle
+import sys
+import tempfile
 from pathlib import Path
+
+import logging
 
 from static_analyzer.graph import Node, CallGraph
 
+logger = logging.getLogger(__name__)
+
 
 class StaticAnalysisResults:
-    def __init__(self):
-        self.results = {}
+    def __init__(self, commit: str | None = None):
+        self.results: dict[str, dict] = {}
+        self.commit = commit
 
     def save(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            pickle.dump(self, f)
+
+        data = pickle.dumps(self)
+        size_mb = sys.getsizeof(data) / (1024 * 1024)
+        logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
+
+        temp_fd, temp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with open(temp_fd, "wb") as f:
+                f.write(data)
+            Path(temp_path).replace(path)
+        except Exception:
+            Path(temp_path).unlink(missing_ok=True)
+            raise
 
     @classmethod
     def load(cls, path: Path) -> "StaticAnalysisResults":

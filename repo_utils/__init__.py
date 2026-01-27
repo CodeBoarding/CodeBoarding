@@ -171,6 +171,13 @@ def get_git_commit_hash(repo_dir: str) -> str:
     return repo.head.commit.hexsha
 
 
+@require_git_import(default=False)
+def is_repo_dirty(repo_dir: str) -> bool:
+    """Check if the repository has uncommitted changes."""
+    repo = Repo(repo_dir)
+    return repo.is_dirty(untracked_files=True)
+
+
 @require_git_import(default="main")
 def get_branch(repo_dir: Path) -> str:
     """

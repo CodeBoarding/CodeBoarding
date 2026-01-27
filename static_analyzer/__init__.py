@@ -79,8 +79,8 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
-    def analyze(self):
-        results = StaticAnalysisResults()
+    def analyze(self, commit: str | None = None):
+        results = StaticAnalysisResults(commit=commit)
         for client in self.clients:
             try:
                 logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
