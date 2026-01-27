@@ -710,59 +710,6 @@ class TestLSPClient(unittest.TestCase):
         self.assertEqual(result, test_symbols)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_prepare_call_hierarchy(self, mock_popen):
-        # Test preparing call hierarchy
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_items = [{"name": "test_function", "uri": "file:///test.py"}]
-        client._wait_for_response = Mock(return_value={"result": test_items})  # type: ignore[method-assign]
-
-        result = client._prepare_call_hierarchy("file:///test.py", 10, 5)
-
-        self.assertEqual(result, test_items)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_get_incoming_calls(self, mock_popen):
-        # Test getting incoming calls
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_calls = [{"from": {"name": "caller", "uri": "file:///caller.py"}}]
-        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
-
-        item = {"name": "test_func"}
-        result = client._get_incoming_calls(item)
-
-        self.assertEqual(result, test_calls)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_get_outgoing_calls(self, mock_popen):
-        # Test getting outgoing calls
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_calls = [{"to": {"name": "callee", "uri": "file:///callee.py"}}]
-        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
-
-        item = {"name": "test_func"}
-        result = client._get_outgoing_calls(item)
-
-        self.assertEqual(result, test_calls)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_resolve_call_position_internal(self, mock_popen):
         # Test resolving a call position to internal project file
         mock_process = Mock()
@@ -1369,7 +1316,6 @@ def helper_function():
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=["os"])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
@@ -1431,7 +1377,7 @@ def helper_function():
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_analyze_single_file_with_calls(self, mock_popen):
-        # Test analysis with function calls
+        # Test analysis with function calls via outgoing calls batch
         mock_process = Mock()
         mock_popen.return_value = mock_process
 
@@ -1463,22 +1409,32 @@ def callee():
             },
         ]
 
-        # Mock call hierarchy
-        hierarchy_items = [{"name": "caller", "uri": test_file.as_uri()}]
-        outgoing_calls = [{"to": {"name": "callee", "uri": test_file.as_uri()}}]
+        # Mock the call hierarchy batch results
+        # Simulates prepareCallHierarchy returning items for both symbols
+        hierarchy_items = [
+            {"name": "caller", "uri": test_file.as_uri()},
+            {"name": "callee", "uri": test_file.as_uri()},
+        ]
+
+        # Outgoing calls: caller calls callee
+        outgoing_results = {
+            0: [{"to": {"name": "callee", "uri": test_file.as_uri()}}],  # caller -> callee
+            1: [],  # callee has no outgoing calls
+        }
 
         client._send_notification = Mock()  # type: ignore[method-assign]
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy_batch = Mock(return_value={0: hierarchy_items})  # type: ignore[method-assign]
-        client._get_outgoing_calls_batch = Mock(return_value={0: outgoing_calls})  # type: ignore[method-assign]
-        client._get_incoming_calls_batch = Mock(return_value={})  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_call_positions_in_range = Mock(return_value=[])  # type: ignore[method-assign]
         client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
+        # Mock the batch call hierarchy methods
+        client._prepare_call_hierarchy_batch = Mock(return_value={0: [hierarchy_items[0]], 1: [hierarchy_items[1]]})  # type: ignore[method-assign]
+        client._get_outgoing_calls_batch = Mock(return_value=outgoing_results)  # type: ignore[method-assign]
+        client._get_incoming_calls_batch = Mock(return_value={})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1523,7 +1479,6 @@ class DerivedClass(BaseClass):
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=["root.BaseClass"])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
@@ -1566,7 +1521,6 @@ def main():
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
@@ -1603,7 +1557,6 @@ def main():
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         # Make _find_call_positions_in_range raise exception
         client._find_call_positions_in_range = Mock(side_effect=Exception("Parse error"))  # type: ignore[method-assign]
@@ -1635,15 +1588,19 @@ def main():
             }
         ]
 
-        hierarchy_items = [{"name": "target", "uri": test_file.as_uri()}]
+        # Mock call hierarchy item for "target" function
+        hierarchy_item = {"name": "target", "uri": test_file.as_uri()}
+
+        # Incoming calls: "caller" calls "target"
         incoming_calls = [{"from": {"name": "caller", "uri": test_file.as_uri()}}]
 
         client._send_notification = Mock()  # type: ignore[method-assign]
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy_batch = Mock(return_value={0: hierarchy_items})  # type: ignore[method-assign]
-        client._get_outgoing_calls_batch = Mock(return_value={})  # type: ignore[method-assign]
+        # Mock the batch call hierarchy methods - need to return hierarchy items first
+        client._prepare_call_hierarchy_batch = Mock(return_value={0: [hierarchy_item]})  # type: ignore[method-assign]
+        client._get_outgoing_calls_batch = Mock(return_value={0: []})  # type: ignore[method-assign]
         client._get_incoming_calls_batch = Mock(return_value={0: incoming_calls})  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_call_positions_in_range = Mock(return_value=[])  # type: ignore[method-assign]
@@ -1675,16 +1632,10 @@ def main():
             }
         ]
 
-        hierarchy_items = [{"name": "func", "uri": test_file.as_uri()}]
-
         client._send_notification = Mock()  # type: ignore[method-assign]
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
-        # Make outgoing calls raise exception
-        client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
-        client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 

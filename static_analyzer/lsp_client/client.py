@@ -264,32 +264,16 @@ class LSPClient(ABC):
         response = self._wait_for_response(req_id)
         return response.get("result", [])
 
-    def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int) -> list:
-        """Prepares a call hierarchy at a specific location."""
-        params = {"textDocument": {"uri": file_uri}, "position": {"line": line, "character": character}}
-        req_id = self._send_request("textDocument/prepareCallHierarchy", params)
-        response = self._wait_for_response(req_id)
-        return response.get("result", [])
-
-    def _get_incoming_calls(self, item: dict) -> list:
-        """Gets incoming calls for a call hierarchy item."""
-        req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-        response = self._wait_for_response(req_id)
-        return response.get("result", [])
-
-    def _get_outgoing_calls(self, item: dict) -> list:
-        """Gets outgoing calls for a call hierarchy item."""
-        req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
-        response = self._wait_for_response(req_id)
-        return response.get("result", [])
-
-    def _prepare_call_hierarchy_batch(self, file_uri: str, positions: list[dict]) -> dict[int, list]:
+    def _prepare_call_hierarchy_batch(
+        self, file_uri: str, positions: list[dict], batch_timeout: int = 120
+    ) -> dict[int, list]:
         """
         Batch prepare call hierarchy for multiple positions.
 
         Args:
             file_uri: The file URI
             positions: List of position dicts with 'line' and 'character' keys
+            batch_timeout: Total timeout for the entire batch in seconds (default 120s)
 
         Returns:
             Dict mapping position index to call hierarchy items
@@ -303,20 +287,38 @@ class LSPClient(ABC):
             req_id = self._send_request("textDocument/prepareCallHierarchy", params)
             request_ids[req_id] = idx
 
-        # Collect all responses
+        # Collect all responses with a batch deadline to avoid serial timeout accumulation
         results = {}
-        for req_id, idx in request_ids.items():
-            response = self._wait_for_response(req_id)
-            results[idx] = response.get("result", [])
+        batch_start = time.time()
+        try:
+            for req_id, idx in request_ids.items():
+                # Calculate remaining time for this batch
+                elapsed = time.time() - batch_start
+                remaining = max(1, batch_timeout - int(elapsed))
+                if remaining <= 1:
+                    logger.warning(f"Batch deadline exceeded after processing {len(results)}/{len(request_ids)} items")
+                    break
+                try:
+                    response = self._wait_for_response(req_id, timeout=remaining)
+                    results[idx] = response.get("result", [])
+                except TimeoutError:
+                    logger.debug(f"Timeout waiting for prepareCallHierarchy response {req_id}")
+                    results[idx] = []
+        finally:
+            # Clean up any pending responses that we won't collect to prevent memory leaks
+            with self._lock:
+                for req_id in request_ids:
+                    self._responses.pop(req_id, None)
 
         return results
 
-    def _get_outgoing_calls_batch(self, items: list[dict]) -> dict[int, list]:
+    def _get_outgoing_calls_batch(self, items: list[dict], batch_timeout: int = 120) -> dict[int, list]:
         """
         Batch get outgoing calls for multiple call hierarchy items.
 
         Args:
             items: List of call hierarchy items
+            batch_timeout: Total timeout for the entire batch in seconds (default 120s)
 
         Returns:
             Dict mapping item index to outgoing calls
@@ -326,20 +328,37 @@ class LSPClient(ABC):
             req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
             request_ids[req_id] = idx
 
-        # Collect all responses
+        # Collect all responses with a batch deadline to avoid serial timeout accumulation
         results = {}
-        for req_id, idx in request_ids.items():
-            response = self._wait_for_response(req_id)
-            results[idx] = response.get("result", [])
+        batch_start = time.time()
+        try:
+            for req_id, idx in request_ids.items():
+                elapsed = time.time() - batch_start
+                remaining = max(1, batch_timeout - int(elapsed))
+                if remaining <= 1:
+                    logger.warning(f"Batch deadline exceeded after processing {len(results)}/{len(request_ids)} items")
+                    break
+                try:
+                    response = self._wait_for_response(req_id, timeout=remaining)
+                    results[idx] = response.get("result", [])
+                except TimeoutError:
+                    logger.debug(f"Timeout waiting for outgoingCalls response {req_id}")
+                    results[idx] = []
+        finally:
+            # Clean up any pending responses that we won't collect to prevent memory leaks
+            with self._lock:
+                for req_id in request_ids:
+                    self._responses.pop(req_id, None)
 
         return results
 
-    def _get_incoming_calls_batch(self, items: list[dict]) -> dict[int, list]:
+    def _get_incoming_calls_batch(self, items: list[dict], batch_timeout: int = 120) -> dict[int, list]:
         """
         Batch get incoming calls for multiple call hierarchy items.
 
         Args:
             items: List of call hierarchy items
+            batch_timeout: Total timeout for the entire batch in seconds (default 120s)
 
         Returns:
             Dict mapping item index to incoming calls
@@ -349,11 +368,27 @@ class LSPClient(ABC):
             req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
             request_ids[req_id] = idx
 
-        # Collect all responses
+        # Collect all responses with a batch deadline to avoid serial timeout accumulation
         results = {}
-        for req_id, idx in request_ids.items():
-            response = self._wait_for_response(req_id)
-            results[idx] = response.get("result", [])
+        batch_start = time.time()
+        try:
+            for req_id, idx in request_ids.items():
+                elapsed = time.time() - batch_start
+                remaining = max(1, batch_timeout - int(elapsed))
+                if remaining <= 1:
+                    logger.warning(f"Batch deadline exceeded after processing {len(results)}/{len(request_ids)} items")
+                    break
+                try:
+                    response = self._wait_for_response(req_id, timeout=remaining)
+                    results[idx] = response.get("result", [])
+                except TimeoutError:
+                    logger.debug(f"Timeout waiting for incomingCalls response {req_id}")
+                    results[idx] = []
+        finally:
+            # Clean up any pending responses that we won't collect to prevent memory leaks
+            with self._lock:
+                for req_id in request_ids:
+                    self._responses.pop(req_id, None)
 
         return results
 
@@ -533,9 +568,10 @@ class LSPClient(ABC):
             request_timeout=360,
             log_prefix="analysis/workspace/symbol",
         )
-        # Filter for class symbols (kind 5)
-        all_classes = [s for s in all_symbols if s.get("kind") == 5]
-        logger.info(f"Found {len(all_classes)} classes in workspace")
+        # Filter for class symbols (kind 5) and interface symbols (kind 11)
+        # Interfaces are important for Java/TypeScript class hierarchies
+        all_classes = [s for s in all_symbols if s.get("kind") in (5, 11)]
+        logger.info(f"Found {len(all_classes)} classes/interfaces in workspace")
 
         cpu_count = os.cpu_count()
         max_workers = max(1, cpu_count - 1) if cpu_count else 1  # Use the number of cores but reserve one
