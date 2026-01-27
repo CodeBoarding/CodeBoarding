@@ -547,8 +547,7 @@ class TestFindJdtlsInVscodeExtension(unittest.TestCase):
     """Test finding JDTLS in VSCode extension directory."""
 
     @patch("pathlib.Path.home")
-    @patch("pathlib.Path.glob")
-    def test_find_jdtls_vscode_success(self, mock_glob, mock_home):
+    def test_find_jdtls_vscode_success(self, mock_home):
         """Test finding JDTLS in VSCode extension successfully."""
         mock_home.return_value = Path("/home/testuser")
 
@@ -559,22 +558,26 @@ class TestFindJdtlsInVscodeExtension(unittest.TestCase):
 
         expected_existing_paths = {
             vscode_ext_path,
+            ext_dir,
             jdtls_bin_dir,
             plugins_dir,
         }
 
-        def glob_side_effect(pattern):
+        def glob_side_effect(self, pattern):
             if pattern == "codeboarding*":
                 return [ext_dir]
             return []
 
-        mock_glob.side_effect = glob_side_effect
-
         def exists_side_effect(self):
             return self in expected_existing_paths
 
-        with patch.object(Path, "exists", exists_side_effect):
-            result = find_jdtls_in_vscode_extension()
+        def is_dir_side_effect(self):
+            return self in {ext_dir, jdtls_bin_dir, plugins_dir}
+
+        with patch.object(Path, "glob", glob_side_effect):
+            with patch.object(Path, "exists", exists_side_effect):
+                with patch.object(Path, "is_dir", is_dir_side_effect):
+                    result = find_jdtls_in_vscode_extension()
 
         self.assertIsNotNone(result)
         self.assertIn("bin/jdtls", str(result))
