@@ -26,6 +26,7 @@ class RepoIgnoreManager:
     """
 
     DEFAULT_IGNORED_DIRS = {
+        ".codeboarding",
         "node_modules",
         ".git",
         "__pycache__",

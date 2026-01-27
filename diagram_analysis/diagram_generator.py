@@ -21,7 +21,7 @@ from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
-from repo_utils import get_git_commit_hash, is_repo_dirty
+from repo_utils import get_git_commit_hash, get_repo_state_hash
 from static_analyzer import StaticAnalyzer, StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
 
@@ -36,7 +36,6 @@ class DiagramGenerator:
         repo_name: str,
         output_dir: Path,
         depth_level: int,
-        cache_static: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -46,7 +45,6 @@ class DiagramGenerator:
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.depth_level = depth_level
-        self.cache_static = cache_static
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -104,15 +102,12 @@ class DiagramGenerator:
         analysis_start_time = time.time()
 
         commit_hash = get_git_commit_hash(self.repo_location)
+        repo_state_hash = get_repo_state_hash(self.repo_location)
         cache_dir = self.repo_location / ".codeboarding" / "cache"
-        cache_file = cache_dir / f"{commit_hash[:7]}.pkl"
-
-        if self.cache_static and is_repo_dirty(self.repo_location):
-            logger.warning("Repository has uncommitted changes. Caching is disabled.")
-            self.cache_static = False
+        cache_file = cache_dir / f"{repo_state_hash}.pkl"
 
         static_analysis = None
-        if self.cache_static and cache_file.exists():
+        if cache_file.exists():
             try:
                 static_analysis = StaticAnalysisResults.load(cache_file)
                 logger.info(f"Loaded static analysis from cache: {cache_file}")
@@ -122,12 +117,11 @@ class DiagramGenerator:
         if static_analysis is None:
             static_analysis = StaticAnalyzer(self.repo_location).analyze(commit=commit_hash)
 
-            if self.cache_static:
-                try:
-                    static_analysis.save(cache_file)
-                    logger.info(f"Saved static analysis to cache: {cache_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to save static analysis cache: {e}")
+            try:
+                static_analysis.save(cache_file)
+                logger.info(f"Saved static analysis to cache: {cache_file}")
+            except Exception as e:
+                logger.warning(f"Failed to save static analysis cache: {e}")
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
