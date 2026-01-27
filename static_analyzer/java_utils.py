@@ -56,6 +56,8 @@ def find_jdtls_in_vscode_extension() -> Path | None:
 
     # Look for codeboarding extension directories
     for ext_dir in vscode_ext_base.glob("codeboarding*"):
+        if not ext_dir.is_dir():
+            continue
         jdtls_bin_dir = ext_dir / "bin" / "jdtls"
         if jdtls_bin_dir.exists() and (jdtls_bin_dir / "plugins").exists():
             logger.info(f"Found JDTLS in VSCode extension at {jdtls_bin_dir}")

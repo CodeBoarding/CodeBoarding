@@ -554,6 +554,14 @@ class TestFindJdtlsInVscodeExtension(unittest.TestCase):
 
         vscode_ext_path = Path("/home/testuser/.vscode/extensions")
         ext_dir = vscode_ext_path / "codeboarding.codeboarding-0.7.0"
+        jdtls_bin_dir = ext_dir / "bin" / "jdtls"
+        plugins_dir = jdtls_bin_dir / "plugins"
+
+        expected_existing_paths = {
+            vscode_ext_path,
+            jdtls_bin_dir,
+            plugins_dir,
+        }
 
         def glob_side_effect(pattern):
             if pattern == "codeboarding*":
@@ -563,14 +571,7 @@ class TestFindJdtlsInVscodeExtension(unittest.TestCase):
         mock_glob.side_effect = glob_side_effect
 
         def exists_side_effect(self):
-            path_str = str(self)
-            if "vscode/extensions" in path_str:
-                return True
-            if "bin/jdtls" in path_str:
-                return True
-            if "plugins" in path_str:
-                return True
-            return False
+            return self in expected_existing_paths
 
         with patch.object(Path, "exists", exists_side_effect):
             result = find_jdtls_in_vscode_extension()
