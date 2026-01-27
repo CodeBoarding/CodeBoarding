@@ -103,9 +103,12 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
 
     dest = target_dir / repo_name
     if dest.exists():
-        logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
-        repo.remotes.origin.pull()
+        if repo.is_dirty(untracked_files=True):
+            logger.info(f"Repository {repo_name} has uncommitted changes, skipping pull.")
+        else:
+            logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+            repo.remotes.origin.pull()
     else:
         logger.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
