@@ -15,6 +15,7 @@ from static_analyzer.java_utils import (
     get_jdtls_config_dir,
     find_launcher_jar,
     create_jdtls_command,
+    find_jdtls_in_vscode_extension,
 )
 
 
@@ -540,6 +541,53 @@ class TestCreateJdtlsCommand(unittest.TestCase):
 
         # Should use java.exe on Windows
         self.assertIn("java.exe", command[0])
+
+
+class TestFindJdtlsInVscodeExtension(unittest.TestCase):
+    """Test finding JDTLS in VSCode extension directory."""
+
+    @patch("pathlib.Path.home")
+    @patch("pathlib.Path.glob")
+    def test_find_jdtls_vscode_success(self, mock_glob, mock_home):
+        """Test finding JDTLS in VSCode extension successfully."""
+        mock_home.return_value = Path("/home/testuser")
+
+        vscode_ext_path = Path("/home/testuser/.vscode/extensions")
+        ext_dir = vscode_ext_path / "codeboarding.codeboarding-0.7.0"
+
+        def glob_side_effect(pattern):
+            if pattern == "codeboarding*":
+                return [ext_dir]
+            return []
+
+        mock_glob.side_effect = glob_side_effect
+
+        def exists_side_effect(self):
+            path_str = str(self)
+            if "vscode/extensions" in path_str:
+                return True
+            if "bin/jdtls" in path_str:
+                return True
+            if "plugins" in path_str:
+                return True
+            return False
+
+        with patch.object(Path, "exists", exists_side_effect):
+            result = find_jdtls_in_vscode_extension()
+
+        self.assertIsNotNone(result)
+        self.assertIn("bin/jdtls", str(result))
+
+    @patch("pathlib.Path.home")
+    @patch("pathlib.Path.exists")
+    def test_find_jdtls_vscode_not_found(self, mock_exists, mock_home):
+        """Test when JDTLS is not found in VSCode extensions."""
+        mock_home.return_value = Path("/home/testuser")
+        mock_exists.return_value = False
+
+        result = find_jdtls_in_vscode_extension()
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":

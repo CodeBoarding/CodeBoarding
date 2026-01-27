@@ -16,6 +16,7 @@ from static_analyzer.java_utils import (
     get_java_version,
     find_java_21_or_later,
     detect_java_installations,
+    find_jdtls_in_vscode_extension,
 )
 from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from repo_utils.ignore import RepoIgnoreManager
@@ -120,6 +121,11 @@ class JavaClient(LSPClient):
 
     def _find_jdtls_root(self) -> Path | None:
         """Try to find JDTLS root directory from various locations."""
+        # Check VSCode extension first (most likely location for extension users)
+        vscode_jdtls = find_jdtls_in_vscode_extension()
+        if vscode_jdtls is not None:
+            return vscode_jdtls
+
         # Check common locations
         potential_locations = [
             Path.home() / ".jdtls",
