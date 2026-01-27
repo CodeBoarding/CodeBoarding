@@ -101,7 +101,6 @@ class DiagramGenerator:
     def pre_analysis(self):
         analysis_start_time = time.time()
 
-        commit_hash = get_git_commit_hash(self.repo_location)
         repo_state_hash = get_repo_state_hash(self.repo_location)
         cache_dir = self.repo_location / ".codeboarding" / "cache"
         cache_file = cache_dir / f"{repo_state_hash}.pkl"
@@ -115,7 +114,7 @@ class DiagramGenerator:
                 logger.warning(f"Failed to load static analysis cache: {e}")
 
         if static_analysis is None:
-            static_analysis = StaticAnalyzer(self.repo_location).analyze(commit=commit_hash)
+            static_analysis = StaticAnalyzer(self.repo_location).analyze()
 
             try:
                 static_analysis.save(cache_file)

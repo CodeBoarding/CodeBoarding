@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
@@ -79,7 +80,8 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
-    def analyze(self, commit: str | None = None):
+    def analyze(self):
+        commit = get_git_commit_hash(self.repository_path)
         results = StaticAnalysisResults(commit=commit)
         for client in self.clients:
             try:

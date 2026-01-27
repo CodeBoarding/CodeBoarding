@@ -1,12 +1,14 @@
 import logging
 import os
 import shutil
+import hashlib
 import subprocess
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
+from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
 
@@ -193,8 +195,6 @@ def get_repo_state_hash(repo_dir: str | Path) -> str:
     - A hash of untracked file paths (not content, for performance)
     - The most recent modification time of any tracked file
     """
-    import hashlib
-
     repo = Repo(repo_dir)
     repo_path = Path(repo_dir)
     commit_hash = repo.head.commit.hexsha
@@ -202,27 +202,12 @@ def get_repo_state_hash(repo_dir: str | Path) -> str:
     # Get diff of staged and unstaged changes against HEAD
     diff_content = repo.git.diff("HEAD")
 
-    # Get list of untracked files, excluding those in DEFAULT_IGNORED_DIRS
-    from repo_utils.ignore import RepoIgnoreManager
-
     ignored_dirs = RepoIgnoreManager.DEFAULT_IGNORED_DIRS
     untracked_files = sorted(f for f in repo.untracked_files if not any(part in ignored_dirs for part in Path(f).parts))
     untracked_str = "\n".join(untracked_files)
 
-    # Get the most recent modification time of any untracked file
-    latest_mtime = 0.0
-    for file_path in untracked_files:
-        full_path = repo_path / file_path
-        if full_path.exists():
-            try:
-                mtime = full_path.stat().st_mtime
-                if mtime > latest_mtime:
-                    latest_mtime = mtime
-            except Exception:
-                pass
-
     # Combine all state components (excluding commit_hash since it's in the prefix)
-    state_content = f"{diff_content}\n{untracked_str}\n{latest_mtime}"
+    state_content = f"{diff_content}\n{untracked_str}"
     state_hash = hashlib.sha256(state_content.encode("utf-8")).hexdigest()
 
     return f"{commit_hash[:7]}_{state_hash[:8]}"

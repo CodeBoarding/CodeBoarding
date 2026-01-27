@@ -29,7 +29,6 @@ class StaticAnalysisResults:
             Path(temp_path).replace(path)
         except Exception:
             Path(temp_path).unlink(missing_ok=True)
-            raise
 
     @classmethod
     def load(cls, path: Path) -> "StaticAnalysisResults":
