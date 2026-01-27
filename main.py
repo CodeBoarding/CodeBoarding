@@ -60,7 +60,6 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
-    static_only: bool = False,
     cache_static: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
@@ -71,7 +70,6 @@ def generate_analysis(
         depth_level=depth_level,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
-        static_only=static_only,
         cache_static=cache_static,
     )
     return generator.generate_analysis()
@@ -114,7 +112,6 @@ def partial_update(
     component_name: str,
     analysis_name: str,
     depth_level: int = 1,
-    static_only: bool = False,
     cache_static: bool = False,
 ):
     """
@@ -126,7 +123,6 @@ def partial_update(
         repo_name=project_name,
         output_dir=output_dir,
         depth_level=depth_level,
-        static_only=static_only,
         cache_static=cache_static,
     )
     generator.pre_analysis()
@@ -187,7 +183,6 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
-    static_only: bool = False,
     cache_static: bool = False,
 ):
     """
@@ -217,7 +212,6 @@ def process_remote_repository(
             depth_level=depth_level,
             run_id=run_id,
             monitoring_enabled=monitoring_enabled,
-            static_only=static_only,
             cache_static=cache_static,
         )
 
@@ -252,7 +246,6 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
-    static_only: bool = False,
     cache_static: bool = False,
 ):
     # Handle partial updates
@@ -264,7 +257,6 @@ def process_local_repository(
             component_name=component_name,
             analysis_name=analysis_name,
             depth_level=depth_level,
-            static_only=static_only,
             cache_static=cache_static,
         )
     else:
@@ -275,7 +267,6 @@ def process_local_repository(
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
-            static_only=static_only,
             cache_static=cache_static,
         )
 
@@ -364,11 +355,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
     parser.add_argument(
-        "--static-only",
-        action="store_true",
-        help="Run only static analysis without AI agents",
-    )
-    parser.add_argument(
         "--cache-static",
         action="store_true",
         help="Cache static analysis results by git commit hash",
@@ -448,7 +434,6 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
-            static_only=args.static_only,
             cache_static=args.cache_static,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
@@ -479,7 +464,6 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
-                            static_only=args.static_only,
                             cache_static=args.cache_static,
                         )
                     except Exception as e:

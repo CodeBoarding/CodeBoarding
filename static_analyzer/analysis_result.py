@@ -1,9 +1,22 @@
+import pickle
+from pathlib import Path
+
 from static_analyzer.graph import Node, CallGraph
 
 
 class StaticAnalysisResults:
     def __init__(self):
         self.results = {}
+
+    def save(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: Path) -> "StaticAnalysisResults":
+        with open(path, "rb") as f:
+            return pickle.load(f)
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """

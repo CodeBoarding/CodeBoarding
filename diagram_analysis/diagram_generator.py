@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import pickle
 import time
 from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -25,7 +24,7 @@ from agents.agent import CodeBoardingAgent
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
-from static_analyzer import StaticAnalyzer
+from static_analyzer import StaticAnalyzer, StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
 from utils import monitoring_enabled
 
@@ -40,7 +39,6 @@ class DiagramGenerator:
         repo_name: str,
         output_dir: Path,
         depth_level: int,
-        static_only: bool = False,
         cache_static: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
@@ -51,7 +49,6 @@ class DiagramGenerator:
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.depth_level = depth_level
-        self.static_only = static_only
         self.cache_static = cache_static
         self.project_name = project_name
         self.run_id = run_id
@@ -116,8 +113,7 @@ class DiagramGenerator:
         static_analysis = None
         if self.cache_static and cache_file.exists():
             try:
-                with open(cache_file, "rb") as f:
-                    static_analysis = pickle.load(f)
+                static_analysis = StaticAnalysisResults.load(cache_file)
                 logger.info(f"Loaded static analysis from cache: {cache_file}")
             except Exception as e:
                 logger.warning(f"Failed to load static analysis cache: {e}")
@@ -127,9 +123,7 @@ class DiagramGenerator:
 
             if self.cache_static:
                 try:
-                    cache_dir.mkdir(parents=True, exist_ok=True)
-                    with open(cache_file, "wb") as f:
-                        pickle.dump(static_analysis, f)
+                    static_analysis.save(cache_file)
                     logger.info(f"Saved static analysis to cache: {cache_file}")
                 except Exception as e:
                     logger.warning(f"Failed to save static analysis cache: {e}")
@@ -149,34 +143,33 @@ class DiagramGenerator:
                 "lines_of_code": loc_by_language.get(language, 0),
             }
 
-        if not self.static_only:
-            self.meta_agent = MetaAgent(
-                repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
-            )
-            self._monitoring_agents["MetaAgent"] = self.meta_agent
-            meta_context = self.meta_agent.analyze_project_metadata()
-            self.details_agent = DetailsAgent(
-                repo_dir=self.repo_location,
-                project_name=self.repo_name,
-                static_analysis=static_analysis,
-                meta_context=meta_context,
-            )
-            self._monitoring_agents["DetailsAgent"] = self.details_agent
-            self.abstraction_agent = AbstractionAgent(
-                repo_dir=self.repo_location,
-                project_name=self.repo_name,
-                static_analysis=static_analysis,
-                meta_context=meta_context,
-            )
-            self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        self.meta_agent = MetaAgent(
+            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+        )
+        self._monitoring_agents["MetaAgent"] = self.meta_agent
+        meta_context = self.meta_agent.analyze_project_metadata()
+        self.details_agent = DetailsAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+        self._monitoring_agents["DetailsAgent"] = self.details_agent
+        self.abstraction_agent = AbstractionAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-            self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-            self._monitoring_agents["PlannerAgent"] = self.planner_agent
+        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+        self._monitoring_agents["PlannerAgent"] = self.planner_agent
 
-            self.diff_analyzer_agent = DiffAnalyzingAgent(
-                repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
-            )
-            self._monitoring_agents["DiffAnalyzerAgent"] = self.diff_analyzer_agent
+        self.diff_analyzer_agent = DiffAnalyzingAgent(
+            repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
+        )
+        self._monitoring_agents["DiffAnalyzerAgent"] = self.diff_analyzer_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
@@ -226,10 +219,6 @@ class DiagramGenerator:
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
-            if self.static_only:
-                logger.info("Static analysis only mode enabled. Analysis complete.")
-                return files
-
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
