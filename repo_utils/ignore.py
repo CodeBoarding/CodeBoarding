@@ -41,9 +41,12 @@ class RepoIgnoreManager:
         "runs",  # Monitoring runs
         "test",
         "tests",
+        "__tests__",  # JavaScript/TypeScript convention
+        ".pytest_cache",  # Pytest cache
+        ".nyc_output",  # Code coverage cache
     }
 
-    # Build artifacts and minified files that should be ignored
+    # Build artifacts, minified files, and test files that should be ignored
     DEFAULT_IGNORED_FILE_PATTERNS = [
         "*.bundle.js",  # Webpack/bundler output
         "*.bundle.js.map",  # Source maps for bundles
@@ -51,6 +54,12 @@ class RepoIgnoreManager:
         "*.min.css",  # Minified CSS
         "*.chunk.js",  # Code-split chunks
         "*.chunk.js.map",  # Source maps for chunks
+        "*.spec.ts",  # Jest/Mocha patterns
+        "*.spec.js",  # Jest/Mocha patterns
+        "*.spec.tsx",  # TypeScript React specs
+        "*.spec.jsx",  # JavaScript React specs
+        "conftest.py",  # Pytest configuration
+        "pytest.ini",  # Pytest config files
     ]
 
     def __init__(self, repo_root: Path):

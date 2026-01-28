@@ -361,73 +361,15 @@ class TestTypeScriptClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = TypeScriptClient(self.project_path, self.mock_language)
-        client._validate_typescript_project = Mock(return_value=True)  # type: ignore[method-assign]
+        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": [{"name": "TestClass"}]})  # type: ignore[method-assign]
 
         client._prepare_for_analysis()
 
-        # Should sleep and validate
+        # Should sleep for 2 seconds before validation
         mock_sleep.assert_called_with(2)
-        client._validate_typescript_project.assert_called_once()
-
-    @patch("subprocess.Popen")
-    def test_validate_typescript_project_success(self, mock_popen):
-        # Test successful project validation
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
-        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
-
-        result = client._validate_typescript_project()
-
-        # Should return True on success
-        self.assertTrue(result)
-        client._send_request.assert_called_with("workspace/symbol", {"query": "test"})
-
-    @patch("subprocess.Popen")
-    def test_validate_typescript_project_no_project_error(self, mock_popen):
-        # Test validation when TypeScript reports "No Project"
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
-        client._wait_for_response = Mock(return_value={"error": "No Project loaded"})  # type: ignore[method-assign]
-
-        result = client._validate_typescript_project()
-
-        # Should return False
-        self.assertFalse(result)
-
-    @patch("subprocess.Popen")
-    def test_validate_typescript_project_other_error(self, mock_popen):
-        # Test validation with other error (should still work)
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(return_value=1)  # type: ignore[method-assign]
-        client._wait_for_response = Mock(return_value={"error": "Other error"})  # type: ignore[method-assign]
-
-        result = client._validate_typescript_project()
-
-        # Should return True (may still work despite error)
-        self.assertTrue(result)
-
-    @patch("subprocess.Popen")
-    def test_validate_typescript_project_exception(self, mock_popen):
-        # Test validation when exception occurs
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = TypeScriptClient(self.project_path, self.mock_language)
-        client._send_request = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
-
-        result = client._validate_typescript_project()
-
-        # Should return False on exception
-        self.assertFalse(result)
+        # Should have called workspace/symbol
+        client._send_request.assert_called_with("workspace/symbol", {"query": ""})
 
     @patch("subprocess.Popen")
     def test_configure_typescript_workspace_no_files(self, mock_popen):
