@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ValidationContext:
-    """Context for validation functions. Contains all data needed for validation."""
+    """
+    This class is used to provide the necessary context for validating different LLM steps.
+    It encapsulates all relevant information required by validation routines to ensure that each step in the LLM pipeline
+    is checked against the expected criteria.
+    """
 
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
@@ -70,7 +74,7 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
 
 def validate_component_relationships(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
-    Validate that component relationships have backing edges in the cluster graph.
+    Validate that component relationships have corresponding edges in the cluster graph.
 
     Args:
         result: AnalysisInsights containing components and components_relations
