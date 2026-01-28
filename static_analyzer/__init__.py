@@ -1,9 +1,9 @@
 import logging
 from pathlib import Path
 
-from repo_utils import get_git_commit_hash
+from repo_utils import get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
@@ -74,15 +74,16 @@ def create_clients(
 
 
 class StaticAnalyzer:
+    """Sole responsibility: Analyze the code using LSP clients."""
+
     def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
-    def analyze(self):
-        commit = get_git_commit_hash(self.repository_path)
-        results = StaticAnalysisResults(commit=commit)
+    def analyze(self) -> StaticAnalysisResults:
+        results = StaticAnalysisResults()
         for client in self.clients:
             try:
                 logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
@@ -103,3 +104,30 @@ class StaticAnalyzer:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
 
         return results
+
+
+def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> StaticAnalysisResults:
+    """
+    Orchestrator: Get static analysis results, using cache when available.
+
+    Args:
+        repo_path: Path to the repository to analyze.
+        cache_dir: Optional custom cache directory. Defaults to repo_path/.codeboarding/cache.
+
+    Returns:
+        StaticAnalysisResults from cache or fresh analysis.
+    """
+    if cache_dir is None:
+        cache_dir = repo_path / ".codeboarding" / "cache"
+
+    repo_hash = get_repo_state_hash(repo_path)
+    cache = AnalysisCache(cache_dir)
+
+    if cached_result := cache.get(repo_hash):
+        return cached_result
+
+    result = StaticAnalyzer(repo_path).analyze()
+
+    cache.save(repo_hash, result)
+
+    return result

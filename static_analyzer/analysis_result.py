@@ -1,39 +1,57 @@
+import logging
 import pickle
 import sys
 import tempfile
 from pathlib import Path
-
-import logging
 
 from static_analyzer.graph import Node, CallGraph
 
 logger = logging.getLogger(__name__)
 
 
-class StaticAnalysisResults:
-    def __init__(self, commit: str | None = None):
-        self.results: dict[str, dict] = {}
-        self.commit = commit
+class AnalysisCache:
 
-    def save(self, path: Path):
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, cache_dir: Path):
+        self.cache_dir = cache_dir
 
-        data = pickle.dumps(self)
+    def get(self, repo_hash: str) -> "StaticAnalysisResults | None":
+        """Load cached results for the given repo hash, or None if not found/invalid."""
+        cache_file = self.cache_dir / f"{repo_hash}.pkl"
+        if not cache_file.exists():
+            return None
+
+        try:
+            with open(cache_file, "rb") as f:
+                result = pickle.load(f)
+            logger.info(f"Loaded static analysis from cache: {cache_file}")
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to load static analysis cache: {e}")
+            return None
+
+    def save(self, repo_hash: str, result: "StaticAnalysisResults") -> None:
+        """Save results to cache using atomic write."""
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = self.cache_dir / f"{repo_hash}.pkl"
+
+        data = pickle.dumps(result)
         size_mb = sys.getsizeof(data) / (1024 * 1024)
         logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        temp_fd, temp_path = tempfile.mkstemp(dir=self.cache_dir, suffix=".tmp")
         try:
             with open(temp_fd, "wb") as f:
                 f.write(data)
-            Path(temp_path).replace(path)
-        except Exception:
+            Path(temp_path).replace(cache_file)
+            logger.info(f"Saved static analysis to cache: {cache_file}")
+        except Exception as e:
             Path(temp_path).unlink(missing_ok=True)
+            logger.warning(f"Failed to save static analysis cache: {e}")
 
-    @classmethod
-    def load(cls, path: Path) -> "StaticAnalysisResults":
-        with open(path, "rb") as f:
-            return pickle.load(f)
+
+class StaticAnalysisResults:
+    def __init__(self):
+        self.results: dict[str, dict] = {}
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """
