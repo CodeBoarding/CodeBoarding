@@ -14,6 +14,7 @@ from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
+from diagram_analysis.estimation import estimate_pipeline_time
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
@@ -90,6 +91,9 @@ class DiagramGenerator:
         # Use ProjectScanner to get accurate LOC counts via tokei
         scanner = ProjectScanner(self.repo_location)
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+
+        # Calculate and display estimated pipeline time using log model
+        estimate_pipeline_time(self.repo_location, depth_level=self.depth_level)
 
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)

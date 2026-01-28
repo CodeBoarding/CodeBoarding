@@ -11,6 +11,7 @@ from tqdm import tqdm
 from agents.agent_responses import AnalysisInsights
 from agents.prompts import initialize_global_factory, PromptType, LLMType
 from diagram_analysis import DiagramGenerator
+from diagram_analysis.estimation import estimate_pipeline_time
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
@@ -179,6 +180,7 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    estimate_only: bool = False,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -196,6 +198,10 @@ def process_remote_repository(
     # Clone repository
     repo_name = clone_repository(repo_url, repo_root)
     repo_path = repo_root / repo_name
+
+    if estimate_only:
+        estimate_pipeline_time(repo_path, depth_level)
+        return
 
     temp_folder = create_temp_repo_folder()
 
@@ -240,7 +246,15 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
+    estimate_only: bool = False,
 ):
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    if estimate_only:
+        estimate_pipeline_time(repo_path, depth_level)
+        return
+
     # Handle partial updates
     if component_name and analysis_name:
         partial_update(
@@ -322,6 +336,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
 
     # Advanced options
+    parser.add_argument(
+        "--estimate-only",
+        action="store_true",
+        help="Estimate execution time without running the full analysis",
+    )
     parser.add_argument(
         "--load-env-variables",
         action="store_true",
@@ -420,6 +439,7 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
+            estimate_only=args.estimate_only,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
@@ -449,6 +469,7 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
+                            estimate_only=args.estimate_only,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")
