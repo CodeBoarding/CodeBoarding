@@ -2,15 +2,11 @@
 Prompts module - Dynamic prompt selection system
 
 This module provides backward compatibility with the old prompt system while enabling
-dynamic selection of prompts based on LLM type and configuration flags.
-
-The system will automatically choose between bidirectional and unidirectional prompts
-based on the configuration or runtime context.
+dynamic selection of prompts based on LLM type.
 """
 
 from .prompt_factory import (
     PromptFactory,
-    PromptType,
     LLMType,
     initialize_global_factory,
     get_global_factory,
@@ -22,20 +18,16 @@ from .prompt_factory import (
     get_system_message,
     get_cluster_grouping_message,
     get_final_analysis_message,
-    get_feedback_message,
-    get_system_details_message,
-    get_subcfg_details_message,
-    get_cfg_details_message,
-    get_enhance_structure_message,
-    get_details_message,
     get_planner_system_message,
     get_expansion_prompt,
-    get_system_diff_analysis_message,
-    get_diff_analysis_message,
     get_system_meta_analysis_message,
     get_meta_information_prompt,
     get_file_classification_message,
     get_unassigned_files_classification_message,
+    get_validation_feedback_message,
+    get_system_details_message,
+    get_cfg_details_message,
+    get_details_message,
 )
 
 
@@ -60,7 +52,6 @@ def __getattr__(name: str):
 __all__ = [
     # Classes and functions
     "PromptFactory",
-    "PromptType",
     "LLMType",
     "initialize_global_factory",
     "get_global_factory",
@@ -69,36 +60,26 @@ __all__ = [
     "get_system_message",
     "get_cluster_grouping_message",
     "get_final_analysis_message",
-    "get_feedback_message",
-    "get_system_details_message",
-    "get_subcfg_details_message",
-    "get_cfg_details_message",
-    "get_enhance_structure_message",
-    "get_details_message",
     "get_planner_system_message",
     "get_expansion_prompt",
-    "get_system_diff_analysis_message",
-    "get_diff_analysis_message",
     "get_system_meta_analysis_message",
     "get_meta_information_prompt",
     "get_file_classification_message",
     "get_unassigned_files_classification_message",
+    "get_validation_feedback_message",
+    "get_system_details_message",
+    "get_cfg_details_message",
+    "get_details_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
     "CLUSTER_GROUPING_MESSAGE",
     "FINAL_ANALYSIS_MESSAGE",
     "FEEDBACK_MESSAGE",
-    "SYSTEM_DETAILS_MESSAGE",
-    "SUBCFG_DETAILS_MESSAGE",
-    "CFG_DETAILS_MESSAGE",
-    "ENHANCE_STRUCTURE_MESSAGE",
-    "DETAILS_MESSAGE",
     "PLANNER_SYSTEM_MESSAGE",
     "EXPANSION_PROMPT",
-    "SYSTEM_DIFF_ANALYSIS_MESSAGE",
-    "DIFF_ANALYSIS_MESSAGE",
     "SYSTEM_META_ANALYSIS_MESSAGE",
     "META_INFORMATION_PROMPT",
     "FILE_CLASSIFICATION_MESSAGE",
     "UNASSIGNED_FILES_CLASSIFICATION_MESSAGE",
+    "VALIDATION_FEEDBACK_MESSAGE",
 ]

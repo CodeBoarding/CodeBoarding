@@ -465,7 +465,6 @@ def install_pre_commit_hooks():
             capture_output=True,
             text=True,
         )
-
         print("Step: pre-commit hooks installation finished: success")
 
     except subprocess.CalledProcessError:

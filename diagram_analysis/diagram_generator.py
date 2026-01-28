@@ -10,9 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import ValidationInsights
 from agents.details_agent import DetailsAgent
-from agents.diff_analyzer import DiffAnalyzingAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import PlannerAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
@@ -52,7 +50,6 @@ class DiagramGenerator:
         self.details_agent: DetailsAgent | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.planner_agent: PlannerAgent | None = None
-        self.diff_analyzer_agent: DiffAnalyzingAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
 
@@ -63,27 +60,10 @@ class DiagramGenerator:
         """Process a single component and return its output path and any new components to analyze"""
         try:
             # Now before we try doing anything, we need to check if the component already exists:
-            assert self.diff_analyzer_agent is not None
             assert self.details_agent is not None
             assert self.planner_agent is not None
 
-            update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
-            if update_analysis.update_degree < 4:  # No need to update
-                logging.info(f"Component {component.name} does not require update, skipping analysis.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                safe_name = sanitize(component.name)
-                output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-                with open(output_path, "w") as f:
-                    f.write(analysis.model_dump_json(indent=2))
-                return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
-            elif 4 < update_analysis.update_degree < 8:
-                logger.info(f"Component {component.name} requires partial update, applying feedback.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-                analysis = self.details_agent.apply_feedback(analysis, update_insight)
-            else:
-                analysis, subgraph_cluster_results = self.details_agent.run(component)
+            analysis, subgraph_cluster_results = self.details_agent.run(component)
             # Get new components to analyze
             new_components = self.planner_agent.plan_analysis(analysis)
 
@@ -141,11 +121,6 @@ class DiagramGenerator:
         self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
         self._monitoring_agents["PlannerAgent"] = self.planner_agent
 
-        self.diff_analyzer_agent = DiffAnalyzingAgent(
-            repo_dir=self.repo_location, static_analysis=static_analysis, project_name=self.repo_name
-        )
-        self._monitoring_agents["DiffAnalyzerAgent"] = self.diff_analyzer_agent
-
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
             f.write(
@@ -197,23 +172,10 @@ class DiagramGenerator:
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
-            assert self.diff_analyzer_agent is not None
             assert self.abstraction_agent is not None
             assert self.planner_agent is not None
 
-            update_analysis = self.diff_analyzer_agent.check_for_updates()
-
-            if 4 < update_analysis.update_degree < 8:
-                # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
-                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-                analysis = self.abstraction_agent.apply_feedback(
-                    self.diff_analyzer_agent.get_analysis(), update_insight
-                )
-            elif update_analysis.update_degree >= 8:
-                analysis, cluster_results = self.abstraction_agent.run()
-            else:
-                analysis = self.diff_analyzer_agent.get_analysis()
-            assert analysis is not None, "Analysis should not be None at this point"
+            analysis, cluster_results = self.abstraction_agent.run()
 
             # Get the initial components to analyze (level 0)
             current_level_components = self.planner_agent.plan_analysis(analysis)

@@ -1,0 +1,83 @@
+{
+  "description": "The `Evaluation & Monitoring System` subsystem is dedicated to assessing the performance and behavior of the CodeBoarding system and its AI agents. Its boundaries are primarily defined by the `evals/` and `monitoring/` directories, which house the core evaluation framework and the infrastructure for collecting and persisting usage data. This design ensures that evaluation logic is decoupled from monitoring data storage, promoting modularity and extensibility, which is characteristic of a well-structured Code Analysis and Documentation Generation Tool.",
+  "components": [
+    {
+      "name": "Evaluation Framework",
+      "description": "Provides the foundational abstract base for all evaluation types, defining the common interface and lifecycle for assessing system performance and behavior. It serves as the extensible core for implementing various evaluation strategies, as indicated by the \"core evaluation functionality\" and \"orchestration of various evaluation types\" in the analysis summary.",
+      "key_entities": [
+        {
+          "qualified_name": "BaseEval",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Context & Statistics",
+      "description": "Manages the execution context for collecting and aggregating runtime statistics and metrics, ensuring consistent data capture across different operations. This component is crucial for tracking performance indicators and usage data (e.g., tokens, tools, latency), directly addressing the \"managing execution context for collecting statistics\" aspect of the monitoring clusters.",
+      "key_entities": [
+        {
+          "qualified_name": "MonitorContext",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "RunStats",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/stats.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Monitoring Data Persistence",
+      "description": "Responsible for writing and persisting real-time monitoring data and aggregated statistics to various storage mechanisms, enabling long-term analysis and reporting. This component handles the output stream for collected metrics, fulfilling the \"writing and persisting real-time monitoring data\" requirement from the analysis summary.",
+      "key_entities": [
+        {
+          "qualified_name": "StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "Evaluation Framework",
+      "dst_name": "Monitoring Context & Statistics"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Monitoring Context & Statistics",
+      "dst_name": "Monitoring Data Persistence"
+    }
+  ]
+}

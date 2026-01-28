@@ -1,29 +1,40 @@
 {
-  "description": "Manages the overall analysis workflow, persists job states, and generates diverse documentation outputs based on the AI-driven analysis.",
+  "description": "The `Output Generation & Job Management` subsystem is crucial for user interaction, job execution, and transforming analysis results into consumable documentation. It acts as the bridge between the core analysis engine and the end-user, managing the entire lifecycle of documentation generation.",
   "components": [
     {
-      "name": "Workflow Orchestrator",
-      "description": "Manages the end-to-end execution of the code analysis and documentation generation pipeline, coordinating various stages of the analysis from initiation to completion.",
+      "name": "Job Orchestration & CLI Interface",
+      "description": "This component serves as the primary interface for users, parsing command-line arguments, validating inputs, and coordinating the overall workflow for analysis and documentation generation jobs. It initiates job execution and manages the decision-making process for handling local or remote repositories.",
       "key_entities": [
         {
-          "qualified_name": "WorkflowOrchestrator",
+          "qualified_name": "main",
           "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "main.py"
+        "local_app.py",
+        "main.py",
+        "github_action.py",
+        "logging_config.py",
+        "utils.py",
+        "vscode_constants.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
     },
     {
-      "name": "Job Persistence Manager",
-      "description": "Provides mechanisms for storing, retrieving, and updating the state of analysis jobs, ensuring data durability and allowing for job resumption or historical tracking.",
+      "name": "Job Lifecycle & Data Management",
+      "description": "This component is responsible for managing the complete lifecycle of analysis and documentation generation jobs, including their creation, fetching, updating, and persistent storage. It also handles the management and cleanup of temporary code repository folders required for analysis.",
       "key_entities": [
         {
-          "qualified_name": "JobPersistenceManager",
+          "qualified_name": "duckdb_crud",
           "reference_file": "duckdb_crud.py",
           "reference_start_line": null,
           "reference_end_line": null
@@ -36,18 +47,24 @@
       "can_expand": true
     },
     {
-      "name": "Documentation Generator",
-      "description": "Transforms structured analysis results into various documentation formats, responsible for rendering outputs based on configuration and specific templates.",
+      "name": "Output Generation Engine",
+      "description": "This component transforms processed analysis data into various documentation formats, such as HTML, Markdown, MDX, and Sphinx RST. It handles the specific formatting, structuring, and rendering required for each output type to produce the final documentation.",
       "key_entities": [
         {
-          "qualified_name": "DocumentationGenerator",
-          "reference_file": "output_generators/markdown.py",
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "output_generators/markdown.py"
+        "output_generators",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -55,14 +72,19 @@
   ],
   "components_relations": [
     {
-      "relation": "Persists/Retrieves Job State",
-      "src_name": "Workflow Orchestrator",
-      "dst_name": "Job Persistence Manager"
+      "relation": "initiates job creation and updates by interacting with",
+      "src_name": "Job Orchestration & CLI Interface",
+      "dst_name": "Job Lifecycle & Data Management"
     },
     {
-      "relation": "Triggers Documentation Generation",
-      "src_name": "Workflow Orchestrator",
-      "dst_name": "Documentation Generator"
+      "relation": "triggers",
+      "src_name": "Job Orchestration & CLI Interface",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "provides job status and stored data back to",
+      "src_name": "Job Lifecycle & Data Management",
+      "dst_name": "Job Orchestration & CLI Interface"
     }
   ]
 }

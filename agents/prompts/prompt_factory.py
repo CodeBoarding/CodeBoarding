@@ -1,25 +1,14 @@
 """
 Prompt Factory Module
 
-This module provides a factory for dynamically selecting prompts based on LLM type and configuration flags.
-It supports both bidirectional and unidirectional prompt variations.
+This module provides a factory for dynamically selecting prompts based on LLM type.
 """
 
 from enum import Enum
 from .abstract_prompt_factory import AbstractPromptFactory
-from .gemini_flash_prompts_bidirectional import GeminiFlashBidirectionalPromptFactory
-from .gemini_flash_prompts_unidirectional import GeminiFlashUnidirectionalPromptFactory
-from .gpt_prompts_bidirectional import GPTBidirectionalPromptFactory
-from .gpt_prompts_unidirectional import GPTUnidirectionalPromptFactory
-from .claude_prompts_bidirectional import ClaudeBidirectionalPromptFactory
-from .claude_prompts_unidirectional import ClaudeUnidirectionalPromptFactory
-
-
-class PromptType(Enum):
-    """Enum for different prompt types."""
-
-    BIDIRECTIONAL = "bidirectional"
-    UNIDIRECTIONAL = "unidirectional"
+from .gemini_flash_prompts import GeminiFlashPromptFactory
+from .gpt_prompts import GPTPromptFactory
+from .claude_prompts import ClaudePromptFactory
 
 
 class LLMType(Enum):
@@ -33,34 +22,27 @@ class LLMType(Enum):
 
 
 class PromptFactory:
-    """Factory class for dynamically selecting prompts based on LLM and configuration."""
+    """Factory class for dynamically selecting prompts based on LLM type."""
 
-    def __init__(self, llm_type: LLMType = LLMType.GEMINI_FLASH, prompt_type: PromptType = PromptType.BIDIRECTIONAL):
+    def __init__(self, llm_type: LLMType = LLMType.GEMINI_FLASH):
         self.llm_type = llm_type
-        self.prompt_type = prompt_type
         self._prompt_factory: AbstractPromptFactory = self._create_prompt_factory()
 
     def _create_prompt_factory(self) -> AbstractPromptFactory:
-        """Create the appropriate prompt factory based on LLM type and prompt type."""
+        """Create the appropriate prompt factory based on LLM type."""
         match self.llm_type:
             case LLMType.GEMINI_FLASH:
-                if self.prompt_type == PromptType.BIDIRECTIONAL:
-                    return GeminiFlashBidirectionalPromptFactory()
-                return GeminiFlashUnidirectionalPromptFactory()
+                return GeminiFlashPromptFactory()
 
             case LLMType.CLAUDE | LLMType.CLAUDE_SONNET:
-                if self.prompt_type == PromptType.BIDIRECTIONAL:
-                    return ClaudeBidirectionalPromptFactory()
-                return ClaudeUnidirectionalPromptFactory()
+                return ClaudePromptFactory()
 
             case LLMType.GPT4 | LLMType.VERCEL:
-                if self.prompt_type == PromptType.BIDIRECTIONAL:
-                    return GPTBidirectionalPromptFactory()
-                return GPTUnidirectionalPromptFactory()
+                return GeminiFlashPromptFactory()
 
             case _:
                 # Default fallback
-                return GeminiFlashBidirectionalPromptFactory()
+                return GeminiFlashPromptFactory()
 
     def get_prompt(self, prompt_name: str) -> str:
         """Get a specific prompt by name."""
@@ -86,12 +68,6 @@ class PromptFactory:
         return prompts
 
     @classmethod
-    def create_for_vscode_runnable(cls, use_unidirectional: bool = True) -> "PromptFactory":
-        """Create a prompt factory specifically for vscode_runnable usage."""
-        prompt_type = PromptType.UNIDIRECTIONAL if use_unidirectional else PromptType.BIDIRECTIONAL
-        return cls(LLMType.GEMINI_FLASH, prompt_type)
-
-    @classmethod
     def create_for_llm(cls, llm_name: str, **kwargs) -> "PromptFactory":
         """Create a prompt factory for a specific LLM."""
         # Map LLM names to types
@@ -107,21 +83,17 @@ class PromptFactory:
         }
 
         llm_type = llm_mapping.get(llm_name.lower(), LLMType.GEMINI_FLASH)
-        prompt_type = kwargs.get("prompt_type", PromptType.BIDIRECTIONAL)
-
-        return cls(llm_type, prompt_type)
+        return cls(llm_type)
 
 
 # Global factory instance - will be initialized by configuration
 _global_factory: PromptFactory | None = None
 
 
-def initialize_global_factory(
-    llm_type: LLMType = LLMType.GEMINI_FLASH, prompt_type: PromptType = PromptType.BIDIRECTIONAL
-):
+def initialize_global_factory(llm_type: LLMType = LLMType.GEMINI_FLASH):
     """Initialize the global prompt factory."""
     global _global_factory
-    _global_factory = PromptFactory(llm_type, prompt_type)
+    _global_factory = PromptFactory(llm_type)
 
 
 def get_global_factory() -> PromptFactory:
@@ -152,44 +124,12 @@ def get_final_analysis_message() -> str:
     return get_global_factory()._prompt_factory.get_final_analysis_message()
 
 
-def get_feedback_message() -> str:
-    return get_global_factory()._prompt_factory.get_feedback_message()
-
-
-def get_system_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_system_details_message()
-
-
-def get_subcfg_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_subcfg_details_message()
-
-
-def get_cfg_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_cfg_details_message()
-
-
-def get_enhance_structure_message() -> str:
-    return get_global_factory()._prompt_factory.get_enhance_structure_message()
-
-
-def get_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_details_message()
-
-
 def get_planner_system_message() -> str:
     return get_global_factory()._prompt_factory.get_planner_system_message()
 
 
 def get_expansion_prompt() -> str:
     return get_global_factory()._prompt_factory.get_expansion_prompt()
-
-
-def get_system_diff_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_system_diff_analysis_message()
-
-
-def get_diff_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_diff_analysis_message()
 
 
 def get_system_meta_analysis_message() -> str:
@@ -206,3 +146,19 @@ def get_file_classification_message() -> str:
 
 def get_unassigned_files_classification_message() -> str:
     return get_global_factory()._prompt_factory.get_unassigned_files_classification_message()
+
+
+def get_validation_feedback_message() -> str:
+    return get_global_factory()._prompt_factory.get_validation_feedback_message()
+
+
+def get_system_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_system_details_message()
+
+
+def get_cfg_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_cfg_details_message()
+
+
+def get_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_details_message()

@@ -1,89 +1,147 @@
 {
-  "description": "The Evaluation Framework Core orchestrates the evaluation process by generating events related to LLM and tool interactions. It utilizes the Event Handling Mixin to emit these events, which are captured by the LLM Event Monitoring component. This component processes the events and records critical metrics, providing the Evaluation Framework Core with the necessary data to inform its evaluation strategies and assess performance.",
+  "description": "The `Monitoring & Evaluation` subsystem is a critical framework within the CodeBoarding system, dedicated to assessing performance, resource utilization, and the overall effectiveness of code analysis and documentation generation processes. It encompasses data collection, runtime statistics tracking, error logging, and the execution of various evaluation types to ensure system quality and efficiency.",
   "components": [
     {
-      "name": "LLM Event Monitoring",
-      "description": "This component is responsible for actively monitoring and recording events generated during LLM and tool interactions. It captures critical metrics such as token usage, tool calls, and errors, integrating directly into the execution flow to provide real-time performance data.",
+      "name": "Evaluation Orchestrator",
+      "description": "Manages the lifecycle of evaluation runs, from initiation to completion, coordinating various evaluation steps and integrating static code analysis. It ensures the structured execution of defined evaluation pipelines.",
       "key_entities": [
         {
-          "qualified_name": "monitoring.callbacks.MonitoringCallback",
-          "reference_file": "monitoring/callbacks.py",
+          "qualified_name": "evals.base.BaseEvaluation",
+          "reference_file": "evals/base.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_llm_end",
-          "reference_file": "monitoring/callbacks.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_tool_start",
-          "reference_file": "monitoring/callbacks.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_tool_end",
-          "reference_file": "monitoring/callbacks.py",
+          "qualified_name": "evals.cli.main",
+          "reference_file": "evals/cli.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
-        "monitoring/callbacks.py"
+        "evals/cli.py",
+        "evals/base.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "Event Handling Mixin",
-      "description": "This component provides a standardized and reusable mechanism for other parts of the system to emit events. By offering a consistent interface, it ensures that events are generated uniformly, which is crucial for reliable capture by the monitoring system.",
+      "name": "Runtime Monitoring & Tracing",
+      "description": "Collects real-time performance metrics, resource usage, and execution traces, particularly focusing on LLM interactions and token consumption. It provides granular insights into the system's operational behavior.",
       "key_entities": [
         {
-          "qualified_name": "monitoring.mixin.EventHandler",
-          "reference_file": "monitoring/mixin.py",
+          "qualified_name": "monitoring.stats.Stats",
+          "reference_file": "monitoring/stats.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "monitoring.mixin.EventHandler.on_event",
-          "reference_file": "monitoring/mixin.py",
+          "qualified_name": "monitoring.stats.Stats:log_llm_usage",
+          "reference_file": "monitoring/stats.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "monitoring/stats.py",
+        "monitoring/context.py",
         "monitoring/mixin.py"
       ],
       "source_cluster_ids": [],
-      "can_expand": false
+      "can_expand": true
     },
     {
-      "name": "Evaluation Framework Core",
-      "description": "This component establishes the foundational structure for evaluating the performance and correctness of LLM outputs and tool executions. It defines abstract classes and interfaces for specifying evaluation metrics, managing datasets, and orchestrating evaluation strategies.",
+      "name": "Performance & Resource Evaluator",
+      "description": "Analyzes collected runtime data to assess the system's performance, scalability, and efficiency under different operational conditions. It identifies bottlenecks and areas for optimization.",
       "key_entities": [
         {
-          "qualified_name": "evals.base.EvaluationFramework",
-          "reference_file": "evals/base.py",
+          "qualified_name": "monitoring.stats.Stats:get_metrics",
+          "reference_file": "monitoring/stats.py",
           "reference_start_line": null,
           "reference_end_line": null
         },
         {
-          "qualified_name": "evals.base.EvaluationFramework.evaluate",
-          "reference_file": "evals/base.py",
-          "reference_start_line": null,
-          "reference_end_line": null
-        },
-        {
-          "qualified_name": "evals.base.EvaluationFramework.run_eval",
+          "qualified_name": "evals.base.BaseEvaluation:evaluate_performance",
           "reference_file": "evals/base.py",
           "reference_start_line": null,
           "reference_end_line": null
         }
       ],
       "assigned_files": [
+        "evals/base.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Report & Output Generator",
+      "description": "Processes evaluation results and monitoring data to generate structured reports, key performance indicators, and other documentation outputs. It transforms raw data into actionable insights.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.base.BaseEvaluation:generate_report",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.cli.main:generate_output",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py",
         "evals/base.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Data Persistence & Management",
+      "description": "Handles the storage, retrieval, and streaming of all monitoring data and evaluation results, ensuring data integrity, accessibility, and long-term retention.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.stats.Stats:save_data",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.base.BaseEvaluation:save_results",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py",
+        "monitoring/stats.py",
+        "monitoring/paths.py",
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Evaluation CLI",
+      "description": "Provides the command-line interface for users to interact with the evaluation system, initiating runs, configuring parameters, and viewing results. It serves as the primary user-facing entry point for evaluations.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli.main:run_evaluation",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -91,19 +149,44 @@
   ],
   "components_relations": [
     {
-      "relation": "emits events via",
-      "src_name": "Evaluation Framework Core",
-      "dst_name": "Event Handling Mixin"
+      "relation": "initiates evaluation runs by interacting with",
+      "src_name": "Evaluation CLI",
+      "dst_name": "Evaluation Orchestrator"
     },
     {
-      "relation": "enables event capture by",
-      "src_name": "Event Handling Mixin",
-      "dst_name": "LLM Event Monitoring"
+      "relation": "utilizes",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Runtime Monitoring & Tracing"
     },
     {
-      "relation": "provides evaluation data to",
-      "src_name": "LLM Event Monitoring",
-      "dst_name": "Evaluation Framework Core"
+      "relation": "passes data to",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Performance & Resource Evaluator"
+    },
+    {
+      "relation": "sends collected data to",
+      "src_name": "Runtime Monitoring & Tracing",
+      "dst_name": "Data Persistence & Management"
+    },
+    {
+      "relation": "provides its analysis results to",
+      "src_name": "Performance & Resource Evaluator",
+      "dst_name": "Report & Output Generator"
+    },
+    {
+      "relation": "retrieves raw data from",
+      "src_name": "Report & Output Generator",
+      "dst_name": "Data Persistence & Management"
+    },
+    {
+      "relation": "stores the final reports generated by",
+      "src_name": "Data Persistence & Management",
+      "dst_name": "Report & Output Generator"
+    },
+    {
+      "relation": "can query",
+      "src_name": "Evaluation CLI",
+      "dst_name": "Data Persistence & Management"
     }
   ]
 }

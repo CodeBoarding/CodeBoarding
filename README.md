@@ -70,18 +70,18 @@ Setup the environment:
 ```bash
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-python setup.py
+python install.py
 ```
 
 > [!IMPORTANT]  
-> The setup script installs a language server for Python and TypeScript/JavaScript. In order to successfully install
+> The install script installs a language server for Python and TypeScript/JavaScript. In order to successfully install
 > the TypeScript Language Server, you need to have `npm` installed. If `npm` is not found, the script will skip the
 > installation of the TypeScript Language Server and you will need to install it manually later if you want to analyze
 > TypeScript/JavaScript projects.
 
 
 Configure the environment variables in a `.env` file (you can copy from `.env.example`):
-The `python setup.py` command creates a `.env` file if it doesn't exist with a default value for `REPO_ROOT` and `ROOT_RESULT` as well as OLLAMA_BASE_URL for local LLM inference. If you want to use a different LLM provider, you need to set the corresponding API key in the `.env` file.
+The `python install.py` command creates a `.env` file if it doesn't exist with a default value for `REPO_ROOT` and `ROOT_RESULT` as well as OLLAMA_BASE_URL for local LLM inference. If you want to use a different LLM provider, you need to set the corresponding API key in the `.env` file.
 
 ### Environment Variables
 

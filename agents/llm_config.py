@@ -10,6 +10,8 @@ from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
 
+from agents.prompts.prompt_factory import LLMType
+
 
 @dataclass
 class LLMConfig:
@@ -23,12 +25,14 @@ class LLMConfig:
                           which is crucial for code understanding and reasoning.
         parsing_temperature: Temperature for the parsing model. Defaults to 0 for deterministic behavior
                           which is crucial for structured output extraction.
+        llm_type: The LLMType enum value for prompt factory selection.
     """
 
     chat_class: Type[BaseChatModel]
     api_key_env: str
     agent_model: str
     parsing_model: str
+    llm_type: LLMType
     agent_temperature: float = 0.1
     parsing_temperature: float = 0
     extra_args: Dict[str, Any] = field(default_factory=dict)
@@ -59,6 +63,7 @@ LLM_PROVIDERS = {
         api_key_env="OPENAI_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
+        llm_type=LLMType.GPT4,
         alt_env_vars=["OPENAI_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
@@ -72,6 +77,7 @@ LLM_PROVIDERS = {
         api_key_env="VERCEL_API_KEY",
         agent_model="gemini-2.5-flash",
         parsing_model="gpt-4o-mini",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
+        llm_type=LLMType.VERCEL,
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
@@ -85,6 +91,7 @@ LLM_PROVIDERS = {
         api_key_env="ANTHROPIC_API_KEY",
         agent_model="claude-3-7-sonnet-20250219",
         parsing_model="claude-3-haiku-20240307",
+        llm_type=LLMType.CLAUDE,
         extra_args={
             "max_tokens": 8192,
             "timeout": None,
@@ -96,6 +103,7 @@ LLM_PROVIDERS = {
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-2.5-flash",
         parsing_model="gemini-2.5-flash",
+        llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -107,6 +115,7 @@ LLM_PROVIDERS = {
         api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
         agent_model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         parsing_model="us.anthropic.claude-3-haiku-20240307-v1:0",
+        llm_type=LLMType.CLAUDE,
         extra_args={
             "max_tokens": 4096,
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
@@ -118,6 +127,7 @@ LLM_PROVIDERS = {
         api_key_env="CEREBRAS_API_KEY",
         agent_model="gpt-oss-120b",
         parsing_model="llama3.1-8b",
+        llm_type=LLMType.GPT4,
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -129,6 +139,7 @@ LLM_PROVIDERS = {
         api_key_env="OLLAMA_BASE_URL",  # Used for existence check
         agent_model="qwen3:30b",
         parsing_model="qwen2.5:7b",
+        llm_type=LLMType.GEMINI_FLASH,
         agent_temperature=0.1,
         parsing_temperature=0.1,
         extra_args={

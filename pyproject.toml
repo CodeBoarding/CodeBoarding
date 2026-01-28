@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "codeboarding"
 version = "0.2.0"
@@ -69,6 +73,10 @@ dependencies = [
     "uvicorn==0.23.2",
     "wcwidth==0.2.13",
 ]
+
+[tool.setuptools]
+packages = ["agents", "diagram_analysis", "monitoring", "output_generators", "repo_utils", "static_analyzer"]
+include-package-data = true
 
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"
