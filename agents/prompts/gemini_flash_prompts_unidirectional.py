@@ -93,129 +93,6 @@ Constraints:
 - Components should translate well to flow diagram representation
 - Keep relationships unidirectional for clear flow"""
 
-FEEDBACK_MESSAGE = """You are a software architect receiving expert feedback on your analysis for documentation and diagram optimization.
-
-Feedback:
-{feedback}
-
-Original Analysis:
-{analysis}
-
-Instructions:
-1. Evaluate feedback relevance to both analysis quality and diagram generation suitability
-2. Use tools to address missing information or misinformation affecting the flow graph representation
-3. Address only specific feedback points if they improve both documentation and diagram clarity
-
-Required outputs:
-1. Synthesized insights from CFG and source analysis explaining main flow for documentation and diagram context
-2. Critical interaction pathways suitable for both written documentation and visual arrows
-3. Keep the same final components (max 8, optimally 5) without changes unless explicitly requested for diagram improvement
-4. Component relationships (only 1 per component pair) optimized for both documentation and flow graph representation.
-5. Architecture overview paragraph suitable for documentation and diagram generation
-
-Constraints:
-- Use only provided analysis data enhanced by feedback
-- Focus on highest level architectural components suitable for the flow graph representation
-- Exclude utility/logging components that complicate both documentation and diagrams
-- Maintain consistency between documentation and diagram generation needs"""
-
-SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Instructions:
-1. Start with available project context and CFG data
-2. Use getClassHierarchy only for the target subsystem
-
-Required outputs:
-- Subsystem boundaries from context
-- Central components (max 10) following {project_type} patterns
-- Component responsibilities and interactions
-- Internal subsystem relationships
-
-Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
-
-SUBCFG_DETAILS_MESSAGE = """Analyze subgraph for component the following component in `{project_name}`:
-Component: {component}
-
-Control-flow Project Context:
-{cfg_str}
-
-Instructions:
-No tools required - extract from provided CFG data only.
-
-Output:
-Return only the relevant subgraph for the specified component."""
-
-CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
-
-Project Context:
-{meta_context}
-
-{cfg_str}
-
-Instructions:
-1. Analyze provided CFG data for subsystem patterns
-2. Use getClassHierarchy if interaction details are unclear
-
-Required outputs:
-- Subsystem modules/functions from CFG
-- Components with clear responsibilities. Each component must include:
-  * name: Clear subcomponent name
-  * description: What this subcomponent does
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Component interactions (max 10 components, 2 relationships per pair)
-- Justification based on {project_type} patterns
-
-Focus on core subsystem functionality only."""
-
-ENHANCE_STRUCTURE_MESSAGE = """Validate component analysis for {component} in `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Current insights:
-{insight_so_far}
-
-Instructions:
-1. Review existing insights first
-2. Use getPackageDependencies only if package relationships are unclear
-
-Required outputs:
-- Validated component abstractions from existing insights
-- Refinements based on {project_type} patterns. Each component must include:
-  * name: Clear subcomponent name
-  * description: What this subcomponent does
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-  * Ensure all key_entities have both qualified_name AND reference_file populated
-- Confirmed component source files and relationships
-
-Work primarily with provided insights."""
-
-DETAILS_MESSAGE = """Final component overview for {component}.
-
-Project Context:
-{meta_context}
-
-Analysis summary:
-{insight_so_far}
-
-Instructions:
-No tools required - use provided analysis summary only.
-
-Required outputs:
-1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns. Each component must include:
-   * name: Clear subcomponent name
-   * description: What this subcomponent does (1-2 sentences)
-   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-   * CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
-3. Clear component descriptions and source files
-4. Component interactions (only 1 relationship per component pair)
-
-Justify component choices based on fundamental architectural importance."""
-
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert evaluating component expansion needs.
 
 Instructions:
@@ -271,39 +148,6 @@ Instructions:
 
 Output:
 Conclude with VALID or INVALID assessment and specific reasoning."""
-
-SYSTEM_DIFF_ANALYSIS_MESSAGE = """You are a software architecture expert analyzing code differences.
-
-Instructions:
-1. Analyze provided diff data first
-2. Use tools if diff impact on architecture is unclear
-
-Required outputs:
-- Significant architectural changes from diff
-- Impact assessment on existing architecture analysis
-- Determination if architecture update is warranted"""
-
-DIFF_ANALYSIS_MESSAGE = """Analyze architectural impact of code changes.
-
-Original Analysis:
-{analysis}
-
-Code Changes:
-{diff_data}
-
-Instructions:
-1. Review changes against existing architecture
-2. Assess architectural significance
-3. Provide impact score (0-10) with reasoning
-
-Scoring guide:
-- 0-2: Minor changes (variable/method renames)
-- 3-4: Small changes (new methods, logic updates)
-- 5-6: Medium changes (new classes, class logic changes)
-- 7-8: Large changes (new modules, flow changes)
-- 9-10: Major changes (architecture changes, major removals)
-
-No tools required - use provided diff and analysis data only."""
 
 SYSTEM_META_ANALYSIS_MESSAGE = """You are a senior software architect with expertise in project analysis and architectural pattern recognition.
 
@@ -387,6 +231,71 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """The result produced by analyzing is:
+{original_output}
+
+However, the following issues were found:
+{feedback_list}
+
+Please carefully review the issues above and provide a corrected version of the output that addresses all problems.
+
+{original_prompt}"""
+
+SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Instructions:
+1. Start with available project context and CFG data
+2. Use getClassHierarchy only for the target subsystem
+
+Required outputs:
+- Subsystem boundaries from context
+- Central components (max 10) following {project_type} patterns
+- Component responsibilities and interactions
+- Internal subsystem relationships
+
+Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
+
+CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
+
+Project Context:
+{meta_context}
+
+{cfg_str}
+
+Instructions:
+1. Analyze provided CFG data for subsystem patterns
+2. Use getClassHierarchy if interaction details are unclear
+
+Required outputs:
+- Subsystem modules/functions from CFG
+- Components with clear responsibilities
+- Component interactions (max 10 components, 2 relationships per pair)
+- Justification based on {project_type} patterns
+
+Focus on core subsystem functionality only."""
+
+DETAILS_MESSAGE = """Final component overview for {component}.
+
+Project Context:
+{meta_context}
+
+Analysis summary:
+{insight_so_far}
+
+Instructions:
+No tools required - use provided analysis summary only.
+
+Required outputs:
+1. Final component structure from provided data
+2. Max 8 components following {project_type} patterns
+3. Clear component descriptions and source files
+4. Component interactions (max 2 relationships per component pair)
+
+Justify component choices based on fundamental architectural importance."""
+
 
 class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
     """Concrete prompt factory for Gemini Flash unidirectional prompts."""
@@ -399,24 +308,6 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
-
-    def get_feedback_message(self) -> str:
-        return FEEDBACK_MESSAGE
-
-    def get_system_details_message(self) -> str:
-        return SYSTEM_DETAILS_MESSAGE
-
-    def get_subcfg_details_message(self) -> str:
-        return SUBCFG_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
-
-    def get_enhance_structure_message(self) -> str:
-        return ENHANCE_STRUCTURE_MESSAGE
-
-    def get_details_message(self) -> str:
-        return DETAILS_MESSAGE
 
     def get_planner_system_message(self) -> str:
         return PLANNER_SYSTEM_MESSAGE
@@ -433,12 +324,6 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
     def get_relationships_validation(self) -> str:
         return RELATIONSHIPS_VALIDATION
 
-    def get_system_diff_analysis_message(self) -> str:
-        return SYSTEM_DIFF_ANALYSIS_MESSAGE
-
-    def get_diff_analysis_message(self) -> str:
-        return DIFF_ANALYSIS_MESSAGE
-
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
 
@@ -450,3 +335,15 @@ class GeminiFlashUnidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE
+
+    def get_system_details_message(self) -> str:
+        return SYSTEM_DETAILS_MESSAGE
+
+    def get_cfg_details_message(self) -> str:
+        return CFG_DETAILS_MESSAGE
+
+    def get_details_message(self) -> str:
+        return DETAILS_MESSAGE

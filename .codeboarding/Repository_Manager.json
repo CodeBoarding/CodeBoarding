@@ -1,0 +1,123 @@
+{
+  "description": "The `Repository Manager` subsystem is a critical component in the Code Analysis and Documentation Generation Tool, responsible for all interactions with source code repositories. It ensures that the project can reliably access, manage, and extract version-controlled code and metadata for subsequent analysis.",
+  "components": [
+    {
+      "name": "Git Operations Handler",
+      "description": "Manages fundamental Git interactions, including cloning repositories, checking out specific branches or commits, and retrieving basic repository information like name, branch, and commit hash. It acts as the primary interface for low-level Git commands.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.repo_utils.RepoUtils",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.repo_utils.RepoUtils:clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.repo_utils.RepoUtils:checkout_branch",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Validator",
+      "description": "Responsible for validating repository URLs, checking for the existence of remote repositories, and handling specific errors related to repository access or non-existence. It ensures that only valid and accessible repositories are processed.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.validation.validate_repo_url",
+          "reference_file": "repo_utils/errors.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Git Environment Manager",
+      "description": "Implements a decorator pattern to ensure that functions requiring Git imports or a functional Git environment are only executed when available, preventing runtime errors and ensuring operational stability.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Git Diff Generator",
+      "description": "Generates and processes differences between various Git states (e.g., between two commits or a branch and its upstream), potentially formatting them for consumption by other components like the AI Interpretation Layer.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff:get_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff:format_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Authentication Manager",
+      "description": "Handles the secure storage and retrieval of authentication tokens, which are crucial for accessing private repositories or interacting with external services like GitHub.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "validates input for",
+      "src_name": "Repository Validator",
+      "dst_name": "Git Operations Handler"
+    },
+    {
+      "relation": "provides credentials to",
+      "src_name": "Authentication Manager",
+      "dst_name": "Git Operations Handler"
+    },
+    {
+      "relation": "ensures",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Git Operations Handler"
+    },
+    {
+      "relation": "ensures",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Git Diff Generator"
+    },
+    {
+      "relation": "provides repository context to",
+      "src_name": "Git Operations Handler",
+      "dst_name": "Git Diff Generator"
+    }
+  ]
+}

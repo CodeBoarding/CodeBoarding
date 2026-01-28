@@ -1,7 +1,6 @@
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple, Optional
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
@@ -13,21 +12,21 @@ logger = logging.getLogger(__name__)
 class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
 
-    clusters: Dict[int, Set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    file_to_clusters: Dict[str, Set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
-    cluster_to_files: Dict[int, Set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
+    clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
+    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
+    cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
     strategy: str = ""  # which algorithm was used
 
-    def get_cluster_ids(self) -> Set[int]:
+    def get_cluster_ids(self) -> set[int]:
         return set(self.clusters.keys())
 
-    def get_files_for_cluster(self, cluster_id: int) -> Set[str]:
+    def get_files_for_cluster(self, cluster_id: int) -> set[str]:
         return self.cluster_to_files.get(cluster_id, set())
 
-    def get_clusters_for_file(self, file_path: str) -> Set[int]:
+    def get_clusters_for_file(self, file_path: str) -> set[int]:
         return self.file_to_clusters.get(file_path, set())
 
-    def get_nodes_for_cluster(self, cluster_id: int) -> Set[str]:
+    def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
         return self.clusters.get(cluster_id, set())
 
 
@@ -120,16 +119,16 @@ class CallGraph:
     CLUSTERING_SEED = 42
 
     def __init__(
-        self, nodes: Dict[str, Node] | None = None, edges: List[Edge] | None = None, language: str = "python"
+        self, nodes: dict[str, Node] | None = None, edges: list[Edge] | None = None, language: str = "python"
     ) -> None:
         self.nodes = nodes if nodes is not None else {}
         self.edges = edges if edges is not None else []
-        self._edge_set: Set[Tuple[str, str]] = set()
+        self._edge_set: set[tuple[str, str]] = set()
         self.language = language.lower()
         # Set delimiter based on language for qualified name parsing
         self.delimiter = ClusteringConfig.DELIMITER_MAP.get(self.language, ClusteringConfig.DEFAULT_DELIMITER)
         # Cache for cluster result
-        self._cluster_cache: Optional[ClusterResult] = None
+        self._cluster_cache: ClusterResult | None = None
 
     def add_node(self, node: Node) -> None:
         if node.fully_qualified_name not in self.nodes:
@@ -206,9 +205,9 @@ class CallGraph:
         sorted_communities = sorted(valid_communities, key=len, reverse=True)
 
         # Build cluster mappings with 1-based IDs
-        clusters: Dict[int, Set[str]] = {}
-        file_to_clusters: Dict[str, Set[int]] = defaultdict(set)
-        cluster_to_files: Dict[int, Set[str]] = defaultdict(set)
+        clusters: dict[int, set[str]] = {}
+        file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        cluster_to_files: dict[int, set[str]] = defaultdict(set)
 
         for cluster_id, nodes in enumerate(sorted_communities, start=1):
             clusters[cluster_id] = set(nodes)
@@ -257,20 +256,24 @@ class CallGraph:
 
         return sub_graph
 
-    def to_cluster_string(self, cluster_ids: Optional[Set[int]] = None) -> str:
+    def to_cluster_string(
+        self, cluster_ids: set[int] | None = None, cluster_result: ClusterResult | None = None
+    ) -> str:
         """
         Generate a human-readable string representation of clusters.
 
         If cluster_ids is provided, only those clusters are included.
-        Uses cached cluster() result for consistency.
+        Uses provided cluster_result or calls cluster() if not provided.
 
         Args:
             cluster_ids: Optional set of cluster IDs to include. If None, includes all.
+            cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
         """
-        cluster_result = self.cluster()
+        if cluster_result is None:
+            cluster_result = self.cluster()
 
         if not cluster_result.clusters:
             return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
@@ -299,7 +302,7 @@ class CallGraph:
         graph: nx.DiGraph,
         target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
         min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-    ) -> Tuple[List[Set[str]], str]:
+    ) -> tuple[list[set[str]], str]:
         """
         Adaptive clustering strategy that tries multiple algorithms in order of preference.
 
@@ -359,7 +362,7 @@ class CallGraph:
             components = list(nx.connected_components(graph.to_undirected()))
             return components[:target_clusters], "connected_components"
 
-    def _get_algorithm_priority_by_size(self, total_nodes: int) -> List[str]:
+    def _get_algorithm_priority_by_size(self, total_nodes: int) -> list[str]:
         """
         Prioritize algorithms based on graph size for optimal performance/quality tradeoff.
 
@@ -376,7 +379,7 @@ class CallGraph:
 
     def _cluster_at_level(
         self, graph: nx.DiGraph, level: str, target_clusters: int, min_cluster_size: int
-    ) -> List[Set[str]]:
+    ) -> list[set[str]]:
         """
         Cluster at different structural levels (method/class/file/package).
 
@@ -432,24 +435,24 @@ class CallGraph:
             return node_name
 
     def _map_abstract_to_original(
-        self, abstract_communities: List[Set[str]], original_graph: nx.DiGraph, level: str
-    ) -> List[Set[str]]:
+        self, abstract_communities: list[set[str]], original_graph: nx.DiGraph, level: str
+    ) -> list[set[str]]:
         """
         Map abstract communities back to original nodes efficiently using lookup table.
 
         Performance improvement: O(N) instead of O(N²) by building reverse mapping first.
         """
-        original_communities: List[Set[str]] = []
+        original_communities: list[set[str]] = []
 
         # Build reverse mapping: abstract_node -> [original_nodes] (O(N) preprocessing)
-        abstract_to_original: Dict[str, List[str]] = defaultdict(list)
+        abstract_to_original: dict[str, list[str]] = defaultdict(list)
         for original_node in original_graph.nodes():
             abstract_node = self._get_abstract_node_name(original_node, level)
             abstract_to_original[abstract_node].append(original_node)
 
         # Map communities using lookup table (O(N) mapping)
         for abstract_community in abstract_communities:
-            original_community: Set[str] = set()
+            original_community: set[str] = set()
 
             for abstract_node in abstract_community:
                 original_community.update(abstract_to_original[abstract_node])
@@ -472,13 +475,13 @@ class CallGraph:
             return list(nx.community.greedy_modularity_communities(graph))
 
     def _balance_clusters(
-        self, graph: nx.DiGraph, initial_communities: List[Set[str]], target_clusters: int, min_cluster_size: int
-    ) -> List[Set[str]]:
+        self, graph: nx.DiGraph, initial_communities: list[set[str]], target_clusters: int, min_cluster_size: int
+    ) -> list[set[str]]:
         sorted_communities = sorted(initial_communities, key=len, reverse=True)
 
-        significant_clusters: List[Set[str]] = []
-        singletons: List[str] = []
-        small_clusters: List[Set[str]] = []
+        significant_clusters: list[set[str]] = []
+        singletons: list[str] = []
+        small_clusters: list[set[str]] = []
 
         # Calculate max cluster size to prevent oversized clusters
         max_cluster_size = max(
@@ -508,7 +511,7 @@ class CallGraph:
 
         return significant_clusters
 
-    def _split_large_cluster(self, graph: nx.DiGraph, large_cluster: Set[str], max_size: int) -> List[Set[str]]:
+    def _split_large_cluster(self, graph: nx.DiGraph, large_cluster: set[str], max_size: int) -> list[set[str]]:
         """
         Split oversized clusters using graph structure rather than arbitrary division.
 
@@ -549,12 +552,12 @@ class CallGraph:
         return [set(cluster_list[:mid]), set(cluster_list[mid:])]
 
     def _merge_small_clusters(
-        self, graph: nx.DiGraph, small_clusters: List[Set[str]], min_cluster_size: int
-    ) -> List[Set[str]]:
+        self, graph: nx.DiGraph, small_clusters: list[set[str]], min_cluster_size: int
+    ) -> list[set[str]]:
         if not small_clusters:
             return []
 
-        merged_clusters: List[Set[str]] = []
+        merged_clusters: list[set[str]] = []
         remaining = small_clusters.copy()
 
         while remaining:
@@ -590,7 +593,7 @@ class CallGraph:
         return merged_clusters
 
     def _is_good_clustering(
-        self, communities: List[Set[str]], target_clusters: int, min_cluster_size: int, total_nodes: int
+        self, communities: list[set[str]], target_clusters: int, min_cluster_size: int, total_nodes: int
     ) -> bool:
         """
         Determine if a clustering result meets quality criteria.
@@ -659,7 +662,7 @@ class CallGraph:
         return True
 
     @staticmethod
-    def __cluster_str(communities: List[Set[str]], cfg_graph_x: nx.DiGraph) -> str:
+    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
 
@@ -671,7 +674,7 @@ class CallGraph:
             community_list = sorted(list(community))
             communities_str += f"Cluster {idx} ({len(community)} nodes): {community_list}\n\n"
 
-        cluster_to_cluster_calls: Dict[int, Dict[int, List[str]]] = defaultdict(lambda: defaultdict(list))
+        cluster_to_cluster_calls: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
         node_to_cluster = {node: idx for idx, community in enumerate(display_communities) for node in community}
 
         for src, dst in cfg_graph_x.edges():
@@ -701,8 +704,8 @@ class CallGraph:
         return communities_str + inter_cluster_str
 
     @staticmethod
-    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: Set[str]) -> str:
-        non_cluster_edges: List[Tuple[str, str]] = []
+    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str]) -> str:
+        non_cluster_edges: list[tuple[str, str]] = []
         for src, dst in graph_x.edges():
             if src not in top_nodes or dst not in top_nodes:
                 non_cluster_edges.append((src, dst))
@@ -722,7 +725,7 @@ class CallGraph:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
         return result
 
-    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: Optional[List[Node]] = None) -> str:
+    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: list[Node] | None = None) -> str:
         if skip_nodes is None:
             skip_nodes = []
 
@@ -733,8 +736,8 @@ class CallGraph:
         if len(default_str) <= size_limit:
             return default_str
 
-        class_calls: Dict[str, Dict[str, int]] = {}
-        function_calls: List[str] = []
+        class_calls: dict[str, dict[str, int]] = {}
+        function_calls: list[str] = []
 
         logger.info(
             f"[CallGraph] Control flow graph is too large, grouping method calls by class. ({len(default_str)} characters)"

@@ -23,43 +23,11 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_feedback_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_system_details_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_subcfg_details_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_cfg_details_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_enhance_structure_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_details_message(self) -> str:
-        pass
-
-    @abstractmethod
     def get_planner_system_message(self) -> str:
         pass
 
     @abstractmethod
     def get_expansion_prompt(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_system_diff_analysis_message(self) -> str:
-        pass
-
-    @abstractmethod
-    def get_diff_analysis_message(self) -> str:
         pass
 
     @abstractmethod
@@ -76,4 +44,20 @@ class AbstractPromptFactory(ABC):
 
     @abstractmethod
     def get_unassigned_files_classification_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_validation_feedback_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_system_details_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_cfg_details_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_details_message(self) -> str:
         pass

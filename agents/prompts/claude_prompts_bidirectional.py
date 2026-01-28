@@ -97,120 +97,6 @@ Constraints:
 - Exclude utility/logging components
 - Components should translate well to flow diagram representation"""
 
-
-FEEDBACK_MESSAGE = """Improve analysis based on validation feedback for documentation and comprehensive diagram optimization.
-
-<context>
-Original: {analysis}
-Feedback: {feedback}
-
-The goal is to address feedback systematically while maintaining analysis integrity, ensuring the documentation helps new engineers understand the system quickly.
-</context>
-
-<instructions>
-1. Evaluate feedback relevance to both analysis quality and diagram generation suitability
-2. If missing information needs to be addressed, you MUST use appropriate tools (readFile, getClassHierarchy, getSourceCode, getFileStructure)
-3. Focus only on changes that improve documentation clarity and comprehensive diagram generation suitability
-4. Address feedback systematically while maintaining analysis integrity
-</instructions>
-
-<thinking>
-I need to use tools to address missing information or clarify component relationships affecting both documentation and flow graph representation.
-</thinking>"""
-
-SYSTEM_DETAILS_MESSAGE = """You are analyzing a software component's internal structure.
-
-Document subcomponents, relationships, and interfaces. Focus on architectural insights relevant to developers."""
-
-SUBCFG_DETAILS_MESSAGE = """Analyze component structure: {component}
-
-<context>
-Data: {cfg_str}
-Context: {project_name}
-
-The goal is to understand the internal structure and execution flow to help developers navigate this specific component.
-</context>
-
-<instructions>
-1. Extract information from the provided CFG data first
-2. If interaction details or patterns are unclear, you may use getClassHierarchy
-3. Map internal structure, execution flow, integration points, and design patterns
-4. Focus on architectural significance rather than implementation details
-</instructions>"""
-
-CFG_DETAILS_MESSAGE = """Analyze component CFG: {component}
-
-<context>
-CFG data: {cfg_str}
-Context: {meta_context}
-
-The goal is to document control flow, dependencies, and interfaces for architectural understanding that helps developers work with this component.
-</context>
-
-<instructions>
-1. Analyze provided CFG data for subsystem patterns first
-2. If interaction details are unclear, you MUST use getClassHierarchy
-3. Document control flow, dependencies, and interfaces for architectural understanding
-4. Focus on core subsystem functionality only
-</instructions>
-
-<output_requirements>
-Return analysis with subcomponents. Each subcomponent must include:
-- name: Clear subcomponent name
-- description: What this subcomponent does
-- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-</output_requirements>"""
-
-ENHANCE_STRUCTURE_MESSAGE = """Enhance component analysis: {component}
-
-<context>
-Structure: {insight_so_far}
-Context: {meta_context}
-
-The goal is to validate and improve the component analysis for better developer understanding.
-</context>
-
-<instructions>
-1. Review existing insights first to understand current analysis
-2. If package relationships are unclear, you MUST use getPackageDependencies
-3. Validate organization, identify gaps, and improve documentation
-4. Focus on architectural patterns from the {project_type} context
-5. Work primarily with provided insights
-</instructions>
-
-<output_requirements>
-Return enhanced analysis with subcomponents. Each subcomponent must include:
-- name: Clear subcomponent name
-- description: What this subcomponent does
-- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Ensure all key_entities have both qualified_name AND reference_file populated
-</output_requirements>"""
-
-DETAILS_MESSAGE = """Provide component analysis: {component}
-
-<context>
-Context: {meta_context}
-Analysis so far: {insight_so_far}
-
-The goal is to create comprehensive component documentation that helps developers understand its role, capabilities, and how to work with it effectively.
-</context>
-
-<instructions>
-1. Use provided analysis summary and context
-2. Document internal organization, capabilities, interfaces, and development insights
-3. Use {project_type} patterns as reference for architectural decisions
-4. Focus on information that helps developers understand and modify this component
-</instructions>
-
-<output_requirements>
-Return final analysis with subcomponents. Each subcomponent must include:
-- name: Clear subcomponent name
-- description: What this subcomponent does (1-2 sentences)
-- key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
-- Component relationships showing how subcomponents interact
-</output_requirements>"""
-
 PLANNER_SYSTEM_MESSAGE = """You evaluate components for detailed analysis based on complexity and significance.
 
 <instructions>
@@ -279,40 +165,6 @@ Validation requirements:
 
 Output:
 Conclude with VALID or INVALID assessment and specific reasoning."""
-
-SYSTEM_DIFF_ANALYSIS_MESSAGE = """You analyze code changes for architectural impact.
-
-<instructions>
-1. Analyze provided diff data first to understand the scope of changes
-2. If diff impact on architecture is unclear, you MUST use appropriate tools (readFile, getClassHierarchy)
-3. Classify changes by type and assess architectural significance
-4. Provide impact scores from 0-10 (cosmetic to architectural)
-5. Focus on component boundaries and relationships over code volume
-</instructions>
-
-<thinking>
-Required outputs:
-- Significant architectural changes from diff
-- Impact assessment on existing architecture analysis
-- Determination if architecture update is warranted
-</thinking>"""
-
-DIFF_ANALYSIS_MESSAGE = """Assess code change impact:
-
-<context>
-Analysis: {analysis}
-Changes: {diff_data}
-
-The goal is to understand how code changes affect the architectural documentation and whether updates are needed.
-</context>
-
-<instructions>
-1. Review changes against existing architecture first
-2. Classify changes by type and architectural significance
-3. Evaluate architectural significance using 0-10 scale with clear justification
-4. Focus on component boundaries and relationships over code volume
-5. Determine if architecture documentation needs updates
-</instructions>"""
 
 SYSTEM_META_ANALYSIS_MESSAGE = """You extract architectural metadata from projects.
 
@@ -396,6 +248,71 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """Your previous analysis produced the following result:
+{original_output}
+
+However, upon validation, the following issues were identified:
+{feedback_list}
+
+Please provide a corrected analysis that addresses these validation issues while maintaining the quality and depth of your original analysis.
+
+{original_prompt}"""
+
+SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Instructions:
+1. Start with available project context and CFG data
+2. Use getClassHierarchy only for the target subsystem
+
+Required outputs:
+- Subsystem boundaries from context
+- Central components (max 10) following {project_type} patterns
+- Component responsibilities and interactions
+- Internal subsystem relationships
+
+Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
+
+CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
+
+Project Context:
+{meta_context}
+
+{cfg_str}
+
+Instructions:
+1. Analyze provided CFG data for subsystem patterns
+2. Use getClassHierarchy if interaction details are unclear
+
+Required outputs:
+- Subsystem modules/functions from CFG
+- Components with clear responsibilities
+- Component interactions (max 10 components, 2 relationships per pair)
+- Justification based on {project_type} patterns
+
+Focus on core subsystem functionality only."""
+
+DETAILS_MESSAGE = """Final component overview for {component}.
+
+Project Context:
+{meta_context}
+
+Analysis summary:
+{insight_so_far}
+
+Instructions:
+No tools required - use provided analysis summary only.
+
+Required outputs:
+1. Final component structure from provided data
+2. Max 8 components following {project_type} patterns
+3. Clear component descriptions and source files
+4. Component interactions (max 2 relationships per component pair)
+
+Justify component choices based on fundamental architectural importance."""
+
 
 class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
     """Optimized prompt factory for Claude bidirectional prompts."""
@@ -408,24 +325,6 @@ class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
-
-    def get_feedback_message(self) -> str:
-        return FEEDBACK_MESSAGE
-
-    def get_system_details_message(self) -> str:
-        return SYSTEM_DETAILS_MESSAGE
-
-    def get_subcfg_details_message(self) -> str:
-        return SUBCFG_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
-
-    def get_enhance_structure_message(self) -> str:
-        return ENHANCE_STRUCTURE_MESSAGE
-
-    def get_details_message(self) -> str:
-        return DETAILS_MESSAGE
 
     def get_planner_system_message(self) -> str:
         return PLANNER_SYSTEM_MESSAGE
@@ -442,12 +341,6 @@ class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
     def get_relationships_validation(self) -> str:
         return RELATIONSHIPS_VALIDATION
 
-    def get_system_diff_analysis_message(self) -> str:
-        return SYSTEM_DIFF_ANALYSIS_MESSAGE
-
-    def get_diff_analysis_message(self) -> str:
-        return DIFF_ANALYSIS_MESSAGE
-
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
 
@@ -459,3 +352,15 @@ class ClaudeBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE
+
+    def get_system_details_message(self) -> str:
+        return SYSTEM_DETAILS_MESSAGE
+
+    def get_cfg_details_message(self) -> str:
+        return CFG_DETAILS_MESSAGE
+
+    def get_details_message(self) -> str:
+        return DETAILS_MESSAGE

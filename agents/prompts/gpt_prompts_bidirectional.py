@@ -2,7 +2,6 @@
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-
 SYSTEM_MESSAGE = """You are an expert software architect analyzing {project_name}. Your task is to create comprehensive documentation and interactive diagrams that help new engineers understand the codebase within their first week.
 
 **Your Role:**
@@ -100,159 +99,6 @@ Constraints:
 - Focus on highest level architectural components
 - Exclude utility/logging components
 - Components should translate well to flow diagram representation"""
-
-
-FEEDBACK_MESSAGE = """Improve the analysis based on validation feedback.
-
-**Task:** Address feedback while maintaining analysis integrity.
-
-**Original Analysis:**
-{analysis}
-
-**Validation Feedback:**
-{feedback}
-
-**Instructions:**
-1. Evaluate feedback relevance to:
-   - Analysis quality
-   - Diagram generation suitability
-2. **Use tools to address gaps:**
-   - `readFile` - for file content verification
-   - `getClassHierarchy` - for relationship clarification
-   - `getSourceCode` - for source code verification
-   - `getFileStructure` - for structure validation
-3. Focus on changes that improve:
-   - Documentation clarity
-   - Diagram generation quality
-4. Address feedback systematically
-5. Maintain analysis integrity
-
-**Output:** Revised analysis addressing all valid feedback points.
-
-**Goal:** Improve documentation and diagram suitability while preserving accurate architectural insights."""
-
-SYSTEM_DETAILS_MESSAGE = """You are analyzing the internal structure of a software component.
-
-**Task:** Document subcomponents, relationships, and interfaces with architectural focus.
-
-**Approach:**
-- Identify internal subcomponents and their responsibilities
-- Map relationships and dependencies
-- Document public interfaces and integration points
-- Highlight architectural patterns and design decisions
-- Focus on insights relevant to developers
-
-**Output:** Comprehensive component internals documentation."""
-
-SUBCFG_DETAILS_MESSAGE = """Analyze the internal structure of component: {component}
-
-**Context:**
-Project: {project_name}
-CFG Data: {cfg_str}
-
-**Task:** Understand internal structure and execution flow for this component.
-
-**Instructions:**
-1. Extract information from provided CFG data first
-2. Use `getClassHierarchy` if interaction details are unclear
-3. **Map the following:**
-   - Internal subcomponents
-   - Execution flow patterns
-   - Integration points with other components
-   - Design patterns employed
-4. Focus on architectural significance, not implementation details
-
-**Goal:** Help developers understand and navigate this component's internal structure."""
-
-CFG_DETAILS_MESSAGE = """Analyze CFG data for component: {component}
-
-**Context:**
-Project Context: {meta_context}
-CFG Data: {cfg_str}
-
-**Task:** Document control flow, dependencies, and interfaces.
-
-**Instructions:**
-1. Analyze provided CFG data for subsystem patterns first
-2. Use `getClassHierarchy` if interaction details need clarification
-3. **Document:**
-   - Control flow patterns
-   - Dependencies (internal and external)
-   - Public interfaces and API surface
-   - Key integration points
-4. Focus on core subsystem functionality only
-
-**Output Requirements:**
-- Return analysis with subcomponents. Each subcomponent must include:
-  * name: Clear subcomponent name
-  * description: What this subcomponent does
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-
-**Goal:** Provide architectural understanding that helps developers work effectively with this component."""
-
-ENHANCE_STRUCTURE_MESSAGE = """Enhance component analysis for: {component}
-
-**Context:**
-Project: {meta_context}
-Current Structure: {insight_so_far}
-
-**Task:** Validate and improve component analysis.
-
-**Instructions:**
-1. Review existing insights to understand current analysis
-2. Use `getPackageDependencies` if package relationships are unclear
-3. Use `getClassHierarchy` if hierarchical relationships need clarification
-4. Use `readSourceCode` to verify specific implementation details
-5. **Focus on:**
-   - Accuracy of component boundaries
-   - Completeness of relationship mapping
-   - Clarity of responsibility definitions
-   - Quality of source references
-
-**Goal:** Refined component analysis with validated structure and complete relationships.
-
-**Output:** Enhanced component documentation with:
-- Each subcomponent must include:
-  * name: Clear subcomponent name
-  * description: What this subcomponent does
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-  * Ensure all key_entities have both qualified_name AND reference_file populated
-- Corrections and additions"""
-
-DETAILS_MESSAGE = """Create detailed documentation for component: {component}
-
-**Context:**
-Project: {meta_context}
-Current Insights: {insight_so_far}
-
-**Task:** Produce comprehensive component documentation.
-
-**Instructions:**
-1. Start with existing insights
-2. **Use tools as needed:**
-   - `readSourceCode` - for source verification
-   - `getClassHierarchy` - for relationship clarification
-   - `getPackageDependencies` - for package structure
-3. **Document:**
-   - Component purpose and responsibilities
-   - Internal structure and subcomponents. Each subcomponent must include:
-     * name: Clear subcomponent name
-     * description: What this subcomponent does (1-2 sentences)
-     * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-     * CRITICAL: Every key_entity MUST have both qualified_name (e.g., "module.ClassName" or "module.ClassName:methodName") and reference_file (e.g., "path/to/file.py") populated
-   - Key interfaces and API surface
-   - Relationships with other components
-   - Design patterns and architectural decisions
-   - Important implementation notes for developers
-
-**Output Format:**
-- Overview section
-- Internal structure
-- Interfaces and APIs
-- Relationships
-- Developer notes
-
-**Goal:** Complete component documentation for developer reference."""
 
 PLANNER_SYSTEM_MESSAGE = """You are an architectural planning expert for software documentation.
 
@@ -379,56 +225,6 @@ RELATIONSHIPS_VALIDATION = """Validate component relationships for accuracy and 
 
 **Output:** Relationship validation report with specific feedback."""
 
-SYSTEM_DIFF_ANALYSIS_MESSAGE = """You are analyzing code changes and their architectural impact.
-
-**Role:** Assess how code changes affect system architecture and component design.
-
-**Analysis Focus:**
-1. Modified components and their boundaries
-2. Changed relationships and dependencies
-3. New or removed architectural elements
-4. Impact on data flow and control flow
-5. Design pattern changes
-
-**Approach:**
-- Compare before/after states
-- Identify structural changes
-- Assess architectural impact
-- Consider implications for documentation and diagrams
-- Focus on significant architectural changes
-
-**Goal:** Clear understanding of architectural evolution and change impact."""
-
-DIFF_ANALYSIS_MESSAGE = """Analyze architectural changes in the codebase.
-
-**Context:**
-Project: {project_name}
-Changes: {diff_data}
-
-**Task:** Identify and document architectural changes.
-
-**Instructions:**
-1. Analyze provided diff data
-2. **Identify changes in:**
-   - Component structure
-   - Relationships and dependencies
-   - Interfaces and APIs
-   - Data flow patterns
-   - Design patterns
-3. **Assess impact:**
-   - Magnitude of change (minor/moderate/major)
-   - Affected components
-   - Documentation update requirements
-   - Diagram update requirements
-
-**Output:**
-1. Summary of architectural changes
-2. Impact assessment
-3. Affected components list
-4. Recommended documentation updates
-
-**Goal:** Clear understanding of how code changes affect system architecture."""
-
 SYSTEM_META_ANALYSIS_MESSAGE = """You are performing meta-analysis on software project characteristics.
 
 **Role:** Analyze project-level patterns, conventions, and architectural decisions.
@@ -541,6 +337,71 @@ Output Format:
 Return a ComponentFiles object with file_paths list containing FileClassification for each file.
 """
 
+VALIDATION_FEEDBACK_MESSAGE = """The result you produced:
+{original_output}
+
+Validation identified these issues:
+{feedback_list}
+
+Please correct the output to address all validation issues.
+
+{original_prompt}"""
+
+SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Instructions:
+1. Start with available project context and CFG data
+2. Use getClassHierarchy only for the target subsystem
+
+Required outputs:
+- Subsystem boundaries from context
+- Central components (max 10) following {project_type} patterns
+- Component responsibilities and interactions
+- Internal subsystem relationships
+
+Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
+
+CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
+
+Project Context:
+{meta_context}
+
+{cfg_str}
+
+Instructions:
+1. Analyze provided CFG data for subsystem patterns
+2. Use getClassHierarchy if interaction details are unclear
+
+Required outputs:
+- Subsystem modules/functions from CFG
+- Components with clear responsibilities
+- Component interactions (max 10 components, 2 relationships per pair)
+- Justification based on {project_type} patterns
+
+Focus on core subsystem functionality only."""
+
+DETAILS_MESSAGE = """Final component overview for {component}.
+
+Project Context:
+{meta_context}
+
+Analysis summary:
+{insight_so_far}
+
+Instructions:
+No tools required - use provided analysis summary only.
+
+Required outputs:
+1. Final component structure from provided data
+2. Max 8 components following {project_type} patterns
+3. Clear component descriptions and source files
+4. Component interactions (max 2 relationships per component pair)
+
+Justify component choices based on fundamental architectural importance."""
+
 
 class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 bidirectional mode."""
@@ -553,24 +414,6 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
-
-    def get_feedback_message(self) -> str:
-        return FEEDBACK_MESSAGE
-
-    def get_system_details_message(self) -> str:
-        return SYSTEM_DETAILS_MESSAGE
-
-    def get_subcfg_details_message(self) -> str:
-        return SUBCFG_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
-
-    def get_enhance_structure_message(self) -> str:
-        return ENHANCE_STRUCTURE_MESSAGE
-
-    def get_details_message(self) -> str:
-        return DETAILS_MESSAGE
 
     def get_planner_system_message(self) -> str:
         return PLANNER_SYSTEM_MESSAGE
@@ -587,12 +430,6 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
     def get_relationships_validation(self) -> str:
         return RELATIONSHIPS_VALIDATION
 
-    def get_system_diff_analysis_message(self) -> str:
-        return SYSTEM_DIFF_ANALYSIS_MESSAGE
-
-    def get_diff_analysis_message(self) -> str:
-        return DIFF_ANALYSIS_MESSAGE
-
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
 
@@ -604,3 +441,15 @@ class GPTBidirectionalPromptFactory(AbstractPromptFactory):
 
     def get_unassigned_files_classification_message(self) -> str:
         return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
+
+    def get_validation_feedback_message(self) -> str:
+        return VALIDATION_FEEDBACK_MESSAGE
+
+    def get_system_details_message(self) -> str:
+        return SYSTEM_DETAILS_MESSAGE
+
+    def get_cfg_details_message(self) -> str:
+        return CFG_DETAILS_MESSAGE
+
+    def get_details_message(self) -> str:
+        return DETAILS_MESSAGE

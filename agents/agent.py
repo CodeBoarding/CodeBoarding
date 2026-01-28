@@ -19,6 +19,9 @@ from trustcall import create_extractor
 from agents.llm_config import LLM_PROVIDERS
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
+from agents.prompts import get_unassigned_files_classification_message, get_validation_feedback_message
+from agents.agent_responses import AnalysisInsights, ComponentFiles
+from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
@@ -94,7 +97,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""
         if cls._parsing_llm is None:
-
             parsing_model = os.getenv("PARSING_MODEL", None)
             cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
         return cls._parsing_llm
@@ -266,6 +268,51 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
+    def _validation_invoke(
+        self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
+    ):
+        """
+        Invoke LLM with validation and feedback loop.
+
+        Args:
+            prompt: The original prompt
+            return_type: Pydantic type to parse into
+            validators: List of validation functions to run
+            context: ValidationContext with data needed for validation
+            max_validation_retries: Maximum retry attempts with feedback (default: 1)
+
+        Returns:
+            Validated result of return_type
+        """
+        result = self._parse_invoke(prompt, return_type)
+
+        for attempt in range(max_validation_retries):
+            # Run all validators
+            all_feedback = []
+            for validator in validators:
+                validation_result = validator(result, context)
+                if not validation_result.is_valid:
+                    all_feedback.extend(validation_result.feedback_messages)
+
+            if not all_feedback:
+                logger.info(f"[Validation] All validations passed on attempt {attempt + 1}")
+                return result  # All validations passed
+
+            # Build feedback prompt using the prompt factory
+            feedback_template = get_validation_feedback_message()
+            feedback_prompt = feedback_template.format(
+                original_output=result.llm_str(),
+                feedback_list="\n".join(f"- {msg}" for msg in all_feedback),
+                original_prompt=prompt,
+            )
+
+            logger.info(
+                f"[Validation] Retry {attempt + 1}/{max_validation_retries} with {len(all_feedback)} feedback items"
+            )
+            result = self._parse_invoke(feedback_prompt, return_type)
+
+        return result
+
     def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
         if attempt >= max_retries:
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
@@ -337,7 +384,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(self, analysis, cluster_results: dict) -> None:
+    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -351,12 +398,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         """
         # Pass 1: Deterministic assignment (uses mixin methods)
         for comp in analysis.components:
-            self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]  # From ClusterMethodsMixin
+            self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
 
         # Pass 2: LLM classification of unassigned files
         self._classify_unassigned_files_llm(analysis, cluster_results)
 
-    def _classify_unassigned_files_llm(self, analysis, cluster_results: dict) -> None:
+    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
         """
         Classify files from static analysis that weren't assigned to any component.
         Uses a single LLM call to classify all unassigned files.
@@ -395,7 +442,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         component_map = {comp.name: comp for comp in valid_components}
 
         # 5. Classify all unassigned files with LLM
-        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary)
+        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary, analysis)
 
         # 6. Append successfully classified files to components
         for fc in classifications:
@@ -411,19 +458,32 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
 
-    def _classify_unassigned_files_with_llm(self, unassigned_files: list[str], components_summary: str) -> list:
+    def _classify_unassigned_files_with_llm(
+        self, unassigned_files: list[str], components_summary: str, analysis: AnalysisInsights
+    ) -> list:
         """
-        Classify unassigned files using LLM.
+        Classify unassigned files using LLM with validation.
         Returns list of FileClassification objects.
         """
-        from agents.prompts import get_unassigned_files_classification_message
-        from agents.agent_responses import ComponentFiles
 
         prompt = PromptTemplate(
             template=get_unassigned_files_classification_message(), input_variables=["unassigned_files", "components"]
         ).format(unassigned_files="\n".join(unassigned_files), components=components_summary)
 
-        file_classifications = self._parse_invoke(prompt, ComponentFiles)
+        # Get valid component names from the components_summary
+        # Parse component names from the summary (components have format "**Component:** `ComponentName`")
+        valid_component_names = set([comp.name for comp in analysis.components])
+
+        # Build validation context
+        context = ValidationContext(
+            expected_files=set(unassigned_files),
+            valid_component_names=valid_component_names,
+            repo_dir=str(self.repo_dir),
+        )
+
+        file_classifications = self._validation_invoke(
+            prompt, ComponentFiles, validators=[validate_file_classifications], context=context
+        )
         return file_classifications.file_paths
 
 

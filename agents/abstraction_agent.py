@@ -8,19 +8,23 @@ from agents.agent import LargeModelAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
-    ValidationInsights,
     MetaAnalysisInsights,
 )
 from agents.prompts import (
     get_system_message,
     get_cluster_grouping_message,
     get_final_analysis_message,
-    get_feedback_message,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.validation import (
+    ValidationContext,
+    validate_cluster_coverage,
+    validate_component_relationships,
+)
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import build_all_cluster_results
+from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_helpers import build_all_cluster_results, get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +51,10 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
                 template=get_final_analysis_message(),
                 input_variables=["project_name", "cluster_analysis", "meta_context", "project_type"],
             ),
-            "feedback": PromptTemplate(template=get_feedback_message(), input_variables=["analysis", "feedback"]),
         }
 
     @trace
-    def step_clusters_grouping(self) -> ClusterAnalysis:
+    def step_clusters_grouping(self, cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
         logger.info(f"[AbstractionAgent] Grouping CFG clusters for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -59,8 +62,8 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
 
         programming_langs = self.static_analysis.get_languages()
 
-        # Build cluster string that explicitly shows cluster IDs
-        cluster_str = self._build_cluster_string(programming_langs)
+        # Build cluster string using the pre-computed cluster results
+        cluster_str = self._build_cluster_string(programming_langs, cluster_results)
 
         prompt = self.prompts["group_clusters"].format(
             project_name=self.project_name,
@@ -69,11 +72,21 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
             project_type=project_type,
         )
 
-        cluster_analysis = self._parse_invoke(prompt, ClusterAnalysis)
+        cluster_analysis = self._validation_invoke(
+            prompt,
+            ClusterAnalysis,
+            validators=[validate_cluster_coverage],
+            context=ValidationContext(
+                cluster_results=cluster_results,
+                expected_cluster_ids=get_all_cluster_ids(cluster_results),
+            ),
+        )
         return cluster_analysis
 
     @trace
-    def step_final_analysis(self, cluster_analysis: ClusterAnalysis) -> AnalysisInsights:
+    def step_final_analysis(
+        self, cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
+    ) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final analysis for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
@@ -88,27 +101,28 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
             project_type=project_type,
         )
 
-        return self._parse_invoke(prompt, AnalysisInsights)
+        # Build validation context with CFG graphs for edge checking
+        context = ValidationContext(
+            cluster_results=cluster_results,
+            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+        )
 
-    @trace
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights) -> AnalysisInsights:
-        logger.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
+        return self._validation_invoke(
+            prompt, AnalysisInsights, validators=[validate_component_relationships], context=context
+        )
 
     def run(self):
-        # Build full cluster results dict for all languages
+        # Build full cluster results dict for all languages ONCE
         cluster_results = build_all_cluster_results(self.static_analysis)
 
         # Step 1: Group related clusters together into logical components
-        cluster_analysis = self.step_clusters_grouping()
+        cluster_analysis = self.step_clusters_grouping(cluster_results)
 
         # Step 2: Generate abstract components from grouped clusters
-        analysis = self.step_final_analysis(cluster_analysis)
+        analysis = self.step_final_analysis(cluster_analysis, cluster_results)
         # Step 3: Sanitize cluster IDs (remove invalid ones)
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
-        # Step 4: Assign files to components (deterministic + LLM-based)
+        # Step 4: Assign files to components (deterministic + LLM-based with validation)
         self.classify_files(analysis, cluster_results)
         # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)

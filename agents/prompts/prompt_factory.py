@@ -152,44 +152,12 @@ def get_final_analysis_message() -> str:
     return get_global_factory()._prompt_factory.get_final_analysis_message()
 
 
-def get_feedback_message() -> str:
-    return get_global_factory()._prompt_factory.get_feedback_message()
-
-
-def get_system_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_system_details_message()
-
-
-def get_subcfg_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_subcfg_details_message()
-
-
-def get_cfg_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_cfg_details_message()
-
-
-def get_enhance_structure_message() -> str:
-    return get_global_factory()._prompt_factory.get_enhance_structure_message()
-
-
-def get_details_message() -> str:
-    return get_global_factory()._prompt_factory.get_details_message()
-
-
 def get_planner_system_message() -> str:
     return get_global_factory()._prompt_factory.get_planner_system_message()
 
 
 def get_expansion_prompt() -> str:
     return get_global_factory()._prompt_factory.get_expansion_prompt()
-
-
-def get_system_diff_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_system_diff_analysis_message()
-
-
-def get_diff_analysis_message() -> str:
-    return get_global_factory()._prompt_factory.get_diff_analysis_message()
 
 
 def get_system_meta_analysis_message() -> str:
@@ -206,3 +174,19 @@ def get_file_classification_message() -> str:
 
 def get_unassigned_files_classification_message() -> str:
     return get_global_factory()._prompt_factory.get_unassigned_files_classification_message()
+
+
+def get_validation_feedback_message() -> str:
+    return get_global_factory()._prompt_factory.get_validation_feedback_message()
+
+
+def get_system_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_system_details_message()
+
+
+def get_cfg_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_cfg_details_message()
+
+
+def get_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_details_message()

@@ -4,6 +4,7 @@
 - **Activate the venv in the repository to run python**: Always execute `source .venv/bin/activate` (or `.venv\Scripts\activate` on Windows) before running any Python commands. This ensures all dependencies are resolved correctly and the project is isolated.
 - **Use `uv run` for direct execution**: When running scripts without pre-activating the venv, use `uv run python <script>` or `uv run pytest` to leverage the virtual environment automatically.
 - **Verify Python version**: Ensure the Python version is 3.12 or higher (as specified in `.python_version`). Check with `python --version` after activating the venv.
+- **Static type checking** - we use mypy for static type checking of the CodeBoarding repo, we avoid the typing library where possible and use the default library types: dict, set, list etc. for Optional we use the | None notation.
 
 ### 2. Dependency and Repository Navigation
 - **Always use relative paths from repository root**: Reference files using paths like `src/components/file.ts` or `agents/tools/module.py` relative to `/Users/svilen/Documents/Projects/CodeBoarding/`. This ensures consistency across agent execution and makes file references portable.

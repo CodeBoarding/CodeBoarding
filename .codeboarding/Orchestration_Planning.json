@@ -1,0 +1,112 @@
+{
+  "description": "The `Orchestration & Planning` subsystem serves as the central control for the CodeBoarding pipeline, managing the entire analysis process from initial project metadata assessment and strategic planning to driving the final diagram generation.",
+  "components": [
+    {
+      "name": "Analysis Orchestrator",
+      "description": "Coordinates the overall code analysis and diagram generation pipeline, initiating and managing the flow between different analysis stages.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.planner_agent.PlannerAgent",
+          "reference_file": "agents/planner_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Metadata Analyzer",
+      "description": "Extracts and interprets high-level project metadata, including structure, technologies, and contextual information, to guide deeper code analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/meta_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Planner",
+      "description": "Strategizes and plans the code analysis process, determining the scope, depth, and specific steps required for effective code comprehension, potentially leveraging AI/LLM capabilities.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Code Scanner",
+      "description": "Performs foundational static analysis of the project's source code, systematically scanning files, identifying code elements, and extracting raw structural and syntactic information.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Generator",
+      "description": "Manages the transformation of structured analysis insights into visual diagrams, facilitating the understanding of code structure, relationships, and overall architecture.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates",
+      "src_name": "Analysis Orchestrator",
+      "dst_name": "Metadata Analyzer"
+    },
+    {
+      "relation": "provides gathered context to",
+      "src_name": "Metadata Analyzer",
+      "dst_name": "Analysis Planner"
+    },
+    {
+      "relation": "uses context to define analysis steps and instructs",
+      "src_name": "Analysis Planner",
+      "dst_name": "Static Code Scanner"
+    },
+    {
+      "relation": "performs analysis and provides results back to",
+      "src_name": "Static Code Scanner",
+      "dst_name": "Analysis Orchestrator"
+    },
+    {
+      "relation": "directs to create visualizations",
+      "src_name": "Analysis Orchestrator",
+      "dst_name": "Diagram Generator"
+    }
+  ]
+}
