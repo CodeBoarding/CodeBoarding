@@ -61,7 +61,3 @@ class AbstractPromptFactory(ABC):
     @abstractmethod
     def get_details_message(self) -> str:
         pass
-
-    @abstractmethod
-    def get_validation_feedback_message(self) -> str:
-        pass
