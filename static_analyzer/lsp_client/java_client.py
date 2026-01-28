@@ -119,8 +119,7 @@ class JavaClient(LSPClient):
             raise
 
     def _find_jdtls_root(self) -> Path | None:
-        """Try to find JDTLS root directory from various locations."""
-        # Check common locations
+        """Try to find JDTLS root directory from common locations."""
         potential_locations = [
             Path.home() / ".jdtls",
             Path(__file__).parent.parent / "servers" / "jdtls",

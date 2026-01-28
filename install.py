@@ -164,12 +164,12 @@ def download_jdtls():
     import tarfile
 
     servers_dir = Path("static_analyzer/servers")
-    jdtls_dir = servers_dir / "jdtls"
+    jdtls_dir = servers_dir / "bin" / "jdtls"
 
     # Use a stable milestone version of JDTLS
     # This URL points to a recent stable release
     jdtls_url = "https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz"
-    jdtls_archive = servers_dir / "jdtls.tar.gz"
+    jdtls_archive = servers_dir / "bin" / "jdtls.tar.gz"
 
     try:
         # Download JDTLS if not already present

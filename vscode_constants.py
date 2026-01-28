@@ -43,7 +43,7 @@ def update_command_paths(bin_dir):
                 )
             elif key == "java":
                 # Find JDTLS root directory
-                jdtls_dir = os.path.join(bin_dir, "jdtls")
+                jdtls_dir = os.path.join(bin_dir, "bin", "jdtls")
                 if os.path.exists(jdtls_dir):
                     # Store the JDTLS root path for JavaClient to use
                     # The actual command will be constructed dynamically in JavaClient
