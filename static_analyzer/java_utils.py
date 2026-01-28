@@ -43,29 +43,6 @@ def get_java_version(java_cmd: str = "java") -> int:
         return 0
 
 
-def find_jdtls_in_vscode_extension() -> Path | None:
-    """
-    Try to find JDTLS installation in VSCode extension directory.
-
-    Returns:
-        Path to JDTLS root if found, None otherwise
-    """
-    vscode_ext_base = Path.home() / ".vscode" / "extensions"
-    if not vscode_ext_base.exists():
-        return None
-
-    # Look for codeboarding extension directories
-    for ext_dir in vscode_ext_base.glob("codeboarding*"):
-        if not ext_dir.is_dir():
-            continue
-        jdtls_bin_dir = ext_dir / "bin" / "jdtls"
-        if jdtls_bin_dir.exists() and (jdtls_bin_dir / "plugins").exists():
-            logger.info(f"Found JDTLS in VSCode extension at {jdtls_bin_dir}")
-            return jdtls_bin_dir
-
-    return None
-
-
 def detect_java_installations() -> list[Path]:
     """
     Detect JDK installations on the system.

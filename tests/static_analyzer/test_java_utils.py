@@ -15,7 +15,6 @@ from static_analyzer.java_utils import (
     get_jdtls_config_dir,
     find_launcher_jar,
     create_jdtls_command,
-    find_jdtls_in_vscode_extension,
 )
 
 
@@ -541,57 +540,6 @@ class TestCreateJdtlsCommand(unittest.TestCase):
 
         # Should use java.exe on Windows
         self.assertIn("java.exe", command[0])
-
-
-class TestFindJdtlsInVscodeExtension(unittest.TestCase):
-    """Test finding JDTLS in VSCode extension directory."""
-
-    @patch("pathlib.Path.home")
-    def test_find_jdtls_vscode_success(self, mock_home):
-        """Test finding JDTLS in VSCode extension successfully."""
-        mock_home.return_value = Path("/home/testuser")
-
-        vscode_ext_path = Path("/home/testuser/.vscode/extensions")
-        ext_dir = vscode_ext_path / "codeboarding.codeboarding-0.7.0"
-        jdtls_bin_dir = ext_dir / "bin" / "jdtls"
-        plugins_dir = jdtls_bin_dir / "plugins"
-
-        expected_existing_paths = {
-            vscode_ext_path,
-            ext_dir,
-            jdtls_bin_dir,
-            plugins_dir,
-        }
-
-        def glob_side_effect(self, pattern):
-            if pattern == "codeboarding*":
-                return [ext_dir]
-            return []
-
-        def exists_side_effect(self):
-            return self in expected_existing_paths
-
-        def is_dir_side_effect(self):
-            return self in {ext_dir, jdtls_bin_dir, plugins_dir}
-
-        with patch.object(Path, "glob", glob_side_effect):
-            with patch.object(Path, "exists", exists_side_effect):
-                with patch.object(Path, "is_dir", is_dir_side_effect):
-                    result = find_jdtls_in_vscode_extension()
-
-        self.assertIsNotNone(result)
-        self.assertIn("bin/jdtls", str(result))
-
-    @patch("pathlib.Path.home")
-    @patch("pathlib.Path.exists")
-    def test_find_jdtls_vscode_not_found(self, mock_exists, mock_home):
-        """Test when JDTLS is not found in VSCode extensions."""
-        mock_home.return_value = Path("/home/testuser")
-        mock_exists.return_value = False
-
-        result = find_jdtls_in_vscode_extension()
-
-        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
