@@ -5,7 +5,6 @@ from agents.prompts.abstract_prompt_factory import AbstractPromptFactory
 from agents.prompts.prompt_factory import (
     LLMType,
     PromptFactory,
-    PromptType,
     get_global_factory,
     get_prompt,
     initialize_global_factory,
@@ -40,17 +39,6 @@ class TestAbstractPromptFactory(unittest.TestCase):
             self.assertTrue(hasattr(AbstractPromptFactory, method_name))
 
 
-class TestPromptType(unittest.TestCase):
-    def test_prompt_type_values(self):
-        # Test that PromptType has expected values
-        self.assertEqual(PromptType.BIDIRECTIONAL.value, "bidirectional")
-        self.assertEqual(PromptType.UNIDIRECTIONAL.value, "unidirectional")
-
-    def test_prompt_type_count(self):
-        # Test that we have exactly 2 types
-        self.assertEqual(len(PromptType), 2)
-
-
 class TestLLMType(unittest.TestCase):
     def test_llm_type_values(self):
         # Test that LLMType has expected values
@@ -65,71 +53,47 @@ class TestLLMType(unittest.TestCase):
 
 
 class TestPromptFactory(unittest.TestCase):
-    def test_factory_creation_gemini_bidirectional(self):
-        # Test creating factory for Gemini bidirectional
-        factory = PromptFactory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+    def test_factory_creation_gemini(self):
+        # Test creating factory for Gemini
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
         self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
-        self.assertEqual(factory.prompt_type, PromptType.BIDIRECTIONAL)
 
-    def test_factory_creation_gemini_unidirectional(self):
-        # Test creating factory for Gemini unidirectional
-        factory = PromptFactory(LLMType.GEMINI_FLASH, PromptType.UNIDIRECTIONAL)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
-
-    def test_factory_creation_claude_bidirectional(self):
-        # Test creating factory for Claude bidirectional
-        factory = PromptFactory(LLMType.CLAUDE, PromptType.BIDIRECTIONAL)
+    def test_factory_creation_claude(self):
+        # Test creating factory for Claude
+        factory = PromptFactory(LLMType.CLAUDE)
         self.assertEqual(factory.llm_type, LLMType.CLAUDE)
-        self.assertEqual(factory.prompt_type, PromptType.BIDIRECTIONAL)
 
-    def test_factory_creation_claude_unidirectional(self):
-        # Test creating factory for Claude unidirectional
-        factory = PromptFactory(LLMType.CLAUDE_SONNET, PromptType.UNIDIRECTIONAL)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
+    def test_factory_creation_claude_sonnet(self):
+        # Test creating factory for Claude Sonnet
+        factory = PromptFactory(LLMType.CLAUDE_SONNET)
+        self.assertEqual(factory.llm_type, LLMType.CLAUDE_SONNET)
 
-    def test_factory_creation_gpt4_bidirectional(self):
-        # Test creating factory for GPT-4 bidirectional
-        factory = PromptFactory(LLMType.GPT4, PromptType.BIDIRECTIONAL)
+    def test_factory_creation_gpt4(self):
+        # Test creating factory for GPT-4
+        factory = PromptFactory(LLMType.GPT4)
         self.assertEqual(factory.llm_type, LLMType.GPT4)
-
-    def test_factory_creation_gpt4_unidirectional(self):
-        # Test creating factory for GPT-4 unidirectional
-        factory = PromptFactory(LLMType.GPT4, PromptType.UNIDIRECTIONAL)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
 
     def test_get_prompt_success(self):
         # Test getting a valid prompt
-        factory = PromptFactory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
         result = factory.get_prompt("system_message")
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
     def test_get_prompt_invalid(self):
         # Test getting an invalid prompt raises error
-        factory = PromptFactory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
         with self.assertRaises(AttributeError):
             factory.get_prompt("nonexistent_prompt")
 
     def test_get_all_prompts(self):
         # Test getting all prompts from factory
-        factory = PromptFactory(LLMType.GEMINI_FLASH, PromptType.BIDIRECTIONAL)
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
         prompts = factory.get_all_prompts()
 
         self.assertIsInstance(prompts, dict)
         self.assertGreater(len(prompts), 0)
         self.assertIn("SYSTEM_MESSAGE", prompts)
-
-    def test_create_for_vscode_runnable_unidirectional(self):
-        # Test creating for vscode runnable with unidirectional
-        factory = PromptFactory.create_for_vscode_runnable(use_unidirectional=True)
-        self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
-
-    def test_create_for_vscode_runnable_bidirectional(self):
-        # Test creating for vscode runnable with bidirectional
-        factory = PromptFactory.create_for_vscode_runnable(use_unidirectional=False)
-        self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
-        self.assertEqual(factory.prompt_type, PromptType.BIDIRECTIONAL)
 
     def test_create_for_llm_gemini(self):
         # Test creating factory for Gemini
@@ -171,11 +135,6 @@ class TestPromptFactory(unittest.TestCase):
         factory = PromptFactory.create_for_llm("unknown_llm")
         self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
 
-    def test_create_for_llm_with_prompt_type(self):
-        # Test creating with custom prompt type
-        factory = PromptFactory.create_for_llm("gemini", prompt_type=PromptType.UNIDIRECTIONAL)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
-
 
 class TestGlobalFactory(unittest.TestCase):
     def setUp(self):
@@ -192,21 +151,19 @@ class TestGlobalFactory(unittest.TestCase):
 
     def test_initialize_global_factory(self):
         # Test initializing global factory
-        initialize_global_factory(LLMType.CLAUDE, PromptType.UNIDIRECTIONAL)
+        initialize_global_factory(LLMType.CLAUDE)
         factory = get_global_factory()
 
         self.assertIsNotNone(factory)
         self.assertEqual(factory.llm_type, LLMType.CLAUDE)
-        self.assertEqual(factory.prompt_type, PromptType.UNIDIRECTIONAL)
 
     def test_get_global_factory_auto_initialize(self):
         # Test that get_global_factory auto-initializes if not set
         factory = get_global_factory()
 
         self.assertIsNotNone(factory)
-        # Should default to Gemini Flash bidirectional
+        # Should default to Gemini Flash
         self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
-        self.assertEqual(factory.prompt_type, PromptType.BIDIRECTIONAL)
 
     def test_get_prompt_global(self):
         # Test getting prompt using global factory
