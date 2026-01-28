@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
 from agents.prompts import initialize_global_factory, PromptType, LLMType
-from diagram_analysis import DiagramGenerator
+from diagram_analysis import DiagramGenerator, run_iterative_analysis
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
@@ -240,6 +240,7 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
+    incremental: bool = False,
 ):
     # Handle partial updates
     if component_name and analysis_name:
@@ -251,6 +252,33 @@ def process_local_repository(
             analysis_name=analysis_name,
             depth_level=depth_level,
         )
+    elif incremental:
+        # Try incremental analysis first
+        updated_files, stats = run_iterative_analysis(
+            repo_location=repo_path,
+            output_dir=output_dir,
+            repo_name=project_name,
+            depth_level=depth_level,
+            project_name=project_name,
+        )
+
+        if stats.get("mode") in ("full", "error"):
+            # Fall back to full analysis
+            logger.info(f"Incremental analysis not possible ({stats.get('reason', 'unknown')}), running full analysis")
+            generate_analysis(
+                repo_name=project_name,
+                repo_path=repo_path,
+                output_dir=output_dir,
+                depth_level=depth_level,
+                monitoring_enabled=monitoring_enabled,
+            )
+        else:
+            logger.info(
+                f"Incremental analysis complete: mode={stats.get('mode')}, "
+                f"files={stats.get('files_analyzed', 0)}, "
+                f"components={stats.get('components_updated', 0)}, "
+                f"duration={stats.get('duration_seconds', 0):.1f}s"
+            )
     else:
         # Full analysis (local repo - no markdown generation)
         generate_analysis(
@@ -345,6 +373,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     )
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Use incremental analysis (only re-analyze changed files since last analysis)",
+    )
 
 
 def main():
@@ -420,6 +453,7 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
+            incremental=args.incremental,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:

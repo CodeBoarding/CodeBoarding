@@ -1,1 +1,2 @@
 from .diagram_generator import DiagramGenerator
+from .iterative_generator import IterativeDiagramGenerator, run_iterative_analysis
