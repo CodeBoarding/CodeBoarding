@@ -289,7 +289,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(gen.abstraction_agent)
 
     @patch("diagram_analysis.diagram_generator.ProjectScanner")
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
+    @patch("diagram_analysis.diagram_generator.get_static_analysis")
     @patch("diagram_analysis.diagram_generator.MetaAgent")
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
@@ -302,16 +302,14 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_abstraction,
         mock_details,
         mock_meta,
-        mock_static,
+        mock_get_static_analysis,
         mock_scanner,
     ):
         # Test pre_analysis method
         mock_git_hash.return_value = "abc123"
-        mock_static_instance = Mock()
-        # Return a proper StaticAnalysisResults object instead of dict
+        # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
-        mock_static_instance.analyze.return_value = mock_analysis_results
-        mock_static.return_value = mock_static_instance
+        mock_get_static_analysis.return_value = mock_analysis_results
 
         mock_meta_instance = Mock()
         mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
@@ -345,9 +343,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
     def test_process_component_with_exception(self, mock_static):
         # Test processing a component that raises an exception
-        mock_static_instance = Mock()
-        mock_static_instance.analyze.return_value = {"test": "data"}
-        mock_static.return_value = mock_static_instance
+        mock_get_static_analysis.return_value = StaticAnalysisResults()
 
         gen = DiagramGenerator(
             repo_location=self.repo_location,

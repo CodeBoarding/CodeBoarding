@@ -1,12 +1,14 @@
 import logging
 import os
 import shutil
+import hashlib
 import subprocess
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
+from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +103,12 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
 
     dest = target_dir / repo_name
     if dest.exists():
-        logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
         repo = Repo(dest)
-        repo.remotes.origin.pull()
+        if repo.is_dirty(untracked_files=True):
+            logger.info(f"Repository {repo_name} has uncommitted changes, skipping pull.")
+        else:
+            logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
+            repo.remotes.origin.pull()
     else:
         logger.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
@@ -169,6 +174,46 @@ def get_git_commit_hash(repo_dir: str) -> str:
     """
     repo = Repo(repo_dir)
     return repo.head.commit.hexsha
+
+
+@require_git_import(default=False)
+def is_repo_dirty(repo_dir: str) -> bool:
+    """Check if the repository has uncommitted changes."""
+    repo = Repo(repo_dir)
+    return repo.is_dirty(untracked_files=True)
+
+
+@require_git_import(default="NoRepoStateHash")
+def get_repo_state_hash(repo_dir: str | Path) -> str:
+    """
+    Get a hash that represents the exact state of the repository,
+    including both the commit hash and any uncommitted changes.
+
+    This is useful for caching based on the actual content state rather than
+    just the commit hash, allowing caches to be valid even with dirty repos.
+
+    Returns a 12-character hash combining:
+    - The current commit hash
+    - A hash of all staged and unstaged changes (git diff)
+    - A hash of untracked file paths (not content, for performance)
+    - The most recent modification time of any tracked file
+    """
+    repo = Repo(repo_dir)
+    repo_path = Path(repo_dir)
+    commit_hash = repo.head.commit.hexsha
+
+    # Get diff of staged and unstaged changes against HEAD
+    diff_content = repo.git.diff("HEAD")
+
+    ignored_dirs = RepoIgnoreManager.DEFAULT_IGNORED_DIRS
+    untracked_files = sorted(f for f in repo.untracked_files if not any(part in ignored_dirs for part in Path(f).parts))
+    untracked_str = "\n".join(untracked_files)
+
+    # Combine all state components (excluding commit_hash since it's in the prefix)
+    state_content = f"{diff_content}\n{untracked_str}"
+    state_hash = hashlib.sha256(state_content.encode("utf-8")).hexdigest()
+
+    return f"{commit_hash[:7]}_{state_hash[:8]}"
 
 
 @require_git_import(default="main")

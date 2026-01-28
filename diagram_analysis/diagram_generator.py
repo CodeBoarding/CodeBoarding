@@ -20,7 +20,7 @@ from output_generators.markdown import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
-from static_analyzer import StaticAnalyzer
+from static_analyzer import get_static_analysis
 from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,6 @@ class DiagramGenerator:
         repo_name: str,
         output_dir: Path,
         depth_level: int,
-        static_only: bool = False,
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
@@ -44,7 +43,6 @@ class DiagramGenerator:
         self.repo_name = repo_name
         self.output_dir = output_dir
         self.depth_level = depth_level
-        self.static_only = static_only
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
@@ -82,7 +80,8 @@ class DiagramGenerator:
 
     def pre_analysis(self):
         analysis_start_time = time.time()
-        static_analysis = StaticAnalyzer(self.repo_location).analyze()
+
+        static_analysis = get_static_analysis(self.repo_location)
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -99,29 +98,28 @@ class DiagramGenerator:
                 "lines_of_code": loc_by_language.get(language, 0),
             }
 
-        if not self.static_only:
-            self.meta_agent = MetaAgent(
-                repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
-            )
-            self._monitoring_agents["MetaAgent"] = self.meta_agent
-            meta_context = self.meta_agent.analyze_project_metadata()
-            self.details_agent = DetailsAgent(
-                repo_dir=self.repo_location,
-                project_name=self.repo_name,
-                static_analysis=static_analysis,
-                meta_context=meta_context,
-            )
-            self._monitoring_agents["DetailsAgent"] = self.details_agent
-            self.abstraction_agent = AbstractionAgent(
-                repo_dir=self.repo_location,
-                project_name=self.repo_name,
-                static_analysis=static_analysis,
-                meta_context=meta_context,
-            )
-            self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        self.meta_agent = MetaAgent(
+            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+        )
+        self._monitoring_agents["MetaAgent"] = self.meta_agent
+        meta_context = self.meta_agent.analyze_project_metadata()
+        self.details_agent = DetailsAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+        self._monitoring_agents["DetailsAgent"] = self.details_agent
+        self.abstraction_agent = AbstractionAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-            self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-            self._monitoring_agents["PlannerAgent"] = self.planner_agent
+        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
+        self._monitoring_agents["PlannerAgent"] = self.planner_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
@@ -171,10 +169,6 @@ class DiagramGenerator:
         # Start monitoring (tracks start time)
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
-            if self.static_only:
-                logger.info("Static analysis only mode enabled. Analysis complete.")
-                return files
-
             # Generate the initial analysis
             logger.info("Generating initial analysis")
 
