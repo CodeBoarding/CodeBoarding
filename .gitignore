@@ -198,3 +198,7 @@ static_analyzer/servers/*
 
 # Evaluation artifacts
 evals/artifacts/
+
+# CodeBoarding Tracer
+.codeboarding/shims/
+.codeboarding/traces/
