@@ -222,3 +222,35 @@ class StaticAnalysisResults:
         for language in self.results:
             all_source_files.extend(self.get_source_files(language))
         return all_source_files
+
+    def __str__(self):
+        lines = []
+        for language in self.results:
+            lang_data = self.results[language]
+
+            # Count references
+            ref_count = len(lang_data.get("references", {}))
+
+            # Count classes (from hierarchy)
+            hierarchy = lang_data.get("hierarchy", {})
+            class_count = len(hierarchy)
+
+            # Count packages (from dependencies)
+            deps = lang_data.get("dependencies", {})
+            package_count = len(deps)
+
+            # Count call graph nodes and edges
+            cfg = lang_data.get("cfg")
+            if cfg:
+                node_count = len(cfg.nodes)
+                edge_count = len(cfg.edges)
+            else:
+                node_count = 0
+                edge_count = 0
+
+            lines.append(
+                f"{language}: {ref_count} references, {class_count} classes, "
+                f"{package_count} packages, {node_count} call graph nodes, {edge_count} edges"
+            )
+
+        return "\n".join(lines)

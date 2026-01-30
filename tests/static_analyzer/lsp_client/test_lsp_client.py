@@ -1757,6 +1757,76 @@ def main():
             notification = {"method": "test/notification", "params": {}}
             client._handle_notification(notification)  # Should not raise
 
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_build_static_analysis_with_cache_path(self, mock_popen):
+        """Test build_static_analysis with cache_path parameter."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Mock the build_incremental_analysis method
+        expected_result = {
+            "call_graph": CallGraph(),
+            "class_hierarchies": {},
+            "package_relations": {},
+            "references": [],
+            "source_files": [],
+        }
+
+        with patch.object(client, "build_incremental_analysis", return_value=expected_result) as mock_incremental:
+            # Test with valid cache path
+            cache_path = self.project_path / "cache.json"
+            result = client.build_static_analysis(cache_path=cache_path)
+
+            # Should call incremental analysis
+            mock_incremental.assert_called_once_with(cache_path)
+            self.assertEqual(result, expected_result)
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_build_static_analysis_cache_path_validation_failure(self, mock_popen):
+        """Test build_static_analysis falls back to full analysis when cache path validation fails."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._get_source_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client.filter_src_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+
+        # Test with invalid cache path (read-only directory)
+        invalid_cache_path = Path("/root/cache.json")  # Typically not writable
+
+        result = client.build_static_analysis(cache_path=invalid_cache_path)
+
+        # Should fall back to full analysis and return valid structure
+        self.assertIn("call_graph", result)
+        self.assertIn("class_hierarchies", result)
+        self.assertIn("package_relations", result)
+        self.assertIn("references", result)
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_build_static_analysis_without_cache_path(self, mock_popen):
+        """Test build_static_analysis without cache_path parameter (backward compatibility)."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._get_source_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client.filter_src_files = Mock(return_value=[])  # type: ignore[method-assign]
+        client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
+        client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+
+        # Test without cache_path (should work as before)
+        result = client.build_static_analysis()
+
+        # Should perform full analysis and return valid structure
+        self.assertIn("call_graph", result)
+        self.assertIn("class_hierarchies", result)
+        self.assertIn("package_relations", result)
+        self.assertIn("references", result)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,6 +4,7 @@ from pathlib import Path
 from repo_utils import get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
+from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
@@ -82,7 +83,18 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
-    def analyze(self) -> StaticAnalysisResults:
+    def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
+        """
+        Analyze the repository using LSP clients.
+
+        Args:
+            cache_dir: Optional cache directory for incremental analysis.
+                      If provided, uses git-based incremental analysis per client.
+                      If None, performs full analysis without caching.
+
+        Returns:
+            StaticAnalysisResults containing all analysis data.
+        """
         results = StaticAnalysisResults()
         for client in self.clients:
             try:
@@ -93,7 +105,22 @@ class StaticAnalyzer:
                 if isinstance(client, JavaClient):
                     client.wait_for_import(timeout=300)  # 5 minute timeout
 
-                analysis = client.build_static_analysis()
+                # Determine cache path for this client if caching is enabled
+                cache_path = None
+                if cache_dir is not None:
+                    cache_dir = Path(cache_dir)
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    # Create unique cache file per client (language + project path hash)
+                    client_id = f"{client.language.language}"
+                    cache_path = cache_dir / f"incremental_cache_{client_id}.json"
+                    logger.info(f"Using incremental cache: {cache_path}")
+
+                # Use incremental orchestrator when cache is available
+                if cache_dir is not None and cache_path is not None:
+                    orchestrator = IncrementalAnalysisOrchestrator()
+                    analysis = orchestrator.run_incremental_analysis(client, cache_path)
+                else:
+                    analysis = client.build_static_analysis()
 
                 results.add_references(client.language.language, analysis.get("references", []))
                 results.add_cfg(client.language.language, analysis.get("call_graph", []))
@@ -102,13 +129,17 @@ class StaticAnalyzer:
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
-
+        print(f"Static analysis complete: {results}")
         return results
 
 
 def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> StaticAnalysisResults:
     """
     Orchestrator: Get static analysis results, using cache when available.
+
+    Uses a two-level caching strategy:
+    1. High-level cache: Full StaticAnalysisResults cached by repo state hash
+    2. Incremental cache: Git-based incremental analysis per LSP client
 
     Args:
         repo_path: Path to the repository to analyze.
@@ -126,7 +157,9 @@ def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> Stati
     if cached_result := cache.get(repo_hash):
         return cached_result
 
-    result = StaticAnalyzer(repo_path).analyze()
+    # Use incremental analysis with git-based caching
+    incremental_cache_dir = cache_dir / "incremental"
+    result = StaticAnalyzer(repo_path).analyze(cache_dir=incremental_cache_dir)
 
     cache.save(repo_hash, result)
 

@@ -414,9 +414,14 @@ class LSPClient(ABC):
             # File is outside project root
             return f"{file_path.name}.{symbol_name}"
 
-    def build_static_analysis(self) -> dict:
+    def build_static_analysis(self, cache_path: Path | None = None) -> dict:
         """
         Unified method to build all static analysis data using multithreading.
+
+        Args:
+            cache_path: Optional path to cache file for incremental analysis.
+                       If provided, uses incremental analysis with caching.
+                       If None, performs full analysis without caching.
 
         Returns:
             A dictionary containing:
@@ -425,6 +430,29 @@ class LSPClient(ABC):
             - 'package_relations': dict mapping package names to their dependencies
             - 'references': list of Node objects for all symbols
         """
+        # Handle cache_path parameter for incremental analysis
+        if cache_path is not None:
+            # Validate cache file path accessibility
+            try:
+                # Ensure parent directory exists and is writable
+                cache_path = Path(cache_path)
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Test write access by creating a temporary file
+                test_file = cache_path.parent / f".test_write_{os.getpid()}"
+                try:
+                    test_file.touch()
+                    test_file.unlink()
+                except (OSError, PermissionError) as e:
+                    raise ValueError(f"Cache path is not accessible for writing: {cache_path.parent}") from e
+
+                logger.info(f"Using incremental analysis with cache: {cache_path}")
+                return self.build_incremental_analysis(cache_path)
+
+            except Exception as e:
+                logger.warning(f"Cache path validation failed: {e}. Falling back to full analysis.")
+                # Continue with full analysis below
+
         logger.info("Starting unified static analysis with multithreading...")
 
         # Initialize data structures with thread-safe locks
@@ -1163,3 +1191,104 @@ class LSPClient(ABC):
     def get_exclude_dirs(self) -> pathspec.PathSpec:
         """Backward compatibility for tests."""
         return self.ignore_manager.spec
+
+    def build_incremental_analysis(self, cache_path: Path) -> dict:
+        """
+        Build static analysis using incremental approach with caching.
+
+        This method uses the IncrementalAnalysisOrchestrator to perform
+        incremental analysis, reusing cached results when possible and
+        only reanalyzing changed files.
+
+        Args:
+            cache_path: Path to the cache file for storing/loading results
+
+        Returns:
+            Dictionary containing complete analysis results with same structure
+            as build_static_analysis()
+        """
+        from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
+
+        logger.info("Starting incremental static analysis")
+        orchestrator = IncrementalAnalysisOrchestrator()
+        result = orchestrator.run_incremental_analysis(self, cache_path)
+
+        # Log final statistics
+        call_graph = result.get("call_graph", CallGraph())
+        class_hierarchies = result.get("class_hierarchies", {})
+        package_relations = result.get("package_relations", {})
+        references = result.get("references", [])
+        source_files = result.get("source_files", [])
+
+        logger.info(
+            f"Incremental analysis complete: {len(source_files)} files, "
+            f"{len(references)} references, {len(class_hierarchies)} classes, "
+            f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, "
+            f"{len(call_graph.edges)} edges"
+        )
+
+        return result
+
+    def _analyze_specific_files(self, file_paths: set[Path]) -> dict:
+        """
+        Analyze only the specified files and return analysis results.
+
+        This method performs static analysis on a specific set of files,
+        which is used during incremental analysis to reanalyze only
+        changed files.
+
+        Args:
+            file_paths: Set of file paths to analyze
+
+        Returns:
+            Dictionary containing analysis results for the specified files:
+            - 'call_graph': CallGraph object with function call relationships
+            - 'class_hierarchies': dict mapping class names to inheritance info
+            - 'package_relations': dict mapping package names to dependencies
+            - 'references': list of Node objects for all symbols
+            - 'source_files': list of analyzed file paths
+        """
+        logger.info(f"Analyzing {len(file_paths)} specific files for incremental update")
+
+        # Filter the file paths to only include files that would normally be analyzed
+        src_files = self._get_source_files()
+        filtered_src_files = self.filter_src_files(src_files)
+
+        # Only analyze files that are both in file_paths and in the normal source file set
+        files_to_analyze = []
+        for file_path in file_paths:
+            if file_path in filtered_src_files:
+                files_to_analyze.append(file_path)
+                logger.debug(f"Will reanalyze: {file_path}")
+
+        if not files_to_analyze:
+            logger.info("No relevant source files to reanalyze")
+            return {
+                "call_graph": CallGraph(),
+                "class_hierarchies": {},
+                "package_relations": {},
+                "references": [],
+                "source_files": [],
+            }
+
+        logger.info(f"Reanalyzing {len(files_to_analyze)} files")
+
+        # Temporarily override the source files for analysis
+        original_get_source_files = self._get_source_files
+        self._get_source_files = lambda: files_to_analyze
+
+        try:
+            # Perform analysis on specific files
+            logger.debug("Starting targeted analysis of changed files")
+            analysis_result = self.build_static_analysis()
+
+            logger.info(
+                f"Targeted analysis complete: {len(analysis_result.get('references', []))} references, "
+                f"{len(analysis_result.get('class_hierarchies', {}))} classes, "
+                f"{len(analysis_result.get('package_relations', {}))} packages"
+            )
+
+            return analysis_result
+        finally:
+            # Restore original method
+            self._get_source_files = original_get_source_files
