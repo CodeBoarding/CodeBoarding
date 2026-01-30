@@ -11,6 +11,8 @@ from tqdm import tqdm
 from agents.agent_responses import AnalysisInsights
 
 from diagram_analysis import DiagramGenerator
+from static_analyzer import StaticAnalyzer
+from static_analyzer.cluster_helpers import build_all_cluster_results
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
 from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
@@ -60,7 +62,20 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
-) -> list[Path]:
+    force_full: bool = False,
+) -> list[str]:
+    """
+    Generate analysis for a repository.
+
+    Automatically detects if cached analysis exists and uses iterative updates
+    when possible for better performance:
+    - SMALL changes: File reassignments only (instant)
+    - MEDIUM changes: Update affected components (seconds)
+    - BIG changes: Full re-analysis (minutes)
+
+    Args:
+        force_full: If True, ignore cache and perform full analysis
+    """
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,
@@ -70,7 +85,76 @@ def generate_analysis(
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
     )
-    return generator.generate_analysis()
+
+    # Check if we have cached analysis for iterative update
+    cache_dir = output_dir / ".analysis_cache"
+    has_cache = cache_dir.exists() and any(cache_dir.glob("*_L*.json"))
+
+    if force_full:
+        logger.info("--full flag set, performing full analysis (ignoring cache)")
+        # Clear the analysis cache to ensure fresh start
+        if cache_dir.exists():
+            import shutil
+
+            shutil.rmtree(cache_dir)
+            logger.info(f"Cleared analysis cache: {cache_dir}")
+        return generator.generate_analysis()
+    elif has_cache:
+        logger.info("Found cached analysis, using iterative update")
+        return _generate_analysis_iterative(generator, repo_path, output_dir)
+    else:
+        logger.info("No cached analysis found, performing full analysis")
+        return generator.generate_analysis()
+
+
+def _generate_analysis_iterative(
+    generator: DiagramGenerator,
+    repo_path: Path,
+    output_dir: Path,
+) -> list[str]:
+    """
+    Perform iterative analysis update using change classification.
+
+    This function:
+    1. Runs static analysis with cluster change detection
+    2. Determines change magnitude (SMALL/MEDIUM/BIG)
+    3. Routes to appropriate update strategy
+    """
+    from repo_utils import get_git_commit_hash
+    from static_analyzer.cluster_change_analyzer import ChangeClassification
+
+    # Run static analysis with cluster change detection
+    logger.info("Running static analysis with cluster change detection")
+    static_analyzer = StaticAnalyzer(repo_path)
+    cache_dir = output_dir / ".analysis_cache"
+
+    result = static_analyzer.analyze_with_cluster_changes(cache_dir=cache_dir)
+
+    classification = result["change_classification"]
+    cluster_change = result.get("cluster_change_result")
+
+    # Build cluster results from static analysis
+    analysis_result = result["analysis_result"]
+    cluster_results = build_all_cluster_results(analysis_result)
+
+    # Get current commit
+    current_commit = get_git_commit_hash(repo_path)
+
+    logger.info(f"Change classification: {classification.value}")
+    if cluster_change:
+        logger.info(
+            f"Cluster changes: {len(cluster_change.matched_clusters)} matched, "
+            f"{len(cluster_change.new_clusters)} new, "
+            f"{len(cluster_change.removed_clusters)} removed"
+        )
+
+    # Route to appropriate update strategy
+    return generator.generate_analysis_iterative(
+        change_classification=classification,
+        cluster_change_result=cluster_change,
+        cluster_results=cluster_results,
+        current_commit=current_commit,
+    )
 
 
 def generate_markdown_docs(
@@ -179,6 +263,7 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    force_full: bool = False,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -188,7 +273,7 @@ def process_remote_repository(
 
     repo_name = get_repo_name(repo_url)
 
-    # Check cache if enabled
+    # Check cache if enabled (only for remote upload cache, not analysis cache)
     if cache_check and caching_enabled() and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
@@ -207,6 +292,7 @@ def process_remote_repository(
             depth_level=depth_level,
             run_id=run_id,
             monitoring_enabled=monitoring_enabled,
+            force_full=force_full,
         )
 
         # Generate markdown documentation for remote repo
@@ -240,6 +326,7 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
+    force_full: bool = False,
 ):
     # Handle partial updates
     if component_name and analysis_name:
@@ -259,6 +346,7 @@ def process_local_repository(
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
+            force_full=force_full,
         )
 
 
@@ -339,6 +427,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     )
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force full analysis, ignoring any cached analysis (useful for regenerating from scratch)",
+    )
 
 
 def main():
@@ -359,6 +452,9 @@ Examples:
   # Partial update
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
                  --partial-component ComponentName --partial-analysis analysis_name
+
+  # Force full analysis (ignore cache)
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --full
 
   # Use custom binary location
   python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
@@ -407,6 +503,7 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
+            force_full=args.full,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
@@ -436,6 +533,7 @@ Examples:
                             cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
+                            force_full=args.full,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")

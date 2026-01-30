@@ -124,9 +124,15 @@ class StaticAnalyzer:
                     analysis = client.build_static_analysis()
 
                 results.add_references(client.language.language, analysis.get("references", []))
-                results.add_cfg(client.language.language, analysis.get("call_graph", []))
-                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", []))
-                results.add_package_dependencies(client.language.language, analysis.get("package_relations", []))
+                # Ensure call_graph is a CallGraph object, not a list
+                call_graph = analysis.get("call_graph")
+                if call_graph is None:
+                    from static_analyzer.graph import CallGraph
+
+                    call_graph = CallGraph()
+                results.add_cfg(client.language.language, call_graph)
+                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", {}))
+                results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")

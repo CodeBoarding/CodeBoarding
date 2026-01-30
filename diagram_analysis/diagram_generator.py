@@ -22,6 +22,8 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import get_static_analysis
 from static_analyzer.scanner import ProjectScanner
+from static_analyzer.cluster_change_analyzer import ChangeClassification, ClusterChangeResult
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -227,3 +229,66 @@ class DiagramGenerator:
             print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
 
             return files
+
+    def generate_analysis_iterative(
+        self,
+        change_classification: ChangeClassification | None = None,
+        cluster_change_result: ClusterChangeResult | None = None,
+        cluster_results: dict[str, ClusterResult] | None = None,
+        current_commit: str | None = None,
+    ) -> list[str]:
+        """
+        Generate or update analysis based on change classification.
+
+        This method provides efficient incremental updates:
+        - SMALL: Just reassign files (0 LLM calls, instant)
+        - MEDIUM: Update affected components only (partial LLM calls, seconds)
+        - BIG: Full re-analysis (full LLM calls, minutes)
+
+        Args:
+            change_classification: Classification of change magnitude (SMALL/MEDIUM/BIG)
+            cluster_change_result: Detailed cluster change information
+            cluster_results: Current cluster results mapping language -> ClusterResult
+            current_commit: Current git commit hash
+
+        Returns:
+            List of generated/updated file paths
+        """
+        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None:
+            self.pre_analysis()
+
+        if change_classification is None:
+            # No classification provided, perform full analysis
+            logger.info("No change classification provided, performing full analysis")
+            return self.generate_analysis()
+
+        # Import here to avoid circular dependencies
+        from diagram_analysis.iterative_updater import IterativeUpdater
+
+        assert self.abstraction_agent is not None
+        assert self.details_agent is not None
+        assert self.planner_agent is not None
+
+        updater = IterativeUpdater(
+            repo_location=self.repo_location,
+            output_dir=self.output_dir,
+            abstraction_agent=self.abstraction_agent,
+            details_agent=self.details_agent,
+            planner_agent=self.planner_agent,
+            current_commit=current_commit or "unknown",
+        )
+
+        # Load previous analysis from cache if available
+        old_analysis = None
+        cached = updater.cache.load("root", 0)
+        if cached:
+            old_analysis = cached.analysis
+            logger.info(f"Loaded cached analysis from commit {cached.commit_hash}")
+
+        # Route to appropriate update strategy
+        return updater.update(
+            classification=change_classification,
+            cluster_change=cluster_change_result,
+            cluster_results=cluster_results or {},
+            old_analysis=old_analysis,
+        )

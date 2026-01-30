@@ -5,10 +5,13 @@ This module provides common patterns for cluster operations to reduce code dupli
 across agents and other components that work with static analysis cluster results.
 """
 
+import logging
 from typing import Dict
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
+
+logger = logging.getLogger(__name__)
 
 
 def build_cluster_results_for_languages(
@@ -27,6 +30,14 @@ def build_cluster_results_for_languages(
     cluster_results = {}
     for lang in languages:
         cfg = static_analysis.get_cfg(lang)
+        # Handle case where cfg might be a list (backward compatibility with old cache)
+        if isinstance(cfg, list):
+            logger.warning(f"CFG for {lang} is a list instead of CallGraph, creating empty CallGraph")
+            from static_analyzer.graph import CallGraph
+
+            cfg = CallGraph()
+            # Update the static analysis with the proper CallGraph
+            static_analysis.add_cfg(lang, cfg)
         cluster_results[lang] = cfg.cluster()
     return cluster_results
 
