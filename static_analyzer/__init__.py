@@ -4,6 +4,7 @@ from pathlib import Path
 from repo_utils import get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
+from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
@@ -131,6 +132,73 @@ class StaticAnalyzer:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
         print(f"Static analysis complete: {results}")
         return results
+
+    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
+        """
+        Analyze the repository with cluster change detection.
+
+        This method performs incremental analysis and classifies the magnitude
+        of cluster structure changes between the cached state and current state.
+
+        Args:
+            cache_dir: Optional cache directory for incremental analysis.
+                      If provided, uses git-based incremental analysis per client.
+                      If None, performs full analysis without caching.
+
+        Returns:
+            Dictionary containing:
+            - 'analysis_result': StaticAnalysisResults (or dict for single client)
+            - 'cluster_change_result': ClusterChangeResult with detailed metrics
+            - 'change_classification': ChangeClassification (SMALL, MEDIUM, BIG)
+        """
+        if not self.clients:
+            return {
+                "analysis_result": StaticAnalysisResults(),
+                "cluster_change_result": None,
+                "change_classification": ChangeClassification.SMALL,
+            }
+
+        # For now, we only support single client analysis with cluster changes
+        # Multi-client support would require aggregating results across languages
+        client = self.clients[0]
+        try:
+            logger.info(f"Starting cluster change analysis for {client.language.language} in {self.repository_path}")
+            client.start()
+
+            # Java-specific: wait for JDTLS to import the project
+            if isinstance(client, JavaClient):
+                client.wait_for_import(timeout=300)
+
+            # Determine cache path
+            cache_path = None
+            if cache_dir is not None:
+                cache_dir = Path(cache_dir)
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                client_id = f"{client.language.language}"
+                cache_path = cache_dir / f"incremental_cache_{client_id}.json"
+                logger.info(f"Using incremental cache: {cache_path}")
+
+            # Use incremental orchestrator with cluster change analysis
+            if cache_path is not None:
+                orchestrator = IncrementalAnalysisOrchestrator()
+                result = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=True)
+                return result
+            else:
+                # No cache, perform full analysis
+                analysis = client.build_static_analysis()
+                return {
+                    "analysis_result": analysis,
+                    "cluster_change_result": None,
+                    "change_classification": ChangeClassification.BIG,  # Full analysis = BIG change
+                }
+
+        except Exception as e:
+            logger.error(f"Error during cluster change analysis: {e}")
+            return {
+                "analysis_result": StaticAnalysisResults(),
+                "cluster_change_result": None,
+                "change_classification": ChangeClassification.BIG,
+            }
 
 
 def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> StaticAnalysisResults:

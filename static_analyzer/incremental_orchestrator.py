@@ -10,8 +10,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from static_analyzer.analysis_cache import AnalysisCacheManager
+from static_analyzer.cluster_change_analyzer import (
+    ClusterChangeAnalyzer,
+    ClusterChangeResult,
+    ChangeClassification,
+    analyze_cluster_changes_for_languages,
+    get_overall_classification,
+)
+from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, ClusterResult
 
 if TYPE_CHECKING:
     from static_analyzer.lsp_client.client import LSPClient
@@ -30,26 +38,24 @@ class IncrementalAnalysisOrchestrator:
     def __init__(self):
         """Initialize the incremental analysis orchestrator."""
         self.cache_manager = AnalysisCacheManager()
+        self.cluster_analyzer = ClusterChangeAnalyzer()
 
-    def run_incremental_analysis(self, lsp_client: "LSPClient", cache_path: Path) -> dict:
+    def run_incremental_analysis(
+        self, lsp_client: "LSPClient", cache_path: Path, analyze_cluster_changes: bool = True
+    ) -> dict:
         """
         Run incremental static analysis using cached results when possible.
 
         Args:
             lsp_client: LSP client instance for performing analysis
             cache_path: Path to the cache file
+            analyze_cluster_changes: Whether to analyze and classify cluster changes
 
         Returns:
-            Dictionary containing complete analysis results
-
-        The workflow:
-        1. Check if cache exists and is valid
-        2. If no cache, perform full analysis and save cache
-        3. If cache exists, identify changed files using git diff
-        4. Remove data for changed files from cache
-        5. Reanalyze only changed files
-        6. Merge new results with cached results
-        7. Save updated cache
+            Dictionary containing complete analysis results with optional cluster change info:
+            - 'analysis_result': The merged analysis results
+            - 'cluster_change_result': ClusterChangeResult if analyze_cluster_changes=True
+            - 'change_classification': ChangeClassification if analyze_cluster_changes=True
         """
         try:
             # Initialize git diff analyzer
@@ -57,15 +63,22 @@ class IncrementalAnalysisOrchestrator:
             current_commit = git_analyzer.get_current_commit()
             logger.info(f"Current commit: {current_commit}")
 
-            # Try to load existing cache
-            cache_result = self.cache_manager.load_cache(cache_path)
+            # Try to load existing cache with cluster results
+            cache_result = self.cache_manager.load_cache_with_clusters(cache_path)
 
             if cache_result is None:
                 # No cache exists - perform full analysis
                 logger.info("No cache found, performing full analysis")
-                return self._perform_full_analysis_and_cache(lsp_client, cache_path, current_commit)
+                analysis_result = self._perform_full_analysis_and_cache(lsp_client, cache_path, current_commit)
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": analysis_result,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.BIG,  # Full analysis = BIG change
+                    }
+                return analysis_result
 
-            cached_analysis, cached_commit, cached_iteration = cache_result
+            cached_analysis, cached_cluster_results, cached_commit, cached_iteration = cache_result
             logger.info(f"Cache loaded successfully: commit {cached_commit}, iteration {cached_iteration}")
 
             # Log cache statistics
@@ -85,6 +98,12 @@ class IncrementalAnalysisOrchestrator:
             # Check if we need incremental update
             if cached_commit == current_commit and not git_analyzer.has_uncommitted_changes():
                 logger.info("No changes detected, using cached results")
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": cached_analysis,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.SMALL,  # No changes = SMALL
+                    }
                 return cached_analysis
 
             # Check for uncommitted changes
@@ -95,7 +114,15 @@ class IncrementalAnalysisOrchestrator:
             # Perform incremental update
             logger.info(f"Performing incremental update from commit {cached_commit} to {current_commit}")
             return self._perform_incremental_update(
-                lsp_client, cache_path, cached_analysis, cached_commit, cached_iteration, current_commit, git_analyzer
+                lsp_client,
+                cache_path,
+                cached_analysis,
+                cached_cluster_results,
+                cached_commit,
+                cached_iteration,
+                current_commit,
+                git_analyzer,
+                analyze_cluster_changes,
             )
 
         except Exception as e:
@@ -108,7 +135,9 @@ class IncrementalAnalysisOrchestrator:
             except Exception:
                 current_commit = "unknown"
                 logger.warning("Could not determine current commit for fallback analysis")
-            return self._perform_full_analysis_and_cache(lsp_client, cache_path, current_commit)
+            return self._perform_full_analysis_and_cache(
+                lsp_client, cache_path, current_commit, analyze_cluster_changes
+            )
 
     def _should_use_cache(self, cache_path: Path) -> bool:
         """
@@ -127,7 +156,9 @@ class IncrementalAnalysisOrchestrator:
         cache_result = self.cache_manager.load_cache(cache_path)
         return cache_result is not None
 
-    def _perform_full_analysis_and_cache(self, lsp_client: "LSPClient", cache_path: Path, commit_hash: str) -> dict:
+    def _perform_full_analysis_and_cache(
+        self, lsp_client: "LSPClient", cache_path: Path, commit_hash: str, analyze_clusters: bool = True
+    ) -> dict:
         """
         Perform full analysis and save results to cache.
 
@@ -135,6 +166,7 @@ class IncrementalAnalysisOrchestrator:
             lsp_client: LSP client for analysis
             cache_path: Path to save cache
             commit_hash: Current commit hash
+            analyze_clusters: Whether to compute and cache cluster results
 
         Returns:
             Complete analysis results
@@ -166,12 +198,27 @@ class IncrementalAnalysisOrchestrator:
             f"{len(call_graph.edges)} edges"
         )
 
+        # Compute cluster results if requested
+        cluster_results = None
+        if analyze_clusters:
+            logger.info("Computing cluster results for cache...")
+            cluster_results = self._compute_cluster_results(analysis_result)
+
         # Save to cache
         try:
             logger.info(f"Saving analysis results to cache: {cache_path}")
-            self.cache_manager.save_cache(
-                cache_path=cache_path, analysis_result=analysis_result, commit_hash=commit_hash, iteration_id=1
-            )
+            if cluster_results:
+                self.cache_manager.save_cache_with_clusters(
+                    cache_path=cache_path,
+                    analysis_result=analysis_result,
+                    cluster_results=cluster_results,
+                    commit_hash=commit_hash,
+                    iteration_id=1,
+                )
+            else:
+                self.cache_manager.save_cache(
+                    cache_path=cache_path, analysis_result=analysis_result, commit_hash=commit_hash, iteration_id=1
+                )
             logger.info("Full analysis complete and cached successfully")
         except Exception as e:
             logger.warning(f"Failed to save cache after full analysis: {e}")
@@ -183,10 +230,12 @@ class IncrementalAnalysisOrchestrator:
         lsp_client: "LSPClient",
         cache_path: Path,
         cached_analysis: dict,
+        cached_cluster_results: dict[str, ClusterResult],
         cached_commit: str,
         cached_iteration: int,
         current_commit: str,
         git_analyzer: GitDiffAnalyzer,
+        analyze_cluster_changes: bool = True,
     ) -> dict:
         """
         Perform incremental analysis update.
@@ -195,13 +244,15 @@ class IncrementalAnalysisOrchestrator:
             lsp_client: LSP client for analysis
             cache_path: Path to cache file
             cached_analysis: Previously cached analysis results
+            cached_cluster_results: Previously cached cluster results
             cached_commit: Commit hash of cached analysis
             cached_iteration: Iteration ID of cached analysis
             current_commit: Current commit hash
             git_analyzer: Git diff analyzer instance
+            analyze_cluster_changes: Whether to analyze and classify cluster changes
 
         Returns:
-            Updated analysis results
+            Dictionary containing analysis results and optionally cluster change info
         """
         try:
             # Get changed files and separate by existence
@@ -210,6 +261,12 @@ class IncrementalAnalysisOrchestrator:
 
             if not changed_files:
                 logger.info("No files changed, using cached results")
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": cached_analysis,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.SMALL,
+                    }
                 return cached_analysis
 
             # Separate changed files into existing and deleted sets
@@ -333,21 +390,81 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(merged_call_graph.edges)} edges"
             )
 
-            # Save updated cache
+            # Analyze cluster changes if requested
+            cluster_change_result = None
+            change_classification = ChangeClassification.SMALL
+            new_cluster_results = None
+
+            if analyze_cluster_changes:
+                logger.info("Analyzing cluster changes...")
+                new_cluster_results = self._compute_cluster_results(merged_analysis)
+                cluster_changes = analyze_cluster_changes_for_languages(cached_cluster_results, new_cluster_results)
+
+                # Get overall classification (worst case across all languages)
+                change_classification = get_overall_classification(cluster_changes)
+
+                # Store the primary language result for detailed reporting
+                primary_lang = list(cluster_changes.keys())[0] if cluster_changes else ""
+                cluster_change_result = cluster_changes.get(primary_lang)
+
+                logger.info(f"Cluster change classification: {change_classification.value}")
+
+            # Save updated cache with cluster results
             try:
                 logger.info(f"Saving updated cache to: {cache_path}")
-                self.cache_manager.save_cache(
-                    cache_path=cache_path,
-                    analysis_result=merged_analysis,
-                    commit_hash=current_commit,
-                    iteration_id=cached_iteration + 1,
-                )
+                if new_cluster_results:
+                    self.cache_manager.save_cache_with_clusters(
+                        cache_path=cache_path,
+                        analysis_result=merged_analysis,
+                        cluster_results=new_cluster_results,
+                        commit_hash=current_commit,
+                        iteration_id=cached_iteration + 1,
+                    )
+                else:
+                    self.cache_manager.save_cache(
+                        cache_path=cache_path,
+                        analysis_result=merged_analysis,
+                        commit_hash=current_commit,
+                        iteration_id=cached_iteration + 1,
+                    )
                 logger.info(f"Incremental analysis complete, cache updated (iteration {cached_iteration + 1})")
             except Exception as e:
                 logger.warning(f"Failed to save updated cache: {e}")
 
+            if analyze_cluster_changes:
+                return {
+                    "analysis_result": merged_analysis,
+                    "cluster_change_result": cluster_change_result,
+                    "change_classification": change_classification,
+                }
             return merged_analysis
 
         except Exception as e:
             logger.error(f"Incremental update failed: {e}")
             raise
+
+    def _compute_cluster_results(self, analysis_result: dict) -> dict[str, ClusterResult]:
+        """
+        Compute cluster results from analysis result.
+
+        Args:
+            analysis_result: Dictionary containing analysis results with call_graph
+
+        Returns:
+            Dictionary mapping language -> ClusterResult
+        """
+        cluster_results = {}
+        call_graph = analysis_result.get("call_graph", CallGraph())
+
+        if call_graph.nodes:
+            # For now, we treat the entire call graph as a single language (python)
+            # In the future, this could be extended to support multiple languages
+            cluster_result = call_graph.cluster()
+            cluster_results[call_graph.language] = cluster_result
+            logger.info(
+                f"Computed clusters for {call_graph.language}: "
+                f"{len(cluster_result.get_cluster_ids())} clusters, "
+                f"strategy={cluster_result.strategy}"
+            )
+
+        return cluster_results

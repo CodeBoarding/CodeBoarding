@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.graph import CallGraph, ClusterResult, Node
 
 logger = logging.getLogger(__name__)
 
@@ -729,3 +729,109 @@ class AnalysisCacheManager:
             return False
 
         return True
+
+    def _serialize_cluster_results(self, cluster_results: dict[str, ClusterResult]) -> dict:
+        """Serialize cluster results to JSON-compatible format."""
+        serialized = {}
+        for language, cluster_result in cluster_results.items():
+            # Normalize language key to lowercase for consistency
+            normalized_language = language.lower()
+            serialized[normalized_language] = {
+                "clusters": {str(k): list(v) for k, v in cluster_result.clusters.items()},
+                "file_to_clusters": {k: list(v) for k, v in cluster_result.file_to_clusters.items()},
+                "cluster_to_files": {str(k): list(v) for k, v in cluster_result.cluster_to_files.items()},
+                "strategy": cluster_result.strategy,
+            }
+        return serialized
+
+    def _deserialize_cluster_results(self, cluster_data: dict) -> dict[str, ClusterResult]:
+        """Deserialize cluster results from JSON format."""
+        cluster_results = {}
+        for language, data in cluster_data.items():
+            # Normalize language key to lowercase for consistency
+            normalized_language = language.lower()
+            clusters = {int(k): set(v) for k, v in data["clusters"].items()}
+            file_to_clusters = {k: set(v) for k, v in data["file_to_clusters"].items()}
+            cluster_to_files = {int(k): set(v) for k, v in data["cluster_to_files"].items()}
+
+            cluster_results[normalized_language] = ClusterResult(
+                clusters=clusters,
+                file_to_clusters=file_to_clusters,
+                cluster_to_files=cluster_to_files,
+                strategy=data.get("strategy", ""),
+            )
+        return cluster_results
+
+    def save_cache_with_clusters(
+        self,
+        cache_path: Path,
+        analysis_result: dict,
+        cluster_results: dict[str, ClusterResult],
+        commit_hash: str,
+        iteration_id: int,
+    ) -> None:
+        """
+        Save static analysis results with cluster results to cache file.
+
+        Args:
+            cache_path: Path where to save the cache file
+            analysis_result: Dictionary containing analysis results
+            cluster_results: Dictionary mapping language -> ClusterResult
+            commit_hash: Git commit hash for the cached analysis
+            iteration_id: Unique iteration identifier
+        """
+        # First save the base analysis
+        self.save_cache(cache_path, analysis_result, commit_hash, iteration_id)
+
+        # Then load and add cluster results
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+
+            # Add cluster results
+            cache_data["cluster_results"] = self._serialize_cluster_results(cluster_results)
+
+            # Write back
+            temp_path = cache_path.with_suffix(".tmp")
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+
+            temp_path.replace(cache_path)
+            logger.info(f"Saved cluster results to cache for {len(cluster_results)} languages")
+
+        except Exception as e:
+            logger.warning(f"Failed to save cluster results to cache: {e}")
+
+    def load_cache_with_clusters(self, cache_path: Path) -> tuple[dict, dict[str, ClusterResult], str, int] | None:
+        """
+        Load static analysis results with cluster results from cache file.
+
+        Args:
+            cache_path: Path to the cache file
+
+        Returns:
+            Tuple of (analysis_result, cluster_results, commit_hash, iteration_id) if successful,
+            None if cache doesn't exist or is invalid
+        """
+        cache_result = self.load_cache(cache_path)
+        if cache_result is None:
+            return None
+
+        analysis_result, commit_hash, iteration_id = cache_result
+
+        # Load cluster results if present
+        cluster_results: dict[str, ClusterResult] = {}
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+
+            if "cluster_results" in cache_data:
+                cluster_results = self._deserialize_cluster_results(cache_data["cluster_results"])
+                logger.info(f"Loaded cluster results from cache for {len(cluster_results)} languages")
+            else:
+                logger.debug("No cluster results found in cache")
+
+        except Exception as e:
+            logger.warning(f"Failed to load cluster results from cache: {e}")
+
+        return analysis_result, cluster_results, commit_hash, iteration_id
