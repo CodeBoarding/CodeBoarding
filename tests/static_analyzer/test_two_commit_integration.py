@@ -192,10 +192,10 @@ class TestRealRepoTwoCommitIntegration(unittest.TestCase):
         expected_new_nodes = 2563
         expected_new_edges = 883
 
-        self.assertEqual(len(new_references), expected_new_references, "New commit reference count mismatch")
         self.assertEqual(len(new_classes), expected_new_classes, "New commit class count mismatch")
         self.assertEqual(len(new_packages), expected_new_packages, "New commit package count mismatch")
         self.assertEqual(len(new_call_graph.nodes), expected_new_nodes, "New commit node count mismatch")
+        self.assertEqual(len(new_references), expected_new_references, "New commit reference count mismatch")
 
         edge_tolerance = expected_new_edges * 0.05
         self.assertTrue(

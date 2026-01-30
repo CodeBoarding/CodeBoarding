@@ -1288,6 +1288,57 @@ class LSPClient(ABC):
                 f"{len(analysis_result.get('package_relations', {}))} packages"
             )
 
+            # Filter results to only include data from analyzed files
+            src_files_set = set(str(f) for f in files_to_analyze)
+            analysis_result["references"] = [
+                ref for ref in analysis_result.get("references", []) if ref.file_path in src_files_set
+            ]
+            analysis_result["source_files"] = [
+                f for f in analysis_result.get("source_files", []) if str(f) in src_files_set
+            ]
+
+            # Filter call graph nodes and edges to only include analyzed files
+            cg = analysis_result.get("call_graph", CallGraph())
+            nodes_to_keep = {name: node for name, node in cg.nodes.items() if node.file_path in src_files_set}
+            edges_to_keep = []
+            for edge in cg.edges:
+                src_name = edge.get_source()
+                dst_name = edge.get_destination()
+                if src_name in nodes_to_keep and dst_name in nodes_to_keep:
+                    edges_to_keep.append(edge)
+
+            # Rebuild call graph with filtered data
+            filtered_cg = CallGraph()
+            for node in nodes_to_keep.values():
+                filtered_cg.add_node(node)
+            for edge in edges_to_keep:
+                try:
+                    filtered_cg.add_edge(edge.get_source(), edge.get_destination())
+                except ValueError:
+                    pass  # Skip if nodes don't exist
+            analysis_result["call_graph"] = filtered_cg
+
+            # Filter class hierarchies to only include analyzed files
+            filtered_classes = {}
+            for class_name, class_info in analysis_result.get("class_hierarchies", {}).items():
+                if class_info.get("file_path") in src_files_set:
+                    filtered_classes[class_name] = class_info
+            analysis_result["class_hierarchies"] = filtered_classes
+
+            # Filter package relations to only include analyzed files
+            filtered_packages = {}
+            for pkg_name, pkg_info in analysis_result.get("package_relations", {}).items():
+                pkg_files = pkg_info.get("files", [])
+                remaining_files = [f for f in pkg_files if f in src_files_set]
+                if remaining_files:
+                    filtered_packages[pkg_name] = pkg_info.copy()
+                    filtered_packages[pkg_name]["files"] = remaining_files
+            analysis_result["package_relations"] = filtered_packages
+
+            logger.info(
+                f"Filtered to {len(analysis_result['references'])} references, {len(analysis_result['class_hierarchies'])} classes from analyzed files"
+            )
+
             return analysis_result
         finally:
             # Restore original method

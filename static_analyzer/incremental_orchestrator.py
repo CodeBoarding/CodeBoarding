@@ -204,7 +204,7 @@ class IncrementalAnalysisOrchestrator:
             Updated analysis results
         """
         try:
-            # Get changed files
+            # Get changed files and separate by existence
             logger.info(f"Identifying changed files between {cached_commit} and {current_commit}")
             changed_files = git_analyzer.get_changed_files(cached_commit)
 
@@ -212,18 +212,20 @@ class IncrementalAnalysisOrchestrator:
                 logger.info("No files changed, using cached results")
                 return cached_analysis
 
-            logger.info(f"Found {len(changed_files)} changed files")
+            # Separate changed files into existing and deleted sets
+            existing_files = {f for f in changed_files if f.exists()}
+            deleted_files = {f for f in changed_files if not f.exists()}
+
+            logger.info(
+                f"Found {len(changed_files)} changed files: {len(existing_files)} existing, {len(deleted_files)} deleted"
+            )
             for file_path in sorted(changed_files):
                 logger.debug(f"Changed file: {file_path}")
+            for df in deleted_files:
+                logger.debug(f"Deleted file: {df}")
 
             # Log cache invalidation progress
             logger.info("Invalidating cached data for changed files")
-            # Debug: log which changed files exist
-            existing_changed = [f for f in changed_files if f.exists()]
-            deleted_changed = [f for f in changed_files if not f.exists()]
-            logger.info(f"Changed files breakdown: {len(existing_changed)} existing, {len(deleted_changed)} deleted")
-            for df in deleted_changed:
-                logger.debug(f"Deleted file: {df}")
 
             cached_call_graph = cached_analysis.get("call_graph", CallGraph())
             cached_references = cached_analysis.get("references", [])
@@ -251,9 +253,8 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(updated_call_graph.nodes)} call graph nodes, {len(updated_call_graph.edges)} edges"
             )
 
-            # Analyze only changed files using LSP client method
-            logger.info("Reanalyzing changed files")
-            new_analysis = lsp_client._analyze_specific_files(changed_files)
+            logger.info(f"Reanalyzing {len(existing_files)} existing changed files")
+            new_analysis = lsp_client._analyze_specific_files(existing_files)
 
             # Log new analysis statistics
             new_call_graph = new_analysis.get("call_graph", CallGraph())
@@ -272,6 +273,51 @@ class IncrementalAnalysisOrchestrator:
             # Merge results
             logger.info("Merging new analysis with cached results")
             merged_analysis = self.cache_manager.merge_results(updated_cache, new_analysis)
+
+            # Filter merged results to only include files that exist in current commit
+            # This ensures deleted files are properly removed
+            existing_files = {f for f in merged_analysis.get("source_files", []) if f.exists()}
+            existing_file_strs = {str(f) for f in existing_files}
+
+            # Filter source_files
+            merged_analysis["source_files"] = list(existing_files)
+
+            # Filter references to only include existing files
+            merged_analysis["references"] = [
+                ref for ref in merged_analysis.get("references", []) if ref.file_path in existing_file_strs
+            ]
+
+            # Filter call graph nodes and edges
+            merged_cg = merged_analysis.get("call_graph", CallGraph())
+            filtered_cg = CallGraph()
+            for name, node in merged_cg.nodes.items():
+                if node.file_path in existing_file_strs:
+                    filtered_cg.add_node(node)
+            for edge in merged_cg.edges:
+                src, dst = edge.get_source(), edge.get_destination()
+                if src in filtered_cg.nodes and dst in filtered_cg.nodes:
+                    try:
+                        filtered_cg.add_edge(src, dst)
+                    except ValueError:
+                        pass
+            merged_analysis["call_graph"] = filtered_cg
+
+            # Filter class hierarchies
+            merged_analysis["class_hierarchies"] = {
+                name: info
+                for name, info in merged_analysis.get("class_hierarchies", {}).items()
+                if info.get("file_path") in existing_file_strs
+            }
+
+            # Filter package relations
+            filtered_packages = {}
+            for pkg_name, pkg_info in merged_analysis.get("package_relations", {}).items():
+                pkg_files = pkg_info.get("files", [])
+                existing_pkg_files = [f for f in pkg_files if f in existing_file_strs]
+                if existing_pkg_files:
+                    filtered_packages[pkg_name] = pkg_info.copy()
+                    filtered_packages[pkg_name]["files"] = existing_pkg_files
+            merged_analysis["package_relations"] = filtered_packages
 
             # Log final merged statistics
             merged_call_graph = merged_analysis.get("call_graph", CallGraph())

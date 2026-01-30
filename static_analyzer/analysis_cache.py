@@ -65,6 +65,7 @@ class AnalysisCacheManager:
             missing_keys = required_keys - set(analysis_result.keys())
             raise ValueError(f"Analysis result missing required keys: {missing_keys}")
 
+        temp_path: Path | None = None
         try:
             # Create cache directory if it doesn't exist
             cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,8 +98,8 @@ class AnalysisCacheManager:
         except Exception as e:
             logger.error(f"Failed to save analysis cache: {e}")
             # Clean up temp file if it exists
-            if "temp_path" in locals():
-                temp_path.unlink(missing_ok=True)
+            if temp_path is not None and temp_path.exists():
+                temp_path.unlink()
             raise
 
     def load_cache(self, cache_path: Path) -> tuple[dict, str, int] | None:
@@ -275,7 +276,7 @@ class AnalysisCacheManager:
         # Step 6: Filter source files
         original_source_count = len(analysis_result["source_files"])
         for file_path in analysis_result["source_files"]:
-            if file_path not in changed_files:
+            if str(file_path) not in changed_file_strs:
                 updated_result["source_files"].append(file_path)
 
         # Step 7: Validate no dangling references remain
@@ -421,10 +422,14 @@ class AnalysisCacheManager:
         # Add all references from new result (these replace the old ones for those files)
         merged_result["references"].extend(new_result["references"])
 
-        # Merge source files (remove duplicates)
-        all_files = set(cached_result["source_files"])
-        all_files.update(new_result["source_files"])
-        merged_result["source_files"] = list(all_files)
+        # Merge source files
+        # Keep cached files that are NOT in the new result (unchanged files)
+        for file_path in cached_result["source_files"]:
+            if str(file_path) not in new_file_paths:
+                merged_result["source_files"].append(file_path)
+
+        # Add all source files from new result (changed files that were reanalyzed)
+        merged_result["source_files"].extend(new_result["source_files"])
 
         logger.info("Merged cached and new analysis results")
         return merged_result
