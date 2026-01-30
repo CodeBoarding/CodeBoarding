@@ -219,16 +219,15 @@ def process_remote_repository(
             demo_mode=True,
         )
 
-        # Copy files to output directory if specified
-        if output_dir:
-            copy_files(temp_folder, output_dir)
-
         # Upload if requested
         if upload and os.path.exists(root_result):
             upload_onboarding_materials(repo_name, temp_folder, root_result)
         elif upload:
             logger.warning(f"ROOT_RESULT directory '{root_result}' does not exist. Skipping upload.")
     finally:
+        # Always copy whatever was produced (including health_report.json) even if LLM analysis failed
+        if output_dir:
+            copy_files(temp_folder, output_dir)
         remove_temp_repo_folder(temp_folder)
 
 

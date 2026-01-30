@@ -73,8 +73,29 @@ class ClusteringConfig:
 
 
 class Node:
-    # Node type constants
+    # LSP SymbolKind constants
+    CLASS_TYPE = 5
     METHOD_TYPE = 6
+    PROPERTY_TYPE = 7
+    FIELD_TYPE = 8
+    FUNCTION_TYPE = 12
+    VARIABLE_TYPE = 13
+    CONSTANT_TYPE = 14
+
+    # Sets for easy filtering
+    CALLABLE_TYPES = {METHOD_TYPE, FUNCTION_TYPE}
+    CLASS_TYPES = {CLASS_TYPE}
+    DATA_TYPES = {PROPERTY_TYPE, FIELD_TYPE, VARIABLE_TYPE, CONSTANT_TYPE}
+
+    _ENTITY_LABELS = {
+        CLASS_TYPE: "Class",
+        METHOD_TYPE: "Method",
+        PROPERTY_TYPE: "Property",
+        FIELD_TYPE: "Field",
+        FUNCTION_TYPE: "Function",
+        VARIABLE_TYPE: "Variable",
+        CONSTANT_TYPE: "Constant",
+    }
 
     def __init__(
         self, fully_qualified_name: str, node_type: int, file_path: str, line_start: int, line_end: int
@@ -85,6 +106,22 @@ class Node:
         self.line_end = line_end
         self.type = node_type
         self.methods_called_by_me: set[str] = set()
+
+    def entity_label(self) -> str:
+        """Return human-readable label based on LSP SymbolKind."""
+        return self._ENTITY_LABELS.get(self.type, "Function")
+
+    def is_callable(self) -> bool:
+        """Return True if this node represents a callable entity (function or method)."""
+        return self.type in self.CALLABLE_TYPES
+
+    def is_class(self) -> bool:
+        """Return True if this node represents a class."""
+        return self.type in self.CLASS_TYPES
+
+    def is_data(self) -> bool:
+        """Return True if this node represents a data entity (property, field, variable, constant)."""
+        return self.type in self.DATA_TYPES
 
     def added_method_called_by_me(self, node: "Node") -> None:
         if isinstance(node, Node):
