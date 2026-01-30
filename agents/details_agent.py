@@ -17,6 +17,7 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_components_have_key_entities,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -121,7 +122,10 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         )
 
         return self._validation_invoke(
-            prompt, AnalysisInsights, validators=[validate_component_relationships], context=context
+            prompt,
+            AnalysisInsights,
+            validators=[validate_component_relationships, validate_components_have_key_entities],
+            context=context,
         )
 
     def run(self, component: Component):

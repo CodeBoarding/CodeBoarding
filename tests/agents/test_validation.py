@@ -6,6 +6,7 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_component_relationships,
     validate_file_classifications,
+    validate_components_have_key_entities,
     _check_edge_between_cluster_sets,
 )
 from agents.agent_responses import (
@@ -16,6 +17,7 @@ from agents.agent_responses import (
     Relation,
     ComponentFiles,
     FileClassification,
+    SourceCodeReference,
 )
 from static_analyzer.graph import ClusterResult, CallGraph, Node
 
@@ -297,6 +299,167 @@ class TestValidateComponentRelationships(unittest.TestCase):
         result = validate_component_relationships(analysis, context)
 
         self.assertTrue(result.is_valid)  # Skipped validation
+
+
+class TestValidateComponentsHaveKeyEntities(unittest.TestCase):
+    """Test validate_components_have_key_entities function."""
+
+    def test_all_components_have_key_entities(self):
+        """Test when all components have at least one key_entity."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="CompA",
+                    description="A",
+                    key_entities=[
+                        SourceCodeReference(
+                            qualified_name="module.ClassA",
+                            reference_file=None,
+                            reference_start_line=None,
+                            reference_end_line=None,
+                        )
+                    ],
+                    source_cluster_ids=[1],
+                ),
+                Component(
+                    name="CompB",
+                    description="B",
+                    key_entities=[
+                        SourceCodeReference(
+                            qualified_name="module.ClassB",
+                            reference_file=None,
+                            reference_start_line=None,
+                            reference_end_line=None,
+                        )
+                    ],
+                    source_cluster_ids=[2],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        context = ValidationContext()
+
+        result = validate_components_have_key_entities(analysis, context)
+
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.feedback_messages, [])
+
+    def test_component_without_key_entities(self):
+        """Test when a component has no key_entities."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="CompA",
+                    description="A",
+                    key_entities=[
+                        SourceCodeReference(
+                            qualified_name="module.ClassA",
+                            reference_file=None,
+                            reference_start_line=None,
+                            reference_end_line=None,
+                        )
+                    ],
+                    source_cluster_ids=[1],
+                ),
+                Component(
+                    name="CompB",
+                    description="B",
+                    key_entities=[],  # No key entities
+                    source_cluster_ids=[2],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        context = ValidationContext()
+
+        result = validate_components_have_key_entities(analysis, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("CompB", result.feedback_messages[0])
+        self.assertIn("no key_entities", result.feedback_messages[0])
+
+    def test_multiple_components_without_key_entities(self):
+        """Test when multiple components have no key_entities."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="CompA",
+                    description="A",
+                    key_entities=[],  # No key entities
+                    source_cluster_ids=[1],
+                ),
+                Component(
+                    name="CompB",
+                    description="B",
+                    key_entities=[],  # No key entities
+                    source_cluster_ids=[2],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        context = ValidationContext()
+
+        result = validate_components_have_key_entities(analysis, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("CompA", result.feedback_messages[0])
+        self.assertIn("CompB", result.feedback_messages[0])
+
+    def test_empty_components_list(self):
+        """Test when there are no components."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[],
+            components_relations=[],
+        )
+
+        context = ValidationContext()
+
+        result = validate_components_have_key_entities(analysis, context)
+
+        self.assertTrue(result.is_valid)  # No components means nothing to validate
+
+    def test_component_with_multiple_key_entities(self):
+        """Test when a component has multiple key_entities."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="CompA",
+                    description="A",
+                    key_entities=[
+                        SourceCodeReference(
+                            qualified_name="module.ClassA",
+                            reference_file=None,
+                            reference_start_line=None,
+                            reference_end_line=None,
+                        ),
+                        SourceCodeReference(
+                            qualified_name="module.ClassB",
+                            reference_file=None,
+                            reference_start_line=None,
+                            reference_end_line=None,
+                        ),
+                    ],
+                    source_cluster_ids=[1],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        context = ValidationContext()
+
+        result = validate_components_have_key_entities(analysis, context)
+
+        self.assertTrue(result.is_valid)
 
 
 class TestValidateFileClassifications(unittest.TestCase):
