@@ -14,13 +14,21 @@ from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from diagram_analysis.analysis_json import from_analysis_to_json
+from diagram_analysis.manifest import (
+    build_manifest_from_analysis,
+    save_manifest,
+    load_manifest,
+    manifest_exists,
+)
+from diagram_analysis.incremental_analyzer import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
-from repo_utils import get_git_commit_hash
+from repo_utils import get_git_commit_hash, get_repo_state_hash
 from static_analyzer import get_static_analysis
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
 
 logger = logging.getLogger(__name__)
@@ -46,8 +54,10 @@ class DiagramGenerator:
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
+        self.force_full = False  # Set to True to skip incremental updates
 
         self.details_agent: DetailsAgent | None = None
+        self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
@@ -82,7 +92,8 @@ class DiagramGenerator:
     def pre_analysis(self):
         analysis_start_time = time.time()
 
-        static_analysis = get_static_analysis(self.repo_location)
+        self.static_analysis = get_static_analysis(self.repo_location)
+        static_analysis = self.static_analysis
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -223,4 +234,88 @@ class DiagramGenerator:
             logger.info(f"Analysis complete. Generated {len(files)} analysis files")
             print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
 
+            # Save manifest for incremental updates
+            self._save_manifest(analysis, current_level_components)
+
             return files
+
+    def _save_manifest(self, analysis, expanded_components: list) -> None:
+        """Save the analysis manifest for incremental updates."""
+        try:
+            repo_state_hash = get_repo_state_hash(self.repo_location)
+            base_commit = get_git_commit_hash(self.repo_location)
+
+            expanded_names = [c.name for c in expanded_components]
+
+            manifest = build_manifest_from_analysis(
+                analysis=analysis,
+                repo_state_hash=repo_state_hash,
+                base_commit=base_commit,
+                expanded_components=expanded_names,
+            )
+
+            save_manifest(manifest, self.output_dir)
+            logger.info(f"Saved manifest with {len(manifest.file_to_component)} file mappings")
+        except Exception as e:
+            logger.warning(f"Failed to save manifest: {e}")
+
+    def try_incremental_update(self) -> list[str] | None:
+        """
+        Attempt an incremental update if possible.
+
+        Returns:
+            List of updated file paths if incremental update succeeded,
+            None if full analysis is needed.
+        """
+        if self.force_full:
+            logger.info("Force full analysis requested, skipping incremental check")
+            return None
+
+        if not manifest_exists(self.output_dir):
+            logger.info("No existing manifest, full analysis required")
+            return None
+
+        # Load static analysis for cross-boundary detection
+        if self.static_analysis is None:
+            self.static_analysis = get_static_analysis(self.repo_location)
+
+        updater = IncrementalUpdater(
+            repo_dir=self.repo_location,
+            output_dir=self.output_dir,
+            static_analysis=self.static_analysis,
+            force_full=self.force_full,
+        )
+
+        if not updater.can_run_incremental():
+            return None
+
+        impact = updater.analyze()
+
+        # Log the impact for user visibility
+        logger.info(f"Incremental update impact: {impact.action.value}")
+
+        if impact.action == UpdateAction.NONE:
+            logger.info("No changes detected, analysis is up to date")
+            return [str(self.output_dir / "analysis.json")]
+
+        if updater.execute():
+            logger.info("Incremental update completed successfully")
+            return [str(self.output_dir / "analysis.json")]
+
+        # Incremental update failed or not possible
+        logger.info("Incremental update not possible, falling back to full analysis")
+        return None
+
+    def generate_analysis_smart(self) -> list[str]:
+        """
+        Smart analysis that tries incremental first, falls back to full.
+
+        This is the recommended entry point for analysis.
+        """
+        # Try incremental update first
+        result = self.try_incremental_update()
+        if result is not None:
+            return result
+
+        # Fall back to full analysis
+        return self.generate_analysis()
