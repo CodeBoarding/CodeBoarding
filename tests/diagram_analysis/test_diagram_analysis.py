@@ -293,12 +293,10 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.MetaAgent")
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.PlannerAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_pre_analysis(
         self,
         mock_git_hash,
-        mock_planner,
         mock_abstraction,
         mock_details,
         mock_meta,
@@ -334,17 +332,14 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
-        self.assertIsNotNone(gen.planner_agent)
+        # Note: planner is now a module function, not an agent instance
 
         # Verify version file was created
         version_file = self.output_dir / "codeboarding_version.json"
         self.assertTrue(version_file.exists())
 
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    def test_process_component_with_exception(self, mock_static):
+    def test_process_component_with_exception(self):
         # Test processing a component that raises an exception
-        mock_get_static_analysis.return_value = StaticAnalysisResults()
-
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -355,7 +350,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
         # Setup agents
         gen.details_agent = Mock()
-        gen.planner_agent = Mock()
 
         # Mock to raise exception
         gen.details_agent.run.side_effect = Exception("Test error")

@@ -12,7 +12,7 @@ from tqdm import tqdm
 from agents.abstraction_agent import AbstractionAgent
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import PlannerAgent
+from agents.planner_agent import plan_analysis
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
@@ -49,7 +49,6 @@ class DiagramGenerator:
 
         self.details_agent: DetailsAgent | None = None
         self.abstraction_agent: AbstractionAgent | None = None
-        self.planner_agent: PlannerAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
 
@@ -59,13 +58,15 @@ class DiagramGenerator:
     def process_component(self, component):
         """Process a single component and return its output path and any new components to analyze"""
         try:
-            # Now before we try doing anything, we need to check if the component already exists:
             assert self.details_agent is not None
-            assert self.planner_agent is not None
 
             analysis, subgraph_cluster_results = self.details_agent.run(component)
-            # Get new components to analyze
-            new_components = self.planner_agent.plan_analysis(analysis)
+
+            # Track whether parent had clusters for expansion decision
+            parent_had_clusters = bool(component.source_cluster_ids)
+
+            # Get new components to analyze (deterministic, no LLM)
+            new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
 
             safe_name = sanitize(component.name)
             output_path = os.path.join(self.output_dir, f"{safe_name}.json")
@@ -118,9 +119,6 @@ class DiagramGenerator:
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, static_analysis=static_analysis)
-        self._monitoring_agents["PlannerAgent"] = self.planner_agent
-
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
         with open(version_file, "w") as f:
             f.write(
@@ -163,7 +161,7 @@ class DiagramGenerator:
         """
         files: list[str] = []
 
-        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None:
+        if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
 
         # Start monitoring (tracks start time)
@@ -173,12 +171,11 @@ class DiagramGenerator:
             logger.info("Generating initial analysis")
 
             assert self.abstraction_agent is not None
-            assert self.planner_agent is not None
 
             analysis, cluster_results = self.abstraction_agent.run()
 
-            # Get the initial components to analyze (level 0)
-            current_level_components = self.planner_agent.plan_analysis(analysis)
+            # Get the initial components to analyze (deterministic, no LLM)
+            current_level_components = plan_analysis(analysis)
             logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
 
             # Save the root analysis
