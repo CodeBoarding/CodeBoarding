@@ -17,1128 +17,209 @@ This summary is generated with the CodeBoarding-MCP to improve indexing of LLM a
 
 One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.
 
-### Orchestration & Workflow [[Expand]](./Orchestration_Workflow.md)
-The central coordinator that manages the end-to-end analysis pipeline. It initiates static analysis, triggers the AI engine, coordinates with the persistence layer for caching and differential checks, and sends the final, validated results to the output generator.
+### Orchestration & Workflow
+The central coordinator managed by `DiagramGenerator`. It initiates static analysis (supporting multiple languages via LSP), triggers the AI engine (Planner, Meta, Abstraction, Details agents), coordinates with the persistence layer, and sends results to output generators.
 
 **Related Classes/Methods**:
 
 - `local_app.py`
 - `github_action.py`
+- `diagram_analysis/diagram_generator.py`
+- `duckdb_crud.py`
 
-### Static Code Analyzer [[Expand]](./Static_Code_Analyzer.md)
-Responsible for the initial, non-AI parsing of the source code. It uses AST-based techniques to build foundational data structures like call graphs and structure graphs, transforming raw code into a structured format that the AI engine can interpret.
+### Static Code Analyzer
+Responsible for parsing source code using LSP (Language Server Protocol) clients for Python, TypeScript, and Java. It builds call graphs, class hierarchies, and package dependencies. It uses a graph clustering algorithm to group related nodes.
 
 **Related Classes/Methods**:
 
-- `static_analyzer/pylint_analyze/call_graph_builder.py`
-- `static_analyzer/pylint_analyze/structure_graph_builder.py`
-- `static_analyzer/pylint_graph_transform.py`
+- `static_analyzer/__init__.py`
+- `static_analyzer/graph.py`
+- `static_analyzer/scanner.py`
+- `static_analyzer/lsp_client/`
 
-### AI Analysis Engine [[Expand]](./AI_Analysis_Engine.md)
-The cognitive core of the system. It is a multi-agent framework that interprets the data from the static analyzer. It uses a collection of specialized agents (e.g., Planner, Abstraction, Diff Analyzer) to collaboratively identify architectural patterns, understand component roles, and build a comprehensive model of the codebase.
+### AI Analysis Engine
+The cognitive core. It uses specialized agents:
+- **MetaAgent**: Analyzes project metadata and context.
+- **PlannerAgent**: Plans the analysis strategy.
+- **AbstractionAgent**: High-level architectural abstraction.
+- **DetailsAgent**: Deep dive into specific components and clusters.
 
 **Related Classes/Methods**:
 
 - `agents/agent.py`
 - `agents/planner_agent.py`
 - `agents/abstraction_agent.py`
-- `agents/diff_analyzer.py`
+- `agents/details_agent.py`
+- `agents/meta_agent.py`
+- `agents/validation.py`
 
 ### Analysis Persistence
-Handles the serialization and deserialization of the analysis model to a storable format (JSON). This enables the caching of results, which is critical for performance and for supporting efficient incremental analysis by providing a baseline for comparison.
+Handles serialization of analysis models to JSON. Supports caching to avoid re-analyzing unchanged components.
 
 **Related Classes/Methods**:
 
 - `diagram_analysis/analysis_json.py`
+- `duckdb_crud.py` (Job status persistence)
 
 ### Output Generator
-The final stage in the pipeline. It consumes the rich, structured analysis model produced by the AI Engine and renders it into various human-readable formats, such as Markdown, HTML, and Sphinx documentation. This decouples the core analysis logic from its presentation.
+Renders analysis models into human-readable formats.
 
 **Related Classes/Methods**:
 
 - `output_generators/markdown.py`
 - `output_generators/html.py`
 - `output_generators/sphinx.py`
+- `output_generators/mdx.py`
+
+### Monitoring & Telemetry
+(New) Provides observability into the analysis process, tracking LLM usage, tool calls, and performance stats.
+
+**Related Classes/Methods**:
+
+- `monitoring/__init__.py`
+- `monitoring/stats.py`
+- `monitoring/context.py`
+
+### Utils & Helpers
+Shared utilities for git operations, file system management, and environment setup.
+
+**Related Classes/Methods**:
+
+- `repo_utils/__init__.py` (Git operations, caching)
+- `repo_utils/ignore.py`
+- `install.py` (Installation and setup script)
+
+### Evaluations
+Framework for assessing static analysis performance, end-to-end pipeline reliability, and scalability.
+
+**Related Classes/Methods**:
+
+- `evals/base.py`
+- `evals/cli.py`
+- `evals/config.py`
 
 ## AI_Analysis_Engine
 **Mermaid Diagram Summary:**
 
-- PlannerAgent -[inherits from]-> CodeBoardingAgent
-- AbstractionAgent -[inherits from]-> CodeBoardingAgent
-- DiffAnalyzingAgent -[inherits from]-> CodeBoardingAgent
-- PlannerAgent -[orchestrates]-> AbstractionAgent
-- PlannerAgent -[uses]-> DiffAnalyzingAgent
+- PlannerAgent -[inherits from]-> LargeModelAgent
+- AbstractionAgent -[inherits from]-> LargeModelAgent
+- DetailsAgent -[inherits from]-> LargeModelAgent
+- MetaAgent -[inherits from]-> LargeModelAgent
+- PlannerAgent -[uses]-> MetaAgent
+- AbstractionAgent -[uses]-> DetailsAgent
 
 ## Details
 
-One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.
-
-### CodeBoardingAgent
-Acts as the abstract base class for all specialized agents. It implements the Template Method pattern by providing a standardized framework that encapsulates common concerns like AI model interaction, environment variable setup, and access to shared tools. This ensures consistency and reusability across the agent system.
+### LargeModelAgent
+Abstract base class for all agents, handling LLM interaction, tools, and state.
 
 **Related Classes/Methods**:
 
 - `agents/agent.py`
 
+### MetaAgent
+Analyzes project metadata (dependencies, frameworks, patterns) to provide architectural context and bias to other agents.
+
+**Related Classes/Methods**:
+
+- `agents/meta_agent.py`
+
 ### PlannerAgent
-Serves as the primary entry point and controller for an analysis task. It receives a high-level goal, breaks it down into a concrete, multi-step execution plan, and orchestrates the workflow by delegating specific tasks to the appropriate worker agents (like the AbstractionAgent).
+Creates a high-level analysis plan, breaking down the codebase into manageable components.
 
 **Related Classes/Methods**:
 
 - `agents/planner_agent.py`
 
 ### AbstractionAgent
-The main worker agent responsible for executing the core architectural analysis. Following the plan from the PlannerAgent, it interacts directly with source code and Control Flow Graph (CFG) data to identify patterns, define component responsibilities, and generate the raw insights for the codebase model.
+Performs the main high-level code analysis, identifying architectural patterns and component responsibilities.
 
 **Related Classes/Methods**:
 
 - `agents/abstraction_agent.py`
 
-### DiffAnalyzingAgent
-A specialized agent that enables efficient incremental updates. It analyzes Git diffs to identify the precise scope of code changes, allowing the system to perform targeted re-analysis instead of processing the entire codebase again. This implements a form of Change Data Capture (CDC).
+### DetailsAgent
+Performs detailed analysis of specific components. It groups clusters within a component's subgraph and generating detailed insights. It validates consistency using the `ValidationContext` and validation functions.
 
 **Related Classes/Methods**:
 
-- `agents/diff_analyzer.py`
+- `agents/details_agent.py`
+
+### Validation & Consistency
+A functional module providing validation logic (e.g., verifying cluster coverage and component relationships) used by agents to validate their outputs.
+
+**Related Classes/Methods**:
+
+- `agents/validation.py`
 
 ## Orchestration_Workflow
 **Mermaid Diagram Summary:**
 
-- Local App Entrypoint -[invokes]-> Analysis Orchestrator
-- GitHub Action Entrypoint -[invokes]-> Analysis Orchestrator
-- Analysis Orchestrator -[Invokes to generate analysis plan]-> Planner Agent
-- Analysis Orchestrator -[Invokes with plan to generate abstractions]-> Abstraction Agent
+- Entrypoints -[invoke]-> DiagramGenerator
+- DiagramGenerator -[invokes]-> StaticAnalyzer
+- DiagramGenerator -[invokes]-> AI Agents
+- DiagramGenerator -[updates]-> DuckDB
 
 ## Details
 
-One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose.
+### Entrypoints
+`local_app.py` for CLI and `github_action.py` for CI/CD.
 
-### Local App Entrypoint
-Serves as the command-line interface for the application. It parses user arguments, prepares the local environment, and initiates the analysis process.
-
-**Related Classes/Methods**:
-
-- `local_app.py`
-
-### GitHub Action Entrypoint
-Acts as the entry point when the system is run within a GitHub Actions CI/CD pipeline. It interprets GitHub event data and triggers the analysis, often for pull request checks.
-
-**Related Classes/Methods**:
-
-- `github_action.py`
-
-### Analysis Orchestrator
-The central coordinator that defines and executes the analysis workflow. It invokes the `Planner Agent` to create an analysis plan, then passes this plan to the `Abstraction Agent` to perform the detailed analysis, managing the state between steps.
+### Analysis Orchestrator (DiagramGenerator)
+Manages the pipeline:
+1.  **Pre-analysis**: specific static analysis.
+2.  **Meta Analysis**: Runs `MetaAgent`.
+3.  **Planning**: Runs `PlannerAgent`.
+4.  **Execution**: Runs `AbstractionAgent` and `DetailsAgent` in parallel/levels.
+5.  **Output**: Generates files.
 
 **Related Classes/Methods**:
 
-- CodeBoarding.diagram_analysis.diagram_generator.DiagramGenerator (diagram_analysis/diagram_generator.py: lines 23–211)
+- `diagram_analysis/diagram_generator.py`
 
-class DiagramGenerator:
-    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
-        self.repo_location = repo_location
-        self.temp_folder = temp_folder
-        self.repo_name = repo_name
-        self.output_dir = output_dir
-
-        self.details_agent = None
-        self.abstraction_agent = None
-        self.planner_agent = None
-        self.validator_agent = None
-        self.diff_analyzer_agent = None
-        self.meta_agent = None
-        self.meta_context = None
-        self.depth_level = depth_level
-
-    def process_component(self, component):
-        """Process a single component and return its output path and any new components to analyze"""
-        try:
-            # Now before we try doing anything, we need to check if the component already exists:
-            update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
-            if update_analysis.update_degree < 4:  # No need to update
-                logging.info(f"Component {component.name} does not require update, skipping analysis.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                safe_name = sanitize(component.name)
-                output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-                with open(output_path, "w") as f:
-                    f.write(analysis.model_dump_json(indent=2))
-                return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
-            elif 4 < update_analysis.update_degree < 8:
-                logging.info(f"Component {component.name} requires partial update, applying feedback.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-                analysis = self.details_agent.apply_feedback(analysis, update_insight)
-            else:
-                logging.info(f"Processing component: {component.name}")
-                self.details_agent.step_subcfg(self.call_graph_str, component)
-                self.details_agent.step_cfg(component)
-                self.details_agent.step_enhance_structure(component)
-
-                analysis = self.details_agent.step_analysis(component)
-                feedback = self.validator_agent.run(analysis)
-                if not feedback.is_valid:
-                    analysis = self.details_agent.apply_feedback(analysis, feedback)
-            # Get new components to analyze
-            new_components = self.planner_agent.plan_analysis(analysis)
-
-            safe_name = sanitize(component.name)
-            output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-            # Save the analysis result
-            with open(output_path, "w") as f:
-                f.write(from_analysis_to_json(analysis, new_components))
-
-            return output_path, new_components
-        except Exception as e:
-            logging.error(f"Error processing component {component.name}: {e}")
-            return None, []
-
-    def pre_analysis(self):
-        self.call_graph_str, cfg = self.generate_static_analysis()
-
-        self.meta_agent = MetaAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                    project_name=self.repo_name, cfg=cfg)
-        meta_context = self.meta_agent.analyze_project_metadata()
-        self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                          project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
-        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                                  project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
-        self.diff_analyzer_agent = DiffAnalyzingAgent(
-            repo_dir=self.repo_location,
-            output_dir=self.temp_folder,
-            cfg=None,  # Assuming cfg is not needed for this context
-            project_name=self.repo_name
-        )
-
-        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
-        with open(version_file, "w") as f:
-            f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
-                            code_boarding_version="0.1.0").model_dump_json(indent=2))
-
-    def generate_analysis(self):
-        """
-        Generate the graph analysis for the given repository.
-        The output is stored in json files in output_dir.
-        Components are analyzed in parallel by level.
-        """
-        files = []
-
-        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None or self.validator_agent is None:
-            self.pre_analysis()
-
-        # Generate the initial analysis
-        logging.info("Generating initial analysis")
-
-        update_analysis = self.diff_analyzer_agent.check_for_updates()
-
-        if 4 < update_analysis.update_degree < 8:
-            # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
-            update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-            analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_analysis(), update_insight)
-        elif update_analysis.update_degree >= 8:
-            analysis = self.abstraction_agent.run(self.call_graph_str)
-            feedback = self.validator_agent.run(analysis)
-            if not feedback.is_valid:
-                analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
-        else:
-            analysis = self.diff_analyzer_agent.get_analysis()
-
-        assert analysis is not None, "Analysis should not be None at this point"
-
-        # Get the initial components to analyze (level 0)
-        current_level_components = self.planner_agent.plan_analysis(analysis)
-        logging.info(f"Found {len(current_level_components)} components to analyze at level 0")
-
-        # Save the root analysis
-        analysis_path = os.path.join(self.output_dir, "analysis.json")
-        with open(analysis_path, "w") as f:
-            f.write(from_analysis_to_json(analysis, current_level_components))
-        files.append(analysis_path)
-
-        level = 0
-        max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
-
-        # Process each level of components in parallel
-        while current_level_components:
-            level += 1
-            if level == self.depth_level:
-                break
-            logging.info(f"Processing level {level} with {len(current_level_components)} components")
-            next_level_components = []
-
-            # Process current level components in parallel
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all tasks
-                future_to_component = {
-                    executor.submit(self.process_component, component): component
-                    for component in current_level_components
-                }
-
-                # Use tqdm for a progress bar
-                for future in tqdm(as_completed(future_to_component),
-                                   total=len(future_to_component),
-                                   desc=f"Level {level}"):
-                    component = future_to_component[future]
-                    try:
-                        result_path, new_components = future.result()
-                        if result_path:
-                            files.append(result_path)
-                        if new_components:
-                            next_level_components.extend(new_components)
-                    except Exception as exc:
-                        logging.error(f"Component {component.name} generated an exception: {exc}")
-
-            logging.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
-            current_level_components = next_level_components
-
-        logging.info(f"Analysis complete. Generated {len(files)} analysis files")
-        print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
-        return files
-
-    def generate_static_analysis(self):
-        dot_suffix = 'structure.dot'
-        graph_builder = StructureGraphBuilder(self.repo_location, dot_suffix, self.temp_folder, verbose=True)
-        graph_builder.build()
-        # Now I have to find and collect the _structure.dot files
-        # Scan the current directory for files which end on dot_suffix
-        structures = []
-        for path in Path('.').rglob(f'*{dot_suffix}'):
-            with open(path, 'r') as f:
-                structures.append((path.name.split(dot_suffix)[0], f.read()))
-
-        builder = CallGraphBuilder(self.repo_location, max_depth=15)
-        builder.build()
-        dot_file = f'{self.temp_folder}/call_graph.dot'
-        builder.write_dot(Path(dot_file))
-        # Now transform the call_graph
-        graph_transformer = DotGraphTransformer(dot_file, self.repo_location)
-        cfg, call_graph_str = graph_transformer.transform()
-        packages = []
-        for path in Path('..').rglob(f'{self.temp_folder}/packages_*.dot'):
-            with open(path, 'r') as f:
-                # The file name is the package name
-                package_name = path.name.split('_')[1].split('.dot')[0]
-                packages.append((package_name, f.read()))
-
-### Planner Agent
-A specialized AI agent responsible for creating a high-level analysis plan. It determines the steps required to analyze the target codebase based on the initial request from the orchestrator.
+### Job Management (DuckDB)
+Manages the state of analysis jobs (queued, running, completed, gathered) using DuckDB.
 
 **Related Classes/Methods**:
 
-- agents.planner_agent.PlannerAgent (agents/planner_agent.py: lines 9–27)
-
-class PlannerAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg):
-        super().__init__(repo_dir, output_dir, cfg, PLANNER_SYSTEM_MESSAGE)
-        self.expansion_prompt = PromptTemplate(template=EXPANSION_PROMPT, input_variables=["component"])
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,
-                                                               self.read_packages_tool, self.read_file_structure,
-                                                               self.read_structure_tool, self.read_file_tool])
-
-    def plan_analysis(self, analysis: AnalysisInsights) -> List[Component]:
-        """
-        Generate a plan for analyzing the provided components.
-        This method should return a structured plan detailing how to analyze each component.
-        """
-        expandable_components = []
-        for component in analysis.components:
-            response = self._parse_invoke(self.expansion_prompt.format(component=component.llm_str()), ExpandComponent)
-            if response.should_expand:
-                expandable_components.append(component)
-
-### Abstraction Agent
-A specialized AI agent that performs the main code analysis. It executes the step-by-step plan provided to it by the `Analysis Orchestrator` to generate architectural abstractions.
-
-**Related Classes/Methods**:
-
-- agents.abstraction_agent.AbstractionAgent (agents/abstraction_agent.py: lines 9–95)
-
-class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_MESSAGE)
-
-        self.project_name = project_name
-        self.meta_context = meta_context
-
-        self.context = {"structure_insight": []}  # Store evolving insights here
-
-        self.prompts = {
-            "cfg": PromptTemplate(template=CFG_MESSAGE,
-                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
-            "source": PromptTemplate(template=SOURCE_MESSAGE,
-                                     input_variables=["insight_so_far", "meta_context", "project_type"]),
-            "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
-                                             input_variables=["project_name", "cfg_insight", "source_insight",
-                                                              "meta_context", "project_type"]),
-            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
-        }
-
-    def step_cfg(self, cfg_str):
-        logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["cfg"].format(
-            project_name=self.project_name,
-            cfg_str=cfg_str,
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        print(prompt)
-        parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
-        self.context['cfg_insight'] = parsed_response
-        return parsed_response
-
-    def step_source(self):
-        logging.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
-        insight_str = ""
-        for insight_type, analysis_insight in self.context.items():
-            insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if type(analysis_insight) is list:
-                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            else:
-                insight_str += analysis_insight.llm_str() + "\n\n"
-
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["source"].format(
-            insight_so_far=insight_str,
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        parsed_response = self._parse_invoke(prompt, AnalysisInsights)
-        self.context["source"] = parsed_response
-        return parsed_response
-
-    def generate_analysis(self):
-        logging.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["final_analysis"].format(
-            project_name=self.project_name,
-            cfg_insight=self.context.get('cfg_insight').llm_str(),
-            source_insight=self.context.get('source').llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        analysis_result = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis_result)
-
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
-        logging.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
-
-    def run(self, cfg_str):
-        self.step_cfg(cfg_str)
-        self.step_source()
+- `duckdb_crud.py`
 
 ## Static_Code_Analyzer
 **Mermaid Diagram Summary:**
 
-- DiagramGenerator -[Invokes and controls]-> CallGraphBuilder
-- DiagramGenerator -[Invokes and controls]-> StructureGraphBuilder
-- DiagramGenerator -[Invokes and controls]-> DotGraphTransformer
-- DiagramGenerator -[Provides analysis data to]-> AI Agents
-- CallGraphBuilder -[Produces .dot graph for]-> DotGraphTransformer
-- StructureGraphBuilder -[Produces .dot graph for]-> DotGraphTransformer
-- DotGraphTransformer -[Provides standardized graph to]-> DiagramGenerator
-- AI Agents -[Consumes analysis data from]-> DiagramGenerator
+- StaticAnalyzer -[uses]-> ProjectScanner
+- StaticAnalyzer -[creates]-> LSPClient (Python/TS/Java)
+- LSPClient -[builds]-> CallGraph
+- CallGraph -[clusters]-> ClusterResult
 
 ## Details
 
-An analysis of the CodeBoarding subsystem reveals a sophisticated architecture orchestrated by a central controller that leverages static analysis tools to feed a suite of AI-driven agents.
-
-### DiagramGenerator
-Acts as the central orchestrator for the entire analysis process. It initiates static analysis, transforms the resulting data, and manages a pool of AI agents to produce a hierarchical, component-based model of the software architecture.
+### StaticAnalyzer
+The main facade that orchestrates the scanning and analysis process. It detects programming languages and spins up appropriate LSP clients.
 
 **Related Classes/Methods**:
 
-- diagram_analysis.diagram_generator.DiagramGenerator (diagram_analysis/diagram_generator.py: lines 23–211)
+- `static_analyzer/__init__.py`
 
-class DiagramGenerator:
-    def __init__(self, repo_location, temp_folder, repo_name, output_dir, depth_level: int):
-        self.repo_location = repo_location
-        self.temp_folder = temp_folder
-        self.repo_name = repo_name
-        self.output_dir = output_dir
-
-        self.details_agent = None
-        self.abstraction_agent = None
-        self.planner_agent = None
-        self.validator_agent = None
-        self.diff_analyzer_agent = None
-        self.meta_agent = None
-        self.meta_context = None
-        self.depth_level = depth_level
-
-    def process_component(self, component):
-        """Process a single component and return its output path and any new components to analyze"""
-        try:
-            # Now before we try doing anything, we need to check if the component already exists:
-            update_analysis = self.diff_analyzer_agent.check_for_component_updates(component)
-            if update_analysis.update_degree < 4:  # No need to update
-                logging.info(f"Component {component.name} does not require update, skipping analysis.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                safe_name = sanitize(component.name)
-                output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-                with open(output_path, "w") as f:
-                    f.write(analysis.model_dump_json(indent=2))
-                return self.repo_location / ".codeboarding" / f"{sanitize(component.name)}.json", analysis.components
-            elif 4 < update_analysis.update_degree < 8:
-                logging.info(f"Component {component.name} requires partial update, applying feedback.")
-                analysis = self.diff_analyzer_agent.get_component_analysis(component)
-                update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-                analysis = self.details_agent.apply_feedback(analysis, update_insight)
-            else:
-                logging.info(f"Processing component: {component.name}")
-                self.details_agent.step_subcfg(self.call_graph_str, component)
-                self.details_agent.step_cfg(component)
-                self.details_agent.step_enhance_structure(component)
-
-                analysis = self.details_agent.step_analysis(component)
-                feedback = self.validator_agent.run(analysis)
-                if not feedback.is_valid:
-                    analysis = self.details_agent.apply_feedback(analysis, feedback)
-            # Get new components to analyze
-            new_components = self.planner_agent.plan_analysis(analysis)
-
-            safe_name = sanitize(component.name)
-            output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-            # Save the analysis result
-            with open(output_path, "w") as f:
-                f.write(from_analysis_to_json(analysis, new_components))
-
-            return output_path, new_components
-        except Exception as e:
-            logging.error(f"Error processing component {component.name}: {e}")
-            return None, []
-
-    def pre_analysis(self):
-        self.call_graph_str, cfg = self.generate_static_analysis()
-
-        self.meta_agent = MetaAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                    project_name=self.repo_name, cfg=cfg)
-        meta_context = self.meta_agent.analyze_project_metadata()
-        self.details_agent = DetailsAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                          project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
-        self.abstraction_agent = AbstractionAgent(repo_dir=self.repo_location, output_dir=self.temp_folder,
-                                                  project_name=self.repo_name, cfg=cfg, meta_context=meta_context)
-        self.planner_agent = PlannerAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
-        self.validator_agent = ValidatorAgent(repo_dir=self.repo_location, output_dir=self.temp_folder, cfg=cfg)
-        self.diff_analyzer_agent = DiffAnalyzingAgent(
-            repo_dir=self.repo_location,
-            output_dir=self.temp_folder,
-            cfg=None,  # Assuming cfg is not needed for this context
-            project_name=self.repo_name
-        )
-
-        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
-        with open(version_file, "w") as f:
-            f.write(Version(commit_hash=get_git_commit_hash(self.repo_location),
-                            code_boarding_version="0.1.0").model_dump_json(indent=2))
-
-    def generate_analysis(self):
-        """
-        Generate the graph analysis for the given repository.
-        The output is stored in json files in output_dir.
-        Components are analyzed in parallel by level.
-        """
-        files = []
-
-        if self.details_agent is None or self.abstraction_agent is None or self.planner_agent is None or self.validator_agent is None:
-            self.pre_analysis()
-
-        # Generate the initial analysis
-        logging.info("Generating initial analysis")
-
-        update_analysis = self.diff_analyzer_agent.check_for_updates()
-
-        if 4 < update_analysis.update_degree < 8:
-            # This is feedback from the diff analyzer, we need to apply it to the abstraction agent
-            update_insight = ValidationInsights(is_valid=False, additional_info=update_analysis.feedback)
-            analysis = self.abstraction_agent.apply_feedback(self.diff_analyzer_agent.get_analysis(), update_insight)
-        elif update_analysis.update_degree >= 8:
-            analysis = self.abstraction_agent.run(self.call_graph_str)
-            feedback = self.validator_agent.run(analysis)
-            if not feedback.is_valid:
-                analysis = self.abstraction_agent.apply_feedback(analysis, feedback)
-        else:
-            analysis = self.diff_analyzer_agent.get_analysis()
-
-        assert analysis is not None, "Analysis should not be None at this point"
-
-        # Get the initial components to analyze (level 0)
-        current_level_components = self.planner_agent.plan_analysis(analysis)
-        logging.info(f"Found {len(current_level_components)} components to analyze at level 0")
-
-        # Save the root analysis
-        analysis_path = os.path.join(self.output_dir, "analysis.json")
-        with open(analysis_path, "w") as f:
-            f.write(from_analysis_to_json(analysis, current_level_components))
-        files.append(analysis_path)
-
-        level = 0
-        max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
-
-        # Process each level of components in parallel
-        while current_level_components:
-            level += 1
-            if level == self.depth_level:
-                break
-            logging.info(f"Processing level {level} with {len(current_level_components)} components")
-            next_level_components = []
-
-            # Process current level components in parallel
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all tasks
-                future_to_component = {
-                    executor.submit(self.process_component, component): component
-                    for component in current_level_components
-                }
-
-                # Use tqdm for a progress bar
-                for future in tqdm(as_completed(future_to_component),
-                                   total=len(future_to_component),
-                                   desc=f"Level {level}"):
-                    component = future_to_component[future]
-                    try:
-                        result_path, new_components = future.result()
-                        if result_path:
-                            files.append(result_path)
-                        if new_components:
-                            next_level_components.extend(new_components)
-                    except Exception as exc:
-                        logging.error(f"Component {component.name} generated an exception: {exc}")
-
-            logging.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
-            current_level_components = next_level_components
-
-        logging.info(f"Analysis complete. Generated {len(files)} analysis files")
-        print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
-        return files
-
-    def generate_static_analysis(self):
-        dot_suffix = 'structure.dot'
-        graph_builder = StructureGraphBuilder(self.repo_location, dot_suffix, self.temp_folder, verbose=True)
-        graph_builder.build()
-        # Now I have to find and collect the _structure.dot files
-        # Scan the current directory for files which end on dot_suffix
-        structures = []
-        for path in Path('.').rglob(f'*{dot_suffix}'):
-            with open(path, 'r') as f:
-                structures.append((path.name.split(dot_suffix)[0], f.read()))
-
-        builder = CallGraphBuilder(self.repo_location, max_depth=15)
-        builder.build()
-        dot_file = f'{self.temp_folder}/call_graph.dot'
-        builder.write_dot(Path(dot_file))
-        # Now transform the call_graph
-        graph_transformer = DotGraphTransformer(dot_file, self.repo_location)
-        cfg, call_graph_str = graph_transformer.transform()
-        packages = []
-        for path in Path('..').rglob(f'{self.temp_folder}/packages_*.dot'):
-            with open(path, 'r') as f:
-                # The file name is the package name
-                package_name = path.name.split('_')[1].split('.dot')[0]
-                packages.append((package_name, f.read()))
-- `generate_static_analysis`
-- `generate_analysis`
-- `process_component`
-
-### CallGraphBuilder
-Parses the source code using AST techniques to construct a directed graph representing the relationships and call sequences between functions and methods.
+### ProjectScanner
+Scans the repository to identify supported programming languages and project structures (e.g., finding `tsconfig.json` or `pom.xml`).
 
 **Related Classes/Methods**:
 
-- static_analyzer.pylint_analyze.call_graph_builder.CallGraphBuilder (static_analyzer/pylint_analyze/call_graph_builder.py: lines 88–240)
+- `static_analyzer/scanner.py`
+- `static_analyzer/java_config_scanner.py`
+- `static_analyzer/typescript_config_scanner.py`
 
-class CallGraphBuilder:
-    """
-    A very small, purely static, intra‑/inter module call‑graph builder.
-    Limitations
-    -----------
-    • Dynamic calls (getattr, eval, reflection, etc.) are shown as <dynamic>.
-    • Resolution of aliases and from‑import renames is shallow on purpose.
-    Still good enough to grasp the overall call flow.
-    """
-
-    def __init__(self, root: Path, max_depth: int | None = None):
-        self.root = root
-        self.graph: DiGraph = DiGraph()
-        self._visited_files: Set[Path] = set()
-        self.max_depth = max_depth
-
-    def build(self) -> DiGraph:
-        logging.info(f"[CallGraphBuilder] Building ASTs")
-        exclude_dirs = {"test", "tests", "testing", "examples", "__pycache__", ".venv", ".git", ".tox"}
-        for pyfile in self._iter_py_files():
-            skip = False
-            for exluded_dir in exclude_dirs:
-                if exluded_dir in pyfile.parts:
-                    skip = True
-                    break
-            if skip:
-                continue
-            self._process_file(pyfile)
-
-        logging.info(f"[CallGraphBuilder] " +
-                     f"Call‑graph built: {self.graph.number_of_nodes()} nodes," +
-                     f" {self.graph.number_of_edges()} edges.")
-        return self.graph
-
-    def _iter_py_files(self):
-        base_depth = len(self.root.parts)
-        for path, _, files in os.walk(self.root):
-            path = Path(path)
-            if self.max_depth is not None and (len(path.parts) - base_depth) > self.max_depth:
-                continue
-            for f in files:
-                if f.endswith(".py") and not f.startswith("."):
-                    yield path / f
-
-    def _process_file(self, file_path: Path):
-        if file_path in self._visited_files:
-            return
-        try:
-            module = MANAGER.ast_from_file(str(file_path))
-        except Exception as e:  # pylint: disable=broad-except
-            logging.warning(f"!! Failed to parse {file_path}")
-            return
-
-        self._visited_files.add(file_path)
-
-        # Avoid circular imports by using the module name as a prefix
-        module_qualname = module.name
-
-        # Custom patch if the module is just the path to the file
-        if str(self.root) in module_qualname:
-            module_qualname = module.name.split(str(self.root))[1].replace("/", ".")
-            if module_qualname.startswith("."):
-                module_qualname = module_qualname[1:]
-            if module_qualname.endswith(".py"):
-                module_qualname = module_qualname[:-3]
-
-        self._visit_module(module, module_qualname)
-
-    def _visit_module(self, module: nodes.Module, module_qname: str):
-        for node in module.body:
-            if isinstance(node, (nodes.FunctionDef, nodes.AsyncFunctionDef)):
-                self._visit_function(node, module_qname)
-            elif isinstance(node, nodes.ClassDef):
-                for sub in node.body:
-                    if isinstance(sub, (nodes.FunctionDef, nodes.AsyncFunctionDef)):
-                        self._visit_function(sub, f"{module_qname}.{node.name}")
-
-    def _qual_name(self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str) -> str:
-        return f"{owner}.{func.name}"
-        # return f"{owner}:{func.name}@{func.lineno}"
-
-    def _visit_function(
-            self, func: nodes.FunctionDef | nodes.AsyncFunctionDef, owner: str
-    ):
-        src = self._qual_name(func, owner)
-        self.graph.add_node(src)
-
-        for call in func.nodes_of_class(nodes.Call):
-            callee_label = self._resolve_callee(call)
-
-            pos_args, kw_args = _collect_arguments(call)
-
-            # one edge per call site, keep line number to distinguish calls
-            dst = f"{callee_label}"  # @{call.lineno}"
-
-            # Handle dynamic calls
-            self.graph.add_edge(
-                self.fix_reference_name(src),
-                self.fix_reference_name(dst),
-                pos_args=pos_args,
-                kw_args=kw_args,
-                lineno=call.lineno,
-            )
-
-    @staticmethod
-    def _resolve_callee(call: nodes.Call) -> str:
-        """
-        Try to obtain a printable name for the call target.
-        """
-        func = call.func
-        try:
-            inferred = next(func.infer(), None)
-            if inferred is not None:
-                return inferred.qname()
-        except (InferenceError, StopIteration):
-            pass
-
-        # Fallback for dynamic or unresolved calls
-        if isinstance(func, nodes.Attribute):
-            base = CallGraphBuilder._as_string(func.expr)
-            return f"{base}.{func.attrname}"
-        if isinstance(func, nodes.Name):
-            return func.name
-        return "<dynamic>"
-
-    @staticmethod
-    def _as_string(expr: nodes.NodeNG) -> str:  # trivial pretty‑printer
-        if isinstance(expr, nodes.Name):
-            return expr.name
-        if isinstance(expr, nodes.Attribute):
-            return f"{CallGraphBuilder._as_string(expr.expr)}.{expr.attrname}"
-        return "<?>"
-
-    def write_dot(self, filename: Path):
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write('digraph G {\n')
-            for src, dsts in self.graph.edges.items():
-                for dst, attrs in dsts:
-                    label = f" [label=\"{attrs.get('lineno', '')}\"]"
-                    f.write(f'  "{src}" -> "{dst}"{label};\n')
-            f.write('}\n')
-
-    @staticmethod
-    def fix_reference_name(qualified_name):
-        if "repos" in qualified_name:
-            qualified_name = qualified_name.split("repos")[1]
-            if qualified_name.startswith(".") or qualified_name.startswith("/"):
-                qualified_name = qualified_name[1:]
-        if "/" in qualified_name:
-            # Check if there is .py
-            qualified_name = "".join(qualified_name.split(".py"))
-            qualified_name = ".".join(qualified_name.split("/"))
-
-### StructureGraphBuilder
-Uses `pyreverse` (from the Pylint suite) to analyze the source code and build a high-level graph outlining the code's architectural structure, including class definitions, inheritance, and module relationships.
+### CallGraph & Clustering
+Represents the code as a directed graph of nodes (methods, classes) and edges (calls). Implements adaptive clustering algorithms (Louvain, Leiden, Greedy Modularity) to group related code into meaningful clusters.
 
 **Related Classes/Methods**:
 
-- static_analyzer.pylint_analyze.structure_graph_builder.StructureGraphBuilder (static_analyzer/pylint_analyze/structure_graph_builder.py: lines 7–48)
+- `static_analyzer/graph.py`
 
-class StructureGraphBuilder:
-
-    def __init__(self, root_package, dot_file_prefix, output_dir, verbose: bool = False):
-        self.root_package = root_package
-        self.dot_file = dot_file_prefix
-        self.verbose = verbose
-        self.output_dir = output_dir
-
-    def run_pyreverse(self, package: Path) -> None:
-        """
-        Call pylint’s pyreverse programmatically to obtain structural graphs.
-        This produces two .dot files:
-            1. classes_<root>.dot    (class diagram)
-            2. packages_<root>.dot   (package dependencies)
-        The function then just copies/renames the interesting one to *dot_file*.
-        """
-        logging.info("[StructureGraphBuilder] Running pyreverse…", )
-        try:
-            # Equivalent to: pyreverse -o dot   <package>
-            _PyreverseRun([str(package), "-o", "dot", "-p", package.name, "-d", str(self.output_dir.resolve())])
-        except SystemExit as e:
-            # pyreverse calls sys.exit() after finishing.
-            if e.code not in (0, None):
-                raise
-
-        root_name = Path(package.name).resolve().name.replace("-", "_")
-        produced = Path().glob(f"{self.output_dir}/*{root_name}*.dot")
-        picked = None
-        for f in produced:
-            if "classes_" in f.name:
-                picked = f
-                break
-        if picked is None:
-            raise RuntimeError("pyreverse did not produce a classes_*.dot file!")
-
-        picked.replace(f"{self.output_dir}/{package.name}_{self.dot_file}")
-        logging.info(f"[StructureGraphBuilder] Saved structure graph to {self.dot_file}")
-
-    def build(self):
-        paths = collect_paths(self.root_package)
-        for path in tqdm(paths, desc="Building structure graphs for packages", unit="package"):
-
-### DotGraphTransformer
-Ingests `.dot` file outputs from both the `CallGraphBuilder` and `StructureGraphBuilder`. It transforms these raw graphs into a standardized format suitable for consumption by the AI agents.
+### LSP Clients
+Interact with language servers (pyright, tsserver, jdtls) to extract accurate call graph and symbol information.
 
 **Related Classes/Methods**:
 
-- static_analyzer.pylint_graph_transform.DotGraphTransformer (static_analyzer/pylint_graph_transform.py: lines 10–75)
-    def __init__(self, dot_file, repo_location):
-        self.dot_file = dot_file
-        self.repo = repo_location
-        self._load()
-
-    def _load(self):
-        # Perform transformation logic here
-        (self.G,) = pydot.graph_from_dot_file(self.dot_file)
-        self.packages = []
-        self.bfs_scan_directory()
-
-    def bfs_scan_directory(self):
-        queue = deque()
-        queue.append(self.repo)
-
-        while queue:
-            current_dir = queue.popleft()
-            try:
-                entries = os.listdir(current_dir)
-            except PermissionError:
-                logging.warning(f"Permission denied scanning directory: {current_dir!r}")
-                continue
-
-            # Check if this directory has an __init__.py file
-            if '__init__.py' in entries and "test" not in current_dir and "example" not in current_dir:
-                package_name = Path(current_dir).name
-                self.packages.append(package_name)
-                continue
-
-            for entry in entries:
-                full_path = os.path.join(current_dir, entry)
-                if os.path.isdir(full_path):
-                    queue.append(full_path)
-
-    def transform(self):
-        # Perform transformation logic here
-        result = {}
-        logging.info(f"[Transformer] Source code packages: {self.packages}")
-        for edge in self.G.get_edges():
-            src = edge.get_source()
-            dst = edge.get_destination()
-            src_entry = False
-            dst_entry = False
-            for package in self.packages:
-                if package in src:
-                    src_entry = True
-                if package in dst:
-                    dst_entry = True
-
-            if not (src_entry and dst_entry):
-                continue
-            if src not in result:
-                result[src] = [dst]
-            else:
-                result[src].append(dst)
-
-        final_msg = "The control flow graph looks like:\n"
-        for k, v in result.items():
-            final_msg += f"Method {k} is calling the following methods {', '.join(v)}\n"
-        return result, final_msg
-
-### AI Agents
-A collection of specialized agents (e.g., `DetailsAgent`, `AbstractionAgent`, `PlannerAgent`) that consume the prepared graph data. Each agent performs a specific task, such as abstracting high-level components, analyzing component details, or planning the next steps of the analysis.
-
-**Related Classes/Methods**:
-
-- `agents.agent.Agent`
-- agents.details_agent.DetailsAgent (agents/details_agent.py: lines 11–103)
-
-class DetailsAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_DETAILS_MESSAGE)
-        self.project_name = project_name
-        self.meta_context = meta_context
-
-        self.prompts = {
-            "subcfg": PromptTemplate(template=SUBCFG_DETAILS_MESSAGE,
-                                     input_variables=["project_name", "cfg_str", "component"]),
-            "cfg": PromptTemplate(template=CFG_DETAILS_MESSAGE,
-                                  input_variables=["cfg_str", "project_name", "meta_context", "project_type"]),
-            "structure": PromptTemplate(template=ENHANCE_STRUCTURE_MESSAGE,
-                                        input_variables=["insight_so_far", "component", "project_name", "meta_context",
-                                                         "project_type"]),
-            "final_analysis": PromptTemplate(template=DETAILS_MESSAGE,
-                                             input_variables=["insight_so_far", "component", "meta_context",
-                                                              "project_type"]),
-            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"]),
-        }
-
-        self.context = {}
-
-    def step_subcfg(self, cfg_str: str, component: Component):
-        logging.info(f"[DetailsAgent] Analyzing details on subcfg for {component.name}")
-        self.context['subcfg_insight'] = self.read_cfg_tool.component_cfg(component)
-
-    def step_cfg(self, component: Component):
-        logging.info(f"[DetailsAgent] Analyzing details on cfg for {component.name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["cfg"].format(
-            project_name=self.project_name,
-            cfg_str=self.context['subcfg_insight'],
-            component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        parsed = self._parse_invoke(prompt, CFGAnalysisInsights)
-        self.context['cfg_insight'] = parsed  # Store for next step
-        return parsed
-
-    def step_enhance_structure(self, component: Component):
-        logging.info(f"[DetailsAgent] Analyzing details on structure for {component.name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["structure"].format(
-            project_name=self.project_name,
-            insight_so_far=self.context.get('cfg_insight').llm_str(),
-            component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        parsed = self._parse_invoke(prompt, AnalysisInsights)
-        self.context['structure_insight'] = parsed
-        return parsed
-
-    def step_analysis(self, component: Component):
-        logging.info(f"[DetailsAgent] Generating details documentation")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["final_analysis"].format(
-            insight_so_far=self.context['structure_insight'].llm_str(),
-            component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
-
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
-        logging.info(f"[DetailsAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
-
-    def run(self, cfg_str: str, component: Component):
-        """
-        Run the details analysis for the given component.
-        This method should execute the steps in order and return the final analysis.
-        """
-        self.step_subcfg(cfg_str, component)
-        self.step_cfg(component)
-        self.step_enhance_structure(component)
-        analysis = self.step_analysis(component)
-
-- agents.abstraction_agent.AbstractionAgent (agents/abstraction_agent.py: lines 9–95)
-
-class AbstractionAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg, project_name, meta_context):
-        super().__init__(repo_dir, output_dir, cfg, SYSTEM_MESSAGE)
-
-        self.project_name = project_name
-        self.meta_context = meta_context
-
-        self.context = {"structure_insight": []}  # Store evolving insights here
-
-        self.prompts = {
-            "cfg": PromptTemplate(template=CFG_MESSAGE,
-                                  input_variables=["project_name", "cfg_str", "meta_context", "project_type"]),
-            "source": PromptTemplate(template=SOURCE_MESSAGE,
-                                     input_variables=["insight_so_far", "meta_context", "project_type"]),
-            "final_analysis": PromptTemplate(template=CONCLUSIVE_ANALYSIS_MESSAGE,
-                                             input_variables=["project_name", "cfg_insight", "source_insight",
-                                                              "meta_context", "project_type"]),
-            "feedback": PromptTemplate(template=FEEDBACK_MESSAGE, input_variables=["analysis", "feedback"])
-        }
-
-    def step_cfg(self, cfg_str):
-        logging.info(f"[AbstractionAgent] Analyzing CFG for project: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["cfg"].format(
-            project_name=self.project_name,
-            cfg_str=cfg_str,
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        print(prompt)
-        parsed_response = self._parse_invoke(prompt, CFGAnalysisInsights)
-        self.context['cfg_insight'] = parsed_response
-        return parsed_response
-
-    def step_source(self):
-        logging.info(f"[AbstractionAgent] Analyzing Source for project: {self.project_name}")
-        insight_str = ""
-        for insight_type, analysis_insight in self.context.items():
-            insight_str += f"## {insight_type.capitalize()} Insight\n"
-            if type(analysis_insight) is list:
-                insight_str += "\n".join([f"- {insight.llm_str()}" for insight in analysis_insight]) + "\n\n"
-            else:
-                insight_str += analysis_insight.llm_str() + "\n\n"
-
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["source"].format(
-            insight_so_far=insight_str,
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        parsed_response = self._parse_invoke(prompt, AnalysisInsights)
-        self.context["source"] = parsed_response
-        return parsed_response
-
-    def generate_analysis(self):
-        logging.info(f"[AbstractionAgent] Generating final analysis for project: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
-        prompt = self.prompts["final_analysis"].format(
-            project_name=self.project_name,
-            cfg_insight=self.context.get('cfg_insight').llm_str(),
-            source_insight=self.context.get('source').llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type
-        )
-        analysis_result = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis_result)
-
-    def apply_feedback(self, analysis: AnalysisInsights, feedback: ValidationInsights):
-        """
-        Apply feedback to the analysis and return the updated analysis.
-        This method should modify the analysis based on the feedback provided.
-        """
-        logging.info(f"[AbstractionAgent] Applying feedback to analysis for project: {self.project_name}")
-        prompt = self.prompts["feedback"].format(analysis=analysis.llm_str(), feedback=feedback.llm_str())
-        analysis = self._parse_invoke(prompt, AnalysisInsights)
-        return self.fix_source_code_reference_lines(analysis)
-
-    def run(self, cfg_str):
-        self.step_cfg(cfg_str)
-        self.step_source()
-- agents.planner_agent.PlannerAgent (agents/planner_agent.py: lines 9–27)
-
-class PlannerAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir, output_dir, cfg):
-        super().__init__(repo_dir, output_dir, cfg, PLANNER_SYSTEM_MESSAGE)
-        self.expansion_prompt = PromptTemplate(template=EXPANSION_PROMPT, input_variables=["component"])
-        self.agent = create_react_agent(model=self.llm, tools=[self.read_source_reference,
-                                                               self.read_packages_tool, self.read_file_structure,
-                                                               self.read_structure_tool, self.read_file_tool])
-
-    def plan_analysis(self, analysis: AnalysisInsights) -> List[Component]:
-        """
-        Generate a plan for analyzing the provided components.
-        This method should return a structured plan detailing how to analyze each component.
-        """
-        expandable_components = []
-        for component in analysis.components:
-            response = self._parse_invoke(self.expansion_prompt.format(component=component.llm_str()), ExpandComponent)
-            if response.should_expand:
-                expandable_components.append(component)
+- `static_analyzer/lsp_client/`
