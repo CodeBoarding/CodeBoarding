@@ -8,7 +8,7 @@ from health.checks.cohesion import check_component_cohesion
 from health.checks.coupling import check_fan_in, check_fan_out, collect_coupling_values
 from health.checks.function_size import check_function_size, collect_function_sizes
 from health.checks.god_class import check_god_classes, collect_god_class_values
-from health.checks.inheritance import check_inheritance_depth, collect_inheritance_depths
+from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.checks.orphan_code import check_orphan_code
 from health.models import (
@@ -27,7 +27,7 @@ from static_analyzer.graph import CallGraph
 logger = logging.getLogger(__name__)
 
 
-def _compute_codebase_stats(call_graph: CallGraph, hierarchy: dict | None) -> CodebaseStats:
+def _compute_codebase_stats(call_graph: CallGraph) -> CodebaseStats:
     """Compute statistical metrics from the codebase for adaptive thresholds.
 
     Delegates value collection to each check module and uses DistributionStats
@@ -37,10 +37,6 @@ def _compute_codebase_stats(call_graph: CallGraph, hierarchy: dict | None) -> Co
     fan_out_values, fan_in_values = collect_coupling_values(call_graph)
     method_counts, class_loc_values, class_fan_out_values = collect_god_class_values(call_graph)
 
-    inheritance_depths: list[float] = []
-    if hierarchy:
-        inheritance_depths = collect_inheritance_depths(hierarchy)
-
     stats = CodebaseStats(
         function_size=DistributionStats.from_values(function_sizes),
         fan_out=DistributionStats.from_values(fan_out_values),
@@ -48,7 +44,6 @@ def _compute_codebase_stats(call_graph: CallGraph, hierarchy: dict | None) -> Co
         class_method_count=DistributionStats.from_values(method_counts),
         class_loc=DistributionStats.from_values(class_loc_values),
         class_fan_out=DistributionStats.from_values(class_fan_out_values),
-        inheritance_depth=DistributionStats.from_values(inheritance_depths),
     )
 
     logger.info(
@@ -91,14 +86,19 @@ def run_health_checks(
 
     check_summaries: list[StandardCheckSummary | CircularDependencyCheck] = []
 
-    for language in static_analysis.get_languages():
+    languages = static_analysis.get_languages()
+    multiple_languages = len(languages) > 1
+
+    for language in languages:
         call_graph = static_analysis.get_cfg(language)
         try:
             hierarchy = static_analysis.get_hierarchy(language)
         except ValueError:
             hierarchy = None
 
-        config.codebase_stats = _compute_codebase_stats(call_graph, hierarchy)
+        config.codebase_stats = _compute_codebase_stats(call_graph)
+
+        start_idx = len(check_summaries)
 
         check_summaries.append(check_function_size(call_graph, config))
         check_summaries.append(check_fan_out(call_graph, config))
@@ -118,6 +118,11 @@ def run_health_checks(
 
         check_summaries.append(check_component_cohesion(call_graph, config))
         check_summaries.append(check_orphan_code(call_graph))
+
+        # Tag summaries with language when multiple languages are analyzed
+        if multiple_languages:
+            for summary in check_summaries[start_idx:]:
+                summary.language = language
 
     # Calculate overall score as weighted average
     total_entities = sum(s.total_entities_checked for s in check_summaries if isinstance(s, StandardCheckSummary))

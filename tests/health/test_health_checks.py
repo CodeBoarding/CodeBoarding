@@ -227,10 +227,7 @@ class TestInheritanceDepth(unittest.TestCase):
                 "line_end": 50,
             },
         }
-        config = HealthCheckConfig(
-            inheritance_depth_max=3,
-            inheritance_depth_percentile=None,
-        )
+        config = HealthCheckConfig(inheritance_depth_max=3)
         result = check_inheritance_depth(hierarchy, config)
         self.assertGreater(result.findings_count, 0)
         all_entities = []
@@ -469,6 +466,126 @@ class TestHealthCheckConfig(unittest.TestCase):
     def test_custom_config(self):
         config = HealthCheckConfig(function_size_max=60)
         self.assertEqual(config.function_size_max, 60)
+
+
+class TestInheritanceDepthFixedThreshold(unittest.TestCase):
+    """Tests that inheritance depth uses a fixed threshold (no adaptive)."""
+
+    def test_root_classes_not_flagged(self):
+        """All root classes (depth 0) should not be flagged with default threshold."""
+        hierarchy = {
+            "ClassA": {
+                "superclasses": [],
+                "subclasses": [],
+                "file_path": "/f.py",
+                "line_start": 0,
+                "line_end": 50,
+            },
+            "ClassB": {
+                "superclasses": [],
+                "subclasses": [],
+                "file_path": "/f.py",
+                "line_start": 50,
+                "line_end": 100,
+            },
+        }
+        config = HealthCheckConfig()  # default inheritance_depth_max=8
+        result = check_inheritance_depth(hierarchy, config)
+        self.assertEqual(result.findings_count, 0)
+        self.assertEqual(result.score, 1.0)
+
+    def test_fixed_threshold_ignores_distribution(self):
+        """Even with percentile set, threshold should be fixed (percentile is None by default)."""
+        hierarchy = {
+            "Base": {
+                "superclasses": [],
+                "subclasses": [],
+                "file_path": "/f.py",
+                "line_start": 0,
+                "line_end": 10,
+            },
+        }
+        config = HealthCheckConfig(inheritance_depth_max=8)
+        result = check_inheritance_depth(hierarchy, config)
+        self.assertEqual(result.findings_count, 0)
+
+
+class TestOrphanCodeCallbackFiltering(unittest.TestCase):
+    """Tests that callbacks and anonymous functions are excluded from orphan code."""
+
+    def test_callback_nodes_excluded(self):
+        graph = CallGraph()
+        graph.add_node(_make_node("mod.arr.find() callback", "/f.py", 10, 12))
+        graph.add_node(_make_node("mod.arr.forEach() callback", "/f.py", 20, 22))
+        graph.add_node(_make_node("mod.real_orphan", "/f.py", 30, 40))
+        result = check_orphan_code(graph)
+        entity_names = {f.entity_name for f in result.findings}
+        self.assertNotIn("mod.arr.find() callback", entity_names)
+        self.assertNotIn("mod.arr.forEach() callback", entity_names)
+        self.assertIn("mod.real_orphan", entity_names)
+        # Callbacks should be excluded from total_entities_checked
+        self.assertEqual(result.total_entities_checked, 1)
+
+    def test_anonymous_function_nodes_excluded(self):
+        graph = CallGraph()
+        graph.add_node(_make_node("mod.<function>", "/f.py", 5, 10))
+        graph.add_node(_make_node("mod.<arrow", "/f.py", 15, 20))
+        graph.add_node(_make_node("mod.normal_func", "/f.py", 25, 35))
+        result = check_orphan_code(graph)
+        entity_names = {f.entity_name for f in result.findings}
+        self.assertNotIn("mod.<function>", entity_names)
+        self.assertNotIn("mod.<arrow", entity_names)
+        self.assertIn("mod.normal_func", entity_names)
+        self.assertEqual(result.total_entities_checked, 1)
+
+
+class TestNodeCallbackDetection(unittest.TestCase):
+    """Tests for Node.is_callback_or_anonymous()."""
+
+    def test_callback_patterns(self):
+        node = _make_node("mod.arr.find() callback", "/f.py", 0, 5)
+        self.assertTrue(node.is_callback_or_anonymous())
+
+    def test_anonymous_function_pattern(self):
+        node = _make_node("mod.<function>", "/f.py", 0, 5)
+        self.assertTrue(node.is_callback_or_anonymous())
+
+    def test_arrow_function_pattern(self):
+        node = _make_node("mod.<arrow", "/f.py", 0, 5)
+        self.assertTrue(node.is_callback_or_anonymous())
+
+    def test_normal_function(self):
+        node = _make_node("mod.normal_func", "/f.py", 0, 5)
+        self.assertFalse(node.is_callback_or_anonymous())
+
+
+class TestLanguageFieldOnSummaries(unittest.TestCase):
+    """Tests that check summaries include language when multiple languages are present."""
+
+    def test_language_set_on_summary(self):
+        from health.models import StandardCheckSummary
+
+        summary = StandardCheckSummary(
+            check_name="test",
+            description="test check",
+            total_entities_checked=0,
+            findings_count=0,
+            score=1.0,
+            language="typescript",
+        )
+        self.assertEqual(summary.language, "typescript")
+
+    def test_language_none_by_default(self):
+        from health.models import StandardCheckSummary
+
+        summary = StandardCheckSummary(
+            check_name="test",
+            description="test check",
+            total_entities_checked=0,
+            findings_count=0,
+            score=1.0,
+        )
+        self.assertIsNone(summary.language)
 
 
 if __name__ == "__main__":

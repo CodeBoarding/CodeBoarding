@@ -123,6 +123,20 @@ class Node:
         """Return True if this node represents a data entity (property, field, variable, constant)."""
         return self.type in self.DATA_TYPES
 
+    # Patterns indicating callback or anonymous function nodes from LSP
+    _CALLBACK_PATTERNS = ("() callback", "<function>", "<arrow")
+
+    def is_callback_or_anonymous(self) -> bool:
+        """Return True if this node represents a callback or anonymous function.
+
+        LSP servers often report inline callbacks (e.g. `.forEach() callback`,
+        `.find() callback`) and anonymous functions (e.g. `<function>`, `<arrow`)
+        as separate symbols. These are typically not independently callable and
+        should be excluded from certain health checks like orphan code detection.
+        """
+        name = self.fully_qualified_name
+        return any(pattern in name for pattern in self._CALLBACK_PATTERNS)
+
     def added_method_called_by_me(self, node: "Node") -> None:
         if isinstance(node, Node):
             self.methods_called_by_me.add(node.fully_qualified_name)

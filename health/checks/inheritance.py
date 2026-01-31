@@ -65,11 +65,7 @@ def check_inheritance_depth(hierarchy: dict, config: HealthCheckConfig) -> Stand
     findings: list[FindingEntity] = []
     total_checked = 0
 
-    threshold = config.get_adaptive_threshold(
-        config.inheritance_depth_max,
-        config.codebase_stats.inheritance_depth,
-        use_adaptive=config.inheritance_depth_percentile is not None,
-    )
+    threshold = config.inheritance_depth_max
 
     depth_cache = _compute_inheritance_depths(hierarchy)
 

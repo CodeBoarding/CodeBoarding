@@ -103,6 +103,11 @@ class BaseCheckSummary(BaseModel):
 
     check_name: str = Field(description="Name of the health check")
     description: str = Field(description="What this check measures")
+    language: str | None = Field(
+        default=None,
+        description="Programming language this check applies to (e.g. 'python', 'typescript'). "
+        "Set when the repository contains multiple languages.",
+    )
 
 
 class StandardCheckSummary(BaseCheckSummary):
@@ -251,8 +256,7 @@ class HealthCheckConfig(BaseModel):
     god_class_fan_out_percentile: float | None = 0.997
 
     # E5: Inheritance depth
-    inheritance_depth_max: int = 8
-    inheritance_depth_percentile: float | None = 0.999
+    inheritance_depth_max: int = 5
 
     # E6: Package-level cycle detection via nx.simple_cycles()
     max_cycles_reported: int = 50

@@ -22,8 +22,9 @@ def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
     skipped = 0
     for node_name in nx_graph.nodes:
         node = call_graph.nodes.get(node_name)
-        # Skip classes and data entities — they are not expected to have call relationships
-        if node and (node.is_class() or node.is_data()):
+        # Skip classes, data entities, and callbacks/anonymous functions —
+        # they are not expected to have independent call relationships
+        if node and (node.is_class() or node.is_data() or node.is_callback_or_anonymous()):
             skipped += 1
             continue
 
