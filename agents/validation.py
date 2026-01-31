@@ -127,6 +127,40 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
+def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """
+    Validate that every component in AnalysisInsights has at least one key_entity assigned.
+
+    Args:
+        result: AnalysisInsights containing components
+        context: ValidationContext (not used but kept for interface consistency)
+
+    Returns:
+        ValidationResult with feedback for components missing key entities
+    """
+    components_without_key_entities: list[str] = []
+
+    for component in result.components:
+        if not component.key_entities or len(component.key_entities) == 0:
+            components_without_key_entities.append(component.name)
+
+    if not components_without_key_entities:
+        logger.info("[Validation] All components have key entities assigned")
+        return ValidationResult(is_valid=True)
+
+    # Build feedback message
+    missing_str = ", ".join(components_without_key_entities)
+    feedback = (
+        f"The following components are missing key entities: {missing_str}. "
+        f"Every component must have at least one key entity (critical class or method) "
+        f"that represents its core functionality. Please identify and add 2-5 key entities "
+        f"for each component."
+    )
+
+    logger.warning(f"[Validation] Components without key entities: {missing_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
 def validate_file_classifications(result: ComponentFiles, context: ValidationContext) -> ValidationResult:
     """
     Validate that all unassigned files were classified to valid component names.
