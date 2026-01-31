@@ -156,7 +156,8 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
 
         # Step 5: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, subgraph_cluster_results)
+        # Pass component's assigned files as scope to limit classification to this component
+        self.classify_files(analysis, subgraph_cluster_results, scope_files=component.assigned_files)
 
         # Step 6: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)

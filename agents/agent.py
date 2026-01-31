@@ -394,7 +394,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
+    def classify_files(
+        self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str] | None = None
+    ) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -403,6 +405,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         Args:
             analysis: AnalysisInsights object to classify files for
             cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+            scope_files: Optional list of file paths to limit classification scope.
+                        If None, uses all source files from static_analysis.
+                        Used by DetailsAgent to limit to component's assigned files.
 
         Requires self to be a mixin with ClusterMethodsMixin for helper methods.
         """
@@ -411,16 +416,17 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
 
         # Pass 2: LLM classification of unassigned files
-        self._classify_unassigned_files_llm(analysis, cluster_results)
+        self._classify_unassigned_files_llm(analysis, scope_files)
 
-    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
+    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str] | None = None) -> None:
         """
         Classify files from static analysis that weren't assigned to any component.
         Uses a single LLM call to classify all unassigned files.
 
         Args:
             analysis: AnalysisInsights object
-            cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+            scope_files: Optional list of file paths to limit classification scope.
+                        If None, uses all source files from static_analysis.
         """
         # 1. Gather all assigned files
         assigned_files = set()
@@ -429,13 +435,26 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
                 assigned_files.add(os.path.relpath(abs_path, self.repo_dir))
 
-        # 2. Get all files from cluster results (uses passed cluster_results instead of fetching from static analysis)
+        # 2. Get files to consider for classification
+        # If scope_files is provided, use those (for DetailsAgent component scope)
+        # Otherwise use all source files from static_analysis (for AbstractionAgent)
         all_files = set()
-        for lang, cluster_result in cluster_results.items():
-            for cluster_id in cluster_result.get_cluster_ids():
-                for file_path in cluster_result.get_files_for_cluster(cluster_id):
-                    rel_path = os.path.relpath(file_path, self.repo_dir) if os.path.isabs(file_path) else file_path
-                    all_files.add(rel_path)
+        if scope_files is not None:
+            # Use provided scope (e.g., component's assigned files)
+            for file_path in scope_files:
+                file_path_str = str(file_path)
+                rel_path = (
+                    os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
+                )
+                all_files.add(rel_path)
+        else:
+            # Use all source files from static analysis
+            for file_path in self.static_analysis.get_all_source_files():
+                file_path_str = str(file_path)
+                rel_path = (
+                    os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
+                )
+                all_files.add(rel_path)
 
         # 3. Find unassigned files
         unassigned_files = sorted(all_files - assigned_files)
