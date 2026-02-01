@@ -157,6 +157,9 @@ class HealthCheckConfig(BaseModel):
     # E6: Package-level cycle detection via nx.simple_cycles()
     max_cycles_reported: int = 50
 
+    # E8: Orphan code exclusion patterns (file or function glob patterns)
+    orphan_exclude_patterns: list[str] = Field(default_factory=list)
+
     # E9: Package instability
     instability_high: float = 0.8
 

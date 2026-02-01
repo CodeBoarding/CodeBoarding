@@ -1,5 +1,8 @@
 import logging
+import os
+from fnmatch import fnmatch
 from pathlib import Path
+
 import pathspec
 
 logger = logging.getLogger(__name__)
@@ -17,6 +20,98 @@ CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
 # This file is automatically loaded by CodeBoarding analysis tools to exclude
 # specified paths from code analysis, architecture generation, and other processing.
 """
+
+# Test and infrastructure patterns - used across health checks and file filtering
+# These patterns identify files that are not production code (tests, mocks, fixtures)
+TEST_INFRASTRUCTURE_PATTERNS = [
+    # Test directories
+    "*/__tests__/*",
+    "*/tests/*",
+    "*/test/*",
+    "*/__test__/*",
+    "*/testing/*",
+    # Java-specific test directories (Maven/Gradle structure)
+    "*/src/test/*",
+    "*/src/testFixtures/*",
+    "*/src/integration-test/*",
+    "*/src/jmh/*",  # JMH benchmark code
+    "*/src/contractTest/*",
+    # Test files by naming convention
+    "*.test.*",
+    "*.spec.*",
+    "*_test.*",
+    "*test_*.py",
+    "test_*.py",
+    "*Test.java",  # Java test classes (e.g., FooTest.java)
+    "*IT.java",  # Java integration tests (e.g., FooIT.java)
+    "*Test.kt",  # Kotlin test classes
+    "*IT.kt",
+    "*Tests.java",  # Java test classes (e.g., FooTests.java)
+    # Mock and fixture directories
+    "*/mock/*",
+    "*/__mocks__/*",
+    "*/mocks/*",
+    "*/fixtures/*",
+    "*/fixture/*",
+    # Stubs and fake implementations
+    "*/stubs/*",
+    "*/stub/*",
+    "*/fakes/*",
+    "*/fake/*",
+    # E2E and integration test directories
+    "*/e2e/*",
+    "*/integration-tests/*",
+    "*/integration_test*/*",
+    "*/osgi-tests/*",  # OSGi integration tests (seen in Mockito)
+    # Development/infrastructure config
+    "*.config.*",  # Only if in root? No, can be prod code too
+]
+
+# Build tool configs and infrastructure files matched by basename only.
+# These are not production application code.
+BUILD_CONFIG_PATTERNS = [
+    "esbuild*",
+    "webpack*",
+    "rollup*",
+    "vite*",
+    "gulpfile*",
+    "gruntfile*",
+    "Makefile*",
+    "Dockerfile*",
+    "docker-compose*",
+    "*.json",
+]
+
+
+def is_test_or_infrastructure_file(file_path: str | Path | None) -> bool:
+    """Check if a file path matches test, infrastructure, or build/config patterns.
+
+    This is a standalone function that can be used without instantiating RepoIgnoreManager,
+    making it suitable for use in health checks and other contexts where only a file path
+    is available.
+
+    Args:
+        file_path: Path to check (string or Path object)
+
+    Returns:
+        True if the file is a test, mock, build config, or infrastructure file
+    """
+    if not file_path:
+        return False
+
+    path_str = str(file_path).lower()
+
+    for pattern in TEST_INFRASTRUCTURE_PATTERNS:
+        if fnmatch(path_str, pattern.lower()):
+            return True
+
+    # Also check basename against build/config patterns
+    name = os.path.basename(path_str)
+    for pattern in BUILD_CONFIG_PATTERNS:
+        if fnmatch(name, pattern.lower()):
+            return True
+
+    return False
 
 
 class RepoIgnoreManager:
@@ -39,8 +134,7 @@ class RepoIgnoreManager:
         "temp",
         "repos",  # Specific to CodeBoarding context
         "runs",  # Monitoring runs
-        "test",
-        "tests",
+        # Test directories are handled via patterns below for more flexibility
     }
 
     # Build artifacts and minified files that should be ignored
@@ -51,6 +145,7 @@ class RepoIgnoreManager:
         "*.min.css",  # Minified CSS
         "*.chunk.js",  # Code-split chunks
         "*.chunk.js.map",  # Source maps for chunks
+        # Test/infrastructure patterns are added dynamically
     ]
 
     def __init__(self, repo_root: Path):
@@ -68,6 +163,10 @@ class RepoIgnoreManager:
 
         # Add default ignored file patterns (build artifacts, minified files, etc.)
         for pattern in self.DEFAULT_IGNORED_FILE_PATTERNS:
+            patterns.append(f"{pattern}\n")
+
+        # Add test/infrastructure patterns
+        for pattern in TEST_INFRASTRUCTURE_PATTERNS:
             patterns.append(f"{pattern}\n")
 
         self.spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)

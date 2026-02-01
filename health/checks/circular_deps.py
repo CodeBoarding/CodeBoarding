@@ -18,7 +18,9 @@ def check_circular_dependencies(package_dependencies: dict, config: HealthCheckC
     graph = nx.DiGraph()
     for package, info in package_dependencies.items():
         graph.add_node(package)
-        imports = info.get("imports", [])
+        # Prefer import_deps (text-based imports only) over the combined imports
+        # key which may include LSP reference-based deps that inflate edges.
+        imports = info.get("import_deps", info.get("imports", []))
         if isinstance(imports, dict):
             imports = list(imports.keys())
         for imported in imports:

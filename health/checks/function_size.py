@@ -7,6 +7,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
+from repo_utils.ignore import is_test_or_infrastructure_file
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
 
     Flags functions that exceed line count thresholds. Large functions are
     harder to understand, test, and maintain.
+
+    Excludes test and infrastructure files as they have different size norms.
     """
     findings: list[FindingEntity] = []
     total_checked = 0
@@ -36,6 +39,10 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
 
     for fqn, node in call_graph.nodes.items():
         if node.is_class() or node.is_data():
+            continue
+
+        # Skip test/infrastructure files
+        if is_test_or_infrastructure_file(node.file_path):
             continue
 
         size = node.line_end - node.line_start

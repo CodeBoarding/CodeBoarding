@@ -22,7 +22,9 @@ def check_package_instability(package_dependencies: dict, config: HealthCheckCon
     total_checked = 0
 
     for package, info in package_dependencies.items():
-        imports = info.get("imports", [])
+        # Prefer import_deps (text-based imports only) over the combined imports
+        # key which may include LSP reference-based deps that inflate edges.
+        imports = info.get("import_deps", info.get("imports", []))
         if isinstance(imports, dict):
             imports = list(imports.keys())
         imported_by = info.get("imported_by", [])

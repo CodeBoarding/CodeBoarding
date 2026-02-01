@@ -124,7 +124,7 @@ class Node:
         return self.type in self.DATA_TYPES
 
     # Patterns indicating callback or anonymous function nodes from LSP
-    _CALLBACK_PATTERNS = ("() callback", "<function>", "<arrow")
+    _CALLBACK_PATTERNS = (") callback", "<function>", "<arrow")
 
     def is_callback_or_anonymous(self) -> bool:
         """Return True if this node represents a callback or anonymous function.

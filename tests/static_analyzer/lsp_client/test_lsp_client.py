@@ -371,7 +371,7 @@ class TestLSPClient(unittest.TestCase):
 
         package_name = client._get_package_name(test_file)
 
-        self.assertEqual(package_name, "root")
+        self.assertEqual(package_name, "module")
 
     def test_extract_package_from_import(self):
         # Test extracting top-level package from import

@@ -80,7 +80,12 @@ def run_health_checks(
             check_summaries.append(check_package_instability(package_deps, config))
 
         check_summaries.append(check_component_cohesion(call_graph, config))
-        check_summaries.append(check_orphan_code(call_graph))
+
+        try:
+            src_files = static_analysis.get_source_files(language)
+        except (ValueError, KeyError):
+            src_files = []
+        check_summaries.append(check_orphan_code(call_graph, config, source_files=src_files))
 
         # Tag summaries with language when multiple languages are analyzed
         if multiple_languages:
