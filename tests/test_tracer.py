@@ -2,7 +2,7 @@ import os
 import unittest
 import shutil
 from pathlib import Path
-from codeboarding.tracer import find_real_binary, main
+from codeboarding.cli.tracer import find_real_binary, main
 from unittest.mock import patch, MagicMock
 
 
@@ -33,13 +33,13 @@ class TestTracer(unittest.TestCase):
             real_bin = find_real_binary("ls", dummy_shim)
             self.assertEqual(Path(real_bin).resolve(), ls_path.resolve())
 
-    @patch("codeboarding.tracer.get_project_root")
+    @patch("codeboarding.cli.tracer.get_project_root")
     @patch("sys.stdout", new_callable=MagicMock)
     def test_main_creates_shims(self, mock_stdout, mock_get_root):
         mock_get_root.return_value = self.test_dir
 
         # Mock find_real_binary to return a fake path
-        with patch("codeboarding.tracer.find_real_binary") as mock_find:
+        with patch("codeboarding.cli.tracer.find_real_binary") as mock_find:
             mock_find.return_value = "/bin/ls"
 
             with patch("sys.argv", ["tracer.py", "--tools", "ls"]):
@@ -53,6 +53,7 @@ class TestTracer(unittest.TestCase):
             content = f.read()
             self.assertIn('REAL_BIN="/bin/ls"', content)
             self.assertIn('TOOL="ls"', content)
+            self.assertIn(f'REPO_ROOT="{self.test_dir.absolute()}"', content)
 
 
 if __name__ == "__main__":
