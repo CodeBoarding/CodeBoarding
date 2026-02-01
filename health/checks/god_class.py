@@ -61,26 +61,6 @@ def collect_god_class_values(
     return method_counts, class_loc_values, class_fan_out_values
 
 
-def _get_god_class_thresholds(config: HealthCheckConfig) -> tuple[float, float, float]:
-    """Get thresholds for god class detection (method_count, loc, fan_out)."""
-    method_threshold = config.get_adaptive_threshold(
-        config.god_class_method_count_max,
-        config.codebase_stats.class_method_count,
-        use_adaptive=config.god_class_method_count_percentile is not None,
-    )
-    loc_threshold = config.get_adaptive_threshold(
-        config.god_class_loc_max,
-        config.codebase_stats.class_loc,
-        use_adaptive=config.god_class_loc_percentile is not None,
-    )
-    fan_out_threshold = config.get_adaptive_threshold(
-        config.god_class_fan_out_max,
-        config.codebase_stats.class_fan_out,
-        use_adaptive=config.god_class_fan_out_percentile is not None,
-    )
-    return method_threshold, loc_threshold, fan_out_threshold
-
-
 def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: HealthCheckConfig) -> StandardCheckSummary:
     """E4: Detect god classes — classes with too many methods, too much code, or too many dependencies.
 
@@ -91,7 +71,6 @@ def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: Hea
     - Too high aggregate fan-out (> threshold)
     """
     findings: list[FindingEntity] = []
-    method_threshold, loc_threshold, fan_out_threshold = _get_god_class_thresholds(config)
 
     class_methods = _group_methods_by_class(call_graph)
 
@@ -138,13 +117,13 @@ def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: Hea
         max_metric = 0.0
         is_god_class = False
 
-        if method_count >= method_threshold:
+        if method_count >= config.god_class_method_count_max:
             max_metric = max(max_metric, float(method_count))
             is_god_class = True
-        if class_loc >= loc_threshold:
+        if class_loc >= config.god_class_loc_max:
             max_metric = max(max_metric, float(class_loc))
             is_god_class = True
-        if total_fan_out >= fan_out_threshold:
+        if total_fan_out >= config.god_class_fan_out_max:
             max_metric = max(max_metric, float(total_fan_out))
             is_god_class = True
 
@@ -166,7 +145,7 @@ def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: Hea
         finding_groups.append(
             FindingGroup(
                 severity=Severity.WARNING,
-                threshold=method_threshold,
+                threshold=config.god_class_method_count_max,
                 description="Classes exceeding god class criteria (methods, LOC, or fan-out)",
                 entities=sorted(findings, key=lambda e: e.metric_value, reverse=True),
             )

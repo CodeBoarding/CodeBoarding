@@ -51,7 +51,7 @@ def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
         finding_groups.append(
             FindingGroup(
                 severity=Severity.WARNING,
-                threshold=0.0,
+                threshold=0,
                 description="Functions with no incoming or outgoing calls in the call graph",
                 entities=warning_entities,
             )

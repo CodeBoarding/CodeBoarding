@@ -1,60 +1,9 @@
 import logging
-import math
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field
 
 logger = logging.getLogger(__name__)
-
-
-class DistributionStats(BaseModel):
-    """Statistical summary of a single metric distribution.
-
-    Used for adaptive threshold computation across all health checks.
-    """
-
-    mean: float = 0.0
-    std: float = 0.0
-    max_value: float = 0.0
-    p99: float = 0.0
-
-    @staticmethod
-    def from_values(values: list[float]) -> "DistributionStats | None":
-        """Compute distribution statistics from a list of values.
-
-        Returns None if the list is empty.
-        """
-        if not values:
-            return None
-
-        n = len(values)
-        mean = sum(values) / n
-        max_value = max(values)
-        std = 0.0
-        if n > 1:
-            variance = sum((x - mean) ** 2 for x in values) / n
-            std = math.sqrt(variance)
-
-        sorted_values = sorted(values)
-        p99 = _compute_percentile(sorted_values, 0.99)
-
-        return DistributionStats(mean=mean, std=std, max_value=max_value, p99=p99)
-
-
-def _compute_percentile(sorted_values: list[float], percentile: float) -> float:
-    """Compute the percentile value from a sorted list using linear interpolation."""
-    if not sorted_values:
-        return 0.0
-    n = len(sorted_values)
-    if n == 1:
-        return float(sorted_values[0])
-
-    index = (n - 1) * percentile
-    lower = int(index)
-    upper = min(lower + 1, n - 1)
-    fraction = index - lower
-
-    return sorted_values[lower] + fraction * (sorted_values[upper] - sorted_values[lower])
 
 
 class Severity:
@@ -86,14 +35,14 @@ class FindingEntity(BaseModel):
         default=None,
         description="End line of the affected entity (None if not applicable)",
     )
-    metric_value: float = Field(description="The measured metric value")
+    metric_value: int | float = Field(description="The measured metric value")
 
 
 class FindingGroup(BaseModel):
     """A group of findings at the same severity level within a health check."""
 
     severity: str = Field(description="Severity level: info, warning, critical")
-    threshold: float = Field(description="The threshold that was exceeded for this severity level")
+    threshold: int | float = Field(description="The threshold that was exceeded for this severity level")
     description: str = Field(description="Human-readable description of what this severity group means")
     entities: list[FindingEntity] = Field(default_factory=list)
 
@@ -185,84 +134,28 @@ class HealthReport(BaseModel):
     )
 
 
-class CodebaseStats(BaseModel):
-    """Statistical metrics about the codebase for adaptive thresholds.
-
-    Each field is a DistributionStats for a specific metric, or None if the
-    metric could not be computed (e.g., no functions, no classes, no hierarchy).
-    """
-
-    function_size: DistributionStats | None = None
-    fan_out: DistributionStats | None = None
-    fan_in: DistributionStats | None = None
-    class_method_count: DistributionStats | None = None
-    class_loc: DistributionStats | None = None
-    class_fan_out: DistributionStats | None = None
-    inheritance_depth: DistributionStats | None = None
-
-
 class HealthCheckConfig(BaseModel):
-    """Configuration thresholds for health checks.
-
-    Each metric has a single warning threshold that can be either:
-    - Fixed: an absolute value (e.g., function_size_max = 500)
-    - Adaptive: percentile of the codebase distribution (e.g., function_size_percentile = 0.999)
-
-    When adaptive thresholds are set (non-None), they take precedence over fixed thresholds.
-    The fixed value acts as a conservative upper-bound cap.
-    """
-
-    # Statistical baseline for adaptive thresholds (computed from codebase)
-    codebase_stats: CodebaseStats = Field(default_factory=CodebaseStats)
+    """Configuration thresholds for health checks."""
 
     # E1: Function size (lines)
-    function_size_max: int = 500
-    function_size_percentile: float | None = 0.999  # 99.9th percentile
-
-    def get_adaptive_threshold(
-        self, max_value: int, stats: DistributionStats | None, use_adaptive: bool = True
-    ) -> float:
-        """Get adaptive threshold with p99 cap.
-
-        When stats are available and use_adaptive is True, uses min(p99, max_value).
-        Otherwise falls back to the fixed max_value.
-
-        Args:
-            max_value: The fixed maximum value (conservative upper bound)
-            stats: The distribution stats for this metric (if available)
-            use_adaptive: Whether to use adaptive thresholding (default True)
-
-        Returns:
-            The computed threshold (float)
-        """
-        if use_adaptive and stats is not None:
-            return min(stats.p99, float(max_value))
-        return float(max_value)
+    function_size_max: int = 150
 
     # E2: Fan-out (outgoing calls)
-    fan_out_max: int = 40
-    fan_out_percentile: float | None = 0.999
+    fan_out_max: int = 10
 
     # E3: Fan-in (incoming calls)
-    fan_in_max: int = 60
-    fan_in_percentile: float | None = 0.999
+    fan_in_max: int = 10
 
     # E4: God class
-    god_class_method_count_max: int = 30
-    god_class_loc_max: int = 800
-    god_class_fan_out_max: int = 50
-    god_class_method_count_percentile: float | None = 0.997  # 99.7th percentile
-    god_class_loc_percentile: float | None = 0.997
-    god_class_fan_out_percentile: float | None = 0.997
+    god_class_method_count_max: int = 25
+    god_class_loc_max: int = 400
+    god_class_fan_out_max: int = 30
 
     # E5: Inheritance depth
     inheritance_depth_max: int = 5
 
     # E6: Package-level cycle detection via nx.simple_cycles()
     max_cycles_reported: int = 50
-
-    # E8: Disconnected nodes (potential dead code)
-    # no configurable threshold
 
     # E9: Package instability
     instability_high: float = 0.8

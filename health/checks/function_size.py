@@ -32,12 +32,7 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
     """
     findings: list[FindingEntity] = []
     total_checked = 0
-
-    threshold = config.get_adaptive_threshold(
-        config.function_size_max,
-        config.codebase_stats.function_size,
-        use_adaptive=config.function_size_percentile is not None,
-    )
+    threshold = config.function_size_max
 
     for fqn, node in call_graph.nodes.items():
         if node.is_class() or node.is_data():
@@ -55,7 +50,7 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
                     file_path=node.file_path,
                     line_start=node.line_start,
                     line_end=node.line_end,
-                    metric_value=float(size),
+                    metric_value=size,
                 )
             )
 

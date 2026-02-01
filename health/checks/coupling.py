@@ -41,12 +41,7 @@ def check_fan_out(call_graph: CallGraph, config: HealthCheckConfig) -> StandardC
     """
     findings: list[FindingEntity] = []
     total_checked = 0
-
-    threshold = config.get_adaptive_threshold(
-        config.fan_out_max,
-        config.codebase_stats.fan_out,
-        use_adaptive=config.fan_out_percentile is not None,
-    )
+    threshold = config.fan_out_max
 
     for fqn, node in call_graph.nodes.items():
         if node.is_class() or node.is_data():
@@ -62,7 +57,7 @@ def check_fan_out(call_graph: CallGraph, config: HealthCheckConfig) -> StandardC
                     file_path=node.file_path,
                     line_start=node.line_start,
                     line_end=node.line_end,
-                    metric_value=float(fan_out),
+                    metric_value=fan_out,
                 )
             )
 
@@ -99,12 +94,7 @@ def check_fan_in(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCh
     """
     findings: list[FindingEntity] = []
     total_checked = 0
-
-    threshold = config.get_adaptive_threshold(
-        config.fan_in_max,
-        config.codebase_stats.fan_in,
-        use_adaptive=config.fan_in_percentile is not None,
-    )
+    threshold = config.fan_in_max
 
     nx_graph = call_graph.to_networkx()
     for node_name in nx_graph.nodes:
@@ -122,7 +112,7 @@ def check_fan_in(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCh
                     file_path=node.file_path if node else None,
                     line_start=node.line_start if node else None,
                     line_end=node.line_end if node else None,
-                    metric_value=float(fan_in),
+                    metric_value=fan_in,
                 )
             )
 

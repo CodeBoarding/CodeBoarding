@@ -82,7 +82,7 @@ def check_inheritance_depth(hierarchy: dict, config: HealthCheckConfig) -> Stand
                     file_path=info.get("file_path"),
                     line_start=info.get("line_start"),
                     line_end=info.get("line_end"),
-                    metric_value=float(depth),
+                    metric_value=depth,
                 )
             )
 

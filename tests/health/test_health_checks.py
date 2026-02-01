@@ -460,8 +460,8 @@ class TestEntityTypeFiltering(unittest.TestCase):
 class TestHealthCheckConfig(unittest.TestCase):
     def test_default_config(self):
         config = HealthCheckConfig()
-        self.assertEqual(config.function_size_max, 500)
-        self.assertEqual(config.fan_out_max, 40)
+        self.assertEqual(config.function_size_max, 150)
+        self.assertEqual(config.fan_out_max, 10)
 
     def test_custom_config(self):
         config = HealthCheckConfig(function_size_max=60)

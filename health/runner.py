@@ -5,16 +5,14 @@ from pathlib import Path
 
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.cohesion import check_component_cohesion
-from health.checks.coupling import check_fan_in, check_fan_out, collect_coupling_values
-from health.checks.function_size import check_function_size, collect_function_sizes
-from health.checks.god_class import check_god_classes, collect_god_class_values
+from health.checks.coupling import check_fan_in, check_fan_out
+from health.checks.function_size import check_function_size
+from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.checks.orphan_code import check_orphan_code
 from health.models import (
     CircularDependencyCheck,
-    CodebaseStats,
-    DistributionStats,
     FileHealthSummary,
     HealthCheckConfig,
     HealthReport,
@@ -22,41 +20,8 @@ from health.models import (
     StandardCheckSummary,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
-
-
-def _compute_codebase_stats(call_graph: CallGraph) -> CodebaseStats:
-    """Compute statistical metrics from the codebase for adaptive thresholds.
-
-    Delegates value collection to each check module and uses DistributionStats
-    for uniform statistical computation.
-    """
-    function_sizes = collect_function_sizes(call_graph)
-    fan_out_values, fan_in_values = collect_coupling_values(call_graph)
-    method_counts, class_loc_values, class_fan_out_values = collect_god_class_values(call_graph)
-
-    stats = CodebaseStats(
-        function_size=DistributionStats.from_values(function_sizes),
-        fan_out=DistributionStats.from_values(fan_out_values),
-        fan_in=DistributionStats.from_values(fan_in_values),
-        class_method_count=DistributionStats.from_values(method_counts),
-        class_loc=DistributionStats.from_values(class_loc_values),
-        class_fan_out=DistributionStats.from_values(class_fan_out_values),
-    )
-
-    logger.info(
-        "Codebase stats computed: function_size(mean=%s, p99=%s), fan_out(mean=%s, p99=%s), fan_in(mean=%s, p99=%s)",
-        stats.function_size.mean if stats.function_size else None,
-        stats.function_size.p99 if stats.function_size else None,
-        stats.fan_out.mean if stats.fan_out else None,
-        stats.fan_out.p99 if stats.fan_out else None,
-        stats.fan_in.mean if stats.fan_in else None,
-        stats.fan_in.p99 if stats.fan_in else None,
-    )
-
-    return stats
 
 
 def _relativize_path(file_path: str, repo_root: str) -> str:
@@ -95,8 +60,6 @@ def run_health_checks(
             hierarchy = static_analysis.get_hierarchy(language)
         except ValueError:
             hierarchy = None
-
-        config.codebase_stats = _compute_codebase_stats(call_graph)
 
         start_idx = len(check_summaries)
 
