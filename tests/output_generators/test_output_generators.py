@@ -9,7 +9,7 @@ from agents.agent_responses import (
     Relation,
     SourceCodeReference,
 )
-from output_generators import sanitize
+from utils import sanitize
 from output_generators.html import (
     component_header_html,
     generate_cytoscape_data,

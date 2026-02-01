@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import List
 
 from agents.agent_responses import AnalysisInsights
-from output_generators import sanitize
-from utils import contains_json
+from utils import sanitize, contains_json
 
 
 def generated_mermaid_str(
