@@ -778,8 +778,8 @@ class LSPClient(ABC):
                 return []
 
             symbols = response.get("result", [])
-            # Filter for class symbols (kind 5)
-            classes = [s for s in symbols if s.get("kind") == 5]
+            # Filter for class symbols
+            classes = [s for s in symbols if s.get("kind") == Node.CLASS_TYPE]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1010,7 +1010,7 @@ class LSPClient(ABC):
         """Find all class symbols recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get("kind") == 5:  # Class symbol kind
+            if symbol.get("kind") == Node.CLASS_TYPE:
                 classes.append(symbol)
             if "children" in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol["children"]))
@@ -1023,7 +1023,7 @@ class LSPClient(ABC):
         # Look for module-level symbols that might indicate imports
         for symbol in symbols:
             # Variables at module level might be imports
-            if symbol.get("kind") == 13:  # Variable symbol kind
+            if symbol.get("kind") == Node.VARIABLE_TYPE:
                 symbol_name = symbol.get("name", "")
 
                 # Use LSP to get definition/references for this symbol
@@ -1106,7 +1106,7 @@ class LSPClient(ABC):
             # This is a simplified approach - in practice, you'd need to iterate through
             # identifiers in the file and use textDocument/references
             for symbol in symbols:
-                if symbol.get("kind") in [12, 6]:  # Functions and methods
+                if symbol.get("kind") in Node.CALLABLE_TYPES:
                     pos = symbol["selectionRange"]["start"]
                     refs = self._get_references(file_uri, pos["line"], pos["character"])
                     external_refs.extend(refs)

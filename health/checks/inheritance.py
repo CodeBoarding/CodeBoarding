@@ -50,12 +50,6 @@ def _compute_inheritance_depths(hierarchy: dict) -> dict[str, int]:
     return depth_cache
 
 
-def collect_inheritance_depths(hierarchy: dict) -> list[float]:
-    """Collect inheritance depth values for all classes in the hierarchy."""
-    depth_cache = _compute_inheritance_depths(hierarchy)
-    return [float(d) for d in depth_cache.values()]
-
-
 def check_inheritance_depth(hierarchy: dict, config: HealthCheckConfig) -> StandardCheckSummary:
     """E5: Check inheritance depth for all classes.
 

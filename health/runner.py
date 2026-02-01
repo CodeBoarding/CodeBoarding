@@ -100,15 +100,17 @@ def run_health_checks(
     # Aggregate file-level summaries
     file_risk: dict[str, FileHealthSummary] = {}
     for summary in check_summaries:
-        if isinstance(summary, StandardCheckSummary):
-            for group in summary.finding_groups:
-                for entity in group.entities:
-                    if entity.file_path:
-                        if entity.file_path not in file_risk:
-                            file_risk[entity.file_path] = FileHealthSummary(file_path=entity.file_path)
-                        file_risk[entity.file_path].total_findings += 1
-                        if group.severity == Severity.WARNING:
-                            file_risk[entity.file_path].warning_findings += 1
+        if not isinstance(summary, StandardCheckSummary):
+            continue
+        for group in summary.finding_groups:
+            for entity in group.entities:
+                if not entity.file_path:
+                    continue
+                if entity.file_path not in file_risk:
+                    file_risk[entity.file_path] = FileHealthSummary(file_path=entity.file_path)
+                file_risk[entity.file_path].total_findings += 1
+                if group.severity == Severity.WARNING:
+                    file_risk[entity.file_path].warning_findings += 1
 
     for file_summary in file_risk.values():
         base_score = min(file_summary.total_findings * 10, 50)
@@ -118,16 +120,26 @@ def run_health_checks(
     file_summaries = sorted(file_risk.values(), key=lambda f: f.composite_risk_score, reverse=True)[:20]
 
     # Relativize paths if repo_root is provided
-    if repo_root:
-        for summary in check_summaries:
-            if isinstance(summary, StandardCheckSummary):
-                for group in summary.finding_groups:
-                    for entity in group.entities:
-                        if entity.file_path and os.path.isabs(entity.file_path):
-                            entity.file_path = _relativize_path(entity.file_path, repo_root)
-        for file_summary in file_summaries:
-            if file_summary.file_path and os.path.isabs(file_summary.file_path):
-                file_summary.file_path = _relativize_path(file_summary.file_path, repo_root)
+    if not repo_root:
+        return HealthReport(
+            repository_name=repo_name,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            overall_score=overall_score,
+            check_summaries=check_summaries,
+            file_summaries=file_summaries,
+        )
+
+    for summary in check_summaries:
+        if not isinstance(summary, StandardCheckSummary):
+            continue
+        for group in summary.finding_groups:
+            for entity in group.entities:
+                if entity.file_path and os.path.isabs(entity.file_path):
+                    entity.file_path = _relativize_path(entity.file_path, repo_root)
+
+    for file_summary in file_summaries:
+        if file_summary.file_path and os.path.isabs(file_summary.file_path):
+            file_summary.file_path = _relativize_path(file_summary.file_path, repo_root)
 
     return HealthReport(
         repository_name=repo_name,

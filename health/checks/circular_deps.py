@@ -35,7 +35,7 @@ def check_circular_dependencies(package_dependencies: dict, config: HealthCheckC
             packages_in_cycles.update(cycle)
             cycles.append(" -> ".join(cycle + [cycle[0]]))
     except nx.NetworkXError:
-        logger.warning("Error detecting cycles in package dependency graph")
+        logger.warning("Error while detecting cycles in package dependency graph")
 
     return CircularDependencyCheck(
         check_name="circular_dependencies",

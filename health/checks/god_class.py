@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 def _group_methods_by_class(call_graph: CallGraph) -> dict[str, list[str]]:
-    """Group node FQNs by their class prefix."""
+    """Group node Fully Qualified Names (FQNs) by their class prefix.
+
+    Example FQN: 'module.ClassName.method_name'
+    """
     class_methods: dict[str, list[str]] = defaultdict(list)
     delimiter = call_graph.delimiter
     for fqn in call_graph.nodes:
