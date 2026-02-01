@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 
 from agents.agent_responses import ClusterAnalysis, AnalysisInsights, ComponentFiles
@@ -175,10 +176,11 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     # Check 2: Are all component names valid?
     if context.valid_component_names:
-        invalid_classifications = []
-        for fc in result.file_paths:
-            if fc.component_name not in context.valid_component_names:
-                invalid_classifications.append(f"{fc.file_path} -> {fc.component_name}")
+        invalid_classifications = [
+            f"{fc.file_path} -> {fc.component_name}"
+            for fc in result.file_paths
+            if fc.component_name not in context.valid_component_names
+        ]
 
         if invalid_classifications:
             invalid_str = ", ".join(invalid_classifications[:10])
@@ -189,6 +191,22 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
                 f"Valid component names are: {valid_names}. "
                 f"Please use only these component names."
             )
+
+    # Check 3: Are there duplicate file assignments?
+    file_counts = Counter(_normalize_path(fc.file_path) for fc in result.file_paths)
+    duplicate_entries = [
+        f"{fc.file_path} (assigned to {fc.component_name})"
+        for fc in result.file_paths
+        if file_counts[_normalize_path(fc.file_path)] > 1
+    ]
+
+    if duplicate_entries:
+        dup_str = ", ".join(duplicate_entries[:10])
+        more_msg = f" and {len(duplicate_entries) - 10} more" if len(duplicate_entries) > 10 else ""
+        feedback_messages.append(
+            f"Duplicate file assignments found: {dup_str}{more_msg}. "
+            f"Each file should be assigned to exactly one component."
+        )
 
     if not feedback_messages:
         logger.info("[Validation] All unassigned files correctly classified")

@@ -409,6 +409,49 @@ class TestValidateFileClassifications(unittest.TestCase):
 
         self.assertTrue(result.is_valid)  # Should normalize /repo/src/file1.py to src/file1.py
 
+    def test_duplicate_file_assignments(self):
+        """Test that duplicate file paths in classifications are detected."""
+        component_files = ComponentFiles(
+            file_paths=[
+                FileClassification(file_path="src/file1.py", component_name="ComponentA"),
+                FileClassification(file_path="src/file2.py", component_name="ComponentB"),
+                FileClassification(file_path="src/file1.py", component_name="ComponentB"),  # duplicate
+            ]
+        )
+
+        context = ValidationContext(
+            expected_files={"src/file1.py", "src/file2.py"},
+            valid_component_names={"ComponentA", "ComponentB"},
+        )
+
+        result = validate_file_classifications(component_files, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("Duplicate file assignments", result.feedback_messages[0])
+        self.assertIn("file1.py", result.feedback_messages[0])
+        self.assertIn("exactly one component", result.feedback_messages[0])
+
+    def test_no_duplicate_file_assignments(self):
+        """Test that unique file assignments pass validation."""
+        component_files = ComponentFiles(
+            file_paths=[
+                FileClassification(file_path="src/file1.py", component_name="ComponentA"),
+                FileClassification(file_path="src/file2.py", component_name="ComponentB"),
+                FileClassification(file_path="src/file3.py", component_name="ComponentA"),
+            ]
+        )
+
+        context = ValidationContext(
+            expected_files={"src/file1.py", "src/file2.py", "src/file3.py"},
+            valid_component_names={"ComponentA", "ComponentB"},
+        )
+
+        result = validate_file_classifications(component_files, context)
+
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.feedback_messages, [])
+
     def test_truncate_long_error_lists(self):
         """Test that long error lists are truncated."""
         # Create 15 missing files

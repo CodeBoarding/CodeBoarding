@@ -78,7 +78,10 @@ class TestComponentJson(unittest.TestCase):
     def test_component_json_with_references(self):
         # Test with source code references
         ref = SourceCodeReference(
-            qualified_name="test.TestClass", reference_file="test.py", reference_start_line=1, reference_end_line=10
+            qualified_name="test.TestClass",
+            reference_file="test.py",
+            reference_start_line=1,
+            reference_end_line=10,
         )
         comp = ComponentJson(name="Component", description="Description", key_entities=[ref])
 
@@ -340,8 +343,8 @@ class TestDiagramGenerator(unittest.TestCase):
         version_file = self.output_dir / "codeboarding_version.json"
         self.assertTrue(version_file.exists())
 
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    def test_process_component_with_exception(self, mock_static):
+    @patch("diagram_analysis.diagram_generator.get_static_analysis")
+    def test_process_component_with_exception(self, mock_get_static_analysis):
         # Test processing a component that raises an exception
         mock_get_static_analysis.return_value = StaticAnalysisResults()
 
