@@ -22,6 +22,7 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import get_static_analysis
 from static_analyzer.scanner import ProjectScanner
+from health.runner import run_health_checks
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,12 @@ class DiagramGenerator:
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),
             }
+
+        health_report = run_health_checks(static_analysis, self.repo_name, repo_path=self.repo_location)
+        health_path = os.path.join(self.output_dir, "health_report.json")
+        with open(health_path, "w") as f:
+            f.write(health_report.model_dump_json(indent=2, exclude_none=True))
+        logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
