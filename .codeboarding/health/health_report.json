@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-01T13:19:46.135688+00:00",
-  "overall_score": 0.9949937421777222,
+  "timestamp": "2026-02-01T16:16:42.416150+00:00",
+  "overall_score": 0.995010395010395,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -131,17 +131,17 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "static_analyzer -> agents -> diagram_analysis -> static_analyzer",
-        "static_analyzer -> agents -> output_generators -> root -> diagram_analysis -> static_analyzer",
-        "static_analyzer -> agents -> static_analyzer",
-        "diagram_analysis -> output_generators -> agents -> diagram_analysis",
-        "diagram_analysis -> output_generators -> root -> diagram_analysis",
-        "diagram_analysis -> output_generators -> root -> agents -> diagram_analysis",
-        "diagram_analysis -> agents -> diagram_analysis",
-        "diagram_analysis -> agents -> output_generators -> root -> diagram_analysis",
+        "root -> diagram_analysis -> static_analyzer -> agents -> output_generators -> root",
+        "root -> diagram_analysis -> output_generators -> root",
+        "root -> diagram_analysis -> agents -> output_generators -> root",
         "root -> output_generators -> root",
+        "root -> agents -> diagram_analysis -> output_generators -> root",
         "root -> agents -> output_generators -> root",
-        "agents -> output_generators -> agents"
+        "output_generators -> agents -> diagram_analysis -> output_generators",
+        "output_generators -> agents -> output_generators",
+        "static_analyzer -> agents -> diagram_analysis -> static_analyzer",
+        "static_analyzer -> agents -> static_analyzer",
+        "diagram_analysis -> agents -> diagram_analysis"
       ],
       "packages_checked": 13,
       "packages_in_cycles": 5
@@ -194,15 +194,15 @@
       "check_name": "orphan_code",
       "description": "Detects functions with no incoming or outgoing calls (potential dead code)",
       "check_type": "standard",
-      "total_entities_checked": 493,
+      "total_entities_checked": 501,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9979716024340771,
+      "score": 0.998003992015968,
       "finding_groups": [
         {
           "severity": "warning",
           "threshold": 0,
-          "description": "Functions with no incoming or outgoing calls in the call graph",
+          "description": "Functions with no incoming or outgoing calls (high confidence dead code)",
           "entities": [
             {
               "entity_name": "output_generators.html.component_header_html",
