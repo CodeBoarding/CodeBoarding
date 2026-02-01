@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from git import Repo
 
@@ -12,19 +13,39 @@ from health.models import HealthCheckConfig
 from health.runner import run_health_checks
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
-from vscode_constants import update_config
+from static_analyzer.programming_language import ProgrammingLanguage
 
 REPO_URL = "https://github.com/CodeBoarding/CodeBoarding"
 PINNED_COMMIT = "03b25afe8d37ce733e5f70c3cbcdfb52f4883dcd"
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "health_report.json"
-# Binary directory containing tokei and LSP servers (relative to project root)
-BIN_DIR = Path(__file__).parent.parent.parent / "static_analyzer" / "servers"
 
 # Tolerance for numeric fields that can vary slightly due to LSP non-determinism.
 # total_entities_checked can fluctuate by a few nodes between runs.
 ENTITY_COUNT_TOLERANCE = 5
 # Scores derived from entity counts inherit that variance.
 SCORE_TOLERANCE = 0.02
+
+
+def _mock_project_scanner_scan(self) -> list[ProgrammingLanguage]:
+    """Mock ProjectScanner.scan() to return languages without requiring tokei binary."""
+    return [
+        ProgrammingLanguage(
+            language="Python",
+            size=50000,
+            percentage=60.0,
+            suffixes=[".py"],
+            server_commands=["pyright-langserver", "--stdio"],
+            lsp_server_key="python",
+        ),
+        ProgrammingLanguage(
+            language="TypeScript",
+            size=33000,
+            percentage=40.0,
+            suffixes=[".ts", ".tsx"],
+            server_commands=["cli.mjs", "--stdio", "--log-level=2"],
+            lsp_server_key="typescript",
+        ),
+    ]
 
 
 def _normalize_cycle(cycle: str) -> str:
@@ -100,9 +121,6 @@ class TestHealthCheckIntegration(unittest.TestCase):
     maxDiff = None
 
     def test_health_report_matches_fixture(self):
-        # Ensure tokei and LSP server paths are resolved
-        update_config(BIN_DIR)
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             repo_root = tmp_path / "repos"
@@ -116,159 +134,161 @@ class TestHealthCheckIntegration(unittest.TestCase):
             repo = Repo(repo_path)
             repo.git.checkout(PINNED_COMMIT)
 
-            # Run static analysis (the heavy part)
-            static_analysis = get_static_analysis(repo_path, cache_dir=tmp_path / "cache")
+            # Mock ProjectScanner.scan() to bypass tokei binary dependency
+            with patch("static_analyzer.scanner.ProjectScanner.scan", _mock_project_scanner_scan):
+                # Run static analysis (the heavy part)
+                static_analysis = get_static_analysis(repo_path, cache_dir=tmp_path / "cache")
 
-            # Set up health config
-            health_config_dir = output_dir / "health"
-            initialize_healthignore(health_config_dir)
-            exclude_patterns = load_health_exclude_patterns(health_config_dir)
-            health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+                # Set up health config
+                health_config_dir = output_dir / "health"
+                initialize_healthignore(health_config_dir)
+                exclude_patterns = load_health_exclude_patterns(health_config_dir)
+                health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
 
-            # Run health checks
-            report = run_health_checks(static_analysis, repo_name, config=health_config, repo_path=repo_path)
+                # Run health checks
+                report = run_health_checks(static_analysis, repo_name, config=health_config, repo_path=repo_path)
 
-            self.assertIsNotNone(report, "Health report should not be None")
-            assert report is not None
+                self.assertIsNotNone(report, "Health report should not be None")
+                assert report is not None
 
-            # Load and normalize both reports
-            actual = json.loads(report.model_dump_json(indent=2, exclude_none=True))
-            actual.pop("timestamp", None)
+                # Load and normalize both reports
+                actual = json.loads(report.model_dump_json(indent=2, exclude_none=True))
+                actual.pop("timestamp", None)
 
-            with open(FIXTURE_PATH) as f:
-                expected = json.load(f)
-            expected.pop("timestamp", None)
+                with open(FIXTURE_PATH) as f:
+                    expected = json.load(f)
+                expected.pop("timestamp", None)
 
-            # Normalize both for deterministic comparison
-            actual = _normalize_report(actual)
-            expected = _normalize_report(expected)
+                # Normalize both for deterministic comparison
+                actual = _normalize_report(actual)
+                expected = _normalize_report(expected)
 
-            # Debug: write actual output for comparison
-            debug_path = Path("/tmp/actual_health_report.json")
-            debug_path.write_text(json.dumps(actual, indent=2))
+                # Debug: write actual output for comparison
+                debug_path = Path("/tmp/actual_health_report.json")
+                debug_path.write_text(json.dumps(actual, indent=2))
 
-            # Compare top-level scalar fields individually
-            self.assertEqual(
-                actual.get("repository_name"),
-                expected.get("repository_name"),
-                "repository_name mismatch",
-            )
-            self.assertAlmostEqual(
-                actual.get("overall_score", 0),
-                expected.get("overall_score", 0),
-                delta=SCORE_TOLERANCE,
-                msg="overall_score mismatch",
-            )
+                # Compare top-level scalar fields individually
+                self.assertEqual(
+                    actual.get("repository_name"),
+                    expected.get("repository_name"),
+                    "repository_name mismatch",
+                )
+                self.assertAlmostEqual(
+                    actual.get("overall_score", 0),
+                    expected.get("overall_score", 0),
+                    delta=SCORE_TOLERANCE,
+                    msg="overall_score mismatch",
+                )
 
-            # Compare each check_summary individually for clear failure messages
-            actual_checks = {c["check_name"]: c for c in actual.get("check_summaries", [])}
-            expected_checks = {c["check_name"]: c for c in expected.get("check_summaries", [])}
+                # Compare each check_summary individually for clear failure messages
+                actual_checks = {c["check_name"]: c for c in actual.get("check_summaries", [])}
+                expected_checks = {c["check_name"]: c for c in expected.get("check_summaries", [])}
 
-            self.assertEqual(
-                sorted(actual_checks.keys()),
-                sorted(expected_checks.keys()),
-                "Mismatch in check_summary names present in report",
-            )
+                self.assertEqual(
+                    sorted(actual_checks.keys()),
+                    sorted(expected_checks.keys()),
+                    "Mismatch in check_summary names present in report",
+                )
 
-            for check_name in sorted(expected_checks.keys()):
-                with self.subTest(check_name=check_name):
-                    act = actual_checks[check_name]
-                    exp = expected_checks[check_name]
+                for check_name in sorted(expected_checks.keys()):
+                    with self.subTest(check_name=check_name):
+                        act = actual_checks[check_name]
+                        exp = expected_checks[check_name]
 
-                    # Structural fields must match exactly
-                    for key in ("check_name", "description", "check_type"):
-                        self.assertEqual(act.get(key), exp.get(key), f"'{check_name}' field '{key}' differs")
+                        # Structural fields must match exactly
+                        for key in ("check_name", "description", "check_type"):
+                            self.assertEqual(act.get(key), exp.get(key), f"'{check_name}' field '{key}' differs")
 
-                    # Numeric fields: allow small tolerance for LSP non-determinism
-                    for key in ("total_entities_checked", "findings_count", "warning_count"):
-                        if key in exp:
+                        # Numeric fields: allow small tolerance for LSP non-determinism
+                        for key in ("total_entities_checked", "findings_count", "warning_count"):
+                            if key in exp:
+                                self.assertAlmostEqual(
+                                    act.get(key, 0),
+                                    exp.get(key, 0),
+                                    delta=ENTITY_COUNT_TOLERANCE,
+                                    msg=f"'{check_name}' field '{key}' differs beyond tolerance",
+                                )
+                        if "score" in exp:
                             self.assertAlmostEqual(
-                                act.get(key, 0),
-                                exp.get(key, 0),
-                                delta=ENTITY_COUNT_TOLERANCE,
-                                msg=f"'{check_name}' field '{key}' differs beyond tolerance",
+                                act.get("score", 0),
+                                exp.get("score", 0),
+                                delta=SCORE_TOLERANCE,
+                                msg=f"'{check_name}' score differs beyond tolerance",
                             )
-                    if "score" in exp:
-                        self.assertAlmostEqual(
-                            act.get("score", 0),
-                            exp.get("score", 0),
-                            delta=SCORE_TOLERANCE,
-                            msg=f"'{check_name}' score differs beyond tolerance",
-                        )
 
-                    # Finding groups: compare entity names (the important structural part)
-                    act_groups = act.get("finding_groups", [])
-                    exp_groups = exp.get("finding_groups", [])
-                    self.assertEqual(
-                        len(act_groups),
-                        len(exp_groups),
-                        f"'{check_name}' has {len(act_groups)} finding groups, expected {len(exp_groups)}",
-                    )
-                    for i, (ag, eg) in enumerate(zip(act_groups, exp_groups)):
+                        # Finding groups: compare entity names (the important structural part)
+                        act_groups = act.get("finding_groups", [])
+                        exp_groups = exp.get("finding_groups", [])
                         self.assertEqual(
-                            ag.get("severity"),
-                            eg.get("severity"),
-                            f"'{check_name}' group {i} severity differs",
+                            len(act_groups),
+                            len(exp_groups),
+                            f"'{check_name}' has {len(act_groups)} finding groups, expected {len(exp_groups)}",
                         )
-                        self.assertEqual(
-                            ag.get("description"),
-                            eg.get("description"),
-                            f"'{check_name}' group {i} description differs",
-                        )
-                        # Expected entities must all be present (catches real regressions).
-                        # A small number of extra entities is tolerated because LSP
-                        # non-determinism can push near-threshold functions above the
-                        # cutoff in some runs.
-                        act_entities = {e["entity_name"] for e in ag.get("entities", [])}
-                        exp_entities = {e["entity_name"] for e in eg.get("entities", [])}
-                        missing = exp_entities - act_entities
-                        extra = act_entities - exp_entities
-                        self.assertFalse(
-                            missing,
-                            f"'{check_name}' group {i}: expected entities missing from actual: {missing}",
-                        )
-                        self.assertLessEqual(
-                            len(extra),
-                            ENTITY_COUNT_TOLERANCE,
-                            f"'{check_name}' group {i}: too many unexpected entities: {extra}",
-                        )
+                        for i, (ag, eg) in enumerate(zip(act_groups, exp_groups)):
+                            self.assertEqual(
+                                ag.get("severity"),
+                                eg.get("severity"),
+                                f"'{check_name}' group {i} severity differs",
+                            )
+                            self.assertEqual(
+                                ag.get("description"),
+                                eg.get("description"),
+                                f"'{check_name}' group {i} description differs",
+                            )
+                            # Expected entities must all be present (catches real regressions).
+                            # A small number of extra entities is tolerated because LSP
+                            # non-determinism can push near-threshold functions above the
+                            # cutoff in some runs.
+                            act_entities = {e["entity_name"] for e in ag.get("entities", [])}
+                            exp_entities = {e["entity_name"] for e in eg.get("entities", [])}
+                            missing = exp_entities - act_entities
+                            extra = act_entities - exp_entities
+                            self.assertFalse(
+                                missing,
+                                f"'{check_name}' group {i}: expected entities missing from actual: {missing}",
+                            )
+                            self.assertLessEqual(
+                                len(extra),
+                                ENTITY_COUNT_TOLERANCE,
+                                f"'{check_name}' group {i}: too many unexpected entities: {extra}",
+                            )
 
-                    # Circular dependencies: compare cycles exactly
-                    if "cycles" in exp:
-                        self.assertEqual(
-                            act.get("cycles", []),
-                            exp.get("cycles", []),
-                            f"'{check_name}' cycles differ",
-                        )
+                        # Circular dependencies: compare cycles exactly
+                        if "cycles" in exp:
+                            self.assertEqual(
+                                act.get("cycles", []),
+                                exp.get("cycles", []),
+                                f"'{check_name}' cycles differ",
+                            )
 
-            # Compare file_summaries: expected files must all be present;
-            # allow a few extras from threshold fluctuation.
-            actual_files = {f["file_path"]: f for f in actual.get("file_summaries", [])}
-            expected_files = {f["file_path"]: f for f in expected.get("file_summaries", [])}
+                # Compare file_summaries: expected files must all be present;
+                # allow a few extras from threshold fluctuation.
+                actual_files = {f["file_path"]: f for f in actual.get("file_summaries", [])}
+                expected_files = {f["file_path"]: f for f in expected.get("file_summaries", [])}
 
-            missing_files = set(expected_files) - set(actual_files)
-            extra_files = set(actual_files) - set(expected_files)
-            self.assertFalse(
-                missing_files,
-                f"Expected file summaries missing: {missing_files}",
-            )
-            self.assertLessEqual(
-                len(extra_files),
-                ENTITY_COUNT_TOLERANCE,
-                f"Too many unexpected file summaries: {extra_files}",
-            )
+                missing_files = set(expected_files) - set(actual_files)
+                extra_files = set(actual_files) - set(expected_files)
+                self.assertFalse(
+                    missing_files,
+                    f"Expected file summaries missing: {missing_files}",
+                )
+                self.assertLessEqual(
+                    len(extra_files),
+                    ENTITY_COUNT_TOLERANCE,
+                    f"Too many unexpected file summaries: {extra_files}",
+                )
 
-            for file_path in sorted(set(expected_files) & set(actual_files)):
-                with self.subTest(file_path=file_path):
-                    act_f = actual_files[file_path]
-                    exp_f = expected_files[file_path]
-                    for key in ("total_findings", "warning_findings"):
-                        self.assertAlmostEqual(
-                            act_f.get(key, 0),
-                            exp_f.get(key, 0),
-                            delta=ENTITY_COUNT_TOLERANCE,
-                            msg=f"file_summary '{file_path}' field '{key}' differs beyond tolerance",
-                        )
+                for file_path in sorted(set(expected_files) & set(actual_files)):
+                    with self.subTest(file_path=file_path):
+                        act_f = actual_files[file_path]
+                        exp_f = expected_files[file_path]
+                        for key in ("total_findings", "warning_findings"):
+                            self.assertAlmostEqual(
+                                act_f.get(key, 0),
+                                exp_f.get(key, 0),
+                                delta=ENTITY_COUNT_TOLERANCE,
+                                msg=f"file_summary '{file_path}' field '{key}' differs beyond tolerance",
+                            )
 
 
 if __name__ == "__main__":
