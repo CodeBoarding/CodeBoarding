@@ -205,8 +205,9 @@ def get_repo_state_hash(repo_dir: str | Path) -> str:
     # Get diff of staged and unstaged changes against HEAD
     diff_content = repo.git.diff("HEAD")
 
-    ignored_dirs = RepoIgnoreManager.DEFAULT_IGNORED_DIRS
-    untracked_files = sorted(f for f in repo.untracked_files if not any(part in ignored_dirs for part in Path(f).parts))
+    # Use RepoIgnoreManager to properly filter untracked files based on all ignore patterns
+    ignore_manager = RepoIgnoreManager(repo_path)
+    untracked_files = sorted(f for f in repo.untracked_files if not ignore_manager.should_ignore(Path(f)))
     untracked_str = "\n".join(untracked_files)
 
     # Combine all state components (excluding commit_hash since it's in the prefix)

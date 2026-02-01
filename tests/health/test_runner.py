@@ -56,6 +56,7 @@ class TestHealthRunner(unittest.TestCase):
         )
 
         report = run_health_checks(results, "test-repo", config=config)
+        assert report is not None
 
         # Check overall structure
         self.assertEqual(report.repository_name, "test-repo")
@@ -105,6 +106,7 @@ class TestHealthRunner(unittest.TestCase):
         results.add_source_files("python", ["/src/mod.py"])
 
         report = run_health_checks(results, "test")
+        assert report is not None
 
         # Serialize to JSON
         import json
@@ -120,11 +122,10 @@ class TestHealthRunner(unittest.TestCase):
         self.assertIn("file_summaries", data)
 
     def test_empty_results(self):
-        """Test that empty StaticAnalysisResults produces a valid report."""
+        """Test that empty StaticAnalysisResults returns None."""
         results = StaticAnalysisResults()
         report = run_health_checks(results, "empty-repo")
-        self.assertEqual(report.overall_score, 1.0)
-        self.assertEqual(len(report.check_summaries), 0)
+        self.assertIsNone(report)
 
     def test_custom_config(self):
         """Test that custom config thresholds are respected."""
@@ -141,6 +142,7 @@ class TestHealthRunner(unittest.TestCase):
             function_size_max=500,
         )
         report_default = run_health_checks(results, "test", config=config_default)
+        assert report_default is not None
         size_default = next(s for s in report_default.check_summaries if s.check_name == "function_size")
         assert isinstance(size_default, StandardCheckSummary)
         self.assertEqual(size_default.findings_count, 0)
@@ -150,6 +152,7 @@ class TestHealthRunner(unittest.TestCase):
             function_size_max=30,
         )
         report_custom = run_health_checks(results, "test", config=config)
+        assert report_custom is not None
         size_custom = next(s for s in report_custom.check_summaries if s.check_name == "function_size")
         assert isinstance(size_custom, StandardCheckSummary)
         self.assertEqual(size_custom.findings_count, 1)
@@ -169,6 +172,7 @@ class TestHealthRunner(unittest.TestCase):
             function_size_max=100,
         )
         report = run_health_checks(results, "test", config=config)
+        assert report is not None
 
         # Should have file summaries
         file_sums = report.file_summaries
@@ -199,6 +203,7 @@ class TestHealthRunner(unittest.TestCase):
             function_size_max=100,
         )
         report = run_health_checks(results, "test", config=config, repo_path="/home/user/project")
+        assert report is not None
 
         # All file paths in findings should be relative
         for summary in report.check_summaries:
@@ -225,6 +230,7 @@ class TestHealthRunner(unittest.TestCase):
             function_size_max=100,
         )
         report = run_health_checks(results, "test", config=config)
+        assert report is not None
 
         # File paths should remain absolute
         for summary in report.check_summaries:

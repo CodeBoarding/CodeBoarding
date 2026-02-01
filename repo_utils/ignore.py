@@ -27,7 +27,9 @@ TEST_INFRASTRUCTURE_PATTERNS = [
     # Test directories
     "*/__tests__/*",
     "*/tests/*",
+    "tests/*",
     "*/test/*",
+    "test/*",
     "*/__test__/*",
     "*/testing/*",
     # Java-specific test directories (Maven/Gradle structure)

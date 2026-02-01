@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field
@@ -6,7 +7,7 @@ from pydantic import BaseModel, Discriminator, Field
 logger = logging.getLogger(__name__)
 
 
-class Severity:
+class Severity(str, Enum):
     """Severity level constants for health findings."""
 
     INFO = "info"
@@ -41,7 +42,7 @@ class FindingEntity(BaseModel):
 class FindingGroup(BaseModel):
     """A group of findings at the same severity level within a health check."""
 
-    severity: str = Field(description="Severity level: info, warning, critical")
+    severity: Severity = Field(description="Severity level: info, warning, critical")
     threshold: int | float = Field(description="The threshold that was exceeded for this severity level")
     description: str = Field(description="Human-readable description of what this severity group means")
     entities: list[FindingEntity] = Field(default_factory=list)

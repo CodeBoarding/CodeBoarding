@@ -72,6 +72,10 @@ def run_health_check_command(
         static_analysis, resolved_project_name, config=health_config, repo_path=resolved_repo_path
     )
 
+    if report is None:
+        logger.warning("Health checks skipped: no languages found in static analysis results")
+        return
+
     report_path = health_config_dir / "health_report.json"
     report_path.write_text(report.model_dump_json(indent=2, exclude_none=True))
 

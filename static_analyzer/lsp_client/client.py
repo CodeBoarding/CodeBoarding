@@ -489,6 +489,11 @@ class LSPClient(ABC):
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
+        # Sort results by file path for deterministic graph construction.
+        # as_completed() returns results in non-deterministic order which causes
+        # downstream metrics to fluctuate between runs.
+        successful_results.sort(key=lambda r: str(r.file_path))
+
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
@@ -518,8 +523,8 @@ class LSPClient(ABC):
                 call_graph.add_node(symbol_node)
                 reference_nodes.append(symbol_node)
 
-            # 3. CALL GRAPH
-            for caller_name, callee_name in result.call_relationships:
+            # 3. CALL GRAPH (sorted for deterministic edge insertion order)
+            for caller_name, callee_name in sorted(result.call_relationships):
                 try:
                     call_graph.add_edge(caller_name, callee_name)
                     logger.debug(f"Added edge: {caller_name} -> {callee_name}")
@@ -536,12 +541,12 @@ class LSPClient(ABC):
                 if imported_pkg in package_relations:
                     package_relations[imported_pkg]["imported_by"].add(package)
 
-        # Convert sets to lists for serialization
+        # Convert sets to sorted lists for deterministic serialization
         for package_info in package_relations.values():
-            package_info["imports"] = list(package_info["imports"])
-            package_info["import_deps"] = list(package_info["import_deps"])
-            package_info["reference_deps"] = list(package_info["reference_deps"])
-            package_info["imported_by"] = list(package_info["imported_by"])
+            package_info["imports"] = sorted(package_info["imports"])
+            package_info["import_deps"] = sorted(package_info["import_deps"])
+            package_info["reference_deps"] = sorted(package_info["reference_deps"])
+            package_info["imported_by"] = sorted(package_info["imported_by"])
 
         logger.info("Unified static analysis complete.")
         logger.info(

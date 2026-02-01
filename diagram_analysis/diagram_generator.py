@@ -110,10 +110,13 @@ class DiagramGenerator:
         health_report = run_health_checks(
             static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
         )
-        health_path = os.path.join(self.output_dir, "health", "health_report.json")
-        with open(health_path, "w") as f:
-            f.write(health_report.model_dump_json(indent=2, exclude_none=True))
-        logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
+        if health_report is not None:
+            health_path = os.path.join(self.output_dir, "health", "health_report.json")
+            with open(health_path, "w") as f:
+                f.write(health_report.model_dump_json(indent=2, exclude_none=True))
+            logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
+        else:
+            logger.warning("Health checks skipped: no languages found in static analysis results")
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
