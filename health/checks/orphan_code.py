@@ -1,11 +1,31 @@
 import logging
-
-import networkx as nx
+import os
 
 from health.models import FindingEntity, FindingGroup, Severity, StandardCheckSummary
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
+
+
+def _is_dunder_method(node_name: str, delimiter: str) -> bool:
+    """Check if the node represents a Python dunder method (e.g. __init__, __getattr__).
+
+    Dunder methods are invoked implicitly by the Python runtime and rarely
+    appear as explicit edges in the call graph.
+    """
+    short_name = node_name.rsplit(delimiter, 1)[-1]
+    return short_name.startswith("__") and short_name.endswith("__")
+
+
+def _is_init_module_function(file_path: str | None) -> bool:
+    """Check if the node is defined in an __init__.py file.
+
+    Functions in __init__.py are typically re-exports or package-level
+    utilities whose calls are not reliably captured by LSP call hierarchy.
+    """
+    if not file_path:
+        return False
+    return os.path.basename(file_path) == "__init__.py"
 
 
 def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
@@ -18,6 +38,7 @@ def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
     warning_entities: list[FindingEntity] = []
     nx_graph = call_graph.to_networkx()
     total_nodes = nx_graph.number_of_nodes()
+    delimiter = call_graph.delimiter
 
     skipped = 0
     for node_name in nx_graph.nodes:
@@ -28,6 +49,16 @@ def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
             skipped += 1
             continue
 
+        # Skip dunder methods and __init__.py functions — these are common
+        # false positives because the LSP call graph doesn't capture them
+        if _is_dunder_method(node_name, delimiter):
+            skipped += 1
+            continue
+        file_path = node.file_path if node else None
+        if _is_init_module_function(file_path):
+            skipped += 1
+            continue
+
         in_deg = nx_graph.in_degree(node_name)
         out_deg = nx_graph.out_degree(node_name)
 
@@ -35,7 +66,7 @@ def check_orphan_code(call_graph: CallGraph) -> StandardCheckSummary:
             warning_entities.append(
                 FindingEntity(
                     entity_name=node_name,
-                    file_path=node.file_path if node else None,
+                    file_path=file_path,
                     line_start=node.line_start if node else None,
                     line_end=node.line_end if node else None,
                     metric_value=0.0,

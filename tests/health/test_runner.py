@@ -50,12 +50,9 @@ class TestHealthRunner(unittest.TestCase):
         }
         results.add_package_dependencies("python", pkg_deps)
 
-        # Use fixed thresholds (disable adaptive) for predictable test results
+        # Use fixed thresholds for predictable test results
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
-            fan_out_percentile=None,
-            fan_in_percentile=None,
         )
 
         report = run_health_checks(results, "test-repo", config=config)
@@ -142,7 +139,6 @@ class TestHealthRunner(unittest.TestCase):
         # With default fixed threshold (max=500), no finding
         config_default = HealthCheckConfig(
             function_size_max=500,
-            function_size_percentile=None,
         )
         report_default = run_health_checks(results, "test", config=config_default)
         size_default = next(s for s in report_default.check_summaries if s.check_name == "function_size")
@@ -152,7 +148,6 @@ class TestHealthRunner(unittest.TestCase):
         # With lower threshold, should find it
         config = HealthCheckConfig(
             function_size_max=30,
-            function_size_percentile=None,
         )
         report_custom = run_health_checks(results, "test", config=config)
         size_custom = next(s for s in report_custom.check_summaries if s.check_name == "function_size")
@@ -172,9 +167,6 @@ class TestHealthRunner(unittest.TestCase):
 
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
-            fan_out_percentile=None,
-            fan_in_percentile=None,
         )
         report = run_health_checks(results, "test", config=config)
 
@@ -205,16 +197,13 @@ class TestHealthRunner(unittest.TestCase):
 
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
-            fan_out_percentile=None,
-            fan_in_percentile=None,
         )
         report = run_health_checks(results, "test", config=config, repo_path="/home/user/project")
 
         # All file paths in findings should be relative
         for summary in report.check_summaries:
             if hasattr(summary, "finding_groups"):
-                for group in summary.finding_groups:
+                for group in summary.finding_groups:  # type: ignore[attr-defined]
                     for entity in group.entities:
                         if entity.file_path is not None:
                             self.assertFalse(
@@ -234,16 +223,13 @@ class TestHealthRunner(unittest.TestCase):
 
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
-            fan_out_percentile=None,
-            fan_in_percentile=None,
         )
         report = run_health_checks(results, "test", config=config)
 
         # File paths should remain absolute
         for summary in report.check_summaries:
             if hasattr(summary, "finding_groups"):
-                for group in summary.finding_groups:
+                for group in summary.finding_groups:  # type: ignore[attr-defined]
                     for entity in group.entities:
                         if entity.file_path is not None:
                             self.assertTrue(

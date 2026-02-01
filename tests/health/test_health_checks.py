@@ -14,7 +14,11 @@ from static_analyzer.graph import CallGraph, Node
 
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> Node:
     return Node(
-        fully_qualified_name=fqn, node_type=node_type, file_path=file_path, line_start=line_start, line_end=line_end
+        fully_qualified_name=fqn,
+        node_type=node_type,
+        file_path=file_path,
+        line_start=line_start,
+        line_end=line_end,
     )
 
 
@@ -51,7 +55,6 @@ class TestFunctionSize(unittest.TestCase):
         graph.add_node(_make_node("mod.medium", "/f.py", 0, 60))
         config = HealthCheckConfig(
             function_size_max=50,
-            function_size_percentile=None,
         )
         result = check_function_size(graph, config)
         self.assertEqual(result.findings_count, 1)
@@ -63,11 +66,23 @@ class TestFunctionSize(unittest.TestCase):
         graph.add_node(_make_node("mod.large", "/f.py", 0, 150))
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
         )
         result = check_function_size(graph, config)
-        self.assertEqual(result.findings_count, 1)
-        self.assertEqual(result.finding_groups[0].severity, Severity.WARNING)
+        entity_names = {f.entity_name for f in result.findings}
+        self.assertIn("mod.large", entity_names)
+        self.assertEqual(result.total_entities_checked, 1)
+
+    def test_function_size_skips_data_entities(self):
+        graph = CallGraph()
+        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=Node.CONSTANT_TYPE))
+        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=Node.VARIABLE_TYPE))
+        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=Node.PROPERTY_TYPE))
+        config = HealthCheckConfig(
+            function_size_max=100,
+        )
+        result = check_function_size(graph, config)
+        self.assertEqual(result.findings_count, 0)
+        self.assertEqual(result.total_entities_checked, 0)
 
     def test_empty_graph(self):
         graph = CallGraph()
@@ -87,7 +102,6 @@ class TestFanOut(unittest.TestCase):
         graph = _build_simple_graph()
         config = HealthCheckConfig(
             fan_out_max=2,
-            fan_out_percentile=None,
         )
         result = check_fan_out(graph, config)
         warning_group = next((g for g in result.finding_groups if g.severity == Severity.WARNING), None)
@@ -115,7 +129,6 @@ class TestFanIn(unittest.TestCase):
 
         config = HealthCheckConfig(
             fan_in_max=3,
-            fan_in_percentile=None,
         )
         result = check_fan_in(graph, config)
         all_entities = []
@@ -132,15 +145,18 @@ class TestGodClass(unittest.TestCase):
         graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 250, node_type=Node.CLASS_TYPE))
         for i in range(25):
             graph.add_node(
-                _make_node(f"mod.BigClass.method{i}", "/f.py", i * 10, i * 10 + 5, node_type=Node.METHOD_TYPE)
+                _make_node(
+                    f"mod.BigClass.method{i}",
+                    "/f.py",
+                    i * 10,
+                    i * 10 + 5,
+                    node_type=Node.METHOD_TYPE,
+                )
             )
         config = HealthCheckConfig(
             god_class_method_count_max=20,
             god_class_loc_max=500,
             god_class_fan_out_max=30,
-            god_class_method_count_percentile=None,
-            god_class_loc_percentile=None,
-            god_class_fan_out_percentile=None,
         )
         result = check_god_classes(graph, None, config)
         self.assertGreater(result.findings_count, 0)
@@ -156,7 +172,6 @@ class TestGodClass(unittest.TestCase):
             graph.add_node(_make_node(f"mod.SmallClass.method{i}", "/f.py", i * 10, i * 10 + 5))
         config = HealthCheckConfig(
             god_class_method_count_max=20,
-            god_class_method_count_percentile=None,
         )
         result = check_god_classes(graph, None, config)
         self.assertEqual(result.findings_count, 0)
@@ -177,8 +192,6 @@ class TestGodClass(unittest.TestCase):
         config = HealthCheckConfig(
             god_class_method_count_max=20,
             god_class_loc_max=500,
-            god_class_method_count_percentile=None,
-            god_class_loc_percentile=None,
         )
         result = check_god_classes(graph, hierarchy, config)
         self.assertGreater(result.findings_count, 0)
@@ -303,7 +316,10 @@ class TestOrphanCode(unittest.TestCase):
 class TestPackageInstability(unittest.TestCase):
     def test_unstable_package_with_dependents(self):
         pkg_deps = {
-            "unstable": {"imports": ["dep1", "dep2", "dep3", "dep4", "dep5"], "imported_by": ["consumer"]},
+            "unstable": {
+                "imports": ["dep1", "dep2", "dep3", "dep4", "dep5"],
+                "imported_by": ["consumer"],
+            },
             "dep1": {"imports": [], "imported_by": ["unstable"]},
             "dep2": {"imports": [], "imported_by": ["unstable"]},
             "dep3": {"imports": [], "imported_by": ["unstable"]},
@@ -362,7 +378,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph.add_node(_make_node("mod.BigClass.big_method", "/f.py", 0, 200, node_type=Node.METHOD_TYPE))
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
         )
         result = check_function_size(graph, config)
         entity_names = {f.entity_name for f in result.findings}
@@ -377,7 +392,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=Node.PROPERTY_TYPE))
         config = HealthCheckConfig(
             function_size_max=100,
-            function_size_percentile=None,
         )
         result = check_function_size(graph, config)
         self.assertEqual(result.total_entities_checked, 0)
@@ -392,7 +406,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph.add_edge("mod.func", "mod.other")
         config = HealthCheckConfig(
             fan_out_max=1,
-            fan_out_percentile=None,
         )
         result = check_fan_out(graph, config)
         entity_names = {f.entity_name for f in result.findings}
@@ -408,7 +421,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph.add_edge("mod.func2", "mod.MyClass")
         config = HealthCheckConfig(
             fan_in_max=1,
-            fan_in_percentile=None,
         )
         result = check_fan_in(graph, config)
         entity_names = {f.entity_name for f in result.findings}
