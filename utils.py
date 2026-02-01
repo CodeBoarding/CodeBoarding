@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -72,3 +73,8 @@ def get_config(item_key: str):
 
 def default_config(item_key: str):
     return VSCODE_CONFIG.get(item_key)
+
+
+def sanitize(name: str) -> str:
+    """Replace non-alphanumerics with underscores so IDs are valid identifiers."""
+    return re.sub(r"\W+", "_", name)

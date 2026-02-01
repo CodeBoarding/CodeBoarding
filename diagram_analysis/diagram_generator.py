@@ -16,7 +16,7 @@ from agents.planner_agent import PlannerAgent
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
-from output_generators.markdown import sanitize
+from utils import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash

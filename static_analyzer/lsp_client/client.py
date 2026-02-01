@@ -546,6 +546,166 @@ class LSPClient(ABC):
             "source_files": src_files,
         }
 
+    def _analyze_package_relations(
+        self, file_path: Path, symbols: list, content: str, result: FileAnalysisResult
+    ) -> None:
+        """Analyze package relations and imports for a single file."""
+        # Extract package name from file path
+        try:
+            rel_path = file_path.relative_to(self.project_path)
+            package_parts = rel_path.parent.parts
+            result.package_name = ".".join(package_parts) if package_parts and package_parts[0] != "." else "root"
+        except ValueError:
+            result.package_name = "external"
+
+        result.imports = self._extract_imports_from_symbols(symbols, content)
+
+    def _analyze_symbol_references(self, file_path: Path, symbols: list, result: FileAnalysisResult) -> None:
+        """Collect all symbol references from the document symbols."""
+        all_symbols = self._get_all_symbols_recursive(symbols)
+        for symbol in all_symbols:
+            symbol_kind = symbol.get("kind")
+            symbol_name = symbol.get("name", "")
+
+            if symbol_kind not in self.symbol_kinds:
+                continue
+
+            qualified_name = self._create_qualified_name(file_path, symbol_name)
+            range_info = symbol.get("range", {})
+            start_line = range_info.get("start", {}).get("line", 0)
+            end_line = range_info.get("end", {}).get("line", 0)
+
+            node = Node(
+                fully_qualified_name=qualified_name,
+                node_type=symbol_kind,
+                file_path=str(file_path),
+                line_start=start_line,
+                line_end=end_line,
+            )
+            result.symbols.append(node)
+
+    def _analyze_call_graph(
+        self, file_path: Path, file_uri: str, content: str, symbols: list, result: FileAnalysisResult
+    ) -> None:
+        """Process function/method calls using call hierarchy and body-level analysis."""
+        result.function_symbols = self._flatten_symbols(symbols)
+
+        # Find call relationships using call hierarchy (incoming + outgoing)
+        for symbol in result.function_symbols:
+            pos = symbol["selectionRange"]["start"]
+            current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
+
+            hierarchy_items = self._prepare_call_hierarchy(file_uri, pos["line"], pos["character"])
+            if not hierarchy_items:
+                continue
+
+            for item in hierarchy_items:
+                # Get OUTGOING calls (what this function calls)
+                try:
+                    outgoing_calls = self._get_outgoing_calls(item)
+                    if outgoing_calls:
+                        for call in outgoing_calls:
+                            callee_item = call["to"]
+                            try:
+                                callee_uri = callee_item["uri"]
+                                if callee_uri.startswith("file://"):
+                                    callee_path = uri_to_path(callee_uri)
+                                    callee_qualified_name = self._create_qualified_name(
+                                        callee_path, callee_item["name"]
+                                    )
+                                    result.call_relationships.append((current_qualified_name, callee_qualified_name))
+                                    logger.debug(f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing outgoing call: {e}")
+                except Exception as e:
+                    logger.debug(f"Error getting outgoing calls: {e}")
+
+                # Get INCOMING calls (who calls this function)
+                try:
+                    incoming_calls = self._get_incoming_calls(item)
+                    if incoming_calls:
+                        for call in incoming_calls:
+                            caller_item = call["from"]
+                            try:
+                                caller_uri = caller_item["uri"]
+                                if caller_uri.startswith("file://"):
+                                    caller_path = uri_to_path(caller_uri)
+                                    caller_qualified_name = self._create_qualified_name(
+                                        caller_path, caller_item["name"]
+                                    )
+                                    result.call_relationships.append((caller_qualified_name, current_qualified_name))
+                                    logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing incoming call: {e}")
+                except Exception as e:
+                    logger.debug(f"Error getting incoming calls: {e}")
+
+        # Body-level calls by finding call positions in function bodies
+        try:
+            for func_symbol in result.function_symbols:
+                func_range = func_symbol.get("range", {})
+                func_qualified_name = self._create_qualified_name(file_path, func_symbol["name"])
+
+                start_line = func_range.get("start", {}).get("line", 0)
+                end_line = func_range.get("end", {}).get("line", 0)
+                call_positions = self._find_call_positions_in_range(content, start_line, end_line)
+
+                for call_pos in call_positions:
+                    resolved_name = self._resolve_call_position(file_uri, file_path, call_pos)
+                    if resolved_name:
+                        result.call_relationships.append((func_qualified_name, resolved_name))
+                        logger.debug(f"Body call: {func_qualified_name} -> {resolved_name}")
+        except Exception as e:
+            logger.debug(f"Error processing body calls for {file_path}: {e}")
+
+    def _analyze_class_hierarchies(
+        self,
+        file_path: Path,
+        file_uri: str,
+        content: str,
+        symbols: list,
+        all_classes: list[dict],
+        result: FileAnalysisResult,
+    ) -> None:
+        """Process class inheritance relationships."""
+        result.class_symbols = self._find_classes_in_symbols(symbols)
+
+        for class_symbol in result.class_symbols:
+            qualified_name = self._create_qualified_name(file_path, class_symbol["name"])
+
+            range_info = class_symbol.get("range", {})
+            start_line = range_info.get("start", {}).get("line", 0)
+            end_line = range_info.get("end", {}).get("line", 0)
+
+            class_info = {
+                "superclasses": [],
+                "subclasses": [],
+                "file_path": str(file_path),
+                "line_start": start_line,
+                "line_end": end_line,
+            }
+
+            superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
+            class_info["superclasses"] = superclasses
+
+            subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
+            class_info["subclasses"] = subclasses
+
+            result.class_hierarchies[qualified_name] = class_info
+
+    def _analyze_external_references(self, file_uri: str, symbols: list, result: FileAnalysisResult) -> None:
+        """Find external symbol references using LSP."""
+        external_refs = []
+        try:
+            for symbol in symbols:
+                if symbol.get("kind") in [12, 6]:  # Functions and methods
+                    pos = symbol["selectionRange"]["start"]
+                    refs = self._get_references(file_uri, pos["line"], pos["character"])
+                    external_refs.extend(refs)
+        except Exception as e:
+            logger.debug(f"Error finding external references: {e}")
+        result.external_references = external_refs
+
     def _analyze_single_file(self, file_path: Path, all_classes: list[dict]) -> FileAnalysisResult:
         """
         Analyze a single file and return all analysis results.
@@ -568,164 +728,21 @@ class LSPClient(ABC):
         try:
             content = file_path.read_text(encoding="utf-8")
 
-            # Thread-safe LSP communication (each thread gets its own connection context)
             self._send_notification(
                 "textDocument/didOpen",
                 {"textDocument": {"uri": file_uri, "languageId": self.language_id, "version": 1, "text": content}},
             )
 
-            # Get all symbols in this file once
             symbols = self._get_document_symbols(file_uri)
             if not symbols:
                 self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
                 return result
 
-            # 1. PACKAGE RELATIONS - Process imports and package structure
-            result.package_name = self._get_package_name(file_path)
-            result.imports = self._extract_imports_from_symbols(symbols, content)
-
-            # 2. REFERENCES - Collect all symbol references
-            all_symbols = self._get_all_symbols_recursive(symbols)
-            for symbol in all_symbols:
-                symbol_kind = symbol.get("kind")
-                symbol_name = symbol.get("name", "")
-
-                if symbol_kind not in self.symbol_kinds:
-                    continue
-
-                qualified_name = self._create_qualified_name(file_path, symbol_name)
-                range_info = symbol.get("range", {})
-                start_line = range_info.get("start", {}).get("line", 0)
-                end_line = range_info.get("end", {}).get("line", 0)
-
-                node = Node(
-                    fully_qualified_name=qualified_name,
-                    node_type=symbol_kind,
-                    file_path=str(file_path),
-                    line_start=start_line,
-                    line_end=end_line,
-                )
-                result.symbols.append(node)
-
-            # 3. CALL GRAPH - Process function/method calls
-            result.function_symbols = self._flatten_symbols(symbols)
-
-            # Find call relationships - we need BOTH incoming AND outgoing calls
-            for symbol in result.function_symbols:
-                pos = symbol["selectionRange"]["start"]
-                current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
-
-                # Prepare the call hierarchy at the function's position
-                hierarchy_items = self._prepare_call_hierarchy(file_uri, pos["line"], pos["character"])
-                if not hierarchy_items:
-                    continue
-
-                for item in hierarchy_items:
-                    # METHOD 1: Get OUTGOING calls (what this function calls)
-                    # This is the PRIMARY method - captures all calls made by this function
-                    try:
-                        outgoing_calls = self._get_outgoing_calls(item)
-                        if outgoing_calls:
-                            for call in outgoing_calls:
-                                callee_item = call["to"]
-                                try:
-                                    callee_uri = callee_item["uri"]
-                                    if callee_uri.startswith("file://"):
-                                        callee_path = uri_to_path(callee_uri)
-                                        callee_qualified_name = self._create_qualified_name(
-                                            callee_path, callee_item["name"]
-                                        )
-
-                                        # Add edge: current_function -> called_function
-                                        result.call_relationships.append(
-                                            (current_qualified_name, callee_qualified_name)
-                                        )
-                                        logger.debug(
-                                            f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}"
-                                        )
-                                except Exception as e:
-                                    logger.debug(f"Error processing outgoing call: {e}")
-                    except Exception as e:
-                        logger.debug(f"Error getting outgoing calls: {e}")
-
-                    # METHOD 2: Get INCOMING calls (who calls this function)
-                    # This is SUPPLEMENTARY - helps catch calls we might have missed
-                    try:
-                        incoming_calls = self._get_incoming_calls(item)
-                        if incoming_calls:
-                            for call in incoming_calls:
-                                caller_item = call["from"]
-                                try:
-                                    caller_uri = caller_item["uri"]
-                                    if caller_uri.startswith("file://"):
-                                        caller_path = uri_to_path(caller_uri)
-                                        caller_qualified_name = self._create_qualified_name(
-                                            caller_path, caller_item["name"]
-                                        )
-
-                                        # Add edge: calling_function -> current_function
-                                        result.call_relationships.append(
-                                            (caller_qualified_name, current_qualified_name)
-                                        )
-                                        logger.debug(
-                                            f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
-                                        )
-                                except Exception as e:
-                                    logger.debug(f"Error processing incoming call: {e}")
-                    except Exception as e:
-                        logger.debug(f"Error getting incoming calls: {e}")
-
-            # METHOD 3: Body-level calls by finding call positions
-            try:
-                for func_symbol in result.function_symbols:
-                    func_range = func_symbol.get("range", {})
-                    func_qualified_name = self._create_qualified_name(file_path, func_symbol["name"])
-
-                    # Find all call positions in this function's body
-                    start_line = func_range.get("start", {}).get("line", 0)
-                    end_line = func_range.get("end", {}).get("line", 0)
-                    call_positions = self._find_call_positions_in_range(content, start_line, end_line)
-
-                    # Resolve each call
-                    for call_pos in call_positions:
-                        resolved_name = self._resolve_call_position(file_uri, file_path, call_pos)
-                        if resolved_name:
-                            result.call_relationships.append((func_qualified_name, resolved_name))
-                            logger.debug(f"Body call: {func_qualified_name} -> {resolved_name}")
-            except Exception as e:
-                logger.debug(f"Error processing body calls for {file_path}: {e}")
-
-            # 4. CLASS HIERARCHIES - Process class inheritance
-            result.class_symbols = self._find_classes_in_symbols(symbols)
-
-            for class_symbol in result.class_symbols:
-                qualified_name = self._create_qualified_name(file_path, class_symbol["name"])
-
-                # Get class info
-                range_info = class_symbol.get("range", {})
-                start_line = range_info.get("start", {}).get("line", 0)
-                end_line = range_info.get("end", {}).get("line", 0)
-
-                class_info = {
-                    "superclasses": [],
-                    "subclasses": [],
-                    "file_path": str(file_path),
-                    "line_start": start_line,
-                    "line_end": end_line,
-                }
-
-                # Find inheritance relationships
-                superclasses = self._find_superclasses(file_uri, class_symbol, content, file_path)
-                class_info["superclasses"] = superclasses
-
-                # Find subclasses by searching references to this class
-                subclasses = self._find_subclasses(file_uri, class_symbol, all_classes)
-                class_info["subclasses"] = subclasses
-
-                result.class_hierarchies[qualified_name] = class_info
-
-            # 5. EXTERNAL REFERENCES
-            result.external_references = self._find_external_references(file_uri, symbols)
+            self._analyze_package_relations(file_path, symbols, content, result)
+            self._analyze_symbol_references(file_path, symbols, result)
+            self._analyze_call_graph(file_path, file_uri, content, symbols, result)
+            self._analyze_class_hierarchies(file_path, file_uri, content, symbols, all_classes, result)
+            self._analyze_external_references(file_uri, symbols, result)
 
             self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
 
@@ -1079,13 +1096,8 @@ class LSPClient(ABC):
         """Extract package name from file path."""
         try:
             rel_path = file_path.relative_to(self.project_path)
-            # Remove file name and convert to package notation
             package_parts = rel_path.parent.parts
-            if package_parts and package_parts[0] != ".":
-                return ".".join(package_parts)
-            else:
-                # Root level file
-                return "root"
+            return ".".join(package_parts) if package_parts and package_parts[0] != "." else "root"
         except ValueError:
             return "external"
 
@@ -1098,21 +1110,6 @@ class LSPClient(ABC):
         # Get the top-level package
         parts = module_name.split(".")
         return parts[0] if parts else ""
-
-    def _find_external_references(self, file_uri: str, symbols: list) -> list:
-        """Find references to external symbols using LSP."""
-        external_refs = []
-        try:
-            # This is a simplified approach - in practice, you'd need to iterate through
-            # identifiers in the file and use textDocument/references
-            for symbol in symbols:
-                if symbol.get("kind") in [12, 6]:  # Functions and methods
-                    pos = symbol["selectionRange"]["start"]
-                    refs = self._get_references(file_uri, pos["line"], pos["character"])
-                    external_refs.extend(refs)
-        except Exception as e:
-            logger.debug(f"Error finding external references: {e}")
-        return external_refs
 
     def _get_references(self, file_uri: str, line: int, character: int) -> list:
         """Get references for a position using LSP."""
