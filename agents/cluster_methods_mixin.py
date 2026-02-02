@@ -168,6 +168,35 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
+    def _ensure_unique_file_assignments(self, analysis: AnalysisInsights) -> None:
+        """
+        Deduplicate assigned_files within each component.
+
+        A file may legitimately appear in multiple components, but should not
+        appear more than once within the same component's assigned_files list.
+        """
+        logger.info("[ClusterMethodsMixin] Deduplicating file assignments within components")
+
+        total_removed = 0
+
+        for component in analysis.components:
+            seen: set[str] = set()
+            unique_files: list[str] = []
+            for file_path in component.assigned_files:
+                if file_path in seen:
+                    logger.debug(
+                        f"[ClusterMethodsMixin] Removed duplicate file '{file_path}' within '{component.name}'"
+                    )
+                    total_removed += 1
+                else:
+                    seen.add(file_path)
+                    unique_files.append(file_path)
+
+            component.assigned_files = unique_files
+
+        if total_removed > 0:
+            logger.info(f"[ClusterMethodsMixin] Removed {total_removed} duplicate file assignment(s)")
+
     def _sanitize_component_cluster_ids(
         self,
         analysis: AnalysisInsights,

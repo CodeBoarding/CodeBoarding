@@ -128,5 +128,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         analysis = self.fix_source_code_reference_lines(analysis)
         # Step 6: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
+        # Step 7: Ensure unique file assignments across components
+        self._ensure_unique_file_assignments(analysis)
 
         return analysis, cluster_results
