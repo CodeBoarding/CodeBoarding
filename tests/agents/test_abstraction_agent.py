@@ -55,7 +55,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_init(self, mock_static_init):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -72,7 +72,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
     def test_step_clusters_grouping_single_language(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with single language
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -97,7 +97,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
     def test_step_clusters_grouping_multiple_languages(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with multiple languages
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
         agent = AbstractionAgent(
@@ -127,7 +127,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
     def test_step_clusters_grouping_no_languages(self, mock_validation_invoke, mock_static_init):
         # Test step_clusters_grouping with no languages detected
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         self.mock_static_analysis.get_languages.return_value = []
 
         agent = AbstractionAgent(
@@ -153,7 +153,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
     def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
         # Test step_final_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -188,7 +188,7 @@ class TestAbstractionAgent(unittest.TestCase):
     @patch("os.path.relpath")
     def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init):
         # Test classify_files (assigns files from clusters + key_entities)
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
 
         agent = AbstractionAgent(

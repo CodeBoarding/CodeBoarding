@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
-from langgraph.prebuilt import create_react_agent
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import AnalysisInsights, ExpandComponent, Component
@@ -14,10 +13,7 @@ class PlannerAgent(LargeModelAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
         super().__init__(repo_dir, static_analysis, get_planner_system_message())
         self.expansion_prompt = PromptTemplate(template=get_expansion_prompt(), input_variables=["component"])
-        self.agent = create_react_agent(
-            model=self.llm,
-            tools=self.toolkit.get_agent_tools(),
-        )
+        self._set_agent_tools(self.toolkit.get_agent_tools())
 
     @trace
     def plan_analysis(self, analysis: AnalysisInsights) -> list[Component]:

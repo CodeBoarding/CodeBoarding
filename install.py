@@ -377,24 +377,24 @@ ENABLE_MONITORING=false
 # ============================================================================
 
 # OpenAI Configuration
-# OPENAI_API_KEY=your_openai_api_key_here
+# OPENAI_API_KEY=your_openai_api_key_here  # single key, CSV, or JSON: ["key1","key2"]
 # OPENAI_BASE_URL=https://api.openai.com/v1  # Optional: Custom OpenAI endpoint
 
 # Anthropic Configuration
-# ANTHROPIC_API_KEY=your_anthropic_api_key_here
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here  # single key, CSV, or JSON: ["key1","key2"]
 
 # Google AI Configuration
-# GOOGLE_API_KEY=your_google_api_key_here
+# GOOGLE_API_KEY=your_google_api_key_here  # single key, CSV, or JSON: ["key1","key2"]
 
 # Vercel Configuration
-# VERCEL_API_KEY=your_vercel_api_key_here
+# VERCEL_API_KEY=your_vercel_api_key_here  # single key, CSV, or JSON: ["key1","key2"]
 # VERCEL_BASE_URL=https://gateway.ai.vercel.com/v1/projects/your_project_id/gateways/your_gateway_id # Optional: Custom Vercel endpoint
 
 # AWS Bedrock Configuration
-# AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here
+# AWS_BEARER_TOKEN_BEDROCK=your_aws_bearer_token_here  # single token, CSV, or JSON: ["token1","token2"]
 
 # Cerebras Configuration
-# CEREBRAS_API_KEY=your_cerebras_api_key_here
+# CEREBRAS_API_KEY=your_cerebras_api_key_here  # single key, CSV, or JSON: ["key1","key2"]
 
 # AGENT_MODEL=your_preferred_agent_model_here # Specify model to use for the main agent (e.g. gemini-3.0-flash)
 # PARSING_MODEL=your_preferred_parsing_model_here # Optional: Specify model to use for parsing the output of the main agent (e.g. gemini-2.0-flash-lite)

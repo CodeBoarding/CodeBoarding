@@ -33,7 +33,7 @@ class TestPlannerAgent(unittest.TestCase):
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_init(self, mock_static_init):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -46,7 +46,7 @@ class TestPlannerAgent(unittest.TestCase):
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
     def test_plan_analysis_all_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where all components should expand
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -100,7 +100,7 @@ class TestPlannerAgent(unittest.TestCase):
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
     def test_plan_analysis_some_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where only some components should expand
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -155,7 +155,7 @@ class TestPlannerAgent(unittest.TestCase):
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
     def test_plan_analysis_none_expandable(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis where no components should expand
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -194,7 +194,7 @@ class TestPlannerAgent(unittest.TestCase):
     @patch("agents.planner_agent.PlannerAgent._parse_invoke")
     def test_plan_analysis_empty_components(self, mock_parse_invoke, mock_static_init):
         # Test plan_analysis with no components
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = PlannerAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,

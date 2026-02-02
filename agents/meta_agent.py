@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
-from langgraph.prebuilt import create_react_agent
 
 from agents.agent import LargeModelAgent
 from agents.agent_responses import MetaAnalysisInsights
@@ -23,10 +22,7 @@ class MetaAgent(LargeModelAgent):
             template=get_meta_information_prompt(), input_variables=["project_name"]
         )
 
-        self.agent = create_react_agent(
-            model=self.llm,
-            tools=[self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure],
-        )
+        self._set_agent_tools([self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure])
 
     @trace
     def analyze_project_metadata(self) -> MetaAnalysisInsights:
