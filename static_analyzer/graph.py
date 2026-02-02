@@ -13,8 +13,8 @@ class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
 
     clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
     cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
+    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
     strategy: str = ""  # which algorithm was used
 
     def get_cluster_ids(self) -> set[int]:

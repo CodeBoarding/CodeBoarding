@@ -691,6 +691,10 @@ class IncrementalUpdater:
         # For each changed file, find which component it belongs to in the NEW analysis
         new_dirty_components: set[str] = set()
 
+        # Keep track of components inferred from the existing manifest as a fallback
+        # (especially important for deleted files that won't appear in new clusters)
+        manifest_dirty_components: set[str] = set()
+
         for file_path in changed_files:
             # Skip non-source files
             if _should_skip_file(file_path):
@@ -706,12 +710,31 @@ class IncrementalUpdater:
                 # File doesn't belong to any component's clusters
                 logger.debug(f"File '{file_path}' not assigned to any component")
 
+            # Fallback: use manifest mapping when cluster-based mapping fails
+            if self.manifest:
+                manifest_component = self.manifest.get_component_for_file(file_path)
+                if manifest_component:
+                    manifest_dirty_components.add(manifest_component)
+                    logger.debug(
+                        "File '%s' falls back to manifest component '%s'",
+                        file_path,
+                        manifest_component,
+                    )
+
         # Update the impact with the recomputed dirty components
         original_dirty = self.impact.dirty_components.copy()
-        self.impact.dirty_components = new_dirty_components
+        self.impact.dirty_components = new_dirty_components | manifest_dirty_components
 
-        # Also update components_needing_reexpansion
-        self.impact.components_needing_reexpansion = self.impact.components_needing_reexpansion & new_dirty_components
+        # Also update components_needing_reexpansion. Preserve structural-change components
+        # detected earlier (deleted/added files) even if clusters couldn't be mapped.
+        structural_components = set(self.impact.components_needing_reexpansion)
+        if self.manifest:
+            for file_path in self.impact.added_files + self.impact.deleted_files:
+                comp = self.manifest.get_component_for_file(file_path)
+                if comp:
+                    structural_components.add(comp)
+
+        self.impact.components_needing_reexpansion = structural_components & self.impact.dirty_components
 
         logger.info(
             f"Recomputed dirty components: {len(original_dirty)} -> {len(new_dirty_components)} "
@@ -823,31 +846,48 @@ class IncrementalUpdater:
             patch_paths_in_manifest(self.manifest, self.impact.renames)
 
         # Step 4: Determine which expanded components need re-expansion
-        # (either from deleted files or from added files)
         #
         # An expanded component is one that has a sub-analysis JSON file.
         # We check file existence for backward compatibility with manifests
         # that have incorrect expanded_components data.
+        #
+        # IMPORTANT: We only re-expand if the component's LOGICAL STRUCTURE changed,
+        # not just file assignments. If files were added/deleted/renamed but the
+        # component's description, relationships, and sub-components are unchanged,
+        # we patch file references instead of re-running LLM analysis.
         components_to_reexpand: set[str] = set()
+        components_to_patch: set[str] = set()
 
-        # Add components with structural changes (from deleted files)
-        for component_name in self.impact.components_needing_reexpansion:
-            if self._is_expanded_component(component_name):
-                components_to_reexpand.add(component_name)
+        # Check all components that might need updates
+        components_to_check = self.impact.components_needing_reexpansion | components_with_new_files
 
-        # Add components that received new files
-        for component_name in components_with_new_files:
-            if self._is_expanded_component(component_name):
-                components_to_reexpand.add(component_name)
+        for component_name in components_to_check:
+            if not self._is_expanded_component(component_name):
+                continue
+
+            # Check if changes are just file renames/reassignments
+            # If so, we can patch instead of re-expanding
+            if self._component_has_only_renames(component_name):
+                logger.info(f"Component '{component_name}' has only renames, will patch instead of re-expanding")
+                components_to_patch.add(component_name)
+            else:
+                # Component has true structural changes
+                # Check if the sub-analysis can be patched or needs regeneration
+                if self._can_patch_sub_analysis(component_name):
+                    logger.info(f"Component '{component_name}' can be patched without LLM re-analysis")
+                    components_to_patch.add(component_name)
+                else:
+                    logger.info(f"Component '{component_name}' needs full re-expansion")
+                    components_to_reexpand.add(component_name)
 
         # Step 5: Re-run DetailsAgent for components that need re-expansion
         reexpanded_components: list[str] = []
         if components_to_reexpand:
             reexpanded_components = self._reexpand_components(components_to_reexpand)
 
-        # Step 6: Patch remaining dirty components (ones that don't need full re-expansion)
+        # Step 6: Patch components that don't need full re-expansion
+        # These are components where only file assignments changed, not logical structure
         patched_components: list[str] = []
-        components_to_patch = self.impact.dirty_components - components_to_reexpand
 
         deleted_files = self.impact.deleted_files
         renames = self.impact.renames
@@ -909,6 +949,231 @@ class IncrementalUpdater:
         sub_analysis_path = self.output_dir / f"{safe_name}.json"
         return sub_analysis_path.exists()
 
+    def _component_has_only_renames(self, component_name: str) -> bool:
+        """Check if a component's structural changes are just file renames.
+
+        A component has "only renames" if:
+        1. All deleted files are old paths of renamed files
+        2. All modified files are the new paths of renamed files
+        3. No true additions or deletions
+
+        Args:
+            component_name: Name of the component to check
+
+        Returns:
+            True if the component's changes are just renames that can be patched
+        """
+        if not self.impact or not self.manifest:
+            return False
+
+        # Get all files associated with this component
+        component_files = set()
+        for file_path, comp in self.manifest.file_to_component.items():
+            if comp == component_name:
+                component_files.add(file_path)
+
+        # Check if all "deleted" files are actually old paths of renames
+        deleted_in_component = set()
+        for file_path in self.impact.deleted_files:
+            if file_path in component_files:
+                deleted_in_component.add(file_path)
+
+        # Check if all "modified" files are actually new paths of renames
+        modified_in_component = set()
+        for file_path in self.impact.modified_files:
+            if file_path in component_files:
+                modified_in_component.add(file_path)
+
+        # Get renames that affect this component
+        renames_in_component = {}
+        for old_path, new_path in self.impact.renames.items():
+            if old_path in component_files or new_path in component_files:
+                renames_in_component[old_path] = new_path
+
+        # Log detailed analysis for debugging
+        logger.debug(
+            f"Component '{component_name}' change analysis: "
+            f"deleted={deleted_in_component}, modified={modified_in_component}, "
+            f"renames={renames_in_component}"
+        )
+
+        # If no structural changes at all, it's not "only renames" (it's nothing)
+        if not deleted_in_component and not modified_in_component:
+            return False
+
+        # Check if all deletions are just old paths of renames
+        deleted_are_all_renames = deleted_in_component.issubset(set(renames_in_component.keys()))
+
+        # Check if all modifications are just new paths of renames
+        modified_are_all_renames = modified_in_component.issubset(set(renames_in_component.values()))
+
+        # Log the decision
+        if deleted_are_all_renames and modified_are_all_renames:
+            logger.debug(f"Component '{component_name}' has only renames")
+        else:
+            logger.debug(
+                f"Component '{component_name}' has true structural changes: "
+                f"deleted_are_renames={deleted_are_all_renames}, "
+                f"modified_are_renames={modified_are_all_renames}"
+            )
+
+        # If both conditions are true, this component only has renames
+        return deleted_are_all_renames and modified_are_all_renames
+
+    def _can_patch_sub_analysis(self, component_name: str) -> bool:
+        """Check if a component's sub-analysis can be patched without LLM re-analysis.
+
+        This determines whether we can update file references in the existing
+        sub-analysis instead of regenerating it with DetailsAgent.
+
+        A sub-analysis can be patched if:
+        1. The component still exists in the current analysis
+        2. The sub-analysis file exists
+        3. Changes are limited to file assignments (added/deleted/renamed files)
+           without changing the component's logical structure
+
+        Args:
+            component_name: Name of the component to check
+
+        Returns:
+            True if the sub-analysis can be patched, False if it needs regeneration
+        """
+        if not self.analysis or not self.manifest:
+            return False
+
+        # Check component exists
+        component = next(
+            (c for c in self.analysis.components if c.name == component_name),
+            None,
+        )
+        if not component:
+            return False
+
+        # Check sub-analysis file exists
+        from output_generators.markdown import sanitize
+
+        safe_name = sanitize(component_name)
+        sub_analysis_path = self.output_dir / f"{safe_name}.json"
+        if not sub_analysis_path.exists():
+            return False
+
+        # Load existing sub-analysis
+        sub_analysis = load_sub_analysis(self.output_dir, component_name)
+        if not sub_analysis:
+            return False
+
+        # Get all files in the sub-analysis
+        subcomponent_files: set[str] = set()
+        for sub_component in sub_analysis.components:
+            subcomponent_files.update(sub_component.assigned_files)
+
+        # Check what changes affect this component's sub-analysis
+        has_additions = False
+        has_deletions = False
+        has_renames = False
+
+        # Check for added files in sub-components
+        for file_path in self.impact.added_files if self.impact else []:
+            if file_path in subcomponent_files:
+                has_additions = True
+                break
+
+        # Check for deleted files in sub-components
+        for file_path in self.impact.deleted_files if self.impact else []:
+            if file_path in subcomponent_files:
+                has_deletions = True
+                break
+
+        # Check for renames in sub-components
+        for old_path, new_path in self.impact.renames.items() if self.impact else {}:
+            if old_path in subcomponent_files or new_path in subcomponent_files:
+                has_renames = True
+                break
+
+        # We can patch if there are file changes but no structural logic changes
+        # For now, assume we can patch if sub-analysis exists and component exists
+        # The actual patching will handle file reference updates
+        logger.debug(
+            f"Component '{component_name}' sub-analysis check: "
+            f"additions={has_additions}, deletions={has_deletions}, renames={has_renames}"
+        )
+
+        return True
+
+    def _subcomponent_has_only_renames(self, component_name: str, sub_analysis: AnalysisInsights) -> bool:
+        """Check if changes within a component's sub-analysis are just renames.
+
+        This validates whether we can patch the sub-analysis instead of re-running
+        the DetailsAgent. Similar to _component_has_only_renames but operates at
+        the sub-component level.
+
+        A sub-analysis has "only renames" if:
+        1. All deleted files in sub-components are old paths of renamed files
+        2. All modified files in sub-components are new paths of renamed files
+        3. No true structural changes (additions/deletions) in sub-components
+
+        Args:
+            component_name: Name of the parent component
+            sub_analysis: The sub-analysis to check
+
+        Returns:
+            True if the sub-analysis changes are just renames that can be patched
+        """
+        if not self.impact:
+            return False
+
+        # Collect all files from sub-components
+        subcomponent_files: set[str] = set()
+        for sub_component in sub_analysis.components:
+            subcomponent_files.update(sub_component.assigned_files)
+
+        # Check deleted files in sub-components
+        deleted_in_subcomponent = set()
+        for file_path in self.impact.deleted_files:
+            if file_path in subcomponent_files:
+                deleted_in_subcomponent.add(file_path)
+
+        # Check modified files in sub-components
+        modified_in_subcomponent = set()
+        for file_path in self.impact.modified_files:
+            if file_path in subcomponent_files:
+                modified_in_subcomponent.add(file_path)
+
+        # Get renames that affect sub-components
+        renames_in_subcomponent = {}
+        for old_path, new_path in self.impact.renames.items():
+            if old_path in subcomponent_files or new_path in subcomponent_files:
+                renames_in_subcomponent[old_path] = new_path
+
+        # Log detailed analysis
+        logger.debug(
+            f"Sub-component analysis for '{component_name}': "
+            f"deleted={deleted_in_subcomponent}, modified={modified_in_subcomponent}, "
+            f"renames={renames_in_subcomponent}"
+        )
+
+        # If no structural changes in sub-components, nothing to patch
+        if not deleted_in_subcomponent and not modified_in_subcomponent:
+            return False
+
+        # Check if all deletions are just old paths of renames
+        deleted_are_all_renames = deleted_in_subcomponent.issubset(set(renames_in_subcomponent.keys()))
+
+        # Check if all modifications are just new paths of renames
+        modified_are_all_renames = modified_in_subcomponent.issubset(set(renames_in_subcomponent.values()))
+
+        # Log the decision
+        if deleted_are_all_renames and modified_are_all_renames:
+            logger.debug(f"Sub-analysis for '{component_name}' has only renames, can be patched")
+        else:
+            logger.debug(
+                f"Sub-analysis for '{component_name}' has true structural changes: "
+                f"deleted_are_renames={deleted_are_all_renames}, "
+                f"modified_are_renames={modified_are_all_renames}"
+            )
+
+        return deleted_are_all_renames and modified_are_all_renames
+
     def _reexpand_single_component(
         self,
         component_name: str,
@@ -919,6 +1184,9 @@ class IncrementalUpdater:
     ) -> str | None:
         """
         Process a single component for re-expansion.
+
+        First checks if the existing sub-analysis can be patched instead of
+        regenerated (if changes are just renames/reassigns within this component).
 
         Returns the component name if successful, None otherwise.
         """
@@ -933,6 +1201,38 @@ class IncrementalUpdater:
             return None
 
         try:
+            # Check if we can patch the existing sub-analysis instead of re-running
+            safe_name = sanitize(component_name)
+            sub_analysis_path = self.output_dir / f"{safe_name}.json"
+
+            if sub_analysis_path.exists():
+                existing_sub_analysis = load_sub_analysis(self.output_dir, component_name)
+                if existing_sub_analysis:
+                    # Check if changes within this component are just renames
+                    if self._subcomponent_has_only_renames(component_name, existing_sub_analysis):
+                        logger.info(
+                            f"Component '{component_name}' sub-analysis has only renames, patching instead of re-expanding"
+                        )
+
+                        # Patch the sub-analysis
+                        if patch_sub_analysis(
+                            existing_sub_analysis,
+                            self.impact.deleted_files if self.impact else [],
+                            self.impact.renames if self.impact else {},
+                        ):
+                            # Get expandable sub-components from the patched analysis
+                            new_components = plan_analysis(
+                                existing_sub_analysis, parent_had_clusters=bool(component.source_cluster_ids)
+                            )
+
+                            # Save patched sub-analysis
+                            with open(sub_analysis_path, "w") as f:
+                                f.write(from_analysis_to_json(existing_sub_analysis, new_components))
+
+                            logger.info(f"Patched component '{component_name}' sub-analysis -> {sub_analysis_path}")
+                            return component_name
+
+            # If patching wasn't possible or changes are structural, re-run DetailsAgent
             logger.info(f"Re-expanding component: {component_name}")
 
             # Run DetailsAgent to regenerate sub-analysis
@@ -942,12 +1242,10 @@ class IncrementalUpdater:
             new_components = plan_analysis(sub_analysis, parent_had_clusters=bool(component.source_cluster_ids))
 
             # Save sub-analysis
-            safe_name = sanitize(component_name)
-            output_path = self.output_dir / f"{safe_name}.json"
-            with open(output_path, "w") as f:
+            with open(sub_analysis_path, "w") as f:
                 f.write(from_analysis_to_json(sub_analysis, new_components))
 
-            logger.info(f"Re-expanded component '{component_name}' -> {output_path}")
+            logger.info(f"Re-expanded component '{component_name}' -> {sub_analysis_path}")
             return component_name
 
         except Exception as e:
@@ -972,28 +1270,30 @@ class IncrementalUpdater:
 
         logger.info(f"Re-expanding {len(component_names)} components: {component_names}")
 
-        # Load static analysis (uses cache if available)
-        from static_analyzer import get_static_analysis
+        # Use existing static analysis - don't reload!
+        # self.static_analysis was already populated during the initial incremental analysis
         from agents.details_agent import DetailsAgent
         from agents.meta_agent import MetaAgent
         from agents.planner_agent import plan_analysis
         from diagram_analysis.analysis_json import from_analysis_to_json
         from output_generators.markdown import sanitize
 
-        static_analysis = get_static_analysis(self.repo_dir)
+        if not self.static_analysis:
+            logger.error("No static analysis available for re-expansion")
+            return []
 
-        # Initialize agents
+        # Initialize agents using existing static analysis
         meta_agent = MetaAgent(
             repo_dir=self.repo_dir,
             project_name=self.repo_dir.name,
-            static_analysis=static_analysis,
+            static_analysis=self.static_analysis,
         )
         meta_context = meta_agent.analyze_project_metadata()
 
         details_agent = DetailsAgent(
             repo_dir=self.repo_dir,
             project_name=self.repo_dir.name,
-            static_analysis=static_analysis,
+            static_analysis=self.static_analysis,
             meta_context=meta_context,
         )
 

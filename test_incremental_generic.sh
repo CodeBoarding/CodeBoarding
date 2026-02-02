@@ -43,7 +43,7 @@ SHORT_START=$(echo "$START_COMMIT" | cut -c1-8)
 SHORT_END=$(echo "$END_COMMIT" | cut -c1-8)
 
 # Configuration
-REPO_DIR="/home/ivan/StartUp/CodeBoarding/repos/CodeBoarding"
+REPO_DIR="/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding"
 PROJECT_NAME="CodeBoarding"
 DEPTH_LEVEL=2
 
@@ -83,8 +83,19 @@ if [ -d "$REPO_DIR/.git" ]; then
     # Check for uncommitted changes
     if ! git diff-index --quiet HEAD -- || [ -n "$(git status --porcelain)" ]; then
         echo -e "${YELLOW}⚠ Uncommitted changes detected, cleaning...${NC}"
+        # Preserve the static analysis cache
+        if [ -d ".codeboarding/cache" ]; then
+            echo -e "${YELLOW}Preserving static analysis cache...${NC}"
+            mv .codeboarding/cache /tmp/codeboarding_cache_backup
+        fi
         git reset --hard HEAD
         git clean -fd
+        # Restore the cache
+        if [ -d "/tmp/codeboarding_cache_backup" ]; then
+            mkdir -p .codeboarding
+            mv /tmp/codeboarding_cache_backup .codeboarding/cache
+            echo -e "${GREEN}✓ Cache restored${NC}"
+        fi
         echo -e "${GREEN}✓ Repository cleaned${NC}"
     fi
     
@@ -161,6 +172,7 @@ if [ "$INCREMENTAL_ONLY" = false ]; then
         --output-dir "$RESULT_DIR/init_resources" \
         --depth-level "$DEPTH_LEVEL" \
         --load-env-variables \
+        --full \
         2>&1 | tee "${RESULT_DIR}/init_analys_${SHORT_START}.txt"
 
     FULL_END=$(date +%s.%N)

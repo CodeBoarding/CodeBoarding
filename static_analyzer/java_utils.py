@@ -10,15 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_java_version(java_cmd: str = "java") -> int:
-    """
-    Get major version of Java executable.
-
-    Args:
-        java_cmd: Path to java executable or "java" for system default
-
-    Returns:
-        Major version number (e.g., 21) or 0 if not found
-    """
     try:
         result = subprocess.run([java_cmd, "-version"], capture_output=True, text=True, timeout=5)
 
