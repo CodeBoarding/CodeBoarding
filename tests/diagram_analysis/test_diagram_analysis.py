@@ -340,11 +340,8 @@ class TestDiagramGenerator(unittest.TestCase):
         version_file = self.output_dir / "codeboarding_version.json"
         self.assertTrue(version_file.exists())
 
-    @patch("diagram_analysis.diagram_generator.StaticAnalyzer")
-    def test_process_component_with_exception(self, mock_static):
+    def test_process_component_with_exception(self):
         # Test processing a component that raises an exception
-        mock_get_static_analysis.return_value = StaticAnalysisResults()
-
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,

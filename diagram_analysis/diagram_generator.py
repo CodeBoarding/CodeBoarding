@@ -22,6 +22,9 @@ from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash
 from static_analyzer import get_static_analysis
 from static_analyzer.scanner import ProjectScanner
+from health.runner import run_health_checks
+from health.config import load_health_exclude_patterns, initialize_healthignore
+from health.models import HealthCheckConfig
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,23 @@ class DiagramGenerator:
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),
             }
+
+        # Load health check configuration and initialize health config dir
+        health_config_dir = Path(self.output_dir) / "health"
+        initialize_healthignore(health_config_dir)
+        exclude_patterns = load_health_exclude_patterns(health_config_dir)
+        health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+
+        health_report = run_health_checks(
+            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+        )
+        if health_report is not None:
+            health_path = os.path.join(self.output_dir, "health", "health_report.json")
+            with open(health_path, "w") as f:
+                f.write(health_report.model_dump_json(indent=2, exclude_none=True))
+            logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
+        else:
+            logger.warning("Health checks skipped: no languages found in static analysis results")
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
