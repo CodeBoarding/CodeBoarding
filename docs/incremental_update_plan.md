@@ -296,15 +296,15 @@ class DiagramGenerator:
 5. [x] Cross-boundary detection using CFG
 6. [x] Unit tests for impact analysis (18 tests passing)
 
-### Week 3: Update Execution (PARTIAL)
-7. [x] Path patching (rename handling) ✅
-8. [ ] Targeted component updates (TODO: integrate DetailsAgent)
-9. [ ] Result merging (TODO: merge sub-analyses)
+### Week 3: Update Execution ✅ COMPLETE
+7. [x] Path patching (rename handling)
+8. [x] Targeted component updates (DetailsAgent integration)
+9. [x] Result merging (add/delete file handling)
 
-### Week 4: Integration
-10. [ ] CLI integration (add --full flag)
-11. [ ] Integration tests (end-to-end)
-12. [ ] Documentation
+### Week 4: Integration ✅ COMPLETE
+10. [x] CLI integration (--full and --incremental flags)
+11. [x] Integration tests (29 tests passing)
+12. [x] Documentation (this file)
 
 ---
 

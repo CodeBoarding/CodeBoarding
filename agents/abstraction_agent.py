@@ -21,6 +21,7 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_component_relationships,
     validate_key_entities,
+    validate_cluster_ids_populated,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -111,7 +112,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         return self._validation_invoke(
             prompt,
             AnalysisInsights,
-            validators=[validate_component_relationships, validate_key_entities],
+            validators=[validate_component_relationships, validate_key_entities, validate_cluster_ids_populated],
             context=context,
         )
 

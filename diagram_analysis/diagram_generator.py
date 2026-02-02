@@ -198,6 +198,9 @@ class DiagramGenerator:
             level = 0
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
+            # Track components that were actually expanded (have sub-analysis files)
+            expanded_components: list = []
+
             # Process each level of components in parallel
             while current_level_components:
                 level += 1
@@ -223,6 +226,8 @@ class DiagramGenerator:
                             result_path, new_components = future.result()
                             if result_path:
                                 files.append(result_path)
+                                # Track this component as expanded (has sub-analysis file)
+                                expanded_components.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
                         except Exception as exc:
@@ -235,7 +240,7 @@ class DiagramGenerator:
             print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
 
             # Save manifest for incremental updates
-            self._save_manifest(analysis, current_level_components)
+            self._save_manifest(analysis, expanded_components)
 
             return files
 
@@ -275,14 +280,14 @@ class DiagramGenerator:
             logger.info("No existing manifest, full analysis required")
             return None
 
-        # Load static analysis for cross-boundary detection
-        if self.static_analysis is None:
-            self.static_analysis = get_static_analysis(self.repo_location)
+        # DON'T load static analysis here - it's expensive (~90s)
+        # Most incremental updates (renames, simple mods) don't need it
+        # Only load if we actually need cross-boundary detection
 
         updater = IncrementalUpdater(
             repo_dir=self.repo_location,
             output_dir=self.output_dir,
-            static_analysis=self.static_analysis,
+            static_analysis=None,  # Will be loaded only if needed
             force_full=self.force_full,
         )
 

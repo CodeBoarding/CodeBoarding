@@ -46,6 +46,9 @@ class ChangeImpact:
     # Affected components
     dirty_components: set[str] = field(default_factory=set)
 
+    # Components that need sub-analysis regeneration (expanded + structural changes)
+    components_needing_reexpansion: set[str] = field(default_factory=set)
+
     # Cross-boundary analysis
     cross_boundary_changes: list[str] = field(default_factory=list)  # Files with cross-component refs
 
@@ -68,6 +71,8 @@ class ChangeImpact:
             f"Deleted: {len(self.deleted_files)}",
             f"Dirty components: {self.dirty_components}",
         ]
+        if self.components_needing_reexpansion:
+            lines.append(f"🔄 Components needing re-expansion: {self.components_needing_reexpansion}")
         if self.architecture_dirty:
             lines.append("⚠️ Architecture refresh needed")
         if self.unassigned_files:
@@ -76,8 +81,9 @@ class ChangeImpact:
 
 
 # Thresholds for escalation decisions
-STRUCTURAL_CHANGE_THRESHOLD = 0.05  # 5% of files added/deleted triggers full reanalysis
-MAX_DIRTY_COMPONENTS_FOR_INCREMENTAL = 3  # More than this triggers architecture refresh
+# These are intentionally high to prefer incremental updates over full reanalysis
+STRUCTURAL_CHANGE_THRESHOLD = 0.30  # 30% of files added/deleted triggers full reanalysis
+MAX_DIRTY_COMPONENTS_FOR_INCREMENTAL = 10  # More than this triggers architecture refresh
 
 
 def analyze_impact(
@@ -103,11 +109,12 @@ def analyze_impact(
         impact.reason = "No changes detected"
         return impact
 
-    # Categorize changes
-    impact.renames = changes.renames
-    impact.modified_files = changes.modified_files
-    impact.added_files = changes.added_files
-    impact.deleted_files = changes.deleted_files
+    # Categorize changes - FILTER out non-source files upfront
+    # This ensures threshold calculations only consider relevant files
+    impact.renames = {old: new for old, new in changes.renames.items() if not _should_skip_file(new)}
+    impact.modified_files = [f for f in changes.modified_files if not _should_skip_file(f)]
+    impact.added_files = [f for f in changes.added_files if not _should_skip_file(f)]
+    impact.deleted_files = [f for f in changes.deleted_files if not _should_skip_file(f)]
 
     # Map changes to components
     _map_changes_to_components(impact, manifest)
@@ -122,8 +129,55 @@ def analyze_impact(
     return impact
 
 
+def _should_skip_file(file_path: str) -> bool:
+    """Check if a file should be skipped (not part of core source analysis)."""
+    skip_patterns = [
+        "tests/",
+        "test_",
+        "__pycache__/",
+        ".pytest_cache/",
+        "README",
+        "CHANGELOG",
+        "LICENSE",
+        "CONTRIBUTING",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile",
+        ".gitignore",
+        ".gitattributes",
+        ".editorconfig",
+        "Dockerfile",
+        "docker-compose",
+        ".dockerignore",
+        "Makefile",
+        "justfile",
+    ]
+    # Skip files matching patterns
+    if any(pattern in file_path for pattern in skip_patterns):
+        return True
+    # Skip non-source file extensions
+    skip_extensions = [".md", ".txt", ".rst", ".yml", ".yaml", ".json", ".toml", ".lock"]
+    if any(file_path.endswith(ext) for ext in skip_extensions):
+        return True
+    return False
+
+
 def _map_changes_to_components(impact: ChangeImpact, manifest: AnalysisManifest) -> None:
-    """Map all changed files to their owning components."""
+    """Map all changed files to their owning components.
+
+    Note: Files are already filtered by _should_skip_file() in analyze_impact().
+
+    Also tracks which expanded components need re-expansion due to structural changes.
+    """
+    # Track components with structural changes (added/deleted/modified files)
+    # Modified files in expanded components need re-expansion to get fresh static analysis
+    components_with_structural_changes: set[str] = set()
 
     # Process renames - use OLD path to find component
     for old_path, new_path in impact.renames.items():
@@ -131,28 +185,35 @@ def _map_changes_to_components(impact: ChangeImpact, manifest: AnalysisManifest)
         if component:
             impact.dirty_components.add(component)
         else:
-            # Renamed file wasn't in any component - treat as structural
+            # Renamed file wasn't in any component - treat as unassigned
             impact.unassigned_files.append(new_path)
 
-    # Process modifications
+    # Process modifications - these require re-expansion for expanded components
+    # because code changes may affect static analysis (call graphs, dependencies, etc.)
     for file_path in impact.modified_files:
         component = manifest.get_component_for_file(file_path)
         if component:
             impact.dirty_components.add(component)
-        else:
-            # Modified file not in manifest - might be new or previously untracked
-            impact.unassigned_files.append(file_path)
+            components_with_structural_changes.add(component)
+        # Modified files not in manifest are silently ignored (never tracked)
 
-    # Process additions
+    # Process additions - new source files need component assignment
+    # If they go to an expanded component, that component needs re-expansion
     for file_path in impact.added_files:
-        # New files need component assignment
         impact.unassigned_files.append(file_path)
+        # We'll determine the target component later in _assign_new_files
 
-    # Process deletions
+    # Process deletions - structural change, may need re-expansion
     for file_path in impact.deleted_files:
         component = manifest.get_component_for_file(file_path)
         if component:
             impact.dirty_components.add(component)
+            components_with_structural_changes.add(component)
+
+    # Track components with structural changes for potential re-expansion
+    # The actual decision of whether to re-expand is made at execution time
+    # when we can check if the component has a sub-analysis file
+    impact.components_needing_reexpansion = components_with_structural_changes.copy()
 
 
 def _check_cross_boundary_impact(
@@ -365,6 +426,141 @@ def save_analysis(analysis: AnalysisInsights, output_dir: Path, expandable_compo
     return analysis_path
 
 
+def load_sub_analysis(output_dir: Path, component_name: str) -> AnalysisInsights | None:
+    """Load a sub-analysis JSON file for a component."""
+    from output_generators.markdown import sanitize
+
+    safe_name = sanitize(component_name)
+    sub_analysis_path = output_dir / f"{safe_name}.json"
+
+    if not sub_analysis_path.exists():
+        return None
+
+    try:
+        with open(sub_analysis_path, "r") as f:
+            data = json.load(f)
+        return AnalysisInsights.model_validate(data)
+    except Exception as e:
+        logger.error(f"Failed to load sub-analysis for {component_name}: {e}")
+        return None
+
+
+def save_sub_analysis(
+    sub_analysis: AnalysisInsights,
+    output_dir: Path,
+    component_name: str,
+    expandable_components: list[str] | None = None,
+) -> Path:
+    """Save a sub-analysis JSON file for a component."""
+    from diagram_analysis.analysis_json import from_analysis_to_json
+    from output_generators.markdown import sanitize
+
+    safe_name = sanitize(component_name)
+    sub_analysis_path = output_dir / f"{safe_name}.json"
+
+    expandable = []
+    if expandable_components:
+        expandable = [c for c in sub_analysis.components if c.name in expandable_components]
+
+    with open(sub_analysis_path, "w") as f:
+        f.write(from_analysis_to_json(sub_analysis, expandable))
+
+    return sub_analysis_path
+
+
+def patch_sub_analysis(
+    sub_analysis: AnalysisInsights,
+    deleted_files: list[str],
+    renames: dict[str, str],
+) -> bool:
+    """
+    Patch a sub-analysis by removing deleted files and applying renames.
+
+    Returns True if any changes were made.
+    """
+    changed = False
+
+    # Build a set of deleted file patterns (handle both with and without repo prefix)
+    deleted_patterns: set[str] = set()
+    for f in deleted_files:
+        deleted_patterns.add(f)
+        # Also add normalized versions
+        if f.startswith("repos/"):
+            # Strip "repos/RepoName/" prefix
+            parts = f.split("/", 2)
+            if len(parts) > 2:
+                deleted_patterns.add(parts[2])
+        else:
+            deleted_patterns.add(f.lstrip("./"))
+
+    # Build rename patterns (handle both with and without repo prefix)
+    rename_map: dict[str, str] = {}
+    for old, new in renames.items():
+        rename_map[old] = new
+        rename_map[old.lstrip("./")] = new
+        if old.startswith("repos/"):
+            parts = old.split("/", 2)
+            if len(parts) > 2:
+                rename_map[parts[2]] = new
+
+    def file_is_deleted(path: str) -> bool:
+        normalized = path.lstrip("./")
+        if normalized in deleted_patterns or path in deleted_patterns:
+            return True
+        # Check if it ends with any deleted file
+        for pattern in deleted_patterns:
+            if path.endswith(pattern) or normalized.endswith(pattern):
+                return True
+        return False
+
+    def get_renamed_path(path: str) -> str | None:
+        normalized = path.lstrip("./")
+        if normalized in rename_map:
+            return rename_map[normalized]
+        if path in rename_map:
+            return rename_map[path]
+        for old, new in rename_map.items():
+            if path.endswith(old) or normalized.endswith(old):
+                return new
+        return None
+
+    for component in sub_analysis.components:
+        # Remove deleted files from assigned_files
+        orig_len = len(component.assigned_files)
+        component.assigned_files = [f for f in component.assigned_files if not file_is_deleted(f)]
+        if len(component.assigned_files) < orig_len:
+            changed = True
+
+        # Apply renames to assigned_files
+        new_assigned = []
+        for f in component.assigned_files:
+            new_path = get_renamed_path(f)
+            if new_path:
+                new_assigned.append(new_path)
+                changed = True
+            else:
+                new_assigned.append(f)
+        component.assigned_files = new_assigned
+
+        # Remove key_entities referencing deleted files
+        orig_entities = len(component.key_entities)
+        component.key_entities = [
+            e for e in component.key_entities if not (e.reference_file and file_is_deleted(e.reference_file))
+        ]
+        if len(component.key_entities) < orig_entities:
+            changed = True
+
+        # Apply renames to key_entities
+        for entity in component.key_entities:
+            if entity.reference_file:
+                new_path = get_renamed_path(entity.reference_file)
+                if new_path:
+                    entity.reference_file = new_path
+                    changed = True
+
+    return changed
+
+
 class IncrementalUpdater:
     """
     Executes incremental updates based on impact analysis.
@@ -486,12 +682,257 @@ class IncrementalUpdater:
         return True
 
     def _execute_update_components(self) -> bool:
-        """Execute targeted component updates."""
+        """
+        Execute targeted component updates.
+
+        For most changes (file modifications within a component), we just update
+        the assigned_files list without re-running LLM analysis. The component's
+        description and structure don't change just because code was modified.
+
+        LLM re-analysis (via DetailsAgent) is needed when:
+        - Expanded component has files added or deleted (structural change)
+        """
         assert self.impact and self.manifest and self.analysis
 
-        # TODO: Implement targeted component re-analysis
-        # This will call DetailsAgent.run() for each dirty component
-        # For now, fall back to full reanalysis
+        logger.info(f"Updating {len(self.impact.dirty_components)} components: {self.impact.dirty_components}")
 
-        logger.info(f"Component update for {self.impact.dirty_components} - not yet implemented")
-        return False
+        from output_generators.markdown import sanitize
+
+        # Step 1: Handle deleted files first (before assigning new ones)
+        if self.impact.deleted_files:
+            self._remove_deleted_files(self.impact.deleted_files)
+
+        # Step 2: Assign new files to components and track which ones got new files
+        components_with_new_files: set[str] = set()
+        if self.impact.added_files:
+            components_with_new_files = self._assign_new_files(self.impact.added_files)
+
+        # Step 3: Apply renames
+        if self.impact.renames:
+            patch_paths_in_analysis(self.analysis, self.impact.renames)
+            patch_paths_in_manifest(self.manifest, self.impact.renames)
+
+        # Step 4: Determine which expanded components need re-expansion
+        # (either from deleted files or from added files)
+        #
+        # An expanded component is one that has a sub-analysis JSON file.
+        # We check file existence for backward compatibility with manifests
+        # that have incorrect expanded_components data.
+        components_to_reexpand: set[str] = set()
+
+        # Add components with structural changes (from deleted files)
+        for component_name in self.impact.components_needing_reexpansion:
+            if self._is_expanded_component(component_name):
+                components_to_reexpand.add(component_name)
+
+        # Add components that received new files
+        for component_name in components_with_new_files:
+            if self._is_expanded_component(component_name):
+                components_to_reexpand.add(component_name)
+
+        # Step 5: Re-run DetailsAgent for components that need re-expansion
+        reexpanded_components: list[str] = []
+        if components_to_reexpand:
+            reexpanded_components = self._reexpand_components(components_to_reexpand)
+
+        # Step 6: Patch remaining dirty components (ones that don't need full re-expansion)
+        patched_components: list[str] = []
+        components_to_patch = self.impact.dirty_components - components_to_reexpand
+
+        deleted_files = self.impact.deleted_files
+        renames = self.impact.renames
+
+        for component_name in components_to_patch:
+            component = next(
+                (c for c in self.analysis.components if c.name == component_name),
+                None,
+            )
+            if not component:
+                logger.warning(f"Component '{component_name}' not found in analysis")
+                continue
+
+            safe_name = sanitize(component_name)
+            sub_analysis_path = self.output_dir / f"{safe_name}.json"
+
+            if sub_analysis_path.exists():
+                sub_analysis = load_sub_analysis(self.output_dir, component_name)
+                if sub_analysis:
+                    if patch_sub_analysis(sub_analysis, deleted_files, renames):
+                        save_sub_analysis(sub_analysis, self.output_dir, component_name)
+                        logger.info(f"Component '{component_name}' sub-analysis patched")
+                patched_components.append(component_name)
+            else:
+                logger.info(f"Component '{component_name}' has no sub-analysis file, updating in place")
+                patched_components.append(component_name)
+
+        # Step 7: Update manifest with new commit
+        from repo_utils.change_detector import get_current_commit
+        from repo_utils import get_repo_state_hash
+
+        new_commit = get_current_commit(self.repo_dir) or self.manifest.base_commit
+        self.manifest.base_commit = new_commit
+        self.manifest.repo_state_hash = get_repo_state_hash(self.repo_dir)
+
+        # Step 8: Save updated files
+        save_analysis(self.analysis, self.output_dir, self.manifest.expanded_components)
+        save_manifest(self.manifest, self.output_dir)
+
+        logger.info(
+            f"Component update complete. " f"Re-expanded: {reexpanded_components}, Patched: {patched_components}"
+        )
+        return True
+
+    def _is_expanded_component(self, component_name: str) -> bool:
+        """Check if a component has a sub-analysis file (is expanded).
+
+        This checks both the manifest AND file existence for backward compatibility
+        with manifests that have incorrect expanded_components data.
+        """
+        from output_generators.markdown import sanitize
+
+        # Check manifest first
+        if self.manifest and component_name in self.manifest.expanded_components:
+            return True
+
+        # Fallback: check if sub-analysis file exists
+        safe_name = sanitize(component_name)
+        sub_analysis_path = self.output_dir / f"{safe_name}.json"
+        return sub_analysis_path.exists()
+
+    def _reexpand_components(self, component_names: set[str]) -> list[str]:
+        """
+        Re-run DetailsAgent for components that need sub-analysis regeneration.
+
+        This is called when files are added/deleted from an expanded component,
+        requiring the sub-analysis to be regenerated.
+
+        Returns list of successfully re-expanded component names.
+        """
+        assert self.analysis and self.manifest
+
+        if not component_names:
+            return []
+
+        logger.info(f"Re-expanding {len(component_names)} components: {component_names}")
+
+        # Load static analysis (uses cache if available)
+        from static_analyzer import get_static_analysis
+        from agents.details_agent import DetailsAgent
+        from agents.meta_agent import MetaAgent
+        from agents.planner_agent import plan_analysis
+        from diagram_analysis.analysis_json import from_analysis_to_json
+        from output_generators.markdown import sanitize
+
+        static_analysis = get_static_analysis(self.repo_dir)
+
+        # Initialize agents
+        meta_agent = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.repo_dir.name,
+            static_analysis=static_analysis,
+        )
+        meta_context = meta_agent.analyze_project_metadata()
+
+        details_agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.repo_dir.name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+        )
+
+        reexpanded: list[str] = []
+
+        for component_name in component_names:
+            # Find the component in analysis
+            component = next(
+                (c for c in self.analysis.components if c.name == component_name),
+                None,
+            )
+            if not component:
+                logger.warning(f"Component '{component_name}' not found for re-expansion")
+                continue
+
+            try:
+                logger.info(f"Re-expanding component: {component_name}")
+
+                # Run DetailsAgent to regenerate sub-analysis
+                sub_analysis, _ = details_agent.run(component)
+
+                # Get expandable sub-components
+                new_components = plan_analysis(sub_analysis, parent_had_clusters=bool(component.source_cluster_ids))
+
+                # Save sub-analysis
+                safe_name = sanitize(component_name)
+                output_path = self.output_dir / f"{safe_name}.json"
+                with open(output_path, "w") as f:
+                    f.write(from_analysis_to_json(sub_analysis, new_components))
+
+                logger.info(f"Re-expanded component '{component_name}' -> {output_path}")
+                reexpanded.append(component_name)
+
+            except Exception as e:
+                logger.error(f"Failed to re-expand component '{component_name}': {e}")
+
+        return reexpanded
+
+    def _assign_new_files(self, new_files: list[str]) -> set[str]:
+        """Assign new files to components based on directory heuristics.
+
+        Returns set of component names that received new files.
+        """
+        assert self.analysis and self.manifest
+
+        assigned_count = 0
+        skipped_count = 0
+        components_with_new_files: set[str] = set()
+
+        for file_path in new_files:
+            # Skip non-source files (uses same filter as _map_changes_to_components)
+            if _should_skip_file(file_path):
+                logger.debug(f"Skipping non-source file: {file_path}")
+                skipped_count += 1
+                continue
+
+            # Try to find a component whose files share the same directory
+            file_dir = str(Path(file_path).parent)
+
+            best_component = None
+            best_match_count = 0
+
+            for component in self.analysis.components:
+                # Count files in the same directory
+                match_count = sum(1 for f in component.assigned_files if str(Path(f).parent) == file_dir)
+                if match_count > best_match_count:
+                    best_match_count = match_count
+                    best_component = component
+
+            if best_component:
+                best_component.assigned_files.append(file_path)
+                self.manifest.add_file(file_path, best_component.name)
+                assigned_count += 1
+                components_with_new_files.add(best_component.name)
+                logger.debug(f"Assigned new file '{file_path}' to component '{best_component.name}'")
+            else:
+                logger.debug(f"Could not assign new file '{file_path}' to any component")
+
+        logger.info(f"File assignment: {assigned_count} assigned, {skipped_count} skipped (non-source)")
+        return components_with_new_files
+
+    def _remove_deleted_files(self, deleted_files: list[str]) -> None:
+        """Remove deleted files from analysis and manifest."""
+        assert self.analysis and self.manifest
+
+        for file_path in deleted_files:
+            # Remove from manifest
+            component_name = self.manifest.remove_file(file_path)
+
+            if component_name:
+                # Remove from component's assigned_files
+                for component in self.analysis.components:
+                    if component.name == component_name:
+                        component.assigned_files = [f for f in component.assigned_files if f != file_path]
+                        # Also remove from key_entities if referenced
+                        component.key_entities = [e for e in component.key_entities if e.reference_file != file_path]
+                        break
+
+                logger.info(f"Removed deleted file '{file_path}' from component '{component_name}'")

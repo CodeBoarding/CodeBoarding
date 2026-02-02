@@ -1,9 +1,11 @@
 import logging
 from pathlib import Path
 
-from repo_utils import get_repo_state_hash
+from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_change_analyzer import ChangeClassification
+from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
@@ -82,7 +84,18 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
 
-    def analyze(self) -> StaticAnalysisResults:
+    def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
+        """
+        Analyze the repository using LSP clients.
+
+        Args:
+            cache_dir: Optional cache directory for incremental analysis.
+                      If provided, uses git-based incremental analysis per client.
+                      If None, performs full analysis without caching.
+
+        Returns:
+            StaticAnalysisResults containing all analysis data.
+        """
         results = StaticAnalysisResults()
         for client in self.clients:
             try:
@@ -93,41 +106,151 @@ class StaticAnalyzer:
                 if isinstance(client, JavaClient):
                     client.wait_for_import(timeout=300)  # 5 minute timeout
 
-                analysis = client.build_static_analysis()
+                # Determine cache path for this client if caching is enabled
+                cache_path = None
+                if cache_dir is not None:
+                    cache_dir = Path(cache_dir)
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    # Create unique cache file per client (language + project path hash)
+                    client_id = f"{client.language.language}"
+                    cache_path = cache_dir / f"incremental_cache_{client_id}.json"
+                    logger.info(f"Using incremental cache: {cache_path}")
+
+                # Use incremental orchestrator when cache is available
+                if cache_dir is not None and cache_path is not None:
+                    orchestrator = IncrementalAnalysisOrchestrator()
+                    analysis = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=False)
+                else:
+                    analysis = client.build_static_analysis()
 
                 results.add_references(client.language.language, analysis.get("references", []))
-                results.add_cfg(client.language.language, analysis.get("call_graph", []))
-                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", []))
-                results.add_package_dependencies(client.language.language, analysis.get("package_relations", []))
+                # Ensure call_graph is a CallGraph object, not a list
+                call_graph = analysis.get("call_graph")
+                if call_graph is None:
+                    from static_analyzer.graph import CallGraph
+
+                    call_graph = CallGraph()
+                results.add_cfg(client.language.language, call_graph)
+                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", {}))
+                results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
+        print(f"Static analysis complete: {results}")
+        return results
 
+    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
+        """
+        Analyze the repository with cluster change detection.
+
+        This method performs incremental analysis and classifies the magnitude
+        of cluster structure changes between the cached state and current state.
+
+        Args:
+            cache_dir: Optional cache directory for incremental analysis.
+                      If provided, uses git-based incremental analysis per client.
+                      If None, performs full analysis without caching.
+
+        Returns:
+            Dictionary containing:
+            - 'analysis_result': StaticAnalysisResults (or dict for single client)
+            - 'cluster_change_result': ClusterChangeResult with detailed metrics
+            - 'change_classification': ChangeClassification (SMALL, MEDIUM, BIG)
+        """
+        if not self.clients:
+            return {
+                "analysis_result": StaticAnalysisResults(),
+                "cluster_change_result": None,
+                "change_classification": ChangeClassification.SMALL,
+            }
+
+        # For now, we only support single client analysis with cluster changes
+        # Multi-client support would require aggregating results across languages
+        client = self.clients[0]
+        try:
+            logger.info(f"Starting cluster change analysis for {client.language.language} in {self.repository_path}")
+            client.start()
+
+            # Java-specific: wait for JDTLS to import the project
+            if isinstance(client, JavaClient):
+                client.wait_for_import(timeout=300)
+
+            # Determine cache path
+            cache_path = None
+            if cache_dir is not None:
+                cache_dir = Path(cache_dir)
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                client_id = f"{client.language.language}"
+                cache_path = cache_dir / f"incremental_cache_{client_id}.json"
+                logger.info(f"Using incremental cache: {cache_path}")
+
+            # Use incremental orchestrator with cluster change analysis
+            if cache_path is not None:
+                orchestrator = IncrementalAnalysisOrchestrator()
+                result = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=True)
+                # Convert dict analysis_result to StaticAnalysisResults
+                if isinstance(result, dict) and "analysis_result" in result:
+                    dict_analysis = result["analysis_result"]
+                    if isinstance(dict_analysis, dict):
+                        language = client.language.language
+                        result["analysis_result"] = self._dict_to_static_results(dict_analysis, language)
+                        # Add commit hash from orchestrator result
+                        if "commit_hash" not in result:
+                            result["commit_hash"] = get_git_commit_hash(str(self.repository_path))
+                return result
+            else:
+                # No cache, perform full analysis
+                analysis = client.build_static_analysis()
+                language = client.language.language
+                static_results = self._dict_to_static_results(analysis, language)
+                return {
+                    "analysis_result": static_results,
+                    "cluster_change_result": None,
+                    "change_classification": ChangeClassification.BIG,  # Full analysis = BIG change
+                    "commit_hash": get_git_commit_hash(str(self.repository_path)),
+                }
+
+        except Exception as e:
+            logger.error(f"Error during cluster change analysis: {e}")
+            return {
+                "analysis_result": StaticAnalysisResults(),
+                "cluster_change_result": None,
+                "change_classification": ChangeClassification.BIG,
+            }
+
+    def _dict_to_static_results(self, analysis_dict: dict, language: str) -> StaticAnalysisResults:
+        """Convert analysis dictionary to StaticAnalysisResults."""
+        results = StaticAnalysisResults()
+        results.add_references(language, analysis_dict.get("references", []))
+        call_graph = analysis_dict.get("call_graph")
+        if call_graph is None:
+            from static_analyzer.graph import CallGraph
+
+            call_graph = CallGraph()
+        results.add_cfg(language, call_graph)
+        results.add_class_hierarchy(language, analysis_dict.get("class_hierarchies", {}))
+        results.add_package_dependencies(language, analysis_dict.get("package_relations", {}))
+        source_files = analysis_dict.get("source_files", [])
+        results.add_source_files(language, [str(f) for f in source_files])
         return results
 
 
 def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> StaticAnalysisResults:
     """
-    Orchestrator: Get static analysis results, using cache when available.
+    Orchestrator: Get static analysis results using incremental git-based caching.
+
+    Uses the incremental analysis cache which tracks changes via git commits,
+    providing efficient updates when only some files have changed.
 
     Args:
         repo_path: Path to the repository to analyze.
-        cache_dir: Optional custom cache directory. Defaults to repo_path/.codeboarding/cache.
+        cache_dir: Optional custom cache directory. Defaults to repo_path/.codeboarding/cache/incremental.
 
     Returns:
-        StaticAnalysisResults from cache or fresh analysis.
+        StaticAnalysisResults using incremental cache when available.
     """
     if cache_dir is None:
-        cache_dir = repo_path / ".codeboarding" / "cache"
+        cache_dir = repo_path / ".codeboarding" / "cache" / "incremental"
 
-    repo_hash = get_repo_state_hash(repo_path)
-    cache = AnalysisCache(cache_dir)
-
-    if cached_result := cache.get(repo_hash):
-        return cached_result
-
-    result = StaticAnalyzer(repo_path).analyze()
-
-    cache.save(repo_hash, result)
-
-    return result
+    # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
+    return StaticAnalyzer(repo_path).analyze(cache_dir=cache_dir)

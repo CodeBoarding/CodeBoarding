@@ -546,6 +546,43 @@ class LSPClient(ABC):
             "source_files": src_files,
         }
 
+    def build_incremental_analysis(self, cache_path: Path) -> dict:
+        """
+        Build static analysis using incremental approach with caching.
+
+        This method uses the IncrementalAnalysisOrchestrator to perform
+        incremental analysis, reusing cached results when possible and
+        only reanalyzing changed files.
+
+        Args:
+            cache_path: Path to the cache file for storing/loading results
+
+        Returns:
+            Dictionary containing complete analysis results with same structure
+            as build_static_analysis()
+        """
+        from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
+
+        logger.info("Starting incremental static analysis")
+        orchestrator = IncrementalAnalysisOrchestrator()
+        result = orchestrator.run_incremental_analysis(self, cache_path)
+
+        # Log final statistics
+        call_graph = result.get("call_graph", CallGraph())
+        class_hierarchies = result.get("class_hierarchies", {})
+        package_relations = result.get("package_relations", {})
+        references = result.get("references", [])
+        source_files = result.get("source_files", [])
+
+        logger.info(
+            f"Incremental analysis complete: {len(source_files)} files, "
+            f"{len(references)} references, {len(class_hierarchies)} classes, "
+            f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, "
+            f"{len(call_graph.edges)} edges"
+        )
+
+        return result
+
     def _analyze_single_file(self, file_path: Path, all_classes: list[dict]) -> FileAnalysisResult:
         """
         Analyze a single file and return all analysis results.
@@ -1163,3 +1200,118 @@ class LSPClient(ABC):
     def get_exclude_dirs(self) -> pathspec.PathSpec:
         """Backward compatibility for tests."""
         return self.ignore_manager.spec
+
+    def _analyze_specific_files(self, file_paths: set[Path]) -> dict:
+        """
+        Analyze only the specified files and return analysis results.
+
+        This method performs static analysis on a specific set of files,
+        which is used during incremental analysis to reanalyze only
+        changed files.
+
+        Args:
+            file_paths: Set of file paths to analyze
+
+        Returns:
+            Dictionary containing analysis results for the specified files:
+            - 'call_graph': CallGraph object with function call relationships
+            - 'class_hierarchies': dict mapping class names to inheritance info
+            - 'package_relations': dict mapping package names to dependencies
+            - 'references': list of Node objects for all symbols
+            - 'source_files': list of analyzed file paths
+        """
+        logger.info(f"Analyzing {len(file_paths)} specific files for incremental update")
+
+        # Filter the file paths to only include files that would normally be analyzed
+        src_files = self._get_source_files()
+        filtered_src_files = self.filter_src_files(src_files)
+
+        # Only analyze files that are both in file_paths and in the normal source file set
+        files_to_analyze = []
+        for file_path in file_paths:
+            if file_path in filtered_src_files:
+                files_to_analyze.append(file_path)
+                logger.debug(f"Will reanalyze: {file_path}")
+
+        if not files_to_analyze:
+            logger.info("No relevant source files to reanalyze")
+            return {
+                "call_graph": CallGraph(),
+                "class_hierarchies": {},
+                "package_relations": {},
+                "references": [],
+                "source_files": [],
+            }
+
+        logger.info(f"Reanalyzing {len(files_to_analyze)} files")
+
+        # Temporarily override the source files for analysis
+        original_get_source_files = self._get_source_files
+        self._get_source_files = lambda: files_to_analyze
+
+        try:
+            # Perform analysis on specific files
+            logger.debug("Starting targeted analysis of changed files")
+            analysis_result = self.build_static_analysis()
+
+            logger.info(
+                f"Targeted analysis complete: {len(analysis_result.get('references', []))} references, "
+                f"{len(analysis_result.get('class_hierarchies', {}))} classes, "
+                f"{len(analysis_result.get('package_relations', {}))} packages"
+            )
+
+            # Filter results to only include data from analyzed files
+            src_files_set = set(str(f) for f in files_to_analyze)
+            analysis_result["references"] = [
+                ref for ref in analysis_result.get("references", []) if ref.file_path in src_files_set
+            ]
+            analysis_result["source_files"] = [
+                f for f in analysis_result.get("source_files", []) if str(f) in src_files_set
+            ]
+
+            # Filter call graph nodes and edges to only include analyzed files
+            cg = analysis_result.get("call_graph", CallGraph())
+            nodes_to_keep = {name: node for name, node in cg.nodes.items() if node.file_path in src_files_set}
+            edges_to_keep = []
+            for edge in cg.edges:
+                src_name = edge.get_source()
+                dst_name = edge.get_destination()
+                if src_name in nodes_to_keep and dst_name in nodes_to_keep:
+                    edges_to_keep.append(edge)
+
+            # Rebuild call graph with filtered data
+            filtered_cg = CallGraph()
+            for node in nodes_to_keep.values():
+                filtered_cg.add_node(node)
+            for edge in edges_to_keep:
+                try:
+                    filtered_cg.add_edge(edge.get_source(), edge.get_destination())
+                except ValueError:
+                    pass  # Skip if nodes don't exist
+            analysis_result["call_graph"] = filtered_cg
+
+            # Filter class hierarchies to only include analyzed files
+            filtered_classes = {}
+            for class_name, class_info in analysis_result.get("class_hierarchies", {}).items():
+                if class_info.get("file_path") in src_files_set:
+                    filtered_classes[class_name] = class_info
+            analysis_result["class_hierarchies"] = filtered_classes
+
+            # Filter package relations to only include analyzed files
+            filtered_packages = {}
+            for pkg_name, pkg_info in analysis_result.get("package_relations", {}).items():
+                pkg_files = pkg_info.get("files", [])
+                remaining_files = [f for f in pkg_files if f in src_files_set]
+                if remaining_files:
+                    filtered_packages[pkg_name] = pkg_info.copy()
+                    filtered_packages[pkg_name]["files"] = remaining_files
+            analysis_result["package_relations"] = filtered_packages
+
+            logger.info(
+                f"Filtered to {len(analysis_result['references'])} references, {len(analysis_result['class_hierarchies'])} classes from analyzed files"
+            )
+
+            return analysis_result
+        finally:
+            # Restore original method
+            self._get_source_files = original_get_source_files

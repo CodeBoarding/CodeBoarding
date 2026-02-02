@@ -103,7 +103,12 @@ class ChangeSet:
         return all(c.is_rename() for c in self.changes) and len(self.changes) > 0
 
 
-def detect_changes(repo_dir: Path, base_ref: str, target_ref: str = "HEAD") -> ChangeSet:
+def detect_changes(
+    repo_dir: Path,
+    base_ref: str,
+    target_ref: str = "HEAD",
+    exclude_patterns: list[str] | None = None,
+) -> ChangeSet:
     """
     Detect file changes between two refs using rename-aware git diff.
 
@@ -111,6 +116,7 @@ def detect_changes(repo_dir: Path, base_ref: str, target_ref: str = "HEAD") -> C
         repo_dir: Path to the git repository
         base_ref: Base reference (commit hash, tag, or branch)
         target_ref: Target reference (default: HEAD, includes working tree)
+        exclude_patterns: List of path patterns to exclude (e.g., [".codeboarding/"])
 
     Returns:
         ChangeSet with all detected changes
@@ -121,6 +127,10 @@ def detect_changes(repo_dir: Path, base_ref: str, target_ref: str = "HEAD") -> C
             print(f"Renamed: {rename_old} -> {rename_new}")
     """
     changes: list[DetectedChange] = []
+
+    # Default exclusions for analysis output directories
+    if exclude_patterns is None:
+        exclude_patterns = [".codeboarding/", ".codeboarding\\"]
 
     try:
         # Use --name-status for status letters
@@ -152,6 +162,20 @@ def detect_changes(repo_dir: Path, base_ref: str, target_ref: str = "HEAD") -> C
 
             change = _parse_status_line(line)
             if change:
+                # Skip excluded patterns
+                should_skip = False
+                for pattern in exclude_patterns:
+                    if change.file_path.startswith(pattern):
+                        should_skip = True
+                        break
+                    if change.old_path and change.old_path.startswith(pattern):
+                        should_skip = True
+                        break
+
+                if should_skip:
+                    logger.debug(f"Skipping excluded path: {change.file_path}")
+                    continue
+
                 changes.append(change)
                 logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
 
