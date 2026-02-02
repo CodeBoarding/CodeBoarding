@@ -2,7 +2,7 @@ import logging
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Discriminator, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field
 
 logger = logging.getLogger(__name__)
 
@@ -138,31 +138,49 @@ class HealthReport(BaseModel):
 class HealthCheckConfig(BaseModel):
     """Configuration thresholds for health checks."""
 
-    # E1: Function size (lines)
-    function_size_max: int = 150
+    model_config = ConfigDict(extra="ignore")
 
-    # E2: Fan-out (outgoing calls)
-    fan_out_max: int = 10
-
-    # E3: Fan-in (incoming calls)
-    fan_in_max: int = 10
-
-    # E4: God class
-    god_class_method_count_max: int = 25
-    god_class_loc_max: int = 400
-    god_class_fan_out_max: int = 30
-
-    # E5: Inheritance depth
-    inheritance_depth_max: int = 5
-
-    # E6: Package-level cycle detection via nx.simple_cycles()
-    max_cycles_reported: int = 50
-
-    # E8: Orphan code exclusion patterns (file or function glob patterns)
-    orphan_exclude_patterns: list[str] = Field(default_factory=list)
-
-    # E9: Package instability
-    instability_high: float = 0.8
-
-    # E10: Component cohesion (low cohesion threshold)
-    cohesion_low: float = 0.1
+    function_size_max: int = Field(
+        default=150,
+        description="Maximum lines of code allowed in a single function before it is flagged. Range: 50-500. Default: 150.",
+    )
+    fan_out_max: int = Field(
+        default=10,
+        description="Maximum number of outgoing calls from a function. High fan-out indicates a function depends on too many others. Range: 5-30. Default: 10.",
+    )
+    fan_in_max: int = Field(
+        default=10,
+        description="Maximum number of incoming calls to a function. High fan-in means many functions depend on this one, making changes risky. Range: 5-50. Default: 10.",
+    )
+    god_class_method_count_max: int = Field(
+        default=25,
+        description="Maximum number of methods a class can have before being flagged as a God Class. Range: 10-50. Default: 25.",
+    )
+    god_class_loc_max: int = Field(
+        default=400,
+        description="Maximum lines of code in a class before being flagged as a God Class. Range: 200-1000. Default: 400.",
+    )
+    god_class_fan_out_max: int = Field(
+        default=30,
+        description="Maximum outgoing dependencies from a class before being flagged as a God Class. Range: 10-60. Default: 30.",
+    )
+    inheritance_depth_max: int = Field(
+        default=5,
+        description="Maximum depth of class inheritance hierarchy. Deep hierarchies are harder to understand. Range: 3-10. Default: 5.",
+    )
+    max_cycles_reported: int = Field(
+        default=50,
+        description="Maximum number of circular dependency cycles to include in the report. Range: 10-200. Default: 50.",
+    )
+    orphan_exclude_patterns: list[str] = Field(
+        default_factory=list,
+        description="Glob patterns for entities excluded from orphan code detection. Managed via .healthignore file.",
+    )
+    instability_high: float = Field(
+        default=0.8,
+        description="Package instability threshold (0.0 = fully stable, 1.0 = fully unstable). Packages above this value are flagged. Range: 0.5-1.0. Default: 0.8.",
+    )
+    cohesion_low: float = Field(
+        default=0.1,
+        description="Low cohesion threshold for components. Components below this value are flagged as having poor internal cohesion. Range: 0.0-0.5. Default: 0.1.",
+    )

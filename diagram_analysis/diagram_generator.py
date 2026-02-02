@@ -23,8 +23,7 @@ from repo_utils import get_git_commit_hash
 from static_analyzer import get_static_analysis
 from static_analyzer.scanner import ProjectScanner
 from health.runner import run_health_checks
-from health.config import load_health_exclude_patterns, initialize_healthignore
-from health.models import HealthCheckConfig
+from health.config import initialize_health_dir, load_health_config
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +102,8 @@ class DiagramGenerator:
 
         # Load health check configuration and initialize health config dir
         health_config_dir = Path(self.output_dir) / "health"
-        initialize_healthignore(health_config_dir)
-        exclude_patterns = load_health_exclude_patterns(health_config_dir)
-        health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+        initialize_health_dir(health_config_dir)
+        health_config = load_health_config(health_config_dir)
 
         health_report = run_health_checks(
             static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
