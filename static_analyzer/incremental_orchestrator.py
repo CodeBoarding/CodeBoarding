@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from agents.agent_responses import AnalysisInsights
 from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.cluster_change_analyzer import (
     ClusterChangeAnalyzer,
@@ -225,6 +226,102 @@ class IncrementalAnalysisOrchestrator:
 
         return analysis_result
 
+    def _merge_cluster_results_with_mappings(
+        self,
+        new_cluster_results: dict[str, ClusterResult],
+        old_cluster_results: dict[str, ClusterResult],
+        cluster_mappings: dict[str, dict[int, int]] | None,
+    ) -> dict[str, ClusterResult]:
+        """
+        Merge new cluster results with original cluster mappings for stability.
+
+        This creates a merged ClusterResult that:
+        1. Preserves original cluster IDs where clusters match
+        2. Adds new clusters with new IDs for truly new clusters
+        3. Maintains file-to-cluster mappings consistency
+
+        Args:
+            new_cluster_results: Newly computed cluster results
+            old_cluster_results: Original cluster results from full analysis
+            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
+
+        Returns:
+            Merged cluster results with stable IDs
+        """
+        if not cluster_mappings:
+            # No mappings, just return new results
+            return new_cluster_results
+
+        merged_results: dict[str, ClusterResult] = {}
+
+        for lang in new_cluster_results:
+            new_result = new_cluster_results[lang]
+            lang_mapping = cluster_mappings.get(lang, {})
+
+            if not lang_mapping or lang not in old_cluster_results:
+                # No mapping for this language, use new results as-is
+                merged_results[lang] = new_result
+                continue
+
+            old_result = old_cluster_results[lang]
+
+            # Build merged cluster result
+            merged_clusters: dict[int, set[str]] = {}
+            merged_file_to_clusters: dict[str, set[int]] = {}
+            merged_cluster_to_files: dict[int, set[str]] = {}
+
+            # Track which old IDs have been used
+            used_old_ids = set(lang_mapping.values())
+
+            # First, add all mapped clusters (use old IDs)
+            for new_id, old_id in lang_mapping.items():
+                new_files = new_result.get_files_for_cluster(new_id)
+                new_nodes = new_result.get_nodes_for_cluster(new_id)
+
+                merged_clusters[old_id] = new_nodes
+                merged_cluster_to_files[old_id] = new_files
+
+                for file_path in new_files:
+                    if file_path not in merged_file_to_clusters:
+                        merged_file_to_clusters[file_path] = set()
+                    merged_file_to_clusters[file_path].add(old_id)
+
+            # Then, add unmapped new clusters with new IDs
+            # Find the next available ID
+            next_id = max(old_result.get_cluster_ids()) + 1 if old_result.get_cluster_ids() else 1
+            for new_id in new_result.get_cluster_ids():
+                if new_id not in lang_mapping:
+                    # This is a new cluster, assign a new ID
+                    new_files = new_result.get_files_for_cluster(new_id)
+                    new_nodes = new_result.get_nodes_for_cluster(new_id)
+
+                    merged_clusters[next_id] = new_nodes
+                    merged_cluster_to_files[next_id] = new_files
+
+                    for file_path in new_files:
+                        if file_path not in merged_file_to_clusters:
+                            merged_file_to_clusters[file_path] = set()
+                        merged_file_to_clusters[file_path].add(next_id)
+
+                    next_id += 1
+
+            # Create merged ClusterResult
+            merged_result = ClusterResult(
+                clusters=merged_clusters,
+                file_to_clusters=merged_file_to_clusters,
+                cluster_to_files=merged_cluster_to_files,
+                strategy=f"incremental_merged({new_result.strategy})",
+            )
+            merged_results[lang] = merged_result
+
+            logger.info(
+                f"Merged cluster results for {lang}: "
+                f"{len(lang_mapping)} matched to original, "
+                f"{len(new_result.get_cluster_ids()) - len(lang_mapping)} new clusters"
+            )
+
+        return merged_results
+
     def _perform_incremental_update(
         self,
         lsp_client: "LSPClient",
@@ -346,14 +443,21 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(cg.nodes)} nodes, {len(cg.edges)} edges"
             )
 
+            # Compute cluster results and match to original for stability
+            logger.info("Computing cluster results for incremental update...")
+            new_cluster_results = self._compute_cluster_results(merged_analysis)
+
+            # Match new clusters to original clusters to preserve stability
+            cluster_mappings = None
+            if new_cluster_results and cached_cluster_results:
+                cluster_mappings = self._match_clusters_to_original(new_cluster_results, cached_cluster_results)
+
             # Analyze cluster changes if requested
             cluster_change_result = None
             change_classification = ChangeClassification.SMALL
-            new_cluster_results = None
 
-            if analyze_cluster_changes:
+            if analyze_cluster_changes and new_cluster_results:
                 logger.info("Analyzing cluster changes...")
-                new_cluster_results = self._compute_cluster_results(merged_analysis)
                 cluster_changes = analyze_cluster_changes_for_languages(cached_cluster_results, new_cluster_results)
 
                 # Get overall classification (worst case across all languages)
@@ -369,10 +473,15 @@ class IncrementalAnalysisOrchestrator:
             try:
                 logger.info(f"Saving updated cache to: {cache_path}")
                 if new_cluster_results:
+                    # Merge new clusters with original mappings for stability
+                    # Use original cluster IDs where we have a match
+                    merged_cluster_results = self._merge_cluster_results_with_mappings(
+                        new_cluster_results, cached_cluster_results, cluster_mappings
+                    )
                     self.cache_manager.save_cache_with_clusters(
                         cache_path=cache_path,
                         analysis_result=merged_analysis,
-                        cluster_results=new_cluster_results,
+                        cluster_results=merged_cluster_results,
                         commit_hash=current_commit,
                         iteration_id=cached_iteration + 1,
                     )
@@ -424,3 +533,141 @@ class IncrementalAnalysisOrchestrator:
             )
 
         return cluster_results
+
+    def _match_clusters_to_original(
+        self,
+        new_cluster_results: dict[str, ClusterResult],
+        old_cluster_results: dict[str, ClusterResult],
+    ) -> dict[str, dict[int, int]]:
+        """
+        Match new clusters to original clusters based on file overlap.
+
+        This preserves cluster ID stability during incremental updates by matching
+        new clusters to the most similar old cluster based on Jaccard similarity
+        of their file sets.
+
+        Args:
+            new_cluster_results: Newly computed cluster results
+            old_cluster_results: Original cluster results from full analysis
+
+        Returns:
+            Dictionary mapping language -> {new_cluster_id: old_cluster_id}
+        """
+        cluster_mappings: dict[str, dict[int, int]] = {}
+
+        for lang in new_cluster_results:
+            if lang not in old_cluster_results:
+                # No old clusters for this language, all new clusters get new IDs
+                continue
+
+            new_result = new_cluster_results[lang]
+            old_result = old_cluster_results[lang]
+
+            # Build mapping from new cluster IDs to old cluster IDs
+            lang_mapping: dict[int, int] = {}
+            used_old_ids: set[int] = set()
+
+            # For each new cluster, find the best matching old cluster
+            for new_id in new_result.get_cluster_ids():
+                new_files = new_result.get_files_for_cluster(new_id)
+
+                best_match_id = None
+                best_similarity = 0.0
+
+                for old_id in old_result.get_cluster_ids():
+                    if old_id in used_old_ids:
+                        continue  # Don't reuse old cluster IDs
+
+                    old_files = old_result.get_files_for_cluster(old_id)
+
+                    # Calculate Jaccard similarity: |intersection| / |union|
+                    intersection = len(new_files & old_files)
+                    if intersection == 0:
+                        continue
+
+                    union = len(new_files | old_files)
+                    similarity = intersection / union if union > 0 else 0.0
+
+                    # Also consider the ratio of new files that were in the old cluster
+                    # This helps when files are added/removed
+                    containment_ratio = intersection / len(new_files) if len(new_files) > 0 else 0.0
+
+                    # Combined score: weight similarity and containment
+                    score = (similarity * 0.6) + (containment_ratio * 0.4)
+
+                    if score > best_similarity and score >= 0.3:  # Minimum threshold
+                        best_similarity = score
+                        best_match_id = old_id
+
+                if best_match_id is not None:
+                    lang_mapping[new_id] = best_match_id
+                    used_old_ids.add(best_match_id)
+                    logger.debug(
+                        f"Matched new cluster {new_id} to old cluster {best_match_id} "
+                        f"(similarity: {best_similarity:.2f})"
+                    )
+
+            cluster_mappings[lang] = lang_mapping
+            logger.info(
+                f"Cluster matching for {lang}: "
+                f"{len(lang_mapping)}/{len(new_result.get_cluster_ids())} clusters matched to original"
+            )
+
+        return cluster_mappings
+
+    def _remap_cluster_ids_in_analysis(
+        self,
+        analysis: AnalysisInsights,
+        cluster_mappings: dict[str, dict[int, int]],
+    ) -> None:
+        """
+        Remap cluster IDs in components to use original cluster IDs.
+
+        Args:
+            analysis: Analysis insights with components to update
+            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
+        """
+        # Flatten all mappings (assuming single language for now)
+        id_mapping: dict[int, int] = {}
+        for lang_mapping in cluster_mappings.values():
+            id_mapping.update(lang_mapping)
+
+        if not id_mapping:
+            return
+
+        # Update each component's source_cluster_ids
+        updated_count = 0
+        for component in analysis.components:
+            if component.source_cluster_ids:
+                new_ids = []
+                for old_id in component.source_cluster_ids:
+                    # Find if this ID was remapped
+                    # Note: We need to reverse the mapping - component has old IDs,
+                    # we need to see if they map to new IDs
+                    pass
+
+        # Actually, we need a different approach: components have OLD cluster IDs
+        # The new clustering produced NEW cluster IDs
+        # We need to update the analysis to use the old IDs where possible
+
+        # For now, let's create a reverse mapping: old_id -> new_id
+        reverse_mapping: dict[int, int] = {v: k for k, v in id_mapping.items()}
+
+        for component in analysis.components:
+            if component.source_cluster_ids:
+                remapped_ids = []
+                for old_id in component.source_cluster_ids:
+                    # If this old cluster was matched to a new cluster,
+                    # keep the old ID (it's the stable one)
+                    # If not matched, the cluster was deleted
+                    if old_id in reverse_mapping:
+                        remapped_ids.append(old_id)
+                    else:
+                        logger.debug(f"Cluster {old_id} no longer exists in component {component.name}")
+
+                if remapped_ids != component.source_cluster_ids:
+                    component.source_cluster_ids = remapped_ids
+                    updated_count += 1
+
+        if updated_count > 0:
+            logger.info(f"Updated cluster IDs for {updated_count} components")

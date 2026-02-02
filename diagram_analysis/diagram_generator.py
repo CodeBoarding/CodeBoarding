@@ -280,14 +280,21 @@ class DiagramGenerator:
             logger.info("No existing manifest, full analysis required")
             return None
 
-        # DON'T load static analysis here - it's expensive (~90s)
-        # Most incremental updates (renames, simple mods) don't need it
-        # Only load if we actually need cross-boundary detection
+        # For UPDATE_COMPONENTS action, we need static analysis to properly
+        # recompute file assignments with cluster matching. Load it first.
+        from static_analyzer import get_static_analysis
+
+        static_analysis = None
+        try:
+            static_analysis = get_static_analysis(self.repo_location)
+            logger.info("Loaded static analysis for incremental update")
+        except Exception as e:
+            logger.warning(f"Could not load static analysis: {e}")
 
         updater = IncrementalUpdater(
             repo_dir=self.repo_location,
             output_dir=self.output_dir,
-            static_analysis=None,  # Will be loaded only if needed
+            static_analysis=static_analysis,
             force_full=self.force_full,
         )
 
@@ -302,6 +309,12 @@ class DiagramGenerator:
         if impact.action == UpdateAction.NONE:
             logger.info("No changes detected, analysis is up to date")
             return [str(self.output_dir / "analysis.json")]
+
+        # For structural changes, recompute which components are actually affected
+        # after static analysis has been updated with cluster matching
+        if impact.action == UpdateAction.UPDATE_COMPONENTS and static_analysis:
+            logger.info("Recomputing affected components with updated cluster assignments...")
+            updater.recompute_dirty_components(static_analysis)
 
         if updater.execute():
             logger.info("Incremental update completed successfully")

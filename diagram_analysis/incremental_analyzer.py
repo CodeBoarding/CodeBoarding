@@ -10,9 +10,13 @@ This module determines the minimal work needed when code changes:
 
 import json
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+
+from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest, build_manifest_from_analysis
@@ -654,6 +658,112 @@ class IncrementalUpdater:
 
         return False
 
+    def recompute_dirty_components(self, static_analysis: StaticAnalysisResults) -> None:
+        """
+        Recompute which components are actually affected after static analysis.
+
+        This uses the updated cluster results from static analysis to determine
+        which components have files that actually changed, rather than relying
+        on the manifest's old file assignments.
+
+        Args:
+            static_analysis: Updated static analysis with new cluster assignments
+        """
+        if not self.impact or not self.manifest or not self.analysis:
+            logger.warning("Cannot recompute dirty components: missing impact, manifest, or analysis")
+            return
+
+        logger.info("Recomputing dirty components with updated cluster assignments...")
+
+        from static_analyzer.cluster_helpers import build_all_cluster_results
+
+        # Build cluster results from updated static analysis
+        cluster_results = build_all_cluster_results(static_analysis)
+
+        # Get the changed files
+        changed_files = set()
+        changed_files.update(self.impact.renames.keys())
+        changed_files.update(self.impact.renames.values())
+        changed_files.update(self.impact.modified_files)
+        changed_files.update(self.impact.added_files)
+        changed_files.update(self.impact.deleted_files)
+
+        # For each changed file, find which component it belongs to in the NEW analysis
+        new_dirty_components: set[str] = set()
+
+        for file_path in changed_files:
+            # Skip non-source files
+            if _should_skip_file(file_path):
+                continue
+
+            # Find which component this file should belong to based on cluster membership
+            target_component = self._find_component_for_file(file_path, cluster_results)
+
+            if target_component:
+                new_dirty_components.add(target_component)
+                logger.debug(f"File '{file_path}' assigned to component '{target_component}'")
+            else:
+                # File doesn't belong to any component's clusters
+                logger.debug(f"File '{file_path}' not assigned to any component")
+
+        # Update the impact with the recomputed dirty components
+        original_dirty = self.impact.dirty_components.copy()
+        self.impact.dirty_components = new_dirty_components
+
+        # Also update components_needing_reexpansion
+        self.impact.components_needing_reexpansion = self.impact.components_needing_reexpansion & new_dirty_components
+
+        logger.info(
+            f"Recomputed dirty components: {len(original_dirty)} -> {len(new_dirty_components)} "
+            f"(removed: {original_dirty - new_dirty_components}, added: {new_dirty_components - original_dirty})"
+        )
+
+    def _find_component_for_file(self, file_path: str, cluster_results: dict) -> str | None:
+        """
+        Find which component a file belongs to based on cluster membership.
+
+        Args:
+            file_path: Path to the file
+            cluster_results: Cluster results from static analysis
+
+        Returns:
+            Component name if found, None otherwise
+        """
+        # Get the clusters this file belongs to
+        file_clusters: set[int] = set()
+        for lang_result in cluster_results.values():
+            file_clusters.update(lang_result.get_clusters_for_file(file_path))
+
+        if not file_clusters:
+            return None
+
+        # Find which component has the most overlap with these clusters
+        best_component = None
+        best_overlap = 0
+
+        assert self.analysis is not None, "Analysis must be loaded"
+
+        for component in self.analysis.components:
+            if not component.source_cluster_ids:
+                continue
+
+            component_clusters = set(component.source_cluster_ids)
+            overlap = len(file_clusters & component_clusters)
+
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_component = component.name
+
+        # If no cluster overlap, try directory-based matching
+        if best_component is None:
+            file_dir = str(Path(file_path).parent)
+            for component in self.analysis.components:
+                for assigned_file in component.assigned_files:
+                    if str(Path(assigned_file).parent) == file_dir:
+                        return component.name
+
+        return best_component
+
     def _execute_patch_paths(self) -> bool:
         """Execute path patching for renames."""
         assert self.impact and self.manifest and self.analysis
@@ -799,12 +909,59 @@ class IncrementalUpdater:
         sub_analysis_path = self.output_dir / f"{safe_name}.json"
         return sub_analysis_path.exists()
 
+    def _reexpand_single_component(
+        self,
+        component_name: str,
+        details_agent,
+        plan_analysis,
+        from_analysis_to_json,
+        sanitize,
+    ) -> str | None:
+        """
+        Process a single component for re-expansion.
+
+        Returns the component name if successful, None otherwise.
+        """
+        # Find the component in analysis (self.analysis is guaranteed to exist by caller)
+        assert self.analysis is not None
+        component = next(
+            (c for c in self.analysis.components if c.name == component_name),
+            None,
+        )
+        if not component:
+            logger.warning(f"Component '{component_name}' not found for re-expansion")
+            return None
+
+        try:
+            logger.info(f"Re-expanding component: {component_name}")
+
+            # Run DetailsAgent to regenerate sub-analysis
+            sub_analysis, _ = details_agent.run(component)
+
+            # Get expandable sub-components
+            new_components = plan_analysis(sub_analysis, parent_had_clusters=bool(component.source_cluster_ids))
+
+            # Save sub-analysis
+            safe_name = sanitize(component_name)
+            output_path = self.output_dir / f"{safe_name}.json"
+            with open(output_path, "w") as f:
+                f.write(from_analysis_to_json(sub_analysis, new_components))
+
+            logger.info(f"Re-expanded component '{component_name}' -> {output_path}")
+            return component_name
+
+        except Exception as e:
+            logger.error(f"Failed to re-expand component '{component_name}': {e}")
+            return None
+
     def _reexpand_components(self, component_names: set[str]) -> list[str]:
         """
         Re-run DetailsAgent for components that need sub-analysis regeneration.
 
         This is called when files are added/deleted from an expanded component,
         requiring the sub-analysis to be regenerated.
+
+        Components are processed in parallel using ThreadPoolExecutor for efficiency.
 
         Returns list of successfully re-expanded component names.
         """
@@ -841,38 +998,38 @@ class IncrementalUpdater:
         )
 
         reexpanded: list[str] = []
+        max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
-        for component_name in component_names:
-            # Find the component in analysis
-            component = next(
-                (c for c in self.analysis.components if c.name == component_name),
-                None,
-            )
-            if not component:
-                logger.warning(f"Component '{component_name}' not found for re-expansion")
-                continue
+        # Process components in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all component processing tasks
+            future_to_component = {
+                executor.submit(
+                    self._reexpand_single_component,
+                    component_name,
+                    details_agent,
+                    plan_analysis,
+                    from_analysis_to_json,
+                    sanitize,
+                ): component_name
+                for component_name in component_names
+            }
 
-            try:
-                logger.info(f"Re-expanding component: {component_name}")
+            # Collect results as they complete
+            for future in tqdm(
+                as_completed(future_to_component),
+                total=len(future_to_component),
+                desc="Re-expanding components",
+            ):
+                component_name = future_to_component[future]
+                try:
+                    result = future.result()
+                    if result:
+                        reexpanded.append(result)
+                except Exception as exc:
+                    logger.error(f"Component {component_name} generated an exception: {exc}")
 
-                # Run DetailsAgent to regenerate sub-analysis
-                sub_analysis, _ = details_agent.run(component)
-
-                # Get expandable sub-components
-                new_components = plan_analysis(sub_analysis, parent_had_clusters=bool(component.source_cluster_ids))
-
-                # Save sub-analysis
-                safe_name = sanitize(component_name)
-                output_path = self.output_dir / f"{safe_name}.json"
-                with open(output_path, "w") as f:
-                    f.write(from_analysis_to_json(sub_analysis, new_components))
-
-                logger.info(f"Re-expanded component '{component_name}' -> {output_path}")
-                reexpanded.append(component_name)
-
-            except Exception as e:
-                logger.error(f"Failed to re-expand component '{component_name}': {e}")
-
+        logger.info(f"Successfully re-expanded {len(reexpanded)}/{len(component_names)} components")
         return reexpanded
 
     def _assign_new_files(self, new_files: list[str]) -> set[str]:
