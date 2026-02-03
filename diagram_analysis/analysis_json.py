@@ -29,8 +29,8 @@ def from_analysis_to_json(analysis: AnalysisInsights, new_components: List[Compo
 
 
 def from_component_to_json_component(component: Component, new_components: List[Component]) -> ComponentJson:
-    # A component can be expanded if it has files (content to analyze) OR is explicitly marked for expansion
-    can_expand = len(component.assigned_files) > 0 or any(c.name == component.name for c in new_components)
+    # A component can be expanded only when explicitly marked in new_components
+    can_expand = any(c.name == component.name for c in new_components)
     return ComponentJson(
         name=component.name,
         description=component.description,

@@ -1,4 +1,5 @@
 import logging
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,7 @@ class ReferenceResolverMixin:
                 if reference.reference_file is not None and os.path.exists(reference.reference_file):
                     continue
 
-                self._resolve_single_reference(reference)
+                self._resolve_single_reference(reference, component.assigned_files)
 
         # Remove unresolved references
         self._remove_unresolved_references(analysis)

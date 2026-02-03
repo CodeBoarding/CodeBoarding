@@ -128,7 +128,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         # Step 3: Sanitize cluster IDs (remove invalid ones)
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
         # Step 4: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, cluster_results)
+        self.classify_files(analysis, cluster_results, self.static_analysis.get_all_source_files())
         # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
         # Step 6: Ensure unique key entities across components

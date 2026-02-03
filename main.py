@@ -41,11 +41,12 @@ def validate_env_vars():
         exit(1)
 
     if len(api_env_keys) > 1:
-        logger.warning(
-            "Detected multiple API keys set (%s); proceeding using provider priority order: %s",
+        logger.error(
+            "Detected multiple API keys set (%s); please set only one of: %s",
             api_env_keys,
             api_provider_keys,
         )
+        exit(2)
 
 
 def onboarding_materials_exist(project_name: str) -> bool:
@@ -287,7 +288,6 @@ def process_local_repository(
         output_dir=output_dir,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
-        force_full=force_full,
     )
 
 

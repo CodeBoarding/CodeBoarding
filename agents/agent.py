@@ -162,14 +162,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         max_retries = 5
 
         for attempt in range(max_retries):
+            timeout_seconds = 300 if attempt == 0 else 600
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
                 callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
-
-                # Timeout: 5 minutes for first attempt, 10 minutes for retries
-                timeout_seconds = 300 if attempt == 0 else 600
 
                 logger.info(
                     f"Starting agent.invoke() [attempt {attempt + 1}/{max_retries}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
@@ -333,8 +331,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
+            result = extractor.invoke(
+                return_type.extractor_str() + response,
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:
@@ -384,8 +384,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
             parsing_llm = self.get_parsing_llm()
             chain = prompt | parsing_llm | parser
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            return chain.invoke({"adjective": message_content}, config=config)
+            return chain.invoke(
+                {"adjective": message_content},
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():
                 try:
@@ -394,9 +396,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(
-        self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str] | None = None
-    ) -> None:
+    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str]) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
