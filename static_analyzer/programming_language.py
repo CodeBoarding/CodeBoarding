@@ -4,6 +4,8 @@ from typing import Optional, Set
 
 from pydantic import BaseModel, Field
 
+from static_analyzer.constants import Language
+
 logger = logging.getLogger(__name__)
 
 
@@ -113,7 +115,11 @@ class ProgrammingLanguageBuilder:
         return None
 
     def build(
-        self, tokei_language: str, code_count: int, percentage: float, file_suffixes: Set[str]
+        self,
+        tokei_language: str,
+        code_count: int,
+        percentage: float,
+        file_suffixes: Set[str],
     ) -> ProgrammingLanguage:
         lsp_server_key = self._find_lsp_server_key(tokei_language, file_suffixes)
 
@@ -127,7 +133,7 @@ class ProgrammingLanguageBuilder:
             config_suffixes = set(config.get("file_extensions", []))
 
             # Create language-specific config based on the LSP server key
-            if lsp_server_key == "java" and "jdtls_root" in config:
+            if lsp_server_key == Language.JAVA and "jdtls_root" in config:
                 language_specific_config = JavaConfig(jdtls_root=Path(config["jdtls_root"]))
 
         # Merge suffixes from tokei and config

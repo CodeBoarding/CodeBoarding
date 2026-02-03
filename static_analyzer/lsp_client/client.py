@@ -15,6 +15,7 @@ import pathspec
 from tqdm import tqdm
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, Node
 from static_analyzer.scanner import ProgrammingLanguage
 
@@ -106,6 +107,9 @@ class LSPClient(ABC):
         self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
+        # Initialize diagnostics collection for health checks
+        self.diagnostics: dict[str, list[dict]] = {}  # file_path -> list of diagnostics
+
     def start(self):
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
@@ -120,6 +124,7 @@ class LSPClient(ABC):
         self._reader_thread.daemon = True
         self._reader_thread.start()
         self._initialize()
+        self._send_workspace_configuration()
 
     def _send_request(self, method: str, params: dict):
         """Sends a JSON-RPC request to the server."""
@@ -213,7 +218,8 @@ class LSPClient(ABC):
         Process a notification from the LSP server.
 
         This method extracts the method and params from the notification and calls
-        the subclass's handle_notification() method.
+        the subclass's handle_notification() method. It also captures diagnostics
+        for health checks.
 
         Args:
             notification: The notification dictionary from the LSP server
@@ -221,11 +227,65 @@ class LSPClient(ABC):
         method = notification.get("method", "")
         params = notification.get("params", {})
 
+        # Capture diagnostics for health checks
+        if method == "textDocument/publishDiagnostics":
+            self._handle_diagnostics_notification(params)
+
         # Call subclass handler
         try:
             self.handle_notification(method, params)
         except Exception as e:
             logger.debug(f"Error in notification handler for {method}: {e}")
+
+    def _handle_diagnostics_notification(self, params: dict):
+        """Handle textDocument/publishDiagnostics notifications.
+
+        Stores diagnostics for later use in health checks.
+
+        Args:
+            params: The notification parameters containing uri and diagnostics
+        """
+        try:
+            uri = params.get("uri", "")
+            diagnostics = params.get("diagnostics", [])
+
+            if not uri or not diagnostics:
+                return
+
+            # Convert URI to file path
+            file_path = str(uri_to_path(uri))
+
+            with self._lock:
+                # Deduplicate diagnostics based on code and range
+                existing_diags = self.diagnostics.get(file_path, [])
+                all_diags = existing_diags + diagnostics
+
+                # Create unique key for each diagnostic
+                seen = set()
+                unique_diags = []
+                for diag in all_diags:
+                    key = (
+                        str(diag.get("code", "")),
+                        diag.get("message", ""),
+                        diag.get("range", {}).get("start", {}).get("line", 0),
+                        diag.get("range", {}).get("start", {}).get("character", 0),
+                    )
+                    if key not in seen:
+                        seen.add(key)
+                        unique_diags.append(diag)
+
+                self.diagnostics[file_path] = unique_diags
+        except Exception as e:
+            logger.debug(f"Error handling diagnostics notification: {e}")
+
+    def get_collected_diagnostics(self) -> dict[str, list[dict]]:
+        """Get all collected diagnostics.
+
+        Returns:
+            Dictionary mapping file paths to lists of diagnostic objects
+        """
+        with self._lock:
+            return self.diagnostics.copy()
 
     def handle_notification(self, method: str, params: dict):
         """
@@ -334,6 +394,11 @@ class LSPClient(ABC):
                     "typeHierarchy": {"dynamicRegistration": True},
                     "references": {"dynamicRegistration": True},
                     "semanticTokens": {"dynamicRegistration": True},
+                    "publishDiagnostics": {
+                        "relatedInformation": True,
+                        "versionSupport": True,
+                        "tagSupport": {"valueSet": [1, 2]},  # 1=Unnecessary, 2=Deprecated
+                    },
                 }
             },
             "workspace": {
@@ -341,6 +406,11 @@ class LSPClient(ABC):
                 "workspaceEdit": {"documentChanges": True},
             },
         }
+
+        # Add language-specific settings to enable unused code diagnostics
+        settings = self._get_language_settings()
+        if settings:
+            params["initializationOptions"] = settings
         init_id = self._send_request("initialize", params)
         # Use longer timeout for initialization as it may involve full workspace indexing
         response = self._wait_for_response(init_id, timeout=360)
@@ -350,6 +420,107 @@ class LSPClient(ABC):
 
         logger.info("Initialization successful.")
         self._send_notification("initialized", {})
+
+    def _get_language_settings(self) -> dict | None:
+        """Get language-specific settings to enable unused code diagnostics.
+
+        Returns:
+            Settings dictionary for the language server, or None if not applicable.
+        """
+        lang_id = self.language_id.lower()
+
+        if lang_id == Language.PYTHON:
+            # Pyright/Pylance settings to enable unused code detection
+            return {
+                "python": {
+                    "analysis": {
+                        "typeCheckingMode": "basic",
+                        "diagnosticSeverityOverrides": {
+                            "reportUnusedImport": "warning",
+                            "reportUnusedVariable": "warning",
+                            "reportUnusedFunction": "warning",
+                            "reportUnusedClass": "warning",
+                            "reportUnusedParameter": "warning",
+                            "reportUnreachable": "warning",
+                        },
+                    }
+                }
+            }
+        elif lang_id in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+            # TypeScript/JavaScript settings
+            return {
+                "typescript": {
+                    "preferences": {
+                        "includePackageJsonAutoImports": "on",
+                    }
+                },
+                "javascript": {
+                    "preferences": {
+                        "includePackageJsonAutoImports": "on",
+                    }
+                },
+            }
+        elif lang_id == Language.GO:
+            # gopls settings
+            return {
+                "gopls": {
+                    "ui.diagnostic.annotations": {
+                        "bounds": True,
+                        "escape": True,
+                        "inline": True,
+                        "nil": True,
+                        "unusedParams": True,
+                    },
+                    "ui.diagnostic.staticcheck": True,
+                }
+            }
+        elif lang_id == Language.JAVA:
+            # Eclipse JDT Language Server settings
+            return {
+                "java": {
+                    "settings": {
+                        "org.eclipse.jdt.core.compiler.problem.unusedImport": "warning",
+                        "org.eclipse.jdt.core.compiler.problem.unusedLocal": "warning",
+                        "org.eclipse.jdt.core.compiler.problem.unusedPrivateMember": "warning",
+                        "org.eclipse.jdt.core.compiler.problem.unusedTypeParameter": "warning",
+                        "org.eclipse.jdt.core.compiler.problem.deadCode": "warning",
+                        "org.eclipse.jdt.core.compiler.problem.redundantSuperinterface": "warning",
+                    }
+                }
+            }
+        elif lang_id == Language.PHP:
+            # Intelephense settings
+            return {
+                "intelephense": {
+                    "diagnostics": {
+                        "unusedSymbols": True,
+                        "unusedUseStatements": True,
+                    }
+                }
+            }
+
+        return None
+
+    def _send_workspace_configuration(self):
+        """Send workspace configuration to enable unused code detection.
+
+        Some LSP servers (like Pyright) require configuration to be sent via
+        workspace/didChangeConfiguration after initialization to enable
+        features like unused code detection.
+        """
+        settings = self._get_language_settings()
+        if not settings:
+            return
+
+        logger.info(f"Sending workspace configuration for {self.language_id}...")
+
+        # Send configuration using workspace/didChangeConfiguration
+        self._send_notification(
+            "workspace/didChangeConfiguration",
+            {"settings": settings},
+        )
+
+        logger.info(f"Workspace configuration sent for {self.language_id}")
 
     def _get_document_symbols(self, file_uri: str) -> list:
         """Fetches all document symbols (functions, classes, etc.) for a file."""
@@ -886,6 +1057,60 @@ class LSPClient(ABC):
             if self._reader_thread:
                 self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
+
+    def open_all_files_for_diagnostics(self):
+        """Open all source files to trigger LSP diagnostic publishing.
+
+        LSP servers like Pyright only publish diagnostics for open files.
+        This method opens all files in the workspace so that we can collect
+        diagnostics for unused code detection.
+        """
+        src_files = self._get_source_files()
+        src_files = self.filter_src_files(src_files)
+        total = len(src_files)
+
+        logger.info(f"Opening {total} files for diagnostic collection...")
+        opened_count = 0
+
+        for file_path in src_files:
+            try:
+                file_uri = file_path.as_uri()
+                content = file_path.read_text(encoding="utf-8")
+
+                self._send_notification(
+                    "textDocument/didOpen",
+                    {
+                        "textDocument": {
+                            "uri": file_uri,
+                            "languageId": self.language_id,
+                            "version": 1,
+                            "text": content,
+                        }
+                    },
+                )
+                opened_count += 1
+            except Exception as e:
+                logger.debug(f"Failed to open {file_path} for diagnostics: {e}")
+
+        logger.info(f"Opened {opened_count}/{total} files for diagnostic collection")
+
+    def close_all_files_for_diagnostics(self):
+        """Close all source files that were opened for diagnostics."""
+        src_files = self._get_source_files()
+        src_files = self.filter_src_files(src_files)
+
+        logger.info(f"Closing {len(src_files)} files...")
+        closed_count = 0
+
+        for file_path in src_files:
+            try:
+                file_uri = file_path.as_uri()
+                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
+                closed_count += 1
+            except Exception as e:
+                logger.debug(f"Failed to close {file_path}: {e}")
+
+        logger.info(f"Closed {closed_count} files")
 
     def _prepare_for_analysis(self):
         """Override in subclasses to perform language-specific preparation before analysis."""
