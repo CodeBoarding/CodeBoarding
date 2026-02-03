@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.graph import CallGraph, ClusterResult, Node
+from static_analyzer.graph import CallGraph, ClusterResult, Node, Edge
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,13 @@ class AnalysisCacheManager:
         """Initialize the cache manager."""
         pass
 
-    def save_cache(self, cache_path: Path, analysis_result: dict, commit_hash: str, iteration_id: int) -> None:
+    def save_cache(
+        self,
+        cache_path: Path,
+        analysis_result: dict[str, Any],
+        commit_hash: str,
+        iteration_id: int,
+    ) -> None:
         """
         Save static analysis results to cache file.
 
@@ -102,7 +108,7 @@ class AnalysisCacheManager:
                 temp_path.unlink()
             raise
 
-    def load_cache(self, cache_path: Path) -> tuple[dict, str, int] | None:
+    def load_cache(self, cache_path: Path) -> tuple[dict[str, Any], str, int] | None:
         """
         Load static analysis results from cache file.
 
@@ -189,7 +195,7 @@ class AnalysisCacheManager:
                 logger.debug(f"  ref '{ref.file_path}' in changed_file_strs: {ref.file_path in changed_file_strs}")
 
         # Create a copy to avoid modifying the original
-        updated_result = {
+        updated_result: dict[str, Any] = {
             "call_graph": CallGraph(),
             "class_hierarchies": {},
             "package_relations": {},
@@ -198,7 +204,7 @@ class AnalysisCacheManager:
         }
 
         # Step 1: Remove nodes from changed files
-        call_graph = analysis_result["call_graph"]
+        call_graph: CallGraph = analysis_result["call_graph"]
         removed_nodes = set()
         kept_nodes = set()
 
@@ -232,7 +238,8 @@ class AnalysisCacheManager:
 
         # Step 3: Remove class hierarchies from changed files
         removed_classes = 0
-        for class_name, class_info in analysis_result["class_hierarchies"].items():
+        class_hierarchies: dict[str, Any] = analysis_result["class_hierarchies"]
+        for class_name, class_info in class_hierarchies.items():
             class_file_path = class_info.get("file_path", "")
             if class_file_path not in changed_file_strs:
                 updated_result["class_hierarchies"][class_name] = class_info.copy()
@@ -244,7 +251,8 @@ class AnalysisCacheManager:
         removed_packages = 0
         updated_packages = 0
 
-        for package_name, package_info in analysis_result["package_relations"].items():
+        package_relations: dict[str, Any] = analysis_result["package_relations"]
+        for package_name, package_info in package_relations.items():
             original_files = package_info.get("files", [])
             remaining_files = [f for f in original_files if f not in changed_file_strs]
 
@@ -266,7 +274,8 @@ class AnalysisCacheManager:
 
         # Step 5: Remove references from changed files
         removed_references = 0
-        for ref in analysis_result["references"]:
+        references: list[Node] = analysis_result["references"]
+        for ref in references:
             if ref.file_path not in changed_file_strs:
                 updated_result["references"].append(ref)
             else:
@@ -274,8 +283,9 @@ class AnalysisCacheManager:
                 logger.debug(f"Removing reference {ref.fully_qualified_name} from file {ref.file_path}")
 
         # Step 6: Filter source files
-        original_source_count = len(analysis_result["source_files"])
-        for file_path in analysis_result["source_files"]:
+        source_files: list[Path] = analysis_result["source_files"]
+        original_source_count = len(source_files)
+        for file_path in source_files:
             if str(file_path) not in changed_file_strs:
                 updated_result["source_files"].append(file_path)
 
@@ -313,9 +323,9 @@ class AnalysisCacheManager:
         Raises:
             ValueError: If dangling references are found
         """
-        call_graph = analysis_result["call_graph"]
+        call_graph: CallGraph = analysis_result["call_graph"]
         existing_nodes = set(call_graph.nodes.keys())
-        errors = []
+        errors: list[str] = []
 
         # Check edges reference existing nodes
         for edge in call_graph.edges:
@@ -371,7 +381,7 @@ class AnalysisCacheManager:
         Returns:
             Merged analysis results combining both datasets
         """
-        merged_result = {
+        merged_result: dict[str, Any] = {
             "call_graph": CallGraph(),
             "class_hierarchies": {},
             "package_relations": {},
@@ -412,10 +422,12 @@ class AnalysisCacheManager:
 
         # Merge references
         # Get file paths from new result to identify which cached references to replace
-        new_file_paths = {str(path) for path in new_result.get("source_files", [])}
+        new_source_files: list[Path] = new_result.get("source_files", [])
+        new_file_paths = {str(path) for path in new_source_files}
 
         # Only keep cached references that are NOT from files in the new result
-        for ref in cached_result["references"]:
+        cached_references: list[Node] = cached_result["references"]
+        for ref in cached_references:
             if ref.file_path not in new_file_paths:
                 merged_result["references"].append(ref)
 
@@ -424,17 +436,18 @@ class AnalysisCacheManager:
 
         # Merge source files
         # Keep cached files that are NOT in the new result (unchanged files)
-        for file_path in cached_result["source_files"]:
+        cached_source_files: list[Path] = cached_result["source_files"]
+        for file_path in cached_source_files:
             if str(file_path) not in new_file_paths:
                 merged_result["source_files"].append(file_path)
 
         # Add all source files from new result (changed files that were reanalyzed)
-        merged_result["source_files"].extend(new_result["source_files"])
+        merged_result["source_files"].extend(new_source_files)
 
         logger.info("Merged cached and new analysis results")
         return merged_result
 
-    def _serialize_call_graph(self, call_graph: CallGraph) -> dict:
+    def _serialize_call_graph(self, call_graph: CallGraph) -> dict[str, Any]:
         """Serialize CallGraph to JSON-compatible format."""
         nodes_data = {}
         for node_name, node in call_graph.nodes.items():
@@ -446,13 +459,13 @@ class AnalysisCacheManager:
                 "type": node.type,
             }
 
-        edges_data = []
+        edges_data: list[list[str]] = []
         for edge in call_graph.edges:
             edges_data.append([edge.get_source(), edge.get_destination()])
 
         return {"nodes": nodes_data, "edges": edges_data}
 
-    def _deserialize_call_graph(self, call_graph_data: dict) -> CallGraph:
+    def _deserialize_call_graph(self, call_graph_data: dict[str, Any]) -> CallGraph:
         """Deserialize CallGraph from JSON format."""
         call_graph = CallGraph()
 
@@ -477,7 +490,7 @@ class AnalysisCacheManager:
 
         return call_graph
 
-    def _serialize_references(self, references: list[Node]) -> list[dict]:
+    def _serialize_references(self, references: list[Node]) -> list[dict[str, Any]]:
         """Serialize list of Node objects to JSON-compatible format."""
         return [
             {
@@ -490,7 +503,7 @@ class AnalysisCacheManager:
             for ref in references
         ]
 
-    def _deserialize_references(self, references_data: list[dict]) -> list[Node]:
+    def _deserialize_references(self, references_data: list[dict[str, Any]]) -> list[Node]:
         """Deserialize list of Node objects from JSON format."""
         return [
             Node(

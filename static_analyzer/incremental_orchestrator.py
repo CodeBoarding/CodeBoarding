@@ -638,13 +638,8 @@ class IncrementalAnalysisOrchestrator:
         # Update each component's source_cluster_ids
         updated_count = 0
         for component in analysis.components:
-            if component.source_cluster_ids:
-                new_ids = []
-                for old_id in component.source_cluster_ids:
-                    # Find if this ID was remapped
-                    # Note: We need to reverse the mapping - component has old IDs,
-                    # we need to see if they map to new IDs
-                    pass
+            if not component.source_cluster_ids:
+                continue
 
         # Actually, we need a different approach: components have OLD cluster IDs
         # The new clustering produced NEW cluster IDs

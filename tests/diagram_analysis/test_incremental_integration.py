@@ -108,6 +108,7 @@ class TestGitChangeDetection:
     def test_detect_no_changes(self, git_repo: Path):
         """No changes should be detected on a clean repo."""
         commit = get_current_commit(git_repo)
+        assert commit is not None
         changes = detect_changes_from_commit(git_repo, commit)
 
         assert changes.is_empty()
@@ -115,6 +116,7 @@ class TestGitChangeDetection:
     def test_detect_modified_file(self, git_repo: Path):
         """Detect modified files."""
         base_commit = get_current_commit(git_repo)
+        assert base_commit is not None
 
         # Modify a file
         (git_repo / "src" / "module_a.py").write_text("def func_a():\n    return 42\n")
@@ -129,6 +131,7 @@ class TestGitChangeDetection:
     def test_detect_renamed_file(self, git_repo: Path):
         """Detect renamed files with proper old/new path tracking."""
         base_commit = get_current_commit(git_repo)
+        assert base_commit is not None
 
         # Rename a file
         run_git(git_repo, "mv", "src/module_a.py", "src/renamed_a.py")
@@ -144,6 +147,7 @@ class TestGitChangeDetection:
     def test_detect_added_file(self, git_repo: Path):
         """Detect newly added files."""
         base_commit = get_current_commit(git_repo)
+        assert base_commit is not None
 
         # Add a new file
         (git_repo / "src" / "module_c.py").write_text("def func_c():\n    pass\n")
@@ -159,6 +163,7 @@ class TestGitChangeDetection:
     def test_detect_deleted_file(self, git_repo: Path):
         """Detect deleted files."""
         base_commit = get_current_commit(git_repo)
+        assert base_commit is not None
 
         # Delete a file
         run_git(git_repo, "rm", "src/module_b.py")
@@ -197,7 +202,7 @@ class TestIncrementalUpdaterIntegration:
         save_analysis(sample_analysis, output_dir)
         manifest = AnalysisManifest(
             repo_state_hash="test_hash",
-            base_commit=base_commit,
+            base_commit=base_commit or "",
             file_to_component={
                 "src/module_a.py": "ComponentA",
                 "src/module_b.py": "ComponentB",
@@ -251,7 +256,7 @@ class TestIncrementalUpdaterIntegration:
         save_analysis(sample_analysis, output_dir)
         manifest = AnalysisManifest(
             repo_state_hash="test_hash",
-            base_commit=base_commit,
+            base_commit=base_commit or "",
             file_to_component={
                 "src/module_a.py": "ComponentA",
                 "src/module_b.py": "ComponentB",
@@ -279,7 +284,7 @@ class TestIncrementalUpdaterIntegration:
         save_analysis(sample_analysis, output_dir)
         manifest = AnalysisManifest(
             repo_state_hash="test_hash",
-            base_commit=base_commit,
+            base_commit=base_commit or "",
             file_to_component={
                 "src/module_a.py": "ComponentA",
                 "src/module_b.py": "ComponentB",
@@ -319,7 +324,7 @@ class TestEndToEndScenarios:
         save_analysis(sample_analysis, output_dir)
         manifest = AnalysisManifest(
             repo_state_hash="test_hash",
-            base_commit=base_commit,
+            base_commit=base_commit or "",
             file_to_component={
                 "src/module_a.py": "ComponentA",
                 "src/module_b.py": "ComponentB",
@@ -343,6 +348,7 @@ class TestEndToEndScenarios:
 
         # Verify results
         analysis = load_analysis(output_dir)
+        assert analysis is not None
         comp_a = next(c for c in analysis.components if c.name == "ComponentA")
         assert "src/component_a.py" in comp_a.assigned_files
 
@@ -359,7 +365,7 @@ class TestEndToEndScenarios:
         save_analysis(sample_analysis, output_dir)
         manifest = AnalysisManifest(
             repo_state_hash="test_hash",
-            base_commit=base_commit,
+            base_commit=base_commit or "",
             file_to_component={
                 "src/module_a.py": "ComponentA",
                 "src/module_b.py": "ComponentB",

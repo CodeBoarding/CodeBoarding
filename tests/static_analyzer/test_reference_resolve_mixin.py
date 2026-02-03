@@ -16,6 +16,10 @@ class ConcreteReferenceResolver(ReferenceResolverMixin):
         super().__init__(repo_dir, static_analysis)
         self.mock_parse_invoke = Mock()
 
+    # Expose the protected helper for tests
+    def _try_llm_resolution(self, reference, qname, file_candidates=None):
+        return self._parse_invoke(reference, qname)
+
     def _parse_invoke(self, prompt, type):
         """Implementation of abstract method for testing"""
         return self.mock_parse_invoke(prompt, type)

@@ -31,7 +31,7 @@ class ReferenceResolverMixin:
 
         return self._relative_paths(analysis)
 
-    def _resolve_single_reference(self, reference):
+    def _resolve_single_reference(self, reference, file_candidates: list[str] | None = None):
         """Orchestrates different resolution strategies for a single reference."""
         qname = reference.qualified_name.replace(os.sep, ".")
 
@@ -45,7 +45,7 @@ class ReferenceResolverMixin:
                 return
 
             # Try file path resolution
-            if self._try_file_path_resolution(reference, qname, lang):
+            if self._try_file_path_resolution(reference, qname, lang, file_candidates):
                 return
 
         # No resolution found - will be cleaned up later
@@ -84,14 +84,14 @@ class ReferenceResolverMixin:
             logger.warning(f"[Reference Resolution] Loose match failed for {qname} in {lang}: {e}")
         return False
 
-    def _try_file_path_resolution(self, reference, qname, lang):
+    def _try_file_path_resolution(self, reference, qname, lang, file_candidates: list[str] | None = None):
         """Attempts to resolve reference through file path matching."""
         # First try existing reference file path
         if self._try_existing_reference_file(reference, lang):
             return True
 
         # Then try qualified name as file path
-        return self._try_qualified_name_as_path(reference, qname, lang)
+        return self._try_qualified_name_as_path(reference, qname, lang, file_candidates)
 
     def _try_existing_reference_file(self, reference, lang):
         """Tries to resolve using existing reference file path."""
@@ -107,12 +107,13 @@ class ReferenceResolverMixin:
                 reference.reference_file = None
         return False
 
-    def _try_qualified_name_as_path(self, reference, qname, lang):
+    def _try_qualified_name_as_path(self, reference, qname, lang, file_candidates: list[str] | None = None):
         """Tries to resolve qualified name as various file path patterns."""
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
+        extra_paths = file_candidates or []
+        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref, *extra_paths]
 
         for path in paths:
             if os.path.exists(path):
