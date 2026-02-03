@@ -39,9 +39,13 @@ def validate_env_vars():
     if len(api_env_keys) == 0:
         logger.error(f"API key not set, set one of the following: {api_provider_keys}")
         exit(1)
-    elif len(api_env_keys) > 1:
-        logger.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
-        exit(2)
+
+    if len(api_env_keys) > 1:
+        logger.warning(
+            "Detected multiple API keys set (%s); proceeding using provider priority order: %s",
+            api_env_keys,
+            api_provider_keys,
+        )
 
 
 def onboarding_materials_exist(project_name: str) -> bool:
@@ -72,7 +76,8 @@ def generate_analysis(
         monitoring_enabled=monitoring_enabled,
     )
     generator.force_full = force_full
-    return generator.generate_analysis()
+    generated_files = generator.generate_analysis()
+    return [Path(path) for path in generated_files]
 
 
 def generate_markdown_docs(
@@ -231,7 +236,7 @@ def process_remote_repository(
         elif upload:
             logger.warning(f"ROOT_RESULT directory '{root_result}' does not exist. Skipping upload.")
     finally:
-        remove_temp_repo_folder(temp_folder)
+        remove_temp_repo_folder(str(temp_folder))
 
 
 def process_local_repository(

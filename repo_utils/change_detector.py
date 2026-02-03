@@ -108,6 +108,7 @@ def detect_changes(
     base_ref: str,
     target_ref: str = "HEAD",
     exclude_patterns: list[str] | None = None,
+    fetch_missing_refs: bool = True,
 ) -> ChangeSet:
     """
     Detect file changes between two refs using rename-aware git diff.
@@ -132,23 +133,19 @@ def detect_changes(
     if exclude_patterns is None:
         exclude_patterns = [".codeboarding/", ".codeboarding\\"]
 
-    try:
-        # Use --name-status for status letters
-        # -M: detect renames
-        # -C: detect copies
-        # --find-renames=50%: consider rename if 50%+ similar
-        cmd = [
-            "git",
-            "diff",
-            "--name-status",
-            "-M",
-            "-C",
-            "--find-renames=50%",
-            base_ref,
-            target_ref,
-        ]
+    cmd = [
+        "git",
+        "diff",
+        "--name-status",
+        "-M",
+        "-C",
+        "--find-renames=50%",
+        base_ref,
+        target_ref,
+    ]
 
-        result = subprocess.run(
+    def _run_diff() -> subprocess.CompletedProcess:
+        return subprocess.run(
             cmd,
             cwd=repo_dir,
             capture_output=True,
@@ -156,33 +153,53 @@ def detect_changes(
             check=True,
         )
 
-        for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
-
-            change = _parse_status_line(line)
-            if change:
-                # Skip excluded patterns
-                should_skip = False
-                for pattern in exclude_patterns:
-                    if change.file_path.startswith(pattern):
-                        should_skip = True
-                        break
-                    if change.old_path and change.old_path.startswith(pattern):
-                        should_skip = True
-                        break
-
-                if should_skip:
-                    logger.debug(f"Skipping excluded path: {change.file_path}")
-                    continue
-
-                changes.append(change)
-                logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
-
+    try:
+        result = _run_diff()
     except subprocess.CalledProcessError as e:
-        logger.error(f"Git diff failed: {e.stderr}")
+        stderr_lower = (e.stderr or "").lower()
+        if fetch_missing_refs and "bad object" in stderr_lower:
+            logger.warning("Git diff failed due to missing ref (%s); fetching refs and retrying once", e.stderr.strip())
+            try:
+                subprocess.run(
+                    ["git", "fetch", "--all", "--prune", "--tags"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                result = _run_diff()
+            except subprocess.CalledProcessError as fetch_err:
+                logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
+                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+        else:
+            logger.error(f"Git diff failed: {e.stderr}")
+            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
     except FileNotFoundError:
         logger.error("Git not found in PATH")
+        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+
+        change = _parse_status_line(line)
+        if change:
+            # Skip excluded patterns
+            should_skip = False
+            for pattern in exclude_patterns:
+                if change.file_path.startswith(pattern):
+                    should_skip = True
+                    break
+                if change.old_path and change.old_path.startswith(pattern):
+                    should_skip = True
+                    break
+
+            if should_skip:
+                logger.debug(f"Skipping excluded path: {change.file_path}")
+                continue
+
+            changes.append(change)
+            logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
 
     return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
 
