@@ -1,0 +1,130 @@
+{
+  "description": "The Repository Manager subsystem orchestrates all interactions with Git repositories to fetch, prepare, and manage source code for downstream analysis. The main flow clones or accesses a repository, validates the Git environment, applies ignore rules to filter irrelevant files, computes and formats diffs or file-level changes between commits, and provides repository metadata and filtered file sets to other analysis components. Its purpose is to ensure a correct, validated, and focused view of repository contents for subsequent static analysis, documentation generation, or AI-based interpretation.",
+  "components": [
+    {
+      "name": "Repository Access Layer",
+      "description": "Manages fundamental interactions with Git repositories including cloning, checking out commits/branches, and retrieving repository metadata (name, branch, commit hash). Ensures the correct code version is available for analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 94,
+          "reference_end_line": 111
+        },
+        {
+          "qualified_name": "sanitize_repo_url",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 55,
+          "reference_end_line": 69
+        },
+        {
+          "qualified_name": "get_repo_name",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 87,
+          "reference_end_line": 91
+        },
+        {
+          "qualified_name": "checkout_repo",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 114,
+          "reference_end_line": 122
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Ignore Rule Processor",
+      "description": "Parses and applies .gitignore rules to exclude irrelevant files and directories from analysis, producing a filtered set of paths for downstream components.",
+      "key_entities": [
+        {
+          "qualified_name": "should_ignore",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": 71,
+          "reference_end_line": 103
+        },
+        {
+          "qualified_name": "filter_paths",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": 105,
+          "reference_end_line": 107
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Git Change Analyzer",
+      "description": "Computes diffs between repository states/commits and structures file-level changes (e.g., FileChange), optionally formatting diffs for consumption by AI interpretation or documentation components.",
+      "key_entities": [
+        {
+          "qualified_name": "get_git_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": 25,
+          "reference_end_line": 74
+        },
+        {
+          "qualified_name": "FileChange",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": 6,
+          "reference_end_line": 22
+        },
+        {
+          "qualified_name": "llm_str",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": 18,
+          "reference_end_line": 22
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Git Environment Validator",
+      "description": "Verifies that Git (and any required environment dependencies) is present and correctly configured before repository operations are attempted to avoid runtime failures.",
+      "key_entities": [
+        {
+          "qualified_name": "require_git_import",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 25,
+          "reference_end_line": 52
+        }
+      ],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides repository path",
+      "src_name": "Repository Access Layer",
+      "dst_name": "Ignore Rule Processor"
+    },
+    {
+      "relation": "provides repository state/commits",
+      "src_name": "Repository Access Layer",
+      "dst_name": "Git Change Analyzer"
+    },
+    {
+      "relation": "validates environment for",
+      "src_name": "Git Environment Validator",
+      "dst_name": "Repository Access Layer"
+    },
+    {
+      "relation": "provides filtered file paths",
+      "src_name": "Ignore Rule Processor",
+      "dst_name": "Git Change Analyzer"
+    }
+  ]
+}

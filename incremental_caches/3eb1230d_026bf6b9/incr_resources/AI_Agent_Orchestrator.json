@@ -1,0 +1,245 @@
+{
+  "description": "The AI Agent Orchestrator subsystem is the central AI interpretation layer that manages how multiple specialized agents analyze a codebase using Large Language Models (LLMs). The main flow begins with the Analysis Planner Agent producing an analysis plan, which the LLM Agent Orchestrator executes by generating provider-specific prompts (via Prompt Management and LLM Configuration Manager), invoking Codebase Interaction Tools to fetch necessary source data, and dispatching tasks to Specialized Analysis Agents. Those agents produce structured outputs modeled by Agent Response Data Models, which are then validated by the Validation Engine for correctness and completeness. The purpose is to coordinate LLM-driven analysis, ensure consistent prompts and configurations, provide access to code artifacts, synthesize analysis insights, and validate results for downstream consumption (documentation, diagrams, or further processing).",
+  "components": [
+    {
+      "name": "LLM Agent Orchestrator",
+      "description": "Central control unit that manages end-to-end code analysis workflows: orchestrates specialized agents, handles LLM interactions, parses responses, and implements retry/error handling while coordinating analysis stages.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent.LargeModelAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/meta_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Planner Agent",
+      "description": "Determines the optimal analysis strategy, specifying which agents to run, their sequence and scope, and when deeper expansion of components is required; provides structured plans to the Orchestrator.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Prompt Management",
+      "description": "Centralizes prompt creation and formatting for different LLM providers, producing reusable, provider-compatible prompts tailored to task requirements and LLM configuration.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gpt_prompts.PromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gpt_prompts.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/claude_prompts.py",
+        "agents/prompts/gemini_flash_prompts.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Configuration Manager",
+      "description": "Manages provider-specific LLM settings (API keys, model names, temperatures, token limits) and abstracts differences between providers to provide uniform configurations to other components.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Codebase Interaction Tools",
+      "description": "Provides abstractions and utilities for agents to interact with the codebase: read files, retrieve CFGs, list directories, extract method invocations, and analyze dependencies.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Specialized Analysis Agents",
+      "description": "Composite of agents performing deep code analysis tasks (metadata extraction, clustering, abstraction): extract project context, cluster methods, classify files, and synthesize higher-level architectural abstractions.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/abstraction_agent.py",
+        "agents/cluster_methods_mixin.py",
+        "agents/details_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent Response Data Models",
+      "description": "Pydantic models and schemas that standardize agent outputs, ensure type safety, and structure analysis results for consistent internal exchange.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.Component",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.FileClassification",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.Relation",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Validation Engine",
+      "description": "Evaluates correctness, completeness, and consistency of agents' analysis outputs, performing validation checks and providing feedback to improve result quality and reliability.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/validation.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Orchestrates",
+      "src_name": "LLM Agent Orchestrator",
+      "dst_name": "Specialized Analysis Agents"
+    },
+    {
+      "relation": "Requests",
+      "src_name": "LLM Agent Orchestrator",
+      "dst_name": "Prompt Management"
+    },
+    {
+      "relation": "Submits",
+      "src_name": "LLM Agent Orchestrator",
+      "dst_name": "Validation Engine"
+    },
+    {
+      "relation": "Provides Plan to",
+      "src_name": "Analysis Planner Agent",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Generates Prompts for",
+      "src_name": "Prompt Management",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Consults",
+      "src_name": "Prompt Management",
+      "dst_name": "LLM Configuration Manager"
+    },
+    {
+      "relation": "Provides Config to",
+      "src_name": "LLM Configuration Manager",
+      "dst_name": "Prompt Management"
+    },
+    {
+      "relation": "Provides Config to",
+      "src_name": "LLM Configuration Manager",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Provides Data to",
+      "src_name": "Codebase Interaction Tools",
+      "dst_name": "Specialized Analysis Agents"
+    },
+    {
+      "relation": "Provides Data to",
+      "src_name": "Codebase Interaction Tools",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Requests Data from",
+      "src_name": "Specialized Analysis Agents",
+      "dst_name": "Codebase Interaction Tools"
+    },
+    {
+      "relation": "Produces Results for",
+      "src_name": "Specialized Analysis Agents",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Uses",
+      "src_name": "Specialized Analysis Agents",
+      "dst_name": "Agent Response Data Models"
+    },
+    {
+      "relation": "Defines Structure for",
+      "src_name": "Agent Response Data Models",
+      "dst_name": "Specialized Analysis Agents"
+    },
+    {
+      "relation": "Defines Structure for",
+      "src_name": "Agent Response Data Models",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Validates",
+      "src_name": "Validation Engine",
+      "dst_name": "LLM Agent Orchestrator"
+    },
+    {
+      "relation": "Uses",
+      "src_name": "Validation Engine",
+      "dst_name": "Agent Response Data Models"
+    }
+  ]
+}

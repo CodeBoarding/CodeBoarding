@@ -1,0 +1,200 @@
+{
+  "description": "The Orchestration & Output Generation subsystem coordinates the end-to-end workflow of the CodeBoarding application: it accepts user requests, prepares code repositories, runs static analysis and AI-driven interpretation to produce structured analysis data, and then generates human-readable documentation in various formats. Its purpose is to act as the central coordinator that sequences repository operations, analysis engines, data modeling, job management, and output rendering to deliver architectural insights and documentation artifacts.",
+  "components": [
+    {
+      "name": "Orchestration Engine",
+      "description": "Primary entry point and high-level coordinator that parses input (CLI/env), determines processing mode, sequences repository preparation, analysis initiation, and documentation generation, and manages core configurations.",
+      "key_entities": [
+        {
+          "qualified_name": "main.main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "logging_config.py",
+        "setup.py",
+        "utils.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Code Repository Manager",
+      "description": "Handles interactions with code repositories: cloning, branch checkout, applying ignore rules, computing git diffs, and providing repository utilities so the orchestrator receives a prepared working tree.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.ignore",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/ignore.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/__init__.py",
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis & AI Interpretation Engine",
+      "description": "Performs static analysis to extract code structures and patterns, and invokes AI agents for abstraction, detail extraction, planning, and validation to produce structured analysis insights.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Data Model",
+      "description": "Defines canonical data structures and schemas representing analysis results, including components, relationships, metadata, and versioning used as input for output generation.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.analysis_json",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.version",
+          "reference_file": "diagram_analysis/version.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Consumes structured analysis data and renders it into human-readable documentation formats (HTML, Markdown, MDX, Sphinx RST) using format-specific templates and utilities.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.html.HTMLOutputGenerator",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html_template",
+          "reference_file": "output_generators/html_template.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/html_template.py",
+        "output_generators/html.py",
+        "output_generators/__init__.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Management & Persistence Layer",
+      "description": "Manages lifecycle of asynchronous documentation generation jobs, including queuing, processing, persistence (e.g., DuckDB), temporary file handling, caching, and job monitoring utilities.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud.DuckDBCRUD",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CI/CD Integration Layer",
+      "description": "Integration points and logic for running the analysis and documentation pipeline within CI/CD environments (notably GitHub Actions), enabling automated execution of the workflow.",
+      "key_entities": [
+        {
+          "qualified_name": "github_action",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "github_action.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "requests repository preparation",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Code Repository Manager"
+    },
+    {
+      "relation": "initiates code analysis",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Static Analysis & AI Interpretation Engine"
+    },
+    {
+      "relation": "populates analysis results",
+      "src_name": "Static Analysis & AI Interpretation Engine",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "requests documentation generation",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "reads structured analysis data",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "submits or queries job status",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Management & Persistence Layer"
+    },
+    {
+      "relation": "triggers workflow",
+      "src_name": "CI/CD Integration Layer",
+      "dst_name": "Orchestration Engine"
+    }
+  ]
+}

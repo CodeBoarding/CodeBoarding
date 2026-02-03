@@ -1,0 +1,161 @@
+{
+  "description": "The graph represents the Core Orchestration & Output Generator subsystem of the CodeBoarding application. Its main flow starts with user-initiated analysis jobs (via CLI, local app, or API), which are accepted by the Orchestration Engine. The Orchestration Engine fetches repository code, invokes the Static Analysis Engine, coordinates with the AI Interpretation Layer for architectural insights, persists job metadata to the Job Database, and hands analysis results to the Output Generation Engine to produce documentation artifacts (HTML/MDX/Markdown/reST). The subsystem also integrates with GitHub Actions for CI/CD workflows and exposes both local and remote entry points for job initiation. Overall purpose: manage the full lifecycle of analysis jobs from intake through processing, persistence, and artifact generation.",
+  "components": [
+    {
+      "name": "Orchestration Engine",
+      "description": "Manages the end-to-end analysis workflow: project setup, invoking static analysis, coordinating with AI interpretation, managing output generation, and cleanup. Acts as the central sequencer for all analysis stages.",
+      "key_entities": [
+        {
+          "qualified_name": "main",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": 37,
+          "reference_end_line": 68
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py",
+        "logging_config.py",
+        "main.py",
+        "setup.py",
+        "utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Engine",
+      "description": "Transforms structured analysis data into various documentation formats (HTML, MDX, Markdown, reST) and writes these artifacts to output locations; handles presentation of results.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Database",
+      "description": "Persists job-related metadata (statuses, timestamps, repo details, pointers to results) and provides CRUD operations for job state and history.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CLI Interface",
+      "description": "Command-line entry point for users to initiate analysis jobs; handles argument parsing/validation and triggers the Orchestration Engine.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/cli.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Local Application Interface",
+      "description": "Local entry point or simplified API for initiating analysis jobs from local tools or scripts; interfaces with orchestration logic without requiring a remote API.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "github_action.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates",
+      "src_name": "CLI Interface",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "initiates",
+      "src_name": "Local Application Interface",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "updates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "queries",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "provides analysis data to",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Output Generation Engine"
+    },
+    {
+      "relation": "generates outputs",
+      "src_name": "Output Generation Engine",
+      "dst_name": "Documentation Artifacts"
+    },
+    {
+      "relation": "requests code from",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "sends analysis results to",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "receives insights from",
+      "src_name": "Orchestration Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "coordinates with",
+      "src_name": "Orchestration Engine",
+      "dst_name": "GitHub Action Integration"
+    },
+    {
+      "relation": "triggers",
+      "src_name": "API Service",
+      "dst_name": "Orchestration Engine"
+    }
+  ]
+}

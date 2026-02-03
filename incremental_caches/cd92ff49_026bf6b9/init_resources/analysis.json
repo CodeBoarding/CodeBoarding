@@ -1,0 +1,204 @@
+{
+  "description": "The CodeBoarding application provides an API for users to initiate and manage codebase analysis jobs. An Orchestration Engine coordinates the entire analysis pipeline, starting with preparing the development environment and retrieving source code. It then triggers a Static Analysis Engine to extract detailed structural information. The results are passed to specialized AI Interpretation Agents, which leverage an LLM Agent Framework and Codebase Interaction Tools to generate high-level architectural insights. Finally, the Orchestration Engine uses these insights to produce various documentation and visual reports.",
+  "components": [
+    {
+      "name": "API & Job Management",
+      "description": "This component exposes the external API interface of the CodeBoarding application, allowing users to initiate, monitor, and manage analysis jobs. It handles the persistence of job states and results using a DuckDB database and provides utility functions for configuration and temporary file management.",
+      "key_entities": [],
+      "assigned_files": [
+        "utils.py",
+        "duckdb_crud.py",
+        "local_app.py"
+      ],
+      "source_cluster_ids": [
+        4
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Repository & Environment Manager",
+      "description": "This component is responsible for managing the source code repository and setting up the necessary development environment for analysis. It handles tasks such as cloning repositories, checking out specific branches, installing required tools (e.g., npm, uv, TypeScript Language Server), and extracting Git differences for version control integration.",
+      "key_entities": [],
+      "assigned_files": [
+        "setup.py",
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [
+        8,
+        17,
+        24
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Orchestration & Reporting",
+      "description": "This component orchestrates the entire CodeBoarding analysis pipeline, managing the flow from initial setup to final output generation. It includes the core logic for generating various documentation formats (HTML, Markdown, MDX, Sphinx) and visual diagrams (Mermaid.js) from the processed analysis results. It also provides integration points for different execution environments like VSCode and GitHub Actions.",
+      "key_entities": [],
+      "assigned_files": [
+        "vscode_constants.py",
+        "vscode_runnable.py",
+        "output_generators/sphinx.py",
+        "github_action.py",
+        "output_generators/html.py",
+        "output_generators/mdx.py",
+        "demo.py",
+        "output_generators/markdown.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py",
+        "logging_config.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py"
+      ],
+      "source_cluster_ids": [
+        1
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "This component is responsible for performing deep static analysis of the codebase. It leverages Language Server Protocol (LSP) clients to interact with language servers (e.g., TypeScript Language Server) to extract detailed structural information, including call graphs, class hierarchies, and code references. It defines the data structures for representing these graphs and stores the comprehensive analysis results. It also includes a scanner for initial project language detection.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/graph.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [
+        2,
+        7,
+        14,
+        18,
+        21
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Agent Framework",
+      "description": "This component provides the foundational framework for all LLM-driven agents within CodeBoarding. It defines the generic `CodeBoardingAgent` class, which handles LLM initialization, invocation, response parsing, and tool integration. It also manages the generation and templating of various LLM prompts and defines the structured data models for consistent input and output across different agents.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/agent_responses.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/agent.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/__init__.py",
+        "agents/prompts/__init__.py"
+      ],
+      "source_cluster_ids": [
+        3,
+        5,
+        6
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Agents",
+      "description": "This component houses the specialized LLM agents responsible for interpreting the raw static analysis results and generating high-level architectural insights. These agents perform tasks such as abstracting code into logical components, detailing specific components with CFG insights, validating generated insights against static data, and analyzing code differences for incremental updates.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/validator_agent.py",
+        "agents/details_agent.py",
+        "agents/diff_analyzer.py",
+        "agents/abstraction_agent.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [
+        11,
+        12,
+        13,
+        16
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Codebase Interaction Tools",
+      "description": "This component provides a suite of tools that LLM agents can utilize to interact with the codebase and retrieve specific information. These tools act as the 'eyes and ears' for the agents, allowing them to query various aspects of the project, including documentation, file structure, file content, Git differences, source code references, package dependencies, and external library information.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/tools/external_deps.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/__init__.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/utils.py"
+      ],
+      "source_cluster_ids": [
+        9,
+        10,
+        15,
+        19,
+        20,
+        22,
+        23,
+        25
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "triggers analysis pipeline",
+      "src_name": "API & Job Management",
+      "dst_name": "Orchestration & Reporting"
+    },
+    {
+      "relation": "prepares environment and retrieves code",
+      "src_name": "Orchestration & Reporting",
+      "dst_name": "Repository & Environment Manager"
+    },
+    {
+      "relation": "initiates static analysis",
+      "src_name": "Orchestration & Reporting",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "submits analysis results for interpretation",
+      "src_name": "Orchestration & Reporting",
+      "dst_name": "AI Interpretation Agents"
+    },
+    {
+      "relation": "accesses source code",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Repository & Environment Manager"
+    },
+    {
+      "relation": "utilizes agent framework",
+      "src_name": "AI Interpretation Agents",
+      "dst_name": "LLM Agent Framework"
+    },
+    {
+      "relation": "invokes codebase queries",
+      "src_name": "AI Interpretation Agents",
+      "dst_name": "Codebase Interaction Tools"
+    },
+    {
+      "relation": "queries analysis data",
+      "src_name": "Codebase Interaction Tools",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "accesses project files",
+      "src_name": "Codebase Interaction Tools",
+      "dst_name": "Repository & Environment Manager"
+    }
+  ]
+}

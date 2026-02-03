@@ -1,0 +1,318 @@
+{
+  "description": "The CodeBoarding system is an AI-powered code analysis tool designed to generate comprehensive documentation and insights from source code. It operates as a workflow-centric pipeline, starting with job orchestration and repository management, progressing through deep static code analysis, and culminating in AI-driven interpretation to produce structured insights and various output formats. The system emphasizes modularity, extensibility for different programming languages and LLM providers, and robust monitoring of its operations.",
+  "components": [
+    {
+      "name": "Application & Workflow Orchestrator",
+      "description": "Manages the end-to-end lifecycle of an analysis job, from receiving requests (CLI, GitHub Actions), preparing the repository, orchestrating the static analysis and AI interpretation, to persisting results and generating various output formats. It acts as the central coordinator for the entire CodeBoarding process.",
+      "key_entities": [
+        {
+          "qualified_name": "main.generate_analysis",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app.start_generation_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.__init__.StaticAnalyzer.analyze",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html.generate_html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/sphinx.py",
+        "output_generators/mdx.py",
+        "health/models.py",
+        "static_analyzer/__init__.py",
+        "vscode_constants.py",
+        "health_main.py",
+        "main.py",
+        "duckdb_crud.py",
+        "utils.py",
+        "health/config.py",
+        "repo_utils/__init__.py",
+        "github_action.py",
+        "output_generators/html.py",
+        "local_app.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py",
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "install.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "repo_utils/errors.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [
+        5,
+        18,
+        13,
+        12
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Code Analysis Engine",
+      "description": "The core engine responsible for deep code understanding. It interacts with language-specific servers (LSP), builds internal representations like call graphs, resolves code references, and stores comprehensive static analysis results. It provides the foundational data for AI interpretation.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client.JavaClient",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/programming_language.py",
+        "static_analyzer/cluster_helpers.py",
+        "static_analyzer/java_utils.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [
+        2,
+        3,
+        8,
+        10,
+        15,
+        14,
+        16,
+        17
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Houses the intelligent agents that process static analysis data, interact with Large Language Models (LLMs) using managed prompts, and generate structured insights. It leverages specialized tools to query the codebase and its analysis results, forming the AI-driven interpretation and insight generation core.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/claude_prompts.py",
+        "agents/tools/read_source.py",
+        "agents/prompts/gemini_flash_prompts.py",
+        "agents/agent.py",
+        "agents/prompts/gpt_prompts.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/agent_responses.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/external_deps.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/tools/toolkit.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_packages.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/cluster_methods_mixin.py",
+        "agents/details_agent.py",
+        "agents/llm_config.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/prompts/__init__.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/read_file_structure.py",
+        "agents/validation.py",
+        "health/__init__.py",
+        "health/checks/__init__.py",
+        "health/checks/circular_deps.py",
+        "health/checks/cohesion.py",
+        "health/checks/coupling.py",
+        "health/checks/function_size.py",
+        "health/checks/god_class.py",
+        "health/checks/inheritance.py",
+        "health/checks/instability.py",
+        "health/checks/orphan_code.py",
+        "health/runner.py"
+      ],
+      "source_cluster_ids": [
+        4,
+        6,
+        7,
+        1,
+        9,
+        11
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring & Telemetry",
+      "description": "A cross-cutting component responsible for observing and recording operational metrics, particularly focusing on LLM and tool usage. It collects usage statistics via callbacks and persists this data to provide insights into performance, cost, and system behavior.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback.on_llm_end",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/callbacks.py",
+        "logging_config.py",
+        "monitoring/__init__.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/paths.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [
+        19,
+        20
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Initiates static analysis tasks",
+      "src_name": "Application & Workflow Orchestrator",
+      "dst_name": "Static Code Analysis Engine"
+    },
+    {
+      "relation": "Receives raw analysis results",
+      "src_name": "Application & Workflow Orchestrator",
+      "dst_name": "Static Code Analysis Engine"
+    },
+    {
+      "relation": "Passes static analysis results for AI processing",
+      "src_name": "Application & Workflow Orchestrator",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Receives final AI-generated insights",
+      "src_name": "Application & Workflow Orchestrator",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Provides detailed code analysis data to AI tools",
+      "src_name": "Static Code Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Queries specific code details or analysis results via tools",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Static Code Analysis Engine"
+    },
+    {
+      "relation": "Reports LLM and tool usage metrics",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Monitoring & Telemetry"
+    },
+    {
+      "relation": "Reports static analysis operation metrics",
+      "src_name": "Static Code Analysis Engine",
+      "dst_name": "Monitoring & Telemetry"
+    },
+    {
+      "relation": "Reports job lifecycle events and overall system health",
+      "src_name": "Application & Workflow Orchestrator",
+      "dst_name": "Monitoring & Telemetry"
+    }
+  ]
+}
