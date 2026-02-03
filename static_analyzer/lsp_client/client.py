@@ -65,6 +65,16 @@ class LSPClient(ABC):
     language server notifications (e.g., for tracking build/import progress).
     """
 
+    # Known LSP server-to-client request methods that we handle
+    # See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#serverToClientRequest
+    SERVER_REQUEST_METHODS = {
+        "workspace/configuration",  # Request for workspace configuration
+        "window/workDoneProgress/create",  # Request to create progress token
+        "client/registerCapability",  # Request to register capabilities dynamically
+        "window/showMessageRequest",  # Request to show message with actions
+        "window/showDocument",  # Request to show a document
+    }
+
     def __init__(
         self, project_path: Path, language: ProgrammingLanguage, ignore_manager: RepoIgnoreManager | None = None
     ):
@@ -158,10 +168,18 @@ class LSPClient(ABC):
                 body = self._process.stdout.read(content_length).decode("utf-8")
                 response = json.loads(body)
 
-                if "id" in response:
+                if "id" in response and "method" in response:
+                    # Server-to-client REQUEST (has both id and method)
+                    # This is distinct from:
+                    # - Responses (have id, no method)
+                    # - Notifications (have method, no id)
+                    self._handle_server_request(response)
+                elif "id" in response:
+                    # Response to our request (has id, no method)
                     with self._lock:
                         self._responses[response["id"]] = response
-                else:  # It's a notification from the server
+                else:
+                    # Notification from server (has method, no id)
                     with self._lock:
                         self._notifications.append(response)
                     # Process notification immediately
@@ -228,6 +246,68 @@ class LSPClient(ABC):
         # Default implementation: do nothing
         # Subclasses override this to handle language-specific notifications
         pass
+
+    def _handle_server_request(self, request: dict):
+        """
+        Handle requests from the LSP server that expect a response.
+
+        These are distinct from notifications - they have both 'id' and 'method' fields
+        and the server blocks until we respond.
+
+        See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
+        """
+        method = request.get("method", "")
+        request_id = request.get("id")
+        params = request.get("params", {})
+
+        if method == "workspace/configuration":
+            # Return empty configuration for each requested item
+            items = params.get("items", [])
+            result = [{}] * len(items)
+            logger.debug(f"Responding to workspace/configuration request for {len(items)} items")
+            self._send_response(request_id, result)
+        elif method == "window/workDoneProgress/create":
+            # Acknowledge progress token creation
+            logger.debug(f"Acknowledging progress token creation: {params.get('token')}")
+            self._send_response(request_id, None)
+        elif method == "client/registerCapability":
+            # Acknowledge capability registration
+            logger.debug("Acknowledging capability registration")
+            self._send_response(request_id, None)
+        elif method == "window/showMessageRequest":
+            # Don't select any action, just acknowledge
+            logger.debug(f"Acknowledging showMessageRequest: {str(params.get('message', ''))[:50]}")
+            self._send_response(request_id, None)
+        elif method == "window/showDocument":
+            # Acknowledge but indicate we didn't show the document
+            logger.debug("Acknowledging showDocument request")
+            self._send_response(request_id, {"success": False})
+        elif method in self.SERVER_REQUEST_METHODS:
+            # Known method but not explicitly handled - respond with null
+            logger.debug(f"Responding with null to known server request: {method}")
+            self._send_response(request_id, None)
+        else:
+            # UNKNOWN server request - log as warning so we can add handling if needed
+            logger.warning(
+                f"Unknown LSP server request received: {method} (id={request_id}). "
+                f"Responding with null to unblock server. "
+                f"Consider adding explicit handling for this request type."
+            )
+            self._send_response(request_id, None)
+
+    def _send_response(self, request_id: int, result):
+        """Send a response to a server request."""
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": result,
+        }
+        body = json.dumps(response)
+        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+
+        if self._process and self._process.stdin:
+            self._process.stdin.write(message.encode("utf-8"))
+            self._process.stdin.flush()
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""

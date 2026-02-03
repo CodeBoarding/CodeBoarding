@@ -55,50 +55,87 @@ class StaticAnalysisResults:
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """
-        Adds a class hierarchy to the results.
+        Adds/merges a class hierarchy to the results.
 
-        :param language: The name of the class.
-        :param hierarchy: A list representing the class hierarchy.
+        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
+
+        :param language: The programming language.
+        :param hierarchy: A dict or list representing the class hierarchy.
         """
         if language not in self.results:
             self.results[language] = {}
-        self.results[language]["hierarchy"] = hierarchy
+        if "hierarchy" not in self.results[language]:
+            self.results[language]["hierarchy"] = {}
+
+        # Merge instead of overwrite
+        if isinstance(hierarchy, dict):
+            self.results[language]["hierarchy"].update(hierarchy)
+        elif isinstance(hierarchy, list):
+            # Handle list of dicts (legacy format)
+            for item in hierarchy:
+                if isinstance(item, dict):
+                    self.results[language]["hierarchy"].update(item)
 
     def add_cfg(self, language: str, cfg: CallGraph):
         """
-        Adds a control flow graph (CFG) to the results.
+        Adds/merges a control flow graph (CFG) to the results.
+
+        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
 
         :param language: The programming language of the CFG.
         :param cfg: The control flow graph data.
         """
         if language not in self.results:
             self.results[language] = {}
-        self.results[language]["cfg"] = cfg
+
+        if "cfg" not in self.results[language]:
+            self.results[language]["cfg"] = cfg
+        else:
+            # Merge nodes and edges from the new CFG into the existing one
+            existing_cfg = self.results[language]["cfg"]
+            for node in cfg.nodes.values():
+                existing_cfg.add_node(node)
+            for edge in cfg.edges:
+                try:
+                    existing_cfg.add_edge(edge[0], edge[1])
+                except ValueError:
+                    pass  # Skip duplicate edges
 
     def add_package_dependencies(self, language: str, dependencies):
         """
-        Adds package dependencies to the results.
+        Adds/merges package dependencies to the results.
+
+        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
 
         :param language: The programming language of the dependencies.
-        :param dependencies: A list of package dependencies.
+        :param dependencies: A dict of package dependencies.
         """
         if language not in self.results:
             self.results[language] = {}
-        self.results[language]["dependencies"] = dependencies
+        if "dependencies" not in self.results[language]:
+            self.results[language]["dependencies"] = {}
+
+        # Merge instead of overwrite
+        if isinstance(dependencies, dict):
+            self.results[language]["dependencies"].update(dependencies)
 
     def add_references(self, language: str, references: list[Node]):
         """
-        Adds source code references to the results.
+        Adds/merges source code references to the results.
+
+        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
 
         :param language: The programming language of the references.
         :param references: A list of source code references.
         """
         if language not in self.results:
             self.results[language] = {}
-        # transform references to dict and make the keys lower case so that we can search them case-insensitively
-        self.results[language]["references"] = {
-            reference.fully_qualified_name.lower(): reference for reference in references
-        }
+        if "references" not in self.results[language]:
+            self.results[language]["references"] = {}
+
+        # Merge instead of overwrite - keys are lower case for case-insensitive search
+        for reference in references:
+            self.results[language]["references"][reference.fully_qualified_name.lower()] = reference
 
     def get_cfg(self, language: str) -> CallGraph:
         """
@@ -192,14 +229,20 @@ class StaticAnalysisResults:
 
     def add_source_files(self, language: str, source_files):
         """
-        Adds source files to the analysis results.
+        Adds/extends source files to the analysis results.
+
+        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
 
         :param language: The programming language.
         :param source_files: A list of source files.
         """
         if language not in self.results:
             self.results[language] = {}
-        self.results[language]["source_files"] = source_files
+        if "source_files" not in self.results[language]:
+            self.results[language]["source_files"] = []
+
+        # Extend instead of overwrite
+        self.results[language]["source_files"].extend(source_files)
 
     def get_source_files(self, language: str) -> list[str]:
         """
