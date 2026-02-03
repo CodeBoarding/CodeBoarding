@@ -92,7 +92,12 @@ class DiagramGenerator:
     def pre_analysis(self):
         analysis_start_time = time.time()
 
-        self.static_analysis = get_static_analysis(self.repo_location)
+        # When force_full is True, skip the cache to perform a full static analysis
+        if self.force_full:
+            logger.info("Force full analysis: skipping static analysis cache")
+            self.static_analysis = get_static_analysis(self.repo_location, skip_cache=True)
+        else:
+            self.static_analysis = get_static_analysis(self.repo_location)
         static_analysis = self.static_analysis
 
         # --- Capture Static Analysis Stats ---

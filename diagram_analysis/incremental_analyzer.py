@@ -15,14 +15,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import cast
 
 from tqdm import tqdm
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights
+from agents.validation import ValidationContext, validate_component_relationships, validate_key_entities
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest, build_manifest_from_analysis
-from repo_utils.change_detector import ChangeSet, ChangeType, detect_changes_from_commit
+from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange, detect_changes_from_commit
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +133,50 @@ def analyze_impact(
     _determine_action(impact, manifest)
 
     return impact
+
+
+def _filter_changes_for_scope(changes: ChangeSet, scope_files: set[str]) -> ChangeSet:
+    """Filter a ChangeSet down to the files that belong to a scope.
+
+    A change is included when either the path itself is part of the scope or it
+    lives in the same directory as a scoped file. This keeps added files (which
+    are not yet in the manifest) visible when they land alongside existing
+    scoped files.
+    """
+
+    if changes.is_empty() or not scope_files:
+        return ChangeSet()
+
+    scope_dirs = {str(Path(f).parent) for f in scope_files}
+
+    def in_scope(path: str) -> bool:
+        path_dir = str(Path(path).parent)
+        return path in scope_files or path_dir in scope_dirs
+
+    scoped_changes: list[DetectedChange] = []
+
+    for change in changes.changes:
+        if change.change_type == ChangeType.RENAMED:
+            old_path = change.old_path or ""
+            if in_scope(change.file_path) or in_scope(old_path):
+                scoped_changes.append(change)
+        else:
+            if in_scope(change.file_path):
+                scoped_changes.append(change)
+
+    return ChangeSet(scoped_changes)
+
+
+def _detect_expanded_components_for_analysis(analysis: AnalysisInsights, output_dir: Path) -> list[str]:
+    """Find components that already have sub-analysis JSONs on disk."""
+    from output_generators.markdown import sanitize
+
+    expanded: list[str] = []
+    for component in analysis.components:
+        safe_name = sanitize(component.name)
+        if (output_dir / f"{safe_name}.json").exists():
+            expanded.append(component.name)
+    return expanded
 
 
 def _should_skip_file(file_path: str) -> bool:
@@ -589,6 +635,8 @@ class IncrementalUpdater:
         self.manifest: AnalysisManifest | None = None
         self.analysis: AnalysisInsights | None = None
         self.impact: ChangeImpact | None = None
+        self.changes: ChangeSet | None = None
+        self.component_impacts: dict[str, ChangeImpact] = {}
 
     def can_run_incremental(self) -> bool:
         """Check if incremental update is possible."""
@@ -614,6 +662,7 @@ class IncrementalUpdater:
 
         # Detect changes from the base commit
         changes = detect_changes_from_commit(self.repo_dir, self.manifest.base_commit)
+        self.changes = changes
 
         logger.info(
             f"Detected {len(changes.changes)} changes from {self.manifest.base_commit[:7]}: "
@@ -625,6 +674,9 @@ class IncrementalUpdater:
         self.impact = analyze_impact(changes, self.manifest, self.static_analysis)
 
         logger.info(f"Impact analysis:\n{self.impact.summary()}")
+
+        # Also analyze each expanded component in scope so we can recurse if needed
+        self.component_impacts = self._analyze_expanded_component_impacts(changes)
 
         return self.impact
 
@@ -681,7 +733,7 @@ class IncrementalUpdater:
         cluster_results = build_all_cluster_results(static_analysis)
 
         # Get the changed files
-        changed_files = set()
+        changed_files: set[str] = set()
         changed_files.update(self.impact.renames.keys())
         changed_files.update(self.impact.renames.values())
         changed_files.update(self.impact.modified_files)
@@ -861,6 +913,9 @@ class IncrementalUpdater:
         # Check all components that might need updates
         components_to_check = self.impact.components_needing_reexpansion | components_with_new_files
 
+        # Track which components need targeted classification vs simple patching
+        components_to_classify: dict[str, list[str]] = {}  # component_name -> new_files
+
         for component_name in components_to_check:
             if not self._is_expanded_component(component_name):
                 continue
@@ -876,6 +931,14 @@ class IncrementalUpdater:
                 if self._can_patch_sub_analysis(component_name):
                     logger.info(f"Component '{component_name}' can be patched without LLM re-analysis")
                     components_to_patch.add(component_name)
+                    # If this component also has new files, we need targeted classification
+                    if component_name in components_with_new_files:
+                        # Get new files that were assigned to this component
+                        new_files_for_component = self._get_new_files_for_component(
+                            component_name, self.impact.added_files if self.impact else []
+                        )
+                        if new_files_for_component:
+                            components_to_classify[component_name] = new_files_for_component
                 else:
                     logger.info(f"Component '{component_name}' needs full re-expansion")
                     components_to_reexpand.add(component_name)
@@ -885,13 +948,24 @@ class IncrementalUpdater:
         if components_to_reexpand:
             reexpanded_components = self._reexpand_components(components_to_reexpand)
 
+        # Step 5b: Run scoped impact summaries for changed expanded components
+        self._run_scoped_component_impacts(components_to_reexpand | components_to_patch)
+
         # Step 6: Patch components that don't need full re-expansion
         # These are components where only file assignments changed, not logical structure
         patched_components: list[str] = []
+        classified_components: list[str] = []
 
         deleted_files = self.impact.deleted_files
         renames = self.impact.renames
 
+        # First, run targeted classification for components with new files
+        for component_name, new_files in components_to_classify.items():
+            if self._classify_new_files_in_component(component_name, new_files):
+                classified_components.append(component_name)
+                logger.info(f"Component '{component_name}' new files classified into sub-components")
+
+        # Then patch remaining components
         for component_name in components_to_patch:
             component = next(
                 (c for c in self.analysis.components if c.name == component_name),
@@ -915,7 +989,18 @@ class IncrementalUpdater:
                 logger.info(f"Component '{component_name}' has no sub-analysis file, updating in place")
                 patched_components.append(component_name)
 
-        # Step 7: Update manifest with new commit
+        # Step 7: Validate the updated analysis
+        if self.static_analysis:
+            is_valid = self._validate_incremental_update(self.analysis, self.static_analysis)
+            if not is_valid:
+                logger.warning(
+                    "Incremental update validation failed - analysis may have inconsistencies. "
+                    "Consider re-running full analysis for complete results."
+                )
+        else:
+            logger.warning("No static analysis available for validation")
+
+        # Step 8: Update manifest with new commit
         from repo_utils.change_detector import get_current_commit
         from repo_utils import get_repo_state_hash
 
@@ -923,12 +1008,13 @@ class IncrementalUpdater:
         self.manifest.base_commit = new_commit
         self.manifest.repo_state_hash = get_repo_state_hash(self.repo_dir)
 
-        # Step 8: Save updated files
+        # Step 9: Save updated files
         save_analysis(self.analysis, self.output_dir, self.manifest.expanded_components)
         save_manifest(self.manifest, self.output_dir)
 
         logger.info(
-            f"Component update complete. " f"Re-expanded: {reexpanded_components}, Patched: {patched_components}"
+            f"Component update complete. "
+            f"Re-expanded: {reexpanded_components}, Classified: {classified_components}, Patched: {patched_components}"
         )
         return True
 
@@ -1091,12 +1177,20 @@ class IncrementalUpdater:
                 break
 
         # We can patch if there are file changes but no structural logic changes
-        # For now, assume we can patch if sub-analysis exists and component exists
-        # The actual patching will handle file reference updates
+        # For additions, we'll handle them via targeted classification rather than full re-expansion
         logger.debug(
             f"Component '{component_name}' sub-analysis check: "
             f"additions={has_additions}, deletions={has_deletions}, renames={has_renames}"
         )
+
+        # Can patch if:
+        # - Only renames: just patch paths
+        # - Additions: we'll run targeted classification (handled separately)
+        # - Deletions: need to check if it affects structure
+        if has_deletions:
+            # Deletions might affect component structure, need re-expansion
+            logger.info(f"Component '{component_name}' has deletions, needs re-expansion")
+            return False
 
         return True
 
@@ -1288,7 +1382,7 @@ class IncrementalUpdater:
             project_name=self.repo_dir.name,
             static_analysis=self.static_analysis,
         )
-        meta_context = meta_agent.analyze_project_metadata()
+        meta_context = cast(MetaAnalysisInsights, meta_agent.analyze_project_metadata())
 
         details_agent = DetailsAgent(
             repo_dir=self.repo_dir,
@@ -1331,6 +1425,56 @@ class IncrementalUpdater:
 
         logger.info(f"Successfully re-expanded {len(reexpanded)}/{len(component_names)} components")
         return reexpanded
+
+    def _validate_incremental_update(self, analysis: AnalysisInsights, static_analysis: StaticAnalysisResults) -> bool:
+        """
+        Validate the updated analysis after incremental changes.
+
+        Runs validation checks to ensure component relationships and key entities
+        are still valid after the incremental update.
+
+        Args:
+            analysis: The updated analysis to validate
+            static_analysis: Static analysis results for building validation context
+
+        Returns:
+            True if validation passes, False otherwise
+        """
+        from static_analyzer.cluster_helpers import build_all_cluster_results
+
+        logger.info("Running incremental update validation...")
+
+        # Build cluster results from static analysis
+        cluster_results = build_all_cluster_results(static_analysis)
+
+        # Build validation context
+        context = ValidationContext(
+            cluster_results=cluster_results,
+            cfg_graphs={lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()},
+        )
+
+        # Run validators
+        validators = [validate_component_relationships, validate_key_entities]
+        all_valid = True
+
+        for validator in validators:
+            try:
+                result = validator(analysis, context)
+                if not result.is_valid:
+                    all_valid = False
+                    logger.warning(f"[Incremental Validation] {validator.__name__} failed: {result.feedback_messages}")
+                else:
+                    logger.info(f"[Incremental Validation] {validator.__name__} passed")
+            except Exception as e:
+                logger.error(f"[Incremental Validation] {validator.__name__} raised exception: {e}")
+                all_valid = False
+
+        if all_valid:
+            logger.info("[Incremental Validation] All validation checks passed")
+        else:
+            logger.warning("[Incremental Validation] Some validation checks failed - consider re-running full analysis")
+
+        return all_valid
 
     def _assign_new_files(self, new_files: list[str]) -> set[str]:
         """Assign new files to components based on directory heuristics.
@@ -1375,6 +1519,183 @@ class IncrementalUpdater:
         logger.info(f"File assignment: {assigned_count} assigned, {skipped_count} skipped (non-source)")
         return components_with_new_files
 
+    def _analyze_expanded_component_impacts(self, changes: ChangeSet) -> dict[str, ChangeImpact]:
+        """Run analyze_impact within each expanded component's scope.
+
+        This lets us reuse the same impact logic recursively for sub-analyses by
+        filtering the ChangeSet to the files that belong to a component.
+        """
+
+        if not self.manifest:
+            return {}
+
+        component_impacts: dict[str, ChangeImpact] = {}
+
+        for component_name in self.manifest.expanded_components:
+            # Collect the files currently assigned to this component
+            component_files = {f for f, comp in self.manifest.file_to_component.items() if comp == component_name}
+
+            if not component_files:
+                continue
+
+            scoped_changes = _filter_changes_for_scope(changes, component_files)
+
+            if scoped_changes.is_empty():
+                continue
+
+            # Build a scoped manifest view containing only this component's files
+            scoped_manifest = AnalysisManifest(
+                repo_state_hash=self.manifest.repo_state_hash,
+                base_commit=self.manifest.base_commit,
+                file_to_component={f: component_name for f in component_files},
+                expanded_components=[component_name],
+            )
+
+            component_impacts[component_name] = analyze_impact(
+                scoped_changes,
+                scoped_manifest,
+                self.static_analysis,
+            )
+
+        return component_impacts
+
+    def _run_scoped_component_impacts(self, components: set[str]) -> None:
+        """Run impact analysis inside each component scope and log summaries.
+
+        This does not change the main update plan but enables recursive usage of
+        the same impact logic for sub-analyses when their files change.
+        """
+
+        if not components or not self.component_impacts:
+            return
+
+        for component in sorted(components):
+            impact = self.component_impacts.get(component)
+            if not impact:
+                continue
+
+            logger.info(
+                "[Scoped Impact] Component '%s' -> action=%s dirty=%s added=%s deleted=%s",
+                component,
+                impact.action.value,
+                len(impact.dirty_components),
+                len(impact.added_files),
+                len(impact.deleted_files),
+            )
+
+            # If scoped impact wants component updates, trigger deeper handling.
+            if impact.action in {UpdateAction.UPDATE_COMPONENTS, UpdateAction.PATCH_PATHS}:
+                self._handle_scoped_component_update(component, impact)
+
+    def _handle_scoped_component_update(self, component_name: str, impact: ChangeImpact) -> None:
+        """Apply scoped impact decisions recursively for expanded components.
+
+        - If only renames -> patch paths in sub-analysis and manifest slice.
+        - If updates required -> run DetailsAgent on that component's sub-analysis
+          scope and patch/save results.
+        """
+
+        assert self.analysis and self.manifest
+
+        # Ensure this component is expanded (has a sub-analysis file)
+        from output_generators.markdown import sanitize
+
+        safe_name = sanitize(component_name)
+        sub_path = self.output_dir / f"{safe_name}.json"
+        if not sub_path.exists():
+            return
+
+        # Load sub-analysis
+        sub_analysis = load_sub_analysis(self.output_dir, component_name)
+        if not sub_analysis:
+            return
+
+        # Apply path patches for renames/deletions at this scope
+        changed = patch_sub_analysis(sub_analysis, impact.deleted_files, impact.renames)
+
+        # If action is only PATCH_PATHS, persist and exit
+        if impact.action == UpdateAction.PATCH_PATHS:
+            if changed:
+                save_sub_analysis(sub_analysis, self.output_dir, component_name, self.manifest.expanded_components)
+            return
+
+        # For UPDATE_COMPONENTS, re-run DetailsAgent scoped to this component
+        if impact.action == UpdateAction.UPDATE_COMPONENTS:
+            # Build a scoped manifest for this component's files
+            component_files = set(self.manifest.get_files_for_component(component_name))
+            scoped_manifest = AnalysisManifest(
+                repo_state_hash=self.manifest.repo_state_hash,
+                base_commit=self.manifest.base_commit,
+                file_to_component={f: component_name for f in component_files},
+                expanded_components=[component_name],
+            )
+
+            # Detect additional changes inside the component scope
+            scoped_changes = _filter_changes_for_scope(self.changes or ChangeSet(), component_files)
+            scoped_impact = analyze_impact(scoped_changes, scoped_manifest, self.static_analysis)
+
+            # If nothing to do, just persist patches
+            if scoped_impact.action == UpdateAction.PATCH_PATHS and changed:
+                save_sub_analysis(sub_analysis, self.output_dir, component_name, self.manifest.expanded_components)
+                return
+
+            if scoped_impact.action == UpdateAction.NONE:
+                if changed:
+                    save_sub_analysis(sub_analysis, self.output_dir, component_name, self.manifest.expanded_components)
+                return
+
+            # Re-run DetailsAgent on this component using the existing static analysis
+            if not self.static_analysis:
+                logger.info("No static analysis available for scoped re-expansion; skipping.")
+                return
+
+            from agents.details_agent import DetailsAgent
+            from agents.meta_agent import MetaAgent
+            from agents.planner_agent import plan_analysis
+            from diagram_analysis.analysis_json import from_analysis_to_json
+
+            meta_agent = MetaAgent(
+                repo_dir=self.repo_dir,
+                project_name=self.repo_dir.name,
+                static_analysis=self.static_analysis,
+            )
+            meta_context = cast(MetaAnalysisInsights, meta_agent.analyze_project_metadata())
+
+            details_agent = DetailsAgent(
+                repo_dir=self.repo_dir,
+                project_name=self.repo_dir.name,
+                static_analysis=self.static_analysis,
+                meta_context=meta_context,
+            )
+
+            # Find the component object in the main analysis to preserve metadata
+            component_obj = next((c for c in self.analysis.components if c.name == component_name), None)
+            if not component_obj:
+                return
+
+            subgraph_analysis, subgraph_clusters = details_agent.run(component_obj)
+
+            # Save refreshed sub-analysis
+            save_sub_analysis(subgraph_analysis, self.output_dir, component_name, self.manifest.expanded_components)
+
+            # Update manifest slice with any new file assignments from the sub-analysis
+            new_files: set[str] = set()
+            for sub_comp in subgraph_analysis.components:
+                for f in sub_comp.assigned_files:
+                    new_files.add(f)
+                    self.manifest.add_file(f, component_name)
+
+            # Ensure parent analysis assigned_files reflect any new files
+            for comp in self.analysis.components:
+                if comp.name == component_name:
+                    for f in new_files:
+                        if f not in comp.assigned_files:
+                            comp.assigned_files.append(f)
+
+            # Save updated root analysis and manifest
+            save_analysis(self.analysis, self.output_dir, self.manifest.expanded_components)
+            save_manifest(self.manifest, self.output_dir)
+
     def _remove_deleted_files(self, deleted_files: list[str]) -> None:
         """Remove deleted files from analysis and manifest."""
         assert self.analysis and self.manifest
@@ -1393,3 +1714,170 @@ class IncrementalUpdater:
                         break
 
                 logger.info(f"Removed deleted file '{file_path}' from component '{component_name}'")
+
+    def _classify_new_files_in_component(self, component_name: str, new_files: list[str]) -> bool:
+        """
+        Run targeted file classification for new files within a component's sub-analysis.
+
+        This loads the existing sub-analysis, classifies the new files into sub-components,
+        and saves the updated analysis. Much more efficient than full re-expansion.
+
+        Args:
+            component_name: Name of the component to classify files for
+            new_files: List of new file paths that need classification
+
+        Returns:
+            True if classification was successful, False otherwise
+        """
+        assert self.analysis and self.manifest and self.static_analysis
+
+        # Find the component in the main analysis
+        component = next(
+            (c for c in self.analysis.components if c.name == component_name),
+            None,
+        )
+        if not component:
+            logger.warning(f"Component '{component_name}' not found for new file classification")
+            return False
+
+        # Load existing sub-analysis
+        sub_analysis = load_sub_analysis(self.output_dir, component_name)
+        if not sub_analysis:
+            logger.warning(f"No sub-analysis found for component '{component_name}', cannot classify new files")
+            return False
+
+        logger.info(f"Running targeted file classification for {len(new_files)} new files in '{component_name}'")
+
+        # Create subgraph cluster results for this component
+        # This mirrors what DetailsAgent.run() does in step 1
+        cluster_results = self._create_component_cluster_results(component)
+
+        if not cluster_results:
+            logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
+            return False
+
+        # Import the classify_files functionality
+        from agents.agent import LargeModelAgent
+        from agents.meta_agent import MetaAgent
+
+        # Create a minimal agent instance to access classify_files
+        # We need the mixin methods to perform classification
+        meta_agent = MetaAgent(
+            self.repo_dir,
+            self.static_analysis,
+            self.repo_dir.name,
+        )
+        meta_context = meta_agent.analyze_project_metadata()
+
+        agent = LargeModelAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.static_analysis,
+            system_message="Classification agent for incremental updates",
+        )
+
+        try:
+            # Add new files to the sub-analysis as unassigned (they'll be classified)
+            # First, we need to ensure the new files are in the component's scope
+            component_files = set(component.assigned_files)
+            files_to_classify = [
+                f for f in new_files if f in component_files or any(f.endswith(cf) for cf in component_files)
+            ]
+
+            if not files_to_classify:
+                logger.info(f"No new files to classify for '{component_name}' (files may not be in component scope)")
+                return True
+
+            # Perform classification using the agent's classify_files method
+            # This mimics DetailsAgent.run() step 5 but scoped to only new files
+            agent.classify_files(sub_analysis, cluster_results, scope_files=files_to_classify)
+
+            # Save the updated sub-analysis
+            save_sub_analysis(sub_analysis, self.output_dir, component_name, self.manifest.expanded_components)
+
+            logger.info(f"Successfully classified {len(files_to_classify)} new files in '{component_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to classify new files in '{component_name}': {e}")
+            return False
+
+    def _create_component_cluster_results(self, component) -> dict:
+        """
+        Create cluster results for a component's assigned files.
+
+        This is a simplified version of _create_strict_component_subgraph from ClusterMethodsMixin
+        that returns only the cluster_results dict without the string representation.
+
+        Args:
+            component: Component with assigned_files
+
+        Returns:
+            Dict mapping language -> ClusterResult for the subgraph
+        """
+        if not component.assigned_files:
+            return {}
+
+        # Convert assigned files to absolute paths for comparison
+        assigned_file_set = set()
+        for f in component.assigned_files:
+            abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
+            assigned_file_set.add(abs_path)
+
+        cluster_results: dict[str, ClusterResult] = {}
+
+        if self.static_analysis is None:
+            return cluster_results
+
+        for lang in self.static_analysis.get_languages():
+            cfg = self.static_analysis.get_cfg(lang)
+
+            # Use strict filtering logic
+            sub_cfg = cfg.filter_by_files(assigned_file_set)
+
+            if sub_cfg.nodes:
+                # Calculate clusters for the subgraph
+                sub_cluster_result = sub_cfg.cluster()
+                cluster_results[lang] = sub_cluster_result
+
+        return cluster_results
+
+    def _get_new_files_for_component(self, component_name: str, added_files: list[str]) -> list[str]:
+        """
+        Get the list of new files that belong to a specific component.
+
+        This checks which of the added files were assigned to the given component
+        by looking at the component's current assigned_files.
+
+        Args:
+            component_name: Name of the component
+            added_files: List of all added files from the impact
+
+        Returns:
+            List of new file paths that belong to this component
+        """
+        assert self.analysis
+
+        # Find the component
+        component = next(
+            (c for c in self.analysis.components if c.name == component_name),
+            None,
+        )
+        if not component:
+            return []
+
+        # Get the component's current assigned files
+        component_files = set(component.assigned_files)
+
+        # Filter added files to those in this component
+        new_files = []
+        for file_path in added_files:
+            if file_path in component_files:
+                new_files.append(file_path)
+            else:
+                # Check if file_path matches any component file (handling relative vs absolute paths)
+                for cf in component_files:
+                    if file_path.endswith(cf) or cf.endswith(file_path):
+                        new_files.append(file_path)
+                        break
+
+        return new_files

@@ -60,6 +60,7 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    force_full: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -70,6 +71,7 @@ def generate_analysis(
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
     )
+    generator.force_full = force_full
     return generator.generate_analysis()
 
 
@@ -280,6 +282,7 @@ def process_local_repository(
         output_dir=output_dir,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        force_full=force_full,
     )
 
 

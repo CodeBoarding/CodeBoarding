@@ -43,7 +43,7 @@ SHORT_START=$(echo "$START_COMMIT" | cut -c1-8)
 SHORT_END=$(echo "$END_COMMIT" | cut -c1-8)
 
 # Configuration
-REPO_DIR="/Users/imilev/StartUp/CodeBoarding/repos/CodeBoarding"
+REPO_DIR="/home/ivan/StartUp/CodeBoarding/repos/CodeBoarding"
 PROJECT_NAME="CodeBoarding"
 DEPTH_LEVEL=2
 

@@ -114,10 +114,13 @@ class StaticAnalyzer:
                     # Create unique cache file per client (language + project path hash)
                     client_id = f"{client.language.language}"
                     cache_path = cache_dir / f"incremental_cache_{client_id}.json"
-                    logger.info(f"Using incremental cache: {cache_path}")
+                    if cache_path.exists():
+                        logger.info(f"Using incremental cache: {cache_path}")
+                    else:
+                        logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
-                # Use incremental orchestrator when cache is available
-                if cache_dir is not None and cache_path is not None:
+                # Use incremental orchestrator when cache is available and exists
+                if cache_dir is not None and cache_path is not None and cache_path.exists():
                     orchestrator = IncrementalAnalysisOrchestrator()
                     analysis = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=False)
                 else:
@@ -182,10 +185,13 @@ class StaticAnalyzer:
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 client_id = f"{client.language.language}"
                 cache_path = cache_dir / f"incremental_cache_{client_id}.json"
-                logger.info(f"Using incremental cache: {cache_path}")
+                if cache_path.exists():
+                    logger.info(f"Using incremental cache: {cache_path}")
+                else:
+                    logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
-            # Use incremental orchestrator with cluster change analysis
-            if cache_path is not None:
+            # Use incremental orchestrator with cluster change analysis when cache exists
+            if cache_path is not None and cache_path.exists():
                 orchestrator = IncrementalAnalysisOrchestrator()
                 result = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=True)
                 # Convert dict analysis_result to StaticAnalysisResults
@@ -199,7 +205,7 @@ class StaticAnalyzer:
                             result["commit_hash"] = get_git_commit_hash(str(self.repository_path))
                 return result
             else:
-                # No cache, perform full analysis
+                # No cache or cache doesn't exist, perform full analysis
                 analysis = client.build_static_analysis()
                 language = client.language.language
                 static_results = self._dict_to_static_results(analysis, language)
@@ -235,7 +241,9 @@ class StaticAnalyzer:
         return results
 
 
-def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> StaticAnalysisResults:
+def get_static_analysis(
+    repo_path: Path, cache_dir: Path | None = None, skip_cache: bool = False
+) -> StaticAnalysisResults:
     """
     Orchestrator: Get static analysis results using incremental git-based caching.
 
@@ -244,13 +252,22 @@ def get_static_analysis(repo_path: Path, cache_dir: Path | None = None) -> Stati
 
     Args:
         repo_path: Path to the repository to analyze.
-        cache_dir: Optional custom cache directory. Defaults to repo_path/.codeboarding/cache/incremental.
+        cache_dir: Optional custom cache directory. If None, uses default cache location.
+        skip_cache: If True, performs full analysis without using any cache.
 
     Returns:
         StaticAnalysisResults using incremental cache when available.
     """
+    if skip_cache:
+        # Force full analysis without any caching
+        return StaticAnalyzer(repo_path).analyze(cache_dir=None)
+
+    # Determine actual cache directory to use
     if cache_dir is None:
-        cache_dir = repo_path / ".codeboarding" / "cache" / "incremental"
+        # Default behavior: use standard cache location
+        actual_cache_dir = repo_path / ".codeboarding" / "cache" / "incremental"
+    else:
+        actual_cache_dir = cache_dir
 
     # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
-    return StaticAnalyzer(repo_path).analyze(cache_dir=cache_dir)
+    return StaticAnalyzer(repo_path).analyze(cache_dir=actual_cache_dir)
