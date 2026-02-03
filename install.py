@@ -202,7 +202,7 @@ def download_jdtls():
         print(f"Step: JDTLS download finished: failure - {e}")
         print("  You can manually download JDTLS from:")
         print("  https://download.eclipse.org/jdtls/milestones/")
-        print("  and extract to static_analyzer/servers/jdtls/")
+        print("  and extract to static_analyzer/servers/bin/jdtls/")
         return False
 
 
@@ -330,7 +330,7 @@ def update_static_analysis_config():
                 updates += 1
 
     # Update JDTLS configuration
-    jdtls_dir = servers_dir / "jdtls"
+    jdtls_dir = servers_dir / "bin" / "jdtls"
     if jdtls_dir.exists() and "lsp_servers" in config and "java" in config["lsp_servers"]:
         config["lsp_servers"]["java"]["jdtls_root"] = str(jdtls_dir)
         updates += 1

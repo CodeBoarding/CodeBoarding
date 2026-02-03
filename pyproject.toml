@@ -117,3 +117,13 @@ testpaths = ["tests"]
 norecursedirs = ["repos", "build", "dist", "temp", "node_modules"]
 addopts = "--ignore=repos"
 pythonpath = "."
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "python_lang: marks tests for Python language",
+    "java_lang: marks tests for Java language",
+    "go_lang: marks tests for Go language",
+    "typescript_lang: marks tests for TypeScript language",
+    "php_lang: marks tests for PHP language",
+    "javascript_lang: marks tests for JavaScript language",
+]

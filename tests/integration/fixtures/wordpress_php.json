@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/WordPress/WordPress",
+    "pinned_commit": "6.7",
+    "language": "PHP",
+    "generated_at": "2026-02-03T15:34:44.495530+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 32050,
+    "classes_count": 565,
+    "packages_count": 114,
+    "call_graph_nodes": 32156,
+    "call_graph_edges": 28217,
+    "source_files_count": 1644
+  },
+  "sample_references": [
+    "index.wp_use_themes",
+    "wp-admin.admin-ajax.$action",
+    "wp-admin.admin-ajax.$core_actions_get",
+    "wp-admin.admin-ajax.$core_actions_post",
+    "wp-admin.admin-ajax.$core_actions_post_deprecated",
+    "wp-admin.admin-ajax.doing_ajax",
+    "wp-admin.admin-ajax.wp_admin",
+    "wp-admin.admin-post.$action",
+    "wp-admin.admin-post.wp_admin",
+    "wp-admin.admin.$action"
+  ],
+  "sample_classes": [
+    "wp-admin.includes.class-automatic-upgrader-skin.Automatic_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-plugin-upgrader-skin.Bulk_Plugin_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-theme-upgrader-skin.Bulk_Theme_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-upgrader-skin.Bulk_Upgrader_Skin",
+    "wp-admin.includes.class-core-upgrader.Core_Upgrader",
+    "wp-admin.includes.class-file-upload-upgrader.File_Upload_Upgrader",
+    "wp-admin.includes.class-ftp.ftp",
+    "wp-admin.includes.class-ftp.ftp_base",
+    "wp-admin.includes.class-language-pack-upgrader-skin.Language_Pack_Upgrader_Skin",
+    "wp-admin.includes.class-language-pack-upgrader.Language_Pack_Upgrader"
+  ]
+}

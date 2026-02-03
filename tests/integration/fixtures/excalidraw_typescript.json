@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/excalidraw/excalidraw",
+    "pinned_commit": "v0.18.0",
+    "language": "TypeScript",
+    "generated_at": null,
+    "codeboarding_version": "0.2.0",
+    "note": "PLACEHOLDER - Generate with: uv run python scripts/generate_integration_fixtures.py --repo excalidraw"
+  },
+  "metrics": {
+    "references_count": 0,
+    "classes_count": 0,
+    "packages_count": 0,
+    "call_graph_nodes": 0,
+    "call_graph_edges": 0,
+    "source_files_count": 0
+  },
+  "sample_references": [],
+  "sample_classes": []
+}

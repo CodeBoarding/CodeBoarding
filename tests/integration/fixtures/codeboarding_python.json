@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/CodeBoarding/CodeBoarding",
+    "pinned_commit": "03b25afe8d37ce733e5f70c3cbcdfb52f4883dcd",
+    "language": "Python",
+    "generated_at": "2026-02-03T14:49:38.335767+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 2559,
+    "classes_count": 111,
+    "packages_count": 20,
+    "call_graph_nodes": 2563,
+    "call_graph_edges": 901,
+    "source_files_count": 80
+  },
+  "sample_references": [
+    "agents.abstraction_agent.__init__",
+    "agents.abstraction_agent.abstractionagent",
+    "agents.abstraction_agent.analysis",
+    "agents.abstraction_agent.cluster_analysis",
+    "agents.abstraction_agent.cluster_results",
+    "agents.abstraction_agent.cluster_str",
+    "agents.abstraction_agent.context",
+    "agents.abstraction_agent.logger",
+    "agents.abstraction_agent.meta_context",
+    "agents.abstraction_agent.meta_context_str"
+  ],
+  "sample_classes": [
+    "agents.abstraction_agent.AbstractionAgent",
+    "agents.agent.CodeBoardingAgent",
+    "agents.agent.LargeModelAgent",
+    "agents.agent_responses.AnalysisInsights",
+    "agents.agent_responses.CFGAnalysisInsights",
+    "agents.agent_responses.CFGComponent",
+    "agents.agent_responses.ClusterAnalysis",
+    "agents.agent_responses.ClustersComponent",
+    "agents.agent_responses.Component",
+    "agents.agent_responses.ComponentFiles"
+  ]
+}
