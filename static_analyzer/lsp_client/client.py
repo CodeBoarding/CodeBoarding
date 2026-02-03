@@ -489,29 +489,42 @@ class LSPClient(ABC):
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
+        # Sort results by file path for deterministic graph construction.
+        # as_completed() returns results in non-deterministic order which causes
+        # downstream metrics to fluctuate between runs.
+        successful_results.sort(key=lambda r: str(r.file_path))
+
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
-                package_relations[result.package_name] = {"imports": set(), "imported_by": set(), "files": []}
+                package_relations[result.package_name] = {
+                    "imports": set(),
+                    "import_deps": set(),
+                    "reference_deps": set(),
+                    "imported_by": set(),
+                    "files": [],
+                }
             package_relations[result.package_name]["files"].append(str(result.file_path))
 
             for imported_module in result.imports:
                 imported_package = self._extract_package_from_import(imported_module)
                 if imported_package and imported_package != result.package_name:
                     package_relations[result.package_name]["imports"].add(imported_package)
+                    package_relations[result.package_name]["import_deps"].add(imported_package)
 
             for ref in result.external_references:
                 ref_package = self._extract_package_from_reference(ref)
                 if ref_package and ref_package != result.package_name:
                     package_relations[result.package_name]["imports"].add(ref_package)
+                    package_relations[result.package_name]["reference_deps"].add(ref_package)
 
             # 2. REFERENCES
             for symbol_node in result.symbols:
                 call_graph.add_node(symbol_node)
                 reference_nodes.append(symbol_node)
 
-            # 3. CALL GRAPH
-            for caller_name, callee_name in result.call_relationships:
+            # 3. CALL GRAPH (sorted for deterministic edge insertion order)
+            for caller_name, callee_name in sorted(result.call_relationships):
                 try:
                     call_graph.add_edge(caller_name, callee_name)
                     logger.debug(f"Added edge: {caller_name} -> {callee_name}")
@@ -521,16 +534,19 @@ class LSPClient(ABC):
             # 4. CLASS HIERARCHIES
             class_hierarchies.update(result.class_hierarchies)
 
-        # Post-processing: Build reverse relationships for package relations
+        # Post-processing: Build reverse relationships from import_deps only
+        # (reference_deps indicate coupling but not dependency direction)
         for package, info in package_relations.items():
-            for imported_pkg in info["imports"]:
+            for imported_pkg in info["import_deps"]:
                 if imported_pkg in package_relations:
                     package_relations[imported_pkg]["imported_by"].add(package)
 
-        # Convert sets to lists for serialization
+        # Convert sets to sorted lists for deterministic serialization
         for package_info in package_relations.values():
-            package_info["imports"] = list(package_info["imports"])
-            package_info["imported_by"] = list(package_info["imported_by"])
+            package_info["imports"] = sorted(package_info["imports"])
+            package_info["import_deps"] = sorted(package_info["import_deps"])
+            package_info["reference_deps"] = sorted(package_info["reference_deps"])
+            package_info["imported_by"] = sorted(package_info["imported_by"])
 
         logger.info("Unified static analysis complete.")
         logger.info(
@@ -815,8 +831,8 @@ class LSPClient(ABC):
                 return []
 
             symbols = response.get("result", [])
-            # Filter for class symbols (kind 5)
-            classes = [s for s in symbols if s.get("kind") == 5]
+            # Filter for class symbols
+            classes = [s for s in symbols if s.get("kind") == Node.CLASS_TYPE]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1047,7 +1063,7 @@ class LSPClient(ABC):
         """Find all class symbols recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get("kind") == 5:  # Class symbol kind
+            if symbol.get("kind") == Node.CLASS_TYPE:
                 classes.append(symbol)
             if "children" in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol["children"]))
@@ -1060,7 +1076,7 @@ class LSPClient(ABC):
         # Look for module-level symbols that might indicate imports
         for symbol in symbols:
             # Variables at module level might be imports
-            if symbol.get("kind") == 13:  # Variable symbol kind
+            if symbol.get("kind") == Node.VARIABLE_TYPE:
                 symbol_name = symbol.get("name", "")
 
                 # Use LSP to get definition/references for this symbol
@@ -1113,16 +1129,19 @@ class LSPClient(ABC):
             return []
 
     def _get_package_name(self, file_path: Path) -> str:
-        """Extract package name from file path."""
+        """Extract package name from file path.
+
+        Root-level files are named by their stem (e.g. main.py -> 'main')
+        rather than being lumped into a single 'root' pseudo-package, which
+        would create false circular-dependency cycles.
+        """
         try:
             rel_path = file_path.relative_to(self.project_path)
-            # Remove file name and convert to package notation
             package_parts = rel_path.parent.parts
             if package_parts and package_parts[0] != ".":
                 return ".".join(package_parts)
             else:
-                # Root level file
-                return "root"
+                return rel_path.stem
         except ValueError:
             return "external"
 
@@ -1143,7 +1162,7 @@ class LSPClient(ABC):
             # This is a simplified approach - in practice, you'd need to iterate through
             # identifiers in the file and use textDocument/references
             for symbol in symbols:
-                if symbol.get("kind") in [12, 6]:  # Functions and methods
+                if symbol.get("kind") in Node.CALLABLE_TYPES:
                     pos = symbol["selectionRange"]["start"]
                     refs = self._get_references(file_uri, pos["line"], pos["character"])
                     external_refs.extend(refs)

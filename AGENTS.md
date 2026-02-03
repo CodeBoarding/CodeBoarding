@@ -15,6 +15,7 @@
 - **Run tests with coverage requirements**: Execute `uv run pytest --cov=. --cov-report=term --cov-fail-under=80` to validate changes. The project enforces an 80% minimum code coverage threshold.
 - **Format and lint before commits**: Run `uv run black .` (line length: 120) and `uv run mypy .` to ensure code quality. These are enforced in pre-commit hooks and GitHub CI/CD workflows.
 - **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `monitoring/`). Place new code in the appropriate directory and follow existing module patterns.
+- **Add imports at the top of the file**: avoid function or class level imports - only consider them if they have significant impact on the execution.
 
 ### 4. Execution Flow and Tool Patterns
 - **Understand the analysis pipeline**: CodeBoarding processes repositories in stages: ProjectScanner → StaticAnalyzer (via LSP clients) → DiagramGenerator (LLM agents) → Output generators. When investigating issues, trace through this pipeline in order.
