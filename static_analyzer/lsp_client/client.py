@@ -76,7 +76,10 @@ class LSPClient(ABC):
     }
 
     def __init__(
-        self, project_path: Path, language: ProgrammingLanguage, ignore_manager: RepoIgnoreManager | None = None
+        self,
+        project_path: Path,
+        language: ProgrammingLanguage,
+        ignore_manager: RepoIgnoreManager | None = None,
     ):
         """
         Initializes the client and starts the langserver process.
@@ -107,7 +110,10 @@ class LSPClient(ABC):
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
         self._process = subprocess.Popen(
-            self.server_start_params, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            self.server_start_params,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
 
         self._reader_thread = threading.Thread(target=self._read_messages)
@@ -263,29 +269,35 @@ class LSPClient(ABC):
         if method == "workspace/configuration":
             # Return empty configuration for each requested item
             items = params.get("items", [])
-            result = [{}] * len(items)
+            result: list[dict] = [{}] * len(items)
             logger.debug(f"Responding to workspace/configuration request for {len(items)} items")
-            self._send_response(request_id, result)
+            if isinstance(request_id, int):
+                self._send_response(request_id, result)
         elif method == "window/workDoneProgress/create":
             # Acknowledge progress token creation
             logger.debug(f"Acknowledging progress token creation: {params.get('token')}")
-            self._send_response(request_id, None)
+            if isinstance(request_id, int):
+                self._send_response(request_id, None)
         elif method == "client/registerCapability":
             # Acknowledge capability registration
             logger.debug("Acknowledging capability registration")
-            self._send_response(request_id, None)
+            if isinstance(request_id, int):
+                self._send_response(request_id, None)
         elif method == "window/showMessageRequest":
             # Don't select any action, just acknowledge
             logger.debug(f"Acknowledging showMessageRequest: {str(params.get('message', ''))[:50]}")
-            self._send_response(request_id, None)
+            if isinstance(request_id, int):
+                self._send_response(request_id, None)
         elif method == "window/showDocument":
             # Acknowledge but indicate we didn't show the document
             logger.debug("Acknowledging showDocument request")
-            self._send_response(request_id, {"success": False})
+            if isinstance(request_id, int):
+                self._send_response(request_id, {"success": False})
         elif method in self.SERVER_REQUEST_METHODS:
             # Known method but not explicitly handled - respond with null
             logger.debug(f"Responding with null to known server request: {method}")
-            self._send_response(request_id, None)
+            if isinstance(request_id, int):
+                self._send_response(request_id, None)
         else:
             # UNKNOWN server request - log as warning so we can add handling if needed
             logger.warning(
@@ -293,9 +305,10 @@ class LSPClient(ABC):
                 f"Responding with null to unblock server. "
                 f"Consider adding explicit handling for this request type."
             )
-            self._send_response(request_id, None)
+            if isinstance(request_id, int):
+                self._send_response(request_id, None)
 
-    def _send_response(self, request_id: int, result):
+    def _send_response(self, request_id: int, result) -> None:
         """Send a response to a server request."""
         response = {
             "jsonrpc": "2.0",
@@ -324,7 +337,10 @@ class LSPClient(ABC):
                     "semanticTokens": {"dynamicRegistration": True},
                 }
             },
-            "workspace": {"applyEdit": True, "workspaceEdit": {"documentChanges": True}},
+            "workspace": {
+                "applyEdit": True,
+                "workspaceEdit": {"documentChanges": True},
+            },
         }
         init_id = self._send_request("initialize", params)
         # Use longer timeout for initialization as it may involve full workspace indexing
@@ -346,7 +362,10 @@ class LSPClient(ABC):
 
     def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int) -> list:
         """Prepares a call hierarchy at a specific location."""
-        params = {"textDocument": {"uri": file_uri}, "position": {"line": line, "character": character}}
+        params = {
+            "textDocument": {"uri": file_uri},
+            "position": {"line": line, "character": character},
+        }
         req_id = self._send_request("textDocument/prepareCallHierarchy", params)
         response = self._wait_for_response(req_id)
         return response.get("result", [])
@@ -667,7 +686,14 @@ class LSPClient(ABC):
             # Thread-safe LSP communication (each thread gets its own connection context)
             self._send_notification(
                 "textDocument/didOpen",
-                {"textDocument": {"uri": file_uri, "languageId": self.language_id, "version": 1, "text": content}},
+                {
+                    "textDocument": {
+                        "uri": file_uri,
+                        "languageId": self.language_id,
+                        "version": 1,
+                        "text": content,
+                    }
+                },
             )
 
             # Get all symbols in this file once
@@ -734,7 +760,10 @@ class LSPClient(ABC):
 
                                         # Add edge: current_function -> called_function
                                         result.call_relationships.append(
-                                            (current_qualified_name, callee_qualified_name)
+                                            (
+                                                current_qualified_name,
+                                                callee_qualified_name,
+                                            )
                                         )
                                         logger.debug(
                                             f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}"
@@ -761,7 +790,10 @@ class LSPClient(ABC):
 
                                         # Add edge: calling_function -> current_function
                                         result.call_relationships.append(
-                                            (caller_qualified_name, current_qualified_name)
+                                            (
+                                                caller_qualified_name,
+                                                current_qualified_name,
+                                            )
                                         )
                                         logger.debug(
                                             f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
@@ -978,7 +1010,10 @@ class LSPClient(ABC):
     def _get_definition_for_position(self, file_uri: str, line: int, character: int) -> list:
         """Get definition for a specific position."""
         try:
-            params = {"textDocument": {"uri": file_uri}, "position": {"line": line, "character": character}}
+            params = {
+                "textDocument": {"uri": file_uri},
+                "position": {"line": line, "character": character},
+            }
             req_id = self._send_request("textDocument/definition", params)
             response = self._wait_for_response(req_id)
 

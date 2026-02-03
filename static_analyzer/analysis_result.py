@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisCache:
-
     def __init__(self, cache_dir: Path):
         self.cache_dir = cache_dir
 
@@ -97,7 +96,7 @@ class StaticAnalysisResults:
                 existing_cfg.add_node(node)
             for edge in cfg.edges:
                 try:
-                    existing_cfg.add_edge(edge[0], edge[1])
+                    existing_cfg.add_edge(edge.get_source(), edge.get_destination())
                 except ValueError:
                     pass  # Skip duplicate edges
 
