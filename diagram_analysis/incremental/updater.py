@@ -390,13 +390,18 @@ class IncrementalUpdater:
 
         # First, run targeted classification for components with new files
         for component_name, new_files in components_to_classify.items():
+            static_analysis = self.static_analysis
+            if static_analysis is None:
+                logger.debug("Skipping classification for %s because static_analysis is not available", component_name)
+                continue
+
             if classify_new_files_in_component(
                 component_name,
                 new_files,
                 self.analysis,
                 self.manifest,
                 self.output_dir,
-                self.static_analysis,
+                static_analysis,
                 self.repo_dir,
             ):
                 classified_components.append(component_name)
