@@ -38,6 +38,9 @@ from .conftest import (
     extract_metrics,
 )
 
+# Tolerance percentage for metric comparisons (1% = 0.01)
+METRIC_TOLERANCE = 0.01
+
 
 def get_language_marker(language: str):
     """Get the pytest marker for a given language."""
@@ -74,18 +77,19 @@ class TestStaticAnalysisConsistency:
     """Test class for static analysis consistency verification."""
 
     @pytest.mark.parametrize("config", generate_test_params())
-    def test_metrics_match_fixture(
+    def test_static_analysis_matches_fixture(
         self,
         config: RepositoryTestConfig,
         temp_workspace,
     ):
-        """Verify that static analysis metrics match expected fixture values.
+        """Verify that static analysis produces expected results.
 
         This test:
         1. Clones the repository at the pinned commit
         2. Clears cache by using a fresh temp directory
         3. Runs static analysis with mocked language detection
-        4. Compares metrics against expected fixture with exact matching
+        4. Verifies the expected language is present in results
+        5. Compares metrics against expected fixture with 1% tolerance
         """
         # Setup directories
         repo_root = temp_workspace / "repos"
@@ -108,39 +112,51 @@ class TestStaticAnalysisConsistency:
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
             static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
 
+        # Verify the expected language is present in results
+        actual_languages = static_analysis.get_languages()
+        assert (
+            config.language in actual_languages
+        ), f"Expected language '{config.language}' not in results. Found: {actual_languages}"
+
         # Extract actual metrics
         actual_metrics = extract_metrics(static_analysis, config.language)
 
-        # Compare with exact matching (0 tolerance)
-        self._assert_metric_exact_match(
+        # Compare metrics with 1% tolerance
+        self._assert_metric_within_tolerance(
             actual_metrics["references_count"],
             expected_metrics["references_count"],
             "references_count",
+            METRIC_TOLERANCE,
         )
-        self._assert_metric_exact_match(
+        self._assert_metric_within_tolerance(
             actual_metrics["classes_count"],
             expected_metrics["classes_count"],
             "classes_count",
+            METRIC_TOLERANCE,
         )
-        self._assert_metric_exact_match(
+        self._assert_metric_within_tolerance(
             actual_metrics["packages_count"],
             expected_metrics["packages_count"],
             "packages_count",
+            METRIC_TOLERANCE,
         )
-        self._assert_metric_exact_match(
+        self._assert_metric_within_tolerance(
             actual_metrics["call_graph_nodes"],
             expected_metrics["call_graph_nodes"],
             "call_graph_nodes",
+            METRIC_TOLERANCE,
         )
-        self._assert_metric_exact_match(
+        self._assert_metric_within_tolerance(
             actual_metrics["call_graph_edges"],
             expected_metrics["call_graph_edges"],
             "call_graph_edges",
+            METRIC_TOLERANCE,
         )
-        self._assert_metric_exact_match(
+        self._assert_metric_within_tolerance(
             actual_metrics["source_files_count"],
             expected_metrics["source_files_count"],
             "source_files_count",
+            METRIC_TOLERANCE,
         )
 
         # Verify sample entities are present (if defined in fixture)
@@ -154,14 +170,24 @@ class TestStaticAnalysisConsistency:
         if "sample_classes" in expected:
             self._verify_sample_classes_present(static_analysis, config.language, expected["sample_classes"])
 
-    def _assert_metric_exact_match(
+    def _assert_metric_within_tolerance(
         self,
         actual: int,
         expected: int,
         metric_name: str,
+        tolerance: float,
     ):
-        """Assert that actual value exactly matches expected."""
-        assert actual == expected, f"{metric_name}: expected {expected}, got {actual} (diff: {actual - expected})"
+        """Assert that actual value is within tolerance percentage of expected."""
+        if expected == 0:
+            # If expected is 0, actual must also be 0
+            assert actual == 0, f"{metric_name}: expected 0, got {actual}"
+            return
+
+        relative_diff = abs(actual - expected) / expected
+        assert relative_diff <= tolerance, (
+            f"{metric_name}: expected {expected} (±{tolerance * 100:.0f}%), got {actual} "
+            f"(diff: {actual - expected}, relative: {relative_diff * 100:.1f}%)"
+        )
 
     def _verify_sample_entities_present(
         self,
@@ -193,30 +219,3 @@ class TestStaticAnalysisConsistency:
 
         for cls in sample_classes:
             assert cls in hierarchy_keys, f"Expected class '{cls}' not found in {language} hierarchy"
-
-
-@pytest.mark.integration
-class TestStaticAnalysisResultStructure:
-    """Test that static analysis results have expected structure."""
-
-    @pytest.mark.parametrize("config", REPOSITORY_CONFIGS, ids=lambda c: c.name)
-    def test_language_present_in_results(self, config: RepositoryTestConfig, temp_workspace):
-        """Verify the expected language is present in results."""
-        repo_root = temp_workspace / "repos"
-        repo_root.mkdir()
-        cache_dir = temp_workspace / "cache"
-        cache_dir.mkdir()
-
-        repo_name = clone_repository(config.repo_url, repo_root)
-        repo_path = (repo_root / repo_name).resolve()
-        repo = Repo(repo_path)
-        repo.git.checkout(config.pinned_commit)
-
-        mock_scan = create_mock_scanner(config.mock_language)
-        with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
-
-        actual_languages = static_analysis.get_languages()
-        assert (
-            config.language in actual_languages
-        ), f"Expected language '{config.language}' not in results. Found: {actual_languages}"

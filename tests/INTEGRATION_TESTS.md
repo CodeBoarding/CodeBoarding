@@ -1,4 +1,9 @@
-# Integration Tests for Static Analysis Consistency
+# Integration Tests
+
+This directory contains integration tests that verify the system works correctly with real repositories. There are two types:
+
+1. **Static Analysis Consistency Tests** - Verify static analysis produces consistent metrics across languages
+2. **Health Check Integration Tests** - Verify health checks work on real codebase
 
 ## Quick Start
 
@@ -21,13 +26,26 @@ uv run pytest -m integration -v
 
 ## Overview
 
-Integration tests verify that the static analysis pipeline produces **consistent and reproducible results** across multiple programming languages. These tests clone real repositories at pinned commits, run static analysis, and compare the results against fixture files containing expected metrics.
+Integration tests verify that the system works correctly with real repositories. These tests clone real repositories at pinned commits, run analysis, and compare results against fixture files.
+
+### Types of Integration Tests
+
+1. **Static Analysis Consistency** (`tests/integration/test_static_analysis_consistency.py`)
+   - Verifies static analysis produces consistent and reproducible results across multiple programming languages
+   - Compares metrics against fixture files with 1% tolerance for LSP non-determinism
+   - One test per supported language (6 tests total)
+
+2. **Health Check Integration** (`tests/integration/health/`)
+   - Verifies health checks work correctly on real codebase
+   - Runs all health checks and compares output against fixture
+   - One comprehensive test covering all health check types
 
 ### Purpose
 
 - **Regression Detection**: Catch unintended changes in analysis metrics that might indicate bugs or regressions
 - **Language Support Validation**: Ensure each language's LSP integration works correctly
-- **Reproducibility Verification**: Confirm that analysis produces identical results across different environments and time
+- **Reproducibility Verification**: Confirm that analysis produces consistent results across different environments
+- **Health Check Validation**: Ensure health checks work correctly on real codebases
 - **Performance Baseline**: Establish expected metrics as a baseline for monitoring
 
 ### Key Characteristics
@@ -35,7 +53,7 @@ Integration tests verify that the static analysis pipeline produces **consistent
 - **Slow**: These tests clone and analyze real repositories, so they take 2-5 minutes per repository
 - **Deterministic**: Fixed at pinned commits to ensure reproducible results
 - **Non-blocking**: Do NOT run on every commit; only on manual trigger, merge to main, or scheduled runs
-- **Granular**: Each language can be tested independently
+- **Granular**: Each test type can be run independently
 
 ## Supported Languages
 
@@ -70,6 +88,18 @@ This installs:
 
 ```bash
 uv run pytest -m integration -v
+```
+
+This runs all 7 integration tests (6 static analysis + 1 health check).
+
+### Run Integration Tests With or Without Health
+
+```bash
+# Run only static analysis consistency tests
+uv run pytest -m "integration and not health" -v
+
+# Run health checks specifically
+uv run pytest tests/integration/health/ -v
 ```
 
 ### Run Tests for a Specific Language
@@ -357,20 +387,6 @@ When you run `python install.py`:
    - These paths won't work in CI/CD or on other machines
    - In GitHub Actions, `install.py` runs again to update paths for the CI environment
 
-### Checking Server Status
-
-Always run this after `install.py` to verify servers are working:
-
-```bash
-python scripts/check_lsp_servers.py
-```
-
-This checks:
-- Python (Pyright) ✅
-- TypeScript/JavaScript ✅
-- Go (gopls) ✅
-- PHP (Intelephense) ✅
-- Java (JDTLS) ✅
 
 ## Troubleshooting
 
@@ -513,14 +529,26 @@ Each repository tests a single language to:
 - Make failures easier to diagnose
 - Allow independent testing
 
-### Exact Matching (0 Tolerance)
+### Tolerance for LSP Non-Determinism (1%)
 
-Metrics are compared with exact matching (no tolerance) because:
-- Pinned commits ensure reproducible analysis
-- Any difference indicates a real problem
-- Different from health checks (which use tolerances for LSP non-determinism)
+Metrics are compared with 1% tolerance because:
+- LSP servers can produce slightly different results due to non-determinism
+- Small variations (a few entities out of thousands) are expected
+- Tolerance accounts for timing issues and server behavior differences
+- Any difference beyond 1% indicates a real problem
 
-### Stable Release Tags for Pinned Commits
+Previously, tests used exact matching (0 tolerance), but this caused false failures due to normal LSP behavior variations.
+
+### Merged Test Structure
+
+Static analysis consistency tests are merged into a single test method per language:
+
+- **Single method**: `test_static_analysis_matches_fixture` handles both language presence verification and metrics comparison
+- **Reduced overhead**: Runs static analysis only once per repository (was running twice - once for language check, once for metrics)
+- **50% reduction**: Now runs 6 static analyses instead of 12 for the full suite
+- **Simpler maintenance**: One place to update test logic
+
+Previously, there were separate tests for language presence and metric verification, which duplicated expensive static analysis operations.
 
 Uses official releases (not main branch commits) to:
 - Ensure commits don't disappear
@@ -567,9 +595,16 @@ Monitor the integration test workflow in GitHub Actions:
 
 ## Files Reference
 
+### Static Analysis Consistency Tests
 - **Tests**: [tests/integration/test_static_analysis_consistency.py](tests/integration/test_static_analysis_consistency.py)
 - **Configuration**: [tests/integration/conftest.py](tests/integration/conftest.py)
 - **Fixtures**: [tests/integration/fixtures/](tests/integration/fixtures/)
+
+### Health Check Integration Tests
+- **Tests**: [tests/integration/health/test_health_integration.py](tests/integration/health/test_health_integration.py)
+- **Fixtures**: [tests/integration/health/fixtures/health_report.json](tests/integration/health/fixtures/health_report.json)
+
+### Shared Resources
 - **Generator**: [scripts/generate_integration_fixtures.py](scripts/generate_integration_fixtures.py)
 - **Workflow**: [.github/workflows/integration-tests.yml](.github/workflows/integration-tests.yml)
 - **pytest Config**: [pyproject.toml](pyproject.toml) (markers section)

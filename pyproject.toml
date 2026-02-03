@@ -120,6 +120,7 @@ pythonpath = "."
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "health: marks tests as health check integration tests",
     "python_lang: marks tests for Python language",
     "java_lang: marks tests for Java language",
     "go_lang: marks tests for Go language",
