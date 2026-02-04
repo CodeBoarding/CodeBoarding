@@ -201,6 +201,12 @@ def _determine_action(impact: ChangeImpact, manifest: AnalysisManifest) -> None:
         impact.reason = f"Update components: {impact.dirty_components}"
         return
 
+    # Unassigned files (new files not yet in any component) still need processing
+    if impact.unassigned_files:
+        impact.action = UpdateAction.UPDATE_COMPONENTS
+        impact.reason = f"New files need assignment: {len(impact.unassigned_files)} unassigned"
+        return
+
     # Fallback
     impact.action = UpdateAction.FULL_REANALYSIS
     impact.reason = "Unable to determine minimal update path"

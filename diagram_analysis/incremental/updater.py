@@ -332,6 +332,11 @@ class IncrementalUpdater:
             )
             reexpanded_components = reexpand_components(components_to_reexpand, self.repo_dir, context)
 
+        # Step 5a: Sanity check
+        for comp_name in reexpanded_components:
+            if comp_name not in self.manifest.expanded_components:
+                logger.warning(f"Component {comp_name} is not found in original analysis")
+
         # Step 5b: Run scoped impact summaries for changed expanded components
         run_scoped_component_impacts(
             components_to_reexpand | components_to_patch,
