@@ -102,9 +102,8 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "test_token"}, clear=True)
-    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_aws(self, mock_create_agent, mock_load_dotenv):
+    def test_init_with_aws(self, mock_create_agent):
         # Test initialization with AWS Bedrock
         from agents.agent import LLM_PROVIDERS
 
@@ -116,9 +115,8 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"CEREBRAS_API_KEY": "test_key"}, clear=True)
-    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_cerebras(self, mock_create_agent, mock_load_dotenv):
+    def test_init_with_cerebras(self, mock_create_agent):
         # Test initialization with Cerebras
         from agents.agent import LLM_PROVIDERS
 
@@ -130,9 +128,8 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://localhost:11434"}, clear=True)
-    @patch("agents.agent.load_dotenv")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_ollama(self, mock_create_agent, mock_load_dotenv):
+    def test_init_with_ollama(self, mock_create_agent):
         # Test initialization with Ollama
         from agents.agent import LLM_PROVIDERS
 
@@ -144,8 +141,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             self.assertIsNotNone(agent)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("agents.agent.load_dotenv")
-    def test_init_no_api_key(self, mock_load_dotenv):
+    def test_init_no_api_key(self):
         # Test initialization without any API key
         with self.assertRaises(ValueError) as context:
             LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
