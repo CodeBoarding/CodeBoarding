@@ -46,6 +46,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Setup virtual environment
+        run: |
+          source .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -67,11 +73,11 @@ jobs:
 
       - name: Run integration tests (all languages)
         if: ${{ github.event.inputs.language == '' || github.event.inputs.language == null }}
-        run: uv run pytest -m integration -v --tb=long
+        run: pytest -m integration -v --tb=long
 
       - name: Run integration tests (specific language)
         if: ${{ github.event.inputs.language != '' && github.event.inputs.language != null }}
-        run: uv run pytest -m "integration and ${{ github.event.inputs.language }}_lang" -v --tb=long
+        run: pytest -m "integration and ${{ github.event.inputs.language }}_lang" -v --tb=long
 
       - name: Upload test artifacts
         if: always()

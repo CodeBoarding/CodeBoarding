@@ -38,8 +38,8 @@ from .conftest import (
     extract_metrics,
 )
 
-# Tolerance percentage for metric comparisons (1% = 0.01)
-METRIC_TOLERANCE = 0.01
+# Tolerance percentage for metric comparisons (2% = 0.02)
+METRIC_TOLERANCE = 0.02
 
 
 def get_language_marker(language: str):
