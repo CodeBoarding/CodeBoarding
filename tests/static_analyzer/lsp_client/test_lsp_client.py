@@ -358,6 +358,40 @@ class TestLSPClient(unittest.TestCase):
 
         self.assertEqual(package_name, "module")
 
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_get_package_name_multiple_root_level(self, mock_popen):
+        # Test that multiple root-level files form separate packages (not false cycles)
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_process.stdout = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Create multiple root-level files
+        main_file = self.project_path / "main.py"
+        utils_file = self.project_path / "utils.py"
+        config_file = self.project_path / "config.py"
+
+        main_file.touch()
+        utils_file.touch()
+        config_file.touch()
+
+        # Each should get its own package name based on filename
+        main_package = client._get_package_name(main_file)
+        utils_package = client._get_package_name(utils_file)
+        config_package = client._get_package_name(config_file)
+
+        # They should all be unique (based on stem)
+        self.assertEqual(main_package, "main")
+        self.assertEqual(utils_package, "utils")
+        self.assertEqual(config_package, "config")
+
+        # Verify they are different from each other
+        self.assertNotEqual(main_package, utils_package)
+        self.assertNotEqual(utils_package, config_package)
+        self.assertNotEqual(main_package, config_package)
+
     def test_extract_package_from_import(self):
         self.assertEqual(LSPClient._extract_package_from_import("os.path.join"), "os")
         self.assertEqual(LSPClient._extract_package_from_import("django.http.response"), "django")

@@ -127,19 +127,20 @@ class LSPClient(ABC):
             message_id = self._message_id
             self._message_id += 1
 
-        request = {
-            "jsonrpc": "2.0",
-            "id": message_id,
-            "method": method,
-            "params": params,
-        }
+            request = {
+                "jsonrpc": "2.0",
+                "id": message_id,
+                "method": method,
+                "params": params,
+            }
 
-        body = json.dumps(request)
-        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+            body = json.dumps(request)
+            message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        if self._process and self._process.stdin:
-            self._process.stdin.write(message.encode("utf-8"))
-            self._process.stdin.flush()
+            if self._process and self._process.stdin:
+                self._process.stdin.write(message.encode("utf-8"))
+                self._process.stdin.flush()
+
         return message_id
 
     def _send_notification(self, method: str, params: dict):
@@ -152,9 +153,10 @@ class LSPClient(ABC):
         body = json.dumps(notification)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        if self._process and self._process.stdin:
-            self._process.stdin.write(message.encode("utf-8"))
-            self._process.stdin.flush()
+        with self._lock:
+            if self._process and self._process.stdin:
+                self._process.stdin.write(message.encode("utf-8"))
+                self._process.stdin.flush()
 
     def _read_messages(self):
         """
@@ -266,38 +268,28 @@ class LSPClient(ABC):
         request_id = request.get("id")
         params = request.get("params", {})
 
+        # Per LSP spec, id must be present and is either int or string
+        if request_id is None:
+            logger.warning(f"Received server request without id: {method}")
+            return
+
         if method == "workspace/configuration":
             # Return empty configuration for each requested item
             items = params.get("items", [])
-            result: list[dict] = [{}] * len(items)
-            logger.debug(f"Responding to workspace/configuration request for {len(items)} items")
-            if isinstance(request_id, int):
-                self._send_response(request_id, result)
+            result: list[dict] = [{} for _ in items]
+            self._send_response(request_id, result)
         elif method == "window/workDoneProgress/create":
             # Acknowledge progress token creation
-            logger.debug(f"Acknowledging progress token creation: {params.get('token')}")
-            if isinstance(request_id, int):
-                self._send_response(request_id, None)
+            self._send_response(request_id, None)
         elif method == "client/registerCapability":
             # Acknowledge capability registration
-            logger.debug("Acknowledging capability registration")
-            if isinstance(request_id, int):
-                self._send_response(request_id, None)
+            self._send_response(request_id, None)
         elif method == "window/showMessageRequest":
             # Don't select any action, just acknowledge
-            logger.debug(f"Acknowledging showMessageRequest: {str(params.get('message', ''))[:50]}")
-            if isinstance(request_id, int):
-                self._send_response(request_id, None)
+            self._send_response(request_id, None)
         elif method == "window/showDocument":
             # Acknowledge but indicate we didn't show the document
-            logger.debug("Acknowledging showDocument request")
-            if isinstance(request_id, int):
-                self._send_response(request_id, {"success": False})
-        elif method in self.SERVER_REQUEST_METHODS:
-            # Known method but not explicitly handled - respond with null
-            logger.debug(f"Responding with null to known server request: {method}")
-            if isinstance(request_id, int):
-                self._send_response(request_id, None)
+            self._send_response(request_id, {"success": False})
         else:
             # UNKNOWN server request - log as warning so we can add handling if needed
             logger.warning(
@@ -305,22 +297,29 @@ class LSPClient(ABC):
                 f"Responding with null to unblock server. "
                 f"Consider adding explicit handling for this request type."
             )
-            if isinstance(request_id, int):
-                self._send_response(request_id, None)
+            self._send_response(request_id, None)
 
-    def _send_response(self, request_id: int, result) -> None:
-        """Send a response to a server request."""
+    def _send_response(self, request_id: int | str, result) -> None:
+        """
+        Send a response to a server request.
+
+        Args:
+            request_id: The request ID from the server (int or str per LSP spec)
+            result: The response result to send back to the server
+        """
         response = {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": result,
         }
         body = json.dumps(response)
-        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+        body_bytes = body.encode("utf-8")
+        header = f"Content-Length: {len(body_bytes)}\r\n\r\n"
 
-        if self._process and self._process.stdin:
-            self._process.stdin.write(message.encode("utf-8"))
-            self._process.stdin.flush()
+        with self._lock:
+            if self._process and self._process.stdin:
+                self._process.stdin.write(header.encode("utf-8") + body_bytes)
+                self._process.stdin.flush()
 
     def _initialize(self):
         """Performs the LSP initialization handshake."""
