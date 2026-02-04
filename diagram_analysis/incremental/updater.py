@@ -154,7 +154,6 @@ class IncrementalUpdater:
         # Get the changed files
         changed_files: set[str] = set()
         changed_files.update(self.impact.renames.keys())
-        changed_files.update(self.impact.renames.values())
         changed_files.update(self.impact.modified_files)
         changed_files.update(self.impact.added_files)
         changed_files.update(self.impact.deleted_files)

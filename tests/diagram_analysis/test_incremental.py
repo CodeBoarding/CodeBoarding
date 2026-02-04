@@ -16,6 +16,7 @@ from diagram_analysis.incremental import (
     patch_paths_in_analysis,
     patch_paths_in_manifest,
 )
+from diagram_analysis.incremental.impact_analyzer import _filter_changes_for_scope
 from repo_utils.change_detector import (
     ChangeSet,
     ChangeType,
@@ -213,3 +214,127 @@ class TestPathPatching:
 
         assert patched.get_component_for_file("src/renamed_a.py") == "ComponentA"
         assert patched.get_component_for_file("src/module_a.py") is None
+
+
+class TestBugFixes:
+    """Tests for specific bug fixes in incremental analysis."""
+
+    def test_recompute_dirty_components_excludes_rename_new_paths(self):
+        """Bug 2: recompute_dirty_components should not include rename new paths
+        (values) in the changed_files set. New paths are not yet in the manifest
+        and would cause incorrect lookups.
+        """
+        from diagram_analysis.incremental.updater import IncrementalUpdater
+
+        updater = IncrementalUpdater(
+            repo_dir=Path("/fake/repo"),
+            output_dir=Path("/fake/output"),
+        )
+        updater.manifest = AnalysisManifest(
+            repo_state_hash="test",
+            base_commit="abc123",
+            file_to_component={
+                "src/old_name.py": "ComponentA",
+                "src/module_b.py": "ComponentB",
+            },
+            expanded_components=[],
+        )
+        updater.analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="ComponentA",
+                    description="A",
+                    key_entities=[],
+                    assigned_files=["src/old_name.py"],
+                    source_cluster_ids=[1],
+                ),
+                Component(
+                    name="ComponentB",
+                    description="B",
+                    key_entities=[],
+                    assigned_files=["src/module_b.py"],
+                    source_cluster_ids=[2],
+                ),
+            ],
+            components_relations=[],
+        )
+        updater.impact = ChangeImpact(
+            renames={"src/old_name.py": "src/new_name.py"},
+            modified_files=[],
+            added_files=[],
+            deleted_files=[],
+            dirty_components={"ComponentA"},
+            components_needing_reexpansion=set(),
+        )
+
+        # Mock static analysis with empty cluster results
+        from unittest.mock import MagicMock
+
+        mock_static = MagicMock()
+        mock_static.get_languages.return_value = []
+
+        updater.recompute_dirty_components(mock_static)
+
+        # ComponentA should still be dirty (old_name.py maps to it via manifest)
+        assert "ComponentA" in updater.impact.dirty_components
+        # The rename new path "src/new_name.py" should NOT have caused
+        # ComponentB (or any other component) to be incorrectly added
+        # Only ComponentA should be dirty since only old_name.py is in the manifest
+        assert "ComponentB" not in updater.impact.dirty_components
+
+    def test_filter_changes_for_scope_strict_membership(self):
+        """Bug 3: _filter_changes_for_scope should only include changes for files
+        that are directly in the scope set, not files that merely share a parent
+        directory with scoped files.
+        """
+        scope_files = {"src/module_a.py", "src/module_a_utils.py"}
+
+        # A change to module_b.py in the same directory should NOT be in scope
+        changes = ChangeSet(
+            changes=[
+                DetectedChange(ChangeType.MODIFIED, "src/module_a.py"),
+                DetectedChange(ChangeType.MODIFIED, "src/module_b.py"),
+            ]
+        )
+
+        scoped = _filter_changes_for_scope(changes, scope_files)
+
+        # Only module_a.py should be included, not module_b.py
+        assert len(scoped.changes) == 1
+        assert scoped.changes[0].file_path == "src/module_a.py"
+
+    def test_filter_changes_for_scope_rename_in_scope(self):
+        """Bug 3: Renames should be included if old or new path is in scope."""
+        scope_files = {"src/module_a.py", "src/module_a_utils.py"}
+
+        changes = ChangeSet(
+            changes=[
+                DetectedChange(ChangeType.RENAMED, "src/module_a_renamed.py", "src/module_a.py", 100),
+            ]
+        )
+
+        scoped = _filter_changes_for_scope(changes, scope_files)
+
+        # Rename should be included because old_path is in scope
+        assert len(scoped.changes) == 1
+
+    def test_filter_changes_for_scope_excludes_sibling_directory_files(self):
+        """Bug 3: Files in sibling directories or same parent dir but different
+        component should be excluded from scope.
+        """
+        scope_files = {"src/auth/login.py", "src/auth/session.py"}
+
+        changes = ChangeSet(
+            changes=[
+                DetectedChange(ChangeType.MODIFIED, "src/auth/login.py"),
+                DetectedChange(ChangeType.MODIFIED, "src/auth/register.py"),  # same dir, different component
+                DetectedChange(ChangeType.MODIFIED, "src/db/models.py"),  # different dir
+            ]
+        )
+
+        scoped = _filter_changes_for_scope(changes, scope_files)
+
+        # Only login.py should be included (it's directly in scope)
+        assert len(scoped.changes) == 1
+        assert scoped.changes[0].file_path == "src/auth/login.py"

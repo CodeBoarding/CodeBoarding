@@ -215,11 +215,8 @@ def _filter_changes_for_scope(changes: ChangeSet, scope_files: set[str]) -> Chan
     if changes.is_empty() or not scope_files:
         return ChangeSet()
 
-    scope_dirs = {str(Path(f).parent) for f in scope_files}
-
     def in_scope(path: str) -> bool:
-        path_dir = str(Path(path).parent)
-        return path in scope_files or path_dir in scope_dirs
+        return path in scope_files
 
     scoped_changes: list = []
 
