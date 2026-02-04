@@ -55,7 +55,7 @@ def create_test_analysis_result(num_nodes: int = 3) -> dict:
 def create_test_cluster_result(num_clusters: int = 2) -> dict[str, ClusterResult]:
     """Create test cluster results."""
     clusters = {}
-    file_to_clusters = {}
+    file_to_clusters: dict[str, set[int]] = {}
     cluster_to_files = {}
 
     for cluster_id in range(num_clusters):
