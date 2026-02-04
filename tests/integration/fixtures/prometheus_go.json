@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/prometheus/prometheus",
+    "pinned_commit": "v3.0.1",
+    "language": "Go",
+    "generated_at": "2026-02-03T16:40:12.541401+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 10834,
+    "classes_count": 105,
+    "packages_count": 107,
+    "call_graph_nodes": 11080,
+    "call_graph_edges": 5959,
+    "source_files_count": 350
+  },
+  "sample_references": [
+    "cmd.prometheus.main.(*flagconfig).setfeaturelistoptions",
+    "cmd.prometheus.main.(*readyscrapemanager).get",
+    "cmd.prometheus.main.(*readyscrapemanager).set",
+    "cmd.prometheus.main.(*readystorage).appender",
+    "cmd.prometheus.main.(*readystorage).applyconfig",
+    "cmd.prometheus.main.(*readystorage).chunkquerier",
+    "cmd.prometheus.main.(*readystorage).cleantombstones",
+    "cmd.prometheus.main.(*readystorage).close",
+    "cmd.prometheus.main.(*readystorage).delete",
+    "cmd.prometheus.main.(*readystorage).exemplarquerier"
+  ],
+  "sample_classes": [
+    "cmd.promtool.main.compareRuleTypes",
+    "cmd.promtool.unittest.labelsAndAnnotations",
+    "config.config.AlertmanagerAPIVersion",
+    "config.config.AlertmanagerConfigs",
+    "config.config.RemoteWriteProtoMsg",
+    "config.config.RemoteWriteProtoMsgs",
+    "config.config.ScrapeProtocol",
+    "config.config.TracingClientType",
+    "config.config.translationStrategyOption",
+    "discovery.discovery.Configs"
+  ]
+}

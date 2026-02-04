@@ -29,6 +29,6 @@ jobs:
       - name: Run mypy type checker
         run: uv run mypy .
 
-      - name: Run tests with coverage
-        run: uv run pytest --cov=. --cov-report=term --cov-fail-under=80
+      - name: Run tests with coverage (excluding integration tests)
+        run: uv run pytest -m "not integration" --cov=. --cov-report=term --cov-fail-under=80
 

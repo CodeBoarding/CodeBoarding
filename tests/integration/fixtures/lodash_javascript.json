@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/lodash/lodash",
+    "pinned_commit": "4.17.21",
+    "language": "JavaScript",
+    "generated_at": "2026-02-03T15:42:24.872084+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 7220,
+    "classes_count": 42,
+    "packages_count": 15,
+    "call_graph_nodes": 7340,
+    "call_graph_edges": 12225,
+    "source_files_count": 40
+  },
+  "sample_references": [
+    "fp._baseconvert.'ary'",
+    "fp._baseconvert.'assign'",
+    "fp._baseconvert.'cap'",
+    "fp._baseconvert.'castarray'",
+    "fp._baseconvert.'clone'",
+    "fp._baseconvert.'curry'",
+    "fp._baseconvert.'fixed'",
+    "fp._baseconvert.'foreach'",
+    "fp._baseconvert.'immutable'",
+    "fp._baseconvert.'isarray'"
+  ],
+  "sample_classes": [
+    "lodash.Hash",
+    "lodash.LazyWrapper",
+    "lodash.ListCache",
+    "lodash.LodashWrapper",
+    "lodash.MapCache",
+    "lodash.SetCache",
+    "lodash.Stack",
+    "lodash.debounced",
+    "lodash.lodash",
+    "lodash.memoize"
+  ]
+}
