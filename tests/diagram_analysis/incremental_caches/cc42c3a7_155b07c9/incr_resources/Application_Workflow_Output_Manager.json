@@ -1,0 +1,217 @@
+{
+  "description": "This system orchestrates the entire lifecycle of code analysis jobs, from handling API requests and CI/CD triggers to managing repositories, performing static code analysis, generating diagrams, standardizing analysis results, and finally formatting these into various documentation outputs. Its purpose is to provide a comprehensive tool for analyzing codebases and generating structured, visual, and human-readable documentation.",
+  "components": [
+    {
+      "name": "Job Orchestration & API Manager",
+      "description": "This component is the central orchestrator, managing the entire lifecycle of analysis jobs. It handles incoming API requests (e.g., via `local_app`) and CI/CD triggers (`github_action`), initiates and monitors job execution, and persists critical job-related metadata using a DuckDB database (`duckdb_crud`). It ensures the smooth flow and coordination of all subsequent analysis and generation tasks.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py",
+        "github_action.py",
+        "local_app.py",
+        "install.py",
+        "logging_config.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Responsible for the practical aspects of managing code repositories. This includes cloning remote repositories, processing local ones, and setting up/cleaning up temporary directories (`utils.create_temp_repo_folder`, `utils.remove_temp_repo_folder`). It ensures that the target codebase is accessible and prepared for the analysis engine.",
+      "key_entities": [
+        {
+          "qualified_name": "utils.create_temp_repo_folder",
+          "reference_file": "utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "utils.remove_temp_repo_folder",
+          "reference_file": "utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "main.process_local_repository",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "main.process_remote_repository",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "utils.py",
+        "main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Code Analysis & Diagram Generator",
+      "description": "This component is the core engine for performing static analysis on the codebase. It identifies components, builds relationships, and generates structural insights. Crucially, it also handles the generation of visual diagrams (e.g., Mermaid.js) based on the analysis results (`diagram_analysis.diagram_generator`), providing a visual representation of the codebase structure.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Standardized Analysis Emitter",
+      "description": "This component acts as a crucial intermediary, transforming the raw, often disparate, outputs from the static analysis engine into a standardized, structured JSON format. This standardization ensures data consistency, facilitates interoperability, and makes the analysis results easily consumable by downstream components like documentation generators.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Documentation & Output Formatter",
+      "description": "This component is responsible for the final rendering and serialization of the standardized analysis results into various human-readable and machine-readable documentation formats. It utilizes specific formatters and templating engines (`html_template`) to produce outputs such as Markdown, MDX, HTML, and reStructuredText, often embedding generated diagrams. It also includes utilities for output processing and sanitization.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.markdown",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "html_template",
+          "reference_file": "output_generators/html_template.py",
+          "reference_start_line": 6,
+          "reference_end_line": 338
+        },
+        {
+          "qualified_name": "sanitize",
+          "reference_file": "output_generators/__init__.py",
+          "reference_start_line": 4,
+          "reference_end_line": 6
+        }
+      ],
+      "assigned_files": [
+        "output_generators/html.py",
+        "output_generators/markdown.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates preparation of",
+      "src_name": "Job Orchestration & API Manager",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "informs",
+      "src_name": "Repository Manager",
+      "dst_name": "Job Orchestration & API Manager"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "Job Orchestration & API Manager",
+      "dst_name": "Code Analysis & Diagram Generator"
+    },
+    {
+      "relation": "reports status to",
+      "src_name": "Code Analysis & Diagram Generator",
+      "dst_name": "Job Orchestration & API Manager"
+    },
+    {
+      "relation": "manages output flow from",
+      "src_name": "Job Orchestration & API Manager",
+      "dst_name": "Standardized Analysis Emitter"
+    },
+    {
+      "relation": "directs output generation by",
+      "src_name": "Job Orchestration & API Manager",
+      "dst_name": "Documentation & Output Formatter"
+    },
+    {
+      "relation": "provides final outputs to",
+      "src_name": "Documentation & Output Formatter",
+      "dst_name": "Job Orchestration & API Manager"
+    },
+    {
+      "relation": "provides codebase to",
+      "src_name": "Repository Manager",
+      "dst_name": "Code Analysis & Diagram Generator"
+    },
+    {
+      "relation": "utilizes codebase from",
+      "src_name": "Code Analysis & Diagram Generator",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "produces raw analysis for",
+      "src_name": "Code Analysis & Diagram Generator",
+      "dst_name": "Standardized Analysis Emitter"
+    },
+    {
+      "relation": "processes analysis from",
+      "src_name": "Standardized Analysis Emitter",
+      "dst_name": "Code Analysis & Diagram Generator"
+    },
+    {
+      "relation": "provides standardized results to",
+      "src_name": "Standardized Analysis Emitter",
+      "dst_name": "Documentation & Output Formatter"
+    },
+    {
+      "relation": "consumes standardized results from",
+      "src_name": "Documentation & Output Formatter",
+      "dst_name": "Standardized Analysis Emitter"
+    }
+  ]
+}

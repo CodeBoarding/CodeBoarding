@@ -1,0 +1,621 @@
+2026-02-04 03:16:19 INFO     [__main__:425] Starting CodeBoarding documentation generation...
+Monitoring enabled: false
+2026-02-04 03:16:19 INFO     [static_analyzer:102] Starting static analysis for Python in /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding
+2026-02-04 03:16:19 INFO     [static_analyzer.lsp_client.client:98] Starting server /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver --stdio...
+2026-02-04 03:16:19 INFO     [static_analyzer.lsp_client.client:234] Initializing connection for python...
+2026-02-04 03:16:19 INFO     [static_analyzer.lsp_client.client:256] Initialization successful.
+2026-02-04 03:16:19 INFO     [static_analyzer:118] Using incremental cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:65] Current commit: 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:156] Loaded analysis cache from /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: 0039f93130fe90a5266e661daf7dd2a40362fec4, iteration: 37)
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:642] Loaded cluster results from cache for 1 languages
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:83] Cache loaded successfully: commit 0039f93130fe90a5266e661daf7dd2a40362fec4, iteration 37
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:92] Cached analysis contains: 82 files, 3408 references, 111 classes, 14 packages, 2652 call graph nodes, 981 edges
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:113] Uncommitted changes detected in working directory
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:116] Performing incremental update from commit 0039f93130fe90a5266e661daf7dd2a40362fec4 to 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:356] Identifying changed files between 0039f93130fe90a5266e661daf7dd2a40362fec4 and 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:16:19 INFO     [static_analyzer.git_diff_analyzer:76] Found 1 changed files since commit 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:373] Found 1 changed files: 1 existing, 0 deleted
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:382] Invalidating 1 changed files from cache
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:187] Starting file invalidation for 1 changed files
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:296] File invalidation complete:
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:297]   - Removed 0 nodes, kept 2652 nodes
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:298]   - Removed 0 edges, kept 981 edges
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:299]   - Removed 0 class hierarchies, kept 111 class hierarchies
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:302]   - Removed 0 packages, updated 0 packages, kept 14 packages
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:305]   - Removed 0 references, kept 3408 references
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:306]   - Source files: 82 -> 82
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:386] Reanalyzing 1 existing changed files
+2026-02-04 03:16:19 INFO     [static_analyzer.lsp_client.client:1242] Analyzing 1 specific files for incremental update
+2026-02-04 03:16:19 INFO     [static_analyzer.lsp_client.client:1256] No relevant source files to reanalyze
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:390] Merging new analysis with cached results
+2026-02-04 03:16:19 INFO     [static_analyzer.analysis_cache:447] Merged cached and new analysis results
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:440] Incremental update complete: 82 files, 3408 references, 2652 nodes, 981 edges
+2026-02-04 03:16:19 INFO     [static_analyzer.incremental_orchestrator:447] Computing cluster results for incremental update...
+2026-02-04 03:16:19 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 2652 nodes, target: 20 clusters
+2026-02-04 03:16:21 INFO     [static_analyzer.graph:273] Clustered 2652 nodes into 20 clusters using balanced_greedy_modularity
+2026-02-04 03:16:21 INFO     [static_analyzer.incremental_orchestrator:529] Computed clusters for python: 20 clusters, strategy=balanced_greedy_modularity
+2026-02-04 03:16:21 INFO     [static_analyzer.incremental_orchestrator:611] Cluster matching for python: 20/20 clusters matched to original
+2026-02-04 03:16:21 INFO     [static_analyzer.incremental_orchestrator:474] Saving updated cache to: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
+2026-02-04 03:16:21 INFO     [static_analyzer.incremental_orchestrator:317] Merged cluster results for python: 20 matched to original, 0 new clusters
+2026-02-04 03:16:22 INFO     [static_analyzer.analysis_cache:102] Saved analysis cache to /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: 0039f93130fe90a5266e661daf7dd2a40362fec4, iteration: 38)
+2026-02-04 03:16:22 INFO     [static_analyzer.analysis_cache:612] Saved cluster results to cache for 1 languages
+2026-02-04 03:16:22 INFO     [static_analyzer.incremental_orchestrator:495] Incremental analysis complete, cache updated (iteration 38)
+Static analysis complete: <static_analyzer.analysis_result.StaticAnalysisResults object at 0x70775e6a3380>
+2026-02-04 03:16:22 INFO     [diagram_analysis.diagram_generator:134] Health report written to 0039f931_026bf6b9/init_resources/health/health_report.json (score: 0.995)
+2026-02-04 03:16:22 INFO     [agents.agent:119] Initialized prompt factory for vercel with vercel
+2026-02-04 03:16:22 INFO     [agents.agent:125] Using Vercel LLM with model: gemini-2.5-flash
+2026-02-04 03:16:22 INFO     [monitoring:132] {"event": "step_start", "step": "analyze_project_metadata", "timestamp": 1770171382.5581682}
+2026-02-04 03:16:22 INFO     [agents.meta_agent:34] [MetaAgent] Analyzing metadata for project: CodeBoarding
+2026-02-04 03:16:22 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 1088, timeout: 300s
+2026-02-04 03:16:23 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:16:23 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 629, "output_tokens": 8, "total_tokens": 637}
+2026-02-04 03:16:23 INFO     [agents.tools.read_docs:89] [ReadDocs Tool] Reading file /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/README.md around line 0
+2026-02-04 03:16:29 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:16:29 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 6963, "output_tokens": 551, "total_tokens": 7514}
+2026-02-04 03:16:29 INFO     [agents.agent:178] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:16:29 INFO     [agents.agent:125] Using Vercel Extractor LLM with model: gpt-5-mini
+2026-02-04 03:16:40 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:16:40 INFO     [monitoring:62] Token Usage: step=analyze_project_metadata model=gpt-5-mini usage={"input_tokens": 895, "output_tokens": 670, "total_tokens": 1565}
+2026-02-04 03:16:40 INFO     [agents.meta_agent:39] [MetaAgent] Completed metadata analysis for project: # 🎯 Project Metadata Analysis
+
+**Project Type:** Code Analysis Tool / Documentation Generator
+**Domain:** Software Engineering, Developer Tools, AI/ML, Static Analysis
+**Technology Stack:** Python, TypeScript/JavaScript, uv (Python package manager), npm, Large Language Models (Google Gemini, OpenAI, Anthropic, Vercel, AWS Bedrock, Ollama, Cerebras), Mermaid.js, VS Code Extension, GitHub Actions, MCP Server
+**Architectural Patterns:** Service-Oriented Architecture (SOA) / Microservices, Pipeline/Workflow, Agent-based System
+**Expected Components:** API Service, Job Database, Orchestration Engine, Repository Manager, Static Analysis Engine, AI Interpretation Layer, Output Generation Engine
+**Architectural Bias:** Focus on a component-based view emphasizing distinct responsibilities and interactions of services. Highlight data flow, integration points (LLMs, static analysis tools), extensibility for new languages/LLM providers, workflow orchestration by the Orchestration Engine, and modularity for independently deployable components.
+
+2026-02-04 03:16:40 INFO     [monitoring:142] {"event": "step_end", "step": "analyze_project_metadata", "duration_ms": 18177.25}
+2026-02-04 03:16:40 INFO     [agents.agent:119] Initialized prompt factory for vercel with vercel
+2026-02-04 03:16:40 INFO     [agents.agent:125] Using Vercel LLM with model: gemini-2.5-flash
+2026-02-04 03:16:40 INFO     [agents.agent:119] Initialized prompt factory for vercel with vercel
+2026-02-04 03:16:40 INFO     [agents.agent:125] Using Vercel LLM with model: gemini-2.5-flash
+2026-02-04 03:16:40 INFO     [diagram_analysis.diagram_generator:207] Generating initial analysis
+2026-02-04 03:16:40 INFO     [monitoring:132] {"event": "step_start", "step": "step_clusters_grouping", "timestamp": 1770171400.7684295}
+2026-02-04 03:16:40 INFO     [agents.abstraction_agent:60] [AbstractionAgent] Grouping CFG clusters for: CodeBoarding
+2026-02-04 03:16:40 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 46534, timeout: 300s
+2026-02-04 03:17:43 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:17:43 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 14060, "output_tokens": 2324, "total_tokens": 16384}
+2026-02-04 03:18:01 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:18:01 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 16418, "output_tokens": 2799, "total_tokens": 19217}
+2026-02-04 03:18:01 INFO     [agents.agent:178] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:18:01 INFO     [agents.agent:125] Using Vercel Extractor LLM with model: gpt-5-mini
+2026-02-04 03:18:43 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:18:43 INFO     [monitoring:62] Token Usage: step=step_clusters_grouping model=gpt-5-mini usage={"input_tokens": 2726, "output_tokens": 2643, "total_tokens": 5369}
+2026-02-04 03:18:43 INFO     [agents.validation:61] [Validation] All clusters are represented in the ClusterAnalysis
+2026-02-04 03:18:43 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:18:43 INFO     [monitoring:142] {"event": "step_end", "step": "step_clusters_grouping", "duration_ms": 122770.29}
+2026-02-04 03:18:43 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171523.538823}
+2026-02-04 03:18:43 INFO     [agents.abstraction_agent:92] [AbstractionAgent] Generating final analysis for: CodeBoarding
+2026-02-04 03:18:43 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 13265, timeout: 300s
+2026-02-04 03:19:08 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:19:08 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 3804, "output_tokens": 2249, "total_tokens": 6053}
+2026-02-04 03:19:08 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:19:48 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:19:48 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 2708, "output_tokens": 2684, "total_tokens": 5392}
+2026-02-04 03:19:48 WARNING  [agents.validation:126] [Validation] Invalid relationships: (Orchestration & Repository Manager -> Static Analysis Engine), (Orchestration & Repository Manager -> AI Interpretation Layer), (Orchestration & Repository Manager -> Output & Workflow Manager), (Static Analysis Engine -> AI Interpretation Layer), (AI Interpretation Layer -> Static Analysis Engine), (AI Interpretation Layer -> Output & Workflow Manager), (Output & Workflow Manager -> Orchestration & Repository Manager), (Monitoring & Telemetry -> Orchestration & Repository Manager), (Monitoring & Telemetry -> Static Analysis Engine), (Monitoring & Telemetry -> AI Interpretation Layer)
+2026-02-04 03:19:48 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:19:48 INFO     [agents.validation:182] [Validation] All components have cluster IDs assigned
+2026-02-04 03:19:48 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:19:48 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 19621, timeout: 300s
+2026-02-04 03:20:17 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:20:17 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 5236, "output_tokens": 2356, "total_tokens": 7592}
+2026-02-04 03:20:17 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:21:10 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:21:10 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 2773, "output_tokens": 3104, "total_tokens": 5877}
+2026-02-04 03:21:10 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 147198.36}
+2026-02-04 03:21:10 INFO     [agents.agent:458] [Agent] Found 45 unassigned files, using LLM classification
+2026-02-04 03:21:10 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 6410, timeout: 300s
+2026-02-04 03:21:31 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:21:31 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2460, "output_tokens": 1667, "total_tokens": 4127}
+2026-02-04 03:21:31 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:21:51 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:21:51 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1458, "output_tokens": 1119, "total_tokens": 2577}
+2026-02-04 03:21:51 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:21:51 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:21:51 INFO     [agents.agent:482] [Agent] File classification complete: 45 files classified
+2026-02-04 03:21:51 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:21:51 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `AI Prompt & LLM Configuration`
+   - *Description*: This component is responsible for dynamically generating prompts tailored for various Large Language Models (LLMs) and managing their configuration and instantiation. It provides a flexible framework for interacting with different LLM providers, ensuring agents can communicate effectively with the chosen models.
+   - *Key Entities*: `QName:`agents.prompts.prompt_factory.PromptFactory` FileRef: `agents/prompts/prompt_factory.py``, `QName:`agents.llm_config.create_llm_from_env` FileRef: `agents/llm_config.py``, `QName:`agents.prompts.abstract_prompt_factory.AbstractPromptFactory` FileRef: `agents/prompts/abstract_prompt_factory.py``
+**Component:** `AI Agent Core & Toolkit`
+   - *Description*: This component forms the intelligence layer, housing the core AI agents that perform code analysis and interpretation. It defines the structured data models for analysis insights and provides a comprehensive toolkit, enabling agents to query code context, static analysis results, and interact with the repository.
+   - *Key Entities*: `QName:`agents.agent.CodeBoardingAgent` FileRef: `agents/agent.py``, `QName:`agents.agent_responses.AnalysisInsights` FileRef: `agents/agent_responses.py``, `QName:`agents.tools.toolkit.CodeBoardingToolkit` FileRef: `agents/tools/toolkit.py``, `QName:`agents.diff_analyzer.DiffAnalyzingAgent` FileRef: `agents/diff_analyzer.py``
+**Component:** `Static Analysis Engine`
+   - *Description*: This component performs deep code analysis using Language Server Protocol (LSP) clients for various programming languages. It extracts structural information such as call graphs, class hierarchies, and package dependencies, and stores these as structured analysis results for consumption by other components.
+   - *Key Entities*: `QName:`static_analyzer.lsp_client.client.LSPClient` FileRef: `static_analyzer/lsp_client/client.py``, `QName:`static_analyzer.programming_language.ProgrammingLanguageBuilder` FileRef: `static_analyzer/programming_language.py``, `QName:`static_analyzer.scanner.ProjectScanner` FileRef: `static_analyzer/scanner.py``, `QName:`static_analyzer.graph.CallGraph` FileRef: `static_analyzer/graph.py``, `QName:`static_analyzer.analysis_result.StaticAnalysisResults` FileRef: `static_analyzer/analysis_result.py``
+**Component:** `Job & Repository Manager`
+   - *Description*: This component orchestrates the lifecycle of analysis jobs, including their persistence in a DuckDB database. It also manages all interactions with Git repositories, such as cloning, checking out specific versions, and handling code differences, providing the necessary code context for analysis.
+   - *Key Entities*: `QName:`duckdb_crud.DuckDBCrud` FileRef: `duckdb_crud.py``, `QName:`local_app.run_local_app_job` FileRef: `local_app.py``, `QName:`repo_utils.clone_repository` FileRef: `repo_utils/__init__.py``, `QName:`repo_utils.git_diff.get_git_diff` FileRef: `repo_utils/git_diff.py``
+**Component:** `Output & Workflow Orchestrator`
+   - *Description*: This component serves as the application's main entry point, handling command-line arguments and coordinating the overall analysis workflow. It triggers the analysis process and subsequently generates final documentation and diagrams in various formats based on the insights produced by the AI Interpretation Layer.
+   - *Key Entities*: `QName:`main.main` FileRef: `main.py``, `QName:`diagram_analysis.diagram_generator.DiagramGenerator` FileRef: `diagram_analysis/diagram_generator.py``, `QName:`output_generators.markdown.generate_markdown_output` FileRef: `output_generators/markdown.py``, `QName:`diagram_analysis.analysis_json.from_analysis_to_json` FileRef: `diagram_analysis/analysis_json.py``
+**Component:** `Monitoring & Telemetry`
+   - *Description*: This component is dedicated to collecting, processing, and storing operational metrics and usage statistics, particularly related to LLM interactions and agent execution. It integrates with the system's lifecycle to capture events and provides mechanisms for persisting this data, offering insights into system performance and behavior.
+   - *Key Entities*: `QName:`monitoring.callbacks.MonitoringCallback` FileRef: `monitoring/callbacks.py``, `QName:`monitoring.writers.StreamingStatsWriter` FileRef: `monitoring/writers.py``, `QName:`monitoring.context.MonitoringContext` FileRef: `monitoring/context.py``(Job & Repository Manager, Initiates static analysis tasks and provides the codebase context (e.g., repository path, commit hash) for analysis., Static Analysis Engine)
+(Job & Repository Manager, Provides initial project context and triggers AI-driven analysis workflows., AI Agent Core & Toolkit)
+(Job & Repository Manager, Triggers the final output generation process after analysis completion., Output & Workflow Orchestrator)
+(Static Analysis Engine, Delivers structured static analysis results (e.g., CFGs, call graphs, class hierarchies) to the AI agents for interpretation., AI Agent Core & Toolkit)
+(AI Agent Core & Toolkit, Agents query specific static analysis data and code context using their integrated tools., Static Analysis Engine)
+(AI Agent Core & Toolkit, Requests configured LLM clients and dynamically generated prompts for AI interactions., AI Prompt & LLM Configuration)
+(AI Prompt & LLM Configuration, Provides configured LLM clients and tailored prompts to the AI agents., AI Agent Core & Toolkit)
+(AI Agent Core & Toolkit, Submits AI-generated analysis insights and structured data for documentation and diagram generation., Output & Workflow Orchestrator)
+(Output & Workflow Orchestrator, Updates job status and retrieves job-related configuration details., Job & Repository Manager)
+(Monitoring & Telemetry, Observes and collects metrics related to job execution and repository operations., Job & Repository Manager)
+(Monitoring & Telemetry, Monitors the performance and activity of the static analysis process., Static Analysis Engine)
+(Monitoring & Telemetry, Collects usage statistics and performance data from LLM calls and agent interactions., AI Agent Core & Toolkit)
+2026-02-04 03:21:51 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.diff_analyzer.DiffAnalyzingAgent in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py
+2026-02-04 03:21:51 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:21:51 INFO     [agents.cluster_methods_mixin:178] [ClusterMethodsMixin] Deduplicating file assignments within components
+2026-02-04 03:21:51 INFO     [agents.planner_agent:103] [Planner] 6/6 components eligible for expansion
+2026-02-04 03:21:51 INFO     [diagram_analysis.diagram_generator:215] Found 6 components to analyze at level 0
+2026-02-04 03:21:51 INFO     [diagram_analysis.diagram_generator:234] Processing level 1 with 6 components
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: AI Prompt & LLM Configuration
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 380 nodes, target: 20 clusters
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: AI Agent Core & Toolkit
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 565 nodes, target: 20 clusters
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Static Analysis Engine
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 723 nodes, target: 20 clusters
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:710] Good clustering found: 10 clusters, 100.00% coverage, 0 singletons, largest: 52
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Job & Repository Manager
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:273] Clustered 380 nodes into 10 clusters using structural_class
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Output & Workflow Orchestrator
+2026-02-04 03:21:51 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Monitoring & Telemetry
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 200 nodes, target: 20 clusters
+2026-02-04 03:21:51 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171711.8425705}
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 618 nodes, target: 20 clusters
+2026-02-04 03:21:51 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 166 nodes, target: 20 clusters
+Level 1:   0%|          | 0/6 [00:00<?, ?it/s]2026-02-04 03:21:51 INFO     [static_analyzer.graph:710] Good clustering found: 20 clusters, 100.00% coverage, 0 singletons, largest: 67
+2026-02-04 03:21:51 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: AI Prompt & LLM Configuration
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:710] Good clustering found: 12 clusters, 100.00% coverage, 0 singletons, largest: 212
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:273] Clustered 565 nodes into 20 clusters using structural_class
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:273] Clustered 200 nodes into 9 clusters using balanced_greedy_modularity
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 31270, timeout: 300s
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:710] Good clustering found: 6 clusters, 100.00% coverage, 0 singletons, largest: 52
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:273] Clustered 723 nodes into 12 clusters using structural_class
+2026-02-04 03:21:52 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171712.1198242}
+2026-02-04 03:21:52 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171712.1204727}
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:273] Clustered 166 nodes into 6 clusters using structural_class
+2026-02-04 03:21:52 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171712.1532226}
+2026-02-04 03:21:52 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: AI Agent Core & Toolkit
+2026-02-04 03:21:52 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Job & Repository Manager
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:710] Good clustering found: 21 clusters, 100.00% coverage, 0 singletons, largest: 63
+2026-02-04 03:21:52 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171712.1795537}
+2026-02-04 03:21:52 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Static Analysis Engine
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 23831, timeout: 300s
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 4055, timeout: 300s
+2026-02-04 03:21:52 INFO     [static_analyzer.graph:273] Clustered 618 nodes into 21 clusters using structural_class
+2026-02-04 03:21:52 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Monitoring & Telemetry
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 36663, timeout: 300s
+2026-02-04 03:21:52 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770171712.1878645}
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 7408, timeout: 300s
+2026-02-04 03:21:52 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Output & Workflow Orchestrator
+2026-02-04 03:21:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 23757, timeout: 300s
+2026-02-04 03:22:11 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:11 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2570, "output_tokens": 1267, "total_tokens": 3837}
+2026-02-04 03:22:11 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:11 INFO     [agents.agent:125] Using Vercel Extractor LLM with model: gpt-5-mini
+2026-02-04 03:22:15 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:15 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 10081, "output_tokens": 1512, "total_tokens": 11593}
+2026-02-04 03:22:15 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:17 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:17 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 7827, "output_tokens": 2051, "total_tokens": 9878}
+2026-02-04 03:22:18 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:18 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 11181, "output_tokens": 1834, "total_tokens": 13015}
+2026-02-04 03:22:18 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:26 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:26 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1825, "output_tokens": 1452, "total_tokens": 3277}
+2026-02-04 03:22:26 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:26 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:26 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1495, "output_tokens": 1075, "total_tokens": 2570}
+2026-02-04 03:22:26 INFO     [agents.validation:61] [Validation] All clusters are represented in the ClusterAnalysis
+2026-02-04 03:22:26 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:22:26 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 34499.45}
+2026-02-04 03:22:26 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171746.679064}
+2026-02-04 03:22:26 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Monitoring & Telemetry
+2026-02-04 03:22:26 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 4945, timeout: 300s
+2026-02-04 03:22:31 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:31 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1969, "output_tokens": 937, "total_tokens": 2906}
+2026-02-04 03:22:31 WARNING  [agents.validation:71] [Validation] Missing clusters: 12
+2026-02-04 03:22:31 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:22:31 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 39958, timeout: 300s
+2026-02-04 03:22:32 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:32 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 7869, "output_tokens": 992, "total_tokens": 8861}
+2026-02-04 03:22:32 INFO     [agents.agent:178] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:32 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:32 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 7798, "output_tokens": 2799, "total_tokens": 10597}
+2026-02-04 03:22:32 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:33 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:33 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1681, "output_tokens": 1064, "total_tokens": 2745}
+2026-02-04 03:22:33 WARNING  [agents.validation:71] [Validation] Missing clusters: 10
+2026-02-04 03:22:33 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:22:33 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 33567, timeout: 300s
+2026-02-04 03:22:44 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:44 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1575, "output_tokens": 1416, "total_tokens": 2991}
+2026-02-04 03:22:44 WARNING  [agents.validation:71] [Validation] Missing clusters: 8, 9
+2026-02-04 03:22:44 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:22:44 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 8317, timeout: 300s
+2026-02-04 03:22:52 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:52 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1189, "output_tokens": 1072, "total_tokens": 2261}
+2026-02-04 03:22:52 WARNING  [agents.validation:71] [Validation] Missing clusters: 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21
+2026-02-04 03:22:52 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:22:52 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 26173, timeout: 300s
+2026-02-04 03:22:56 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:56 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1719, "output_tokens": 1142, "total_tokens": 2861}
+2026-02-04 03:22:56 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:57 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:57 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 11815, "output_tokens": 2013, "total_tokens": 13828}
+2026-02-04 03:22:57 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:22:58 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:22:58 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 10565, "output_tokens": 1792, "total_tokens": 12357}
+2026-02-04 03:22:58 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:06 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:06 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 2940, "output_tokens": 1482, "total_tokens": 4422}
+2026-02-04 03:23:06 WARNING  [agents.validation:71] [Validation] Missing clusters: 11
+2026-02-04 03:23:06 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:23:06 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 28749, timeout: 300s
+2026-02-04 03:23:09 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:09 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2752, "output_tokens": 1876, "total_tokens": 4628}
+2026-02-04 03:23:09 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:17 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:17 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1991, "output_tokens": 1282, "total_tokens": 3273}
+2026-02-04 03:23:17 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 85836.0}
+2026-02-04 03:23:17 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171797.6786466}
+2026-02-04 03:23:17 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: AI Prompt & LLM Configuration
+2026-02-04 03:23:17 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 6637, timeout: 300s
+2026-02-04 03:23:18 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:18 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 2129, "output_tokens": 1376, "total_tokens": 3505}
+2026-02-04 03:23:18 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 86823.84}
+2026-02-04 03:23:18 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171798.9771466}
+2026-02-04 03:23:18 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Static Analysis Engine
+2026-02-04 03:23:18 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 5761, timeout: 300s
+2026-02-04 03:23:30 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:30 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 1918, "output_tokens": 2297, "total_tokens": 4215}
+2026-02-04 03:23:30 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:23:30 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:23:30 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:23:30 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 63427.57}
+2026-02-04 03:23:30 INFO     [agents.agent:458] [Agent] Found 2 unassigned files, using LLM classification
+2026-02-04 03:23:30 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 2963, timeout: 300s
+2026-02-04 03:23:31 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:31 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 8330, "output_tokens": 1973, "total_tokens": 10303}
+2026-02-04 03:23:31 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:32 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:32 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 1963, "output_tokens": 1596, "total_tokens": 3559}
+2026-02-04 03:23:32 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 100486.56}
+2026-02-04 03:23:32 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171812.6071577}
+2026-02-04 03:23:32 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Job & Repository Manager
+2026-02-04 03:23:32 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 6149, timeout: 300s
+2026-02-04 03:23:35 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:35 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1355, "output_tokens": 83, "total_tokens": 1438}
+2026-02-04 03:23:35 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:36 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:36 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 8758, "output_tokens": 2047, "total_tokens": 10805}
+2026-02-04 03:23:36 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:39 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:39 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2054, "output_tokens": 1340, "total_tokens": 3394}
+2026-02-04 03:23:39 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:41 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:41 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 224, "output_tokens": 328, "total_tokens": 552}
+2026-02-04 03:23:41 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:23:41 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:23:41 INFO     [agents.agent:482] [Agent] File classification complete: 2 files classified
+2026-02-04 03:23:41 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:23:41 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `Monitoring Integration API`
+   - *Description*: Public-facing interface and reusable mixin for other system components to enable monitoring. Provides configured monitoring callbacks and access to aggregated statistics without tight coupling.
+   - *Key Entities*: `QName:`monitoring.integration.MonitoringMixin` FileRef: `monitoring/integration.py``
+**Component:** `Monitoring Event Handler`
+   - *Description*: Primary event listener that intercepts operational events from LLM interactions and tool executions, extracts metrics (tokens, durations, errors), and forwards them for aggregation.
+   - *Key Entities*: `QName:`monitoring.callbacks.MonitoringCallback` FileRef: `monitoring/callbacks.py``
+**Component:** `Runtime Statistics Aggregator`
+   - *Description*: Manages in-memory aggregation of metrics for a single run (RunStats), accumulating token counts, tool call counts, latencies, and errors to produce a consolidated view of run performance.
+   - *Key Entities*: `QName:`monitoring.stats.RunStats` FileRef: `monitoring/stats.py``
+**Component:** `Monitoring Session Manager`
+   - *Description*: Orchestrates the lifecycle of monitoring sessions (MonitoringContext), including creation and management of RunStats instances, tracking start/end times, and ensuring unique identification for each run.
+   - *Key Entities*: `QName:`monitoring.context.MonitoringContext` FileRef: `monitoring/context.py``
+**Component:** `Monitoring Path & ID Resolver`
+   - *Description*: Utilities for generating unique run identifiers and resolving file paths for monitoring outputs, ensuring consistent and organized storage of telemetry data.
+   - *Key Entities*: `QName:`monitoring.paths` FileRef: `monitoring/paths.py``
+**Component:** `Streaming Data Persister`
+   - *Description*: Persists aggregated monitoring data to storage (StreamingStatsWriter) by retrieving finalized statistics and writing them to designated output locations for later analysis.
+   - *Key Entities*: `QName:`monitoring.writers.StreamingStatsWriter` FileRef: `monitoring/writers.py``(Monitoring Integration API, provides, Monitoring Event Handler)
+(Monitoring Integration API, exposes, Runtime Statistics Aggregator)
+(Monitoring Event Handler, updates, Runtime Statistics Aggregator)
+(Monitoring Event Handler, is configured by, Monitoring Integration API)
+(Runtime Statistics Aggregator, receives updates from, Monitoring Event Handler)
+(Runtime Statistics Aggregator, is managed by, Monitoring Session Manager)
+(Monitoring Session Manager, creates & manages, Runtime Statistics Aggregator)
+(Monitoring Session Manager, consults, Monitoring Path & ID Resolver)
+(Monitoring Path & ID Resolver, serves, Monitoring Session Manager)
+(Monitoring Path & ID Resolver, serves, Streaming Data Persister)
+(Streaming Data Persister, retrieves data from, Runtime Statistics Aggregator)
+(Streaming Data Persister, consults, Monitoring Path & ID Resolver)
+2026-02-04 03:23:41 WARNING  [static_analyzer.reference_resolve_mixin:68] [Reference Resolution] Exact match failed for monitoring.integration.MonitoringMixin in Python: Source code reference for 'monitoring.integration.MonitoringMixin' in language 'Python' not found in results.
+2026-02-04 03:23:41 INFO     [static_analyzer.reference_resolve_mixin:122] [Reference Resolution] Path matched for monitoring.integration.MonitoringMixin in Python at monitoring/__init__.py
+2026-02-04 03:23:41 INFO     [static_analyzer.reference_resolve_mixin:154] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Monitoring Integration API'
+2026-02-04 03:23:41 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:23:41 INFO     [agents.planner_agent:103] [Planner] 6/6 components eligible for expansion
+Level 1:  17%|█▋        | 1/6 [01:49<09:09, 109.95s/it]2026-02-04 03:23:44 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:44 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1876, "output_tokens": 1372, "total_tokens": 3248}
+2026-02-04 03:23:44 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:51 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:51 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1998, "output_tokens": 1036, "total_tokens": 3034}
+2026-02-04 03:23:51 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:23:54 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:54 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 2099, "output_tokens": 1361, "total_tokens": 3460}
+2026-02-04 03:23:54 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 121928.92}
+2026-02-04 03:23:54 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171834.1168604}
+2026-02-04 03:23:54 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Output & Workflow Orchestrator
+2026-02-04 03:23:54 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 5932, timeout: 300s
+2026-02-04 03:23:58 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:23:58 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gpt-5-mini usage={"input_tokens": 2224, "output_tokens": 1327, "total_tokens": 3551}
+2026-02-04 03:23:58 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 126842.76}
+2026-02-04 03:23:58 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1770171838.9626613}
+2026-02-04 03:23:58 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: AI Agent Core & Toolkit
+2026-02-04 03:23:58 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 7467, timeout: 300s
+2026-02-04 03:24:08 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:08 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 2066, "output_tokens": 1873, "total_tokens": 3939}
+2026-02-04 03:24:08 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:24:08 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:24:08 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:24:08 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 51182.65}
+2026-02-04 03:24:08 INFO     [agents.agent:455] [Agent] All files already assigned, skipping LLM classification
+2026-02-04 03:24:08 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `Prompt Factory Orchestrator`
+   - *Description*: Central orchestrator for prompt generation; queries LLM configuration, selects and instantiates the appropriate concrete prompt factory, and exposes a unified get_prompt interface.
+   - *Key Entities*: `QName:`agents.prompts.prompt_factory.PromptFactoryOrchestrator` FileRef: `agents/prompts/prompt_factory.py``
+**Component:** `LLM Configuration Manager`
+   - *Description*: Manages LLM settings (API keys, provider names, model ids, inference parameters), stores/retrieves configurations, and indicates the currently active LLM provider and model.
+   - *Key Entities*: `QName:`agents.llm_config.LLMConfigManager` FileRef: `agents/llm_config.py``
+**Component:** `Abstract Prompt Factory Interface`
+   - *Description*: Defines the abstract contract that all concrete prompt factories must implement, declaring methods for generating system prompts, CFG-related prompts, classification prompts, and validation messages.
+   - *Key Entities*: `QName:`agents.prompts.abstract_prompt_factory.AbstractPromptFactory` FileRef: `agents/prompts/abstract_prompt_factory.py``
+**Component:** `Concrete LLM Prompt Factories`
+   - *Description*: Collection of concrete implementations of the Abstract Prompt Factory Interface, each tailored for a specific LLM provider and prompting strategy (unidirectional/bidirectional).
+   - *Key Entities*: `QName:`agents.prompts.claude_prompts_bidirectional.ClaudeBidirectionalPromptFactory` FileRef: `agents/prompts/claude_prompts_bidirectional.py``, `QName:`agents.prompts.gemini_flash_prompts_bidirectional.GeminiFlashBidirectionalPromptFactory` FileRef: `agents/prompts/gemini_flash_prompts_bidirectional.py``, `QName:`agents.prompts.gpt_prompts_bidirectional.GPTBidirectionalPromptFactory` FileRef: `agents/prompts/gpt_prompts_bidirectional.py``, `QName:`agents.prompts.claude_prompts_unidirectional.ClaudeUnidirectionalPromptFactory` FileRef: `agents/prompts/claude_prompts_unidirectional.py``, `QName:`agents.prompts.gemini_flash_prompts_unidirectional.GeminiFlashUnidirectionalPromptFactory` FileRef: `agents/prompts/gemini_flash_prompts_unidirectional.py``, `QName:`agents.prompts.gpt_prompts_unidirectional.GPTUnidirectionalPromptFactory` FileRef: `agents/prompts/gpt_prompts_unidirectional.py``
+**Component:** `Prompt Package API`
+   - *Description*: Public-facing entry point and facade for the agents.prompts package; exposes the Prompt Factory Orchestrator and interfaces to external modules.
+   - *Key Entities*: `QName:`agents.prompts.__init__.__init__` FileRef: `agents/prompts/__init__.py``(Prompt Factory Orchestrator, uses, LLM Configuration Manager)
+(Prompt Factory Orchestrator, instantiates, Concrete LLM Prompt Factories)
+(Concrete LLM Prompt Factories, implements, Abstract Prompt Factory Interface)
+(Prompt Package API, exposes, Prompt Factory Orchestrator)
+(Prompt Package API, exposes, Abstract Prompt Factory Interface)
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.claude_prompts_bidirectional.ClaudeBidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/claude_prompts_bidirectional.py
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.gemini_flash_prompts_bidirectional.GeminiFlashBidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/gemini_flash_prompts_bidirectional.py
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.gpt_prompts_bidirectional.GPTBidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/gpt_prompts_bidirectional.py
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.claude_prompts_unidirectional.ClaudeUnidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/claude_prompts_unidirectional.py
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.gemini_flash_prompts_unidirectional.GeminiFlashUnidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/gemini_flash_prompts_unidirectional.py
+2026-02-04 03:24:08 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.prompts.gpt_prompts_unidirectional.GPTUnidirectionalPromptFactory in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/prompts/gpt_prompts_unidirectional.py
+2026-02-04 03:24:08 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:24:08 INFO     [agents.planner_agent:103] [Planner] 5/5 components eligible for expansion
+Level 1:  33%|███▎      | 2/6 [02:16<04:04, 61.18s/it] 2026-02-04 03:24:12 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:12 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2020, "output_tokens": 943, "total_tokens": 2963}
+2026-02-04 03:24:12 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:24:19 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:19 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 2111, "output_tokens": 2194, "total_tokens": 4305}
+2026-02-04 03:24:19 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:24:19 WARNING  [agents.validation:160] [Validation] Components without key entities: Static Analysis Orchestrator, Code Reference Resolver
+2026-02-04 03:24:19 INFO     [agents.agent:315] [Validation] Retry 1/1 with 1 feedback items
+2026-02-04 03:24:19 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 9976, timeout: 300s
+2026-02-04 03:24:26 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:26 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2197, "output_tokens": 1399, "total_tokens": 3596}
+2026-02-04 03:24:26 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:24:30 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:30 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 1801, "output_tokens": 2535, "total_tokens": 4336}
+2026-02-04 03:24:30 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:24:30 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:24:30 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:24:30 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 57702.6}
+2026-02-04 03:24:30 INFO     [agents.agent:458] [Agent] Found 3 unassigned files, using LLM classification
+2026-02-04 03:24:30 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 2976, timeout: 300s
+2026-02-04 03:24:31 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:31 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 2744, "output_tokens": 1248, "total_tokens": 3992}
+2026-02-04 03:24:31 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:24:33 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:33 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 1690, "output_tokens": 1392, "total_tokens": 3082}
+2026-02-04 03:24:33 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:24:33 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:24:33 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:24:33 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 39822.11}
+2026-02-04 03:24:33 INFO     [agents.agent:458] [Agent] Found 18 unassigned files, using LLM classification
+2026-02-04 03:24:33 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 2627, timeout: 300s
+2026-02-04 03:24:34 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:34 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1462, "output_tokens": 120, "total_tokens": 1582}
+2026-02-04 03:24:34 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:24:40 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:40 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 247, "output_tokens": 367, "total_tokens": 614}
+2026-02-04 03:24:40 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:24:40 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:24:40 INFO     [agents.agent:482] [Agent] File classification complete: 3 files classified
+2026-02-04 03:24:40 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:24:40 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `Job Orchestrator`
+   - *Description*: Central coordinator for the job lifecycle: receives requests, validates, creates job records, schedules sub-tasks (repository preparation, analysis, documentation generation), monitors progress, updates status, and returns results.
+   - *Key Entities*: `QName:`local_app.run_local_app_job` FileRef: `local_app.py``, `QName:`local_app` FileRef: `local_app.py``
+**Component:** `Job Database Manager`
+   - *Description*: Handles persistent storage for job metadata and results: initializes DuckDB schema, inserts and updates job records, fetches job details, and lists jobs.
+   - *Key Entities*: `QName:`duckdb_crud.DuckDBCrud` FileRef: `duckdb_crud.py``, `QName:`duckdb_crud` FileRef: `duckdb_crud.py``
+**Component:** `Repository Access Layer`
+   - *Description*: Manages interactions with Git repositories: validates remotes, clones repositories into workspaces, checks out commits/branches, and extracts repository metadata (name, commit hash, branch, sanitized URLs).
+   - *Key Entities*: `QName:`repo_utils.clone_repository` FileRef: `repo_utils/__init__.py``, `QName:`repo_utils` FileRef: `repo_utils/__init__.py``
+**Component:** `Git Diff Calculator`
+   - *Description*: Computes and structures Git diffs between commits/branches: identifies changed files and hunks, builds file-level change objects with line-level modifications, and exposes structured diff data for analysis or summarization.
+   - *Key Entities*: `QName:`repo_utils.git_diff.get_git_diff` FileRef: `repo_utils/git_diff.py``, `QName:`repo_utils.git_diff` FileRef: `repo_utils/git_diff.py``
+**Component:** `Workspace Manager`
+   - *Description*: Creates, provisions, and cleans up isolated temporary directories used during job stages (cloning, staging analysis artifacts, storing outputs), ensuring each job runs in a separate environment and resources are released after completion.
+   - *Key Entities*: `QName:`local_app.workspace_manager` FileRef: `local_app.py``, `QName:`repo_utils.workspace_helpers` FileRef: `repo_utils/__init__.py``(Job Orchestrator, persists to, Job Database Manager)
+(Job Orchestrator, requests code retrieval from, Repository Access Layer)
+(Job Orchestrator, requests workspace from, Workspace Manager)
+(Repository Access Layer, uses workspace provided by, Workspace Manager)
+(Job Orchestrator, requests diffs from, Git Diff Calculator)
+(Git Diff Calculator, operates on repository managed by, Repository Access Layer)
+2026-02-04 03:24:40 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:24:40 INFO     [agents.planner_agent:103] [Planner] 5/5 components eligible for expansion
+Level 1:  50%|█████     | 3/6 [02:48<02:23, 47.77s/it]2026-02-04 03:24:47 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:47 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1356, "output_tokens": 664, "total_tokens": 2020}
+2026-02-04 03:24:47 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:24:56 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:24:56 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 676, "output_tokens": 645, "total_tokens": 1321}
+2026-02-04 03:24:56 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:24:56 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:24:56 INFO     [agents.agent:482] [Agent] File classification complete: 18 files classified
+2026-02-04 03:24:56 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:24:56 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `CLI & Workflow Orchestrator`
+   - *Description*: Serves as the application's main entry point; parses CLI args, initializes context, and orchestrates the high-level workflow by invoking analysis and output generation processes.
+   - *Key Entities*: `QName:`main.main` FileRef: `main.py``
+**Component:** `Diagram Generation Manager`
+   - *Description*: Manages generation of architectural diagrams from structured code analysis results, retrieving insights from the analysis layer and rendering visual representations.
+   - *Key Entities*: `QName:`diagram_analysis.diagram_generator.DiagramGenerator` FileRef: `diagram_analysis/diagram_generator.py``
+**Component:** `Documentation Output Renderer`
+   - *Description*: Transforms structured analysis data into human-readable documentation formats (e.g., Markdown, HTML) using templates and formatting rules.
+   - *Key Entities*: `QName:`output_generators.markdown.generate_markdown_output` FileRef: `output_generators/markdown.py``
+**Component:** `Analysis Data Serializer`
+   - *Description*: Serializes and deserializes structured analysis results into a standardized format (e.g., JSON) so diagram and documentation generators can consume consistent input.
+   - *Key Entities*: `QName:`diagram_analysis.analysis_json.from_analysis_to_json` FileRef: `diagram_analysis/analysis_json.py``(CLI & Workflow Orchestrator, initiates, Diagram Generation Manager)
+(CLI & Workflow Orchestrator, initiates, Documentation Output Renderer)
+(Diagram Generation Manager, utilizes, Analysis Data Serializer)
+(Documentation Output Renderer, utilizes, Analysis Data Serializer)
+2026-02-04 03:24:56 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:24:56 INFO     [agents.planner_agent:103] [Planner] 4/4 components eligible for expansion
+Level 1:  67%|██████▋   | 4/6 [03:04<01:10, 35.22s/it]2026-02-04 03:25:01 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:01 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 1982, "output_tokens": 2021, "total_tokens": 4003}
+2026-02-04 03:25:01 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 102775.1}
+2026-02-04 03:25:01 INFO     [agents.agent:458] [Agent] Found 8 unassigned files, using LLM classification
+2026-02-04 03:25:01 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 3847, timeout: 300s
+2026-02-04 03:25:10 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:10 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1593, "output_tokens": 324, "total_tokens": 1917}
+2026-02-04 03:25:10 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:25:15 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:15 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gpt-5-mini usage={"input_tokens": 2169, "output_tokens": 3388, "total_tokens": 5557}
+2026-02-04 03:25:15 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
+2026-02-04 03:25:15 INFO     [agents.validation:148] [Validation] All components have key entities assigned
+2026-02-04 03:25:15 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:25:15 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 76889.7}
+2026-02-04 03:25:15 INFO     [agents.agent:458] [Agent] Found 14 unassigned files, using LLM classification
+2026-02-04 03:25:15 INFO     [agents.agent:170] Starting agent.invoke() [attempt 1/5] with prompt length: 3941, timeout: 300s
+2026-02-04 03:25:19 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:19 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 410, "output_tokens": 586, "total_tokens": 996}
+2026-02-04 03:25:19 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:25:19 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:25:19 INFO     [agents.agent:482] [Agent] File classification complete: 8 files classified
+2026-02-04 03:25:19 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:25:19 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `Static Analysis Orchestrator`
+   - *Description*: Orchestrates the end-to-end static analysis workflow, coordinating scanning, LSP extraction, graph analysis, reference resolution, and aggregation of final artifacts into the results store.
+   - *Key Entities*: `QName:`static_analyzer.orchestrator.StaticAnalysisOrchestrator` FileRef: `static_analyzer/orchestrator.py``
+**Component:** `Project Scanner`
+   - *Description*: Scans repositories to detect languages, file suffixes, basic statistics, and parses build/configuration files to produce module structure and dependency information for subsequent analysis.
+   - *Key Entities*: `QName:`static_analyzer.scanner.ProjectScanner` FileRef: `static_analyzer/scanner.py``
+**Component:** `Language Configuration Manager`
+   - *Description*: Manages language-specific configurations and capabilities (LSP server commands, supported file extensions, timeouts), acting as a registry consulted by the orchestrator, scanner, and LSP clients.
+   - *Key Entities*: `QName:`static_analyzer.programming_language.ProgrammingLanguageBuilder` FileRef: `static_analyzer/programming_language.py``
+**Component:** `LSP Client Manager`
+   - *Description*: Provides a unified interface for interacting with various LSP servers, handling server lifecycle and extracting document symbols, definitions, references, call graphs, and class hierarchy data.
+   - *Key Entities*: `QName:`static_analyzer.lsp_client.client.LSPClient` FileRef: `static_analyzer/lsp_client/client.py``
+**Component:** `Code Graph Analyzer`
+   - *Description*: Builds and analyzes code graphs such as call graphs and class hierarchies from raw LSP data, applies clustering to identify logical components, and transforms symbol/relation data into structured graph representations.
+   - *Key Entities*: `QName:`static_analyzer.graph.CallGraph` FileRef: `static_analyzer/graph.py``
+**Component:** `Code Reference Resolver`
+   - *Description*: Resolves ambiguous or incomplete code references by leveraging static context, cached symbols, and heuristic or LLM-assisted strategies to map references to definitive source locations and accurate line numbers.
+   - *Key Entities*: `QName:`static_analyzer.resolver.CodeReferenceResolver` FileRef: `static_analyzer/resolver.py``
+**Component:** `Static Analysis Results Store`
+   - *Description*: Aggregates, persists, and provides query access to all static analysis outputs including CFGs, class hierarchies, package dependencies, raw LSP artifacts, resolved references, and clustered graphs.
+   - *Key Entities*: `QName:`static_analyzer.analysis_result.StaticAnalysisResults` FileRef: `static_analyzer/analysis_result.py``(Static Analysis Orchestrator, initiates repository scanning, Project Scanner)
+(Static Analysis Orchestrator, queries for language-specific configurations, Language Configuration Manager)
+(Static Analysis Orchestrator, directs LSP-based data extraction, LSP Client Manager)
+(Static Analysis Orchestrator, triggers graph construction and analysis, Code Graph Analyzer)
+(Static Analysis Orchestrator, requests disambiguation of code references, Code Reference Resolver)
+(Static Analysis Orchestrator, stores and retrieves final analysis artifacts, Static Analysis Results Store)
+(Project Scanner, provides detected languages and consults scanning rules, Language Configuration Manager)
+(Project Scanner, persists project metadata, Static Analysis Results Store)
+(Language Configuration Manager, provides LSP server configurations and adapts LSP behavior, LSP Client Manager)
+(LSP Client Manager, supplies raw symbol and relation data, Code Graph Analyzer)
+(Code Graph Analyzer, provides graph context for reference resolution, Code Reference Resolver)
+(Code Graph Analyzer, persists generated graphs, Static Analysis Results Store)
+(Code Reference Resolver, stores resolved mappings, Static Analysis Results Store)
+2026-02-04 03:25:19 WARNING  [static_analyzer.reference_resolve_mixin:68] [Reference Resolution] Exact match failed for static_analyzer.orchestrator.StaticAnalysisOrchestrator in Python: Source code reference for 'static_analyzer.orchestrator.StaticAnalysisOrchestrator' in language 'Python' not found in results.
+2026-02-04 03:25:19 INFO     [static_analyzer.reference_resolve_mixin:122] [Reference Resolution] Path matched for static_analyzer.orchestrator.StaticAnalysisOrchestrator in Python at static_analyzer/__init__.py
+2026-02-04 03:25:19 WARNING  [static_analyzer.reference_resolve_mixin:68] [Reference Resolution] Exact match failed for static_analyzer.resolver.CodeReferenceResolver in Python: Source code reference for 'static_analyzer.resolver.CodeReferenceResolver' in language 'Python' not found in results.
+2026-02-04 03:25:19 INFO     [static_analyzer.reference_resolve_mixin:122] [Reference Resolution] Path matched for static_analyzer.resolver.CodeReferenceResolver in Python at static_analyzer/reference_resolve_mixin.py
+2026-02-04 03:25:19 INFO     [static_analyzer.reference_resolve_mixin:154] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Static Analysis Orchestrator'
+2026-02-04 03:25:19 INFO     [static_analyzer.reference_resolve_mixin:154] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Code Reference Resolver'
+2026-02-04 03:25:19 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:25:19 INFO     [agents.planner_agent:103] [Planner] 7/7 components eligible for expansion
+Level 1:  83%|████████▎ | 5/6 [03:27<00:30, 30.64s/it]2026-02-04 03:25:24 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:24 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 1665, "output_tokens": 629, "total_tokens": 2294}
+2026-02-04 03:25:24 INFO     [agents.agent:178] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
+2026-02-04 03:25:35 INFO     [httpx:1025] HTTP Request: POST https://ai-gateway.vercel.sh/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-04 03:25:35 INFO     [monitoring:62] Token Usage: step=startup model=gpt-5-mini usage={"input_tokens": 649, "output_tokens": 653, "total_tokens": 1302}
+2026-02-04 03:25:35 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
+2026-02-04 03:25:35 INFO     [agents.agent:304] [Validation] All validations passed on attempt 1
+2026-02-04 03:25:35 INFO     [agents.agent:482] [Agent] File classification complete: 14 files classified
+2026-02-04 03:25:35 INFO     [agents.agent:547] [Agent] All files have been classified successfully
+2026-02-04 03:25:35 INFO     [static_analyzer.reference_resolve_mixin:21] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
+**Component:** `CodeBoardingAgent (Orchestration Engine)`
+   - *Description*: The central orchestration layer managing LLM interactions, retries, tool integration, and agent lifecycle. Delegates tasks to specialized agents and coordinates toolkit usage.
+   - *Key Entities*: `QName:`agents.agent.CodeBoardingAgent` FileRef: `agents/agent.py``
+**Component:** `CodeBoardingToolkit (Repository Manager & Tooling Interface)`
+   - *Description*: A unified API surface that aggregates static analysis tools and repository operations; dispatches tool requests and normalizes results for agents.
+   - *Key Entities*: `QName:`agents.tools.toolkit.CodeBoardingToolkit` FileRef: `agents/tools/toolkit.py``
+**Component:** `Agent Response Models (Data Models)`
+   - *Description*: Standardized data models (e.g., AnalysisInsights, Component, Relation, ValidationInsights) that define schemas for inter-agent communication and structured outputs.
+   - *Key Entities*: `QName:`agents.agent_responses.AnalysisInsights` FileRef: `agents/agent_responses.py``, `QName:`agents.agent_responses.Component` FileRef: `agents/agent_responses.py``
+**Component:** `PlannerAgent (Task Planning)`
+   - *Description*: Responsible for strategic planning, prioritizing components for analysis, generating actionable plans, and sequencing agent tasks based on project metadata.
+   - *Key Entities*: `QName:`agents.planner.PlannerAgent` FileRef: `agents/planner_agent.py``
+**Component:** `MetaAgent (Project Metadata Analysis)`
+   - *Description*: Performs initial high-level project scanning to identify project type, tech stack, and architectural indicators, providing context for planning.
+   - *Key Entities*: `QName:`agents.meta.MetaAgent` FileRef: `agents/meta_agent.py``
+**Component:** `AbstractionAgent (High-Level Architectural Abstraction)`
+   - *Description*: Synthesizes conceptual models and component relationships from file structures and CFG data, producing high-level architectural insights.
+   - *Key Entities*: `QName:`agents.abstraction.AbstractionAgent` FileRef: `agents/abstraction_agent.py``
+**Component:** `DetailsAgent (Detailed Component Analysis)`
+   - *Description*: Conducts deep component-level inspection to enrich abstractions with internal structure, code references, and granular behaviors.
+   - *Key Entities*: `QName:`agents.details.DetailsAgent` FileRef: `agents/details_agent.py``
+**Component:** `DiffAnalyzingAgent (Change Analysis)`
+   - *Description*: Specializes in analyzing code diffs to map changes to architectural artifacts, determine impacted components, and propose updates.
+   - *Key Entities*: `QName:`agents.diff_analyzer.DiffAnalyzingAgent` FileRef: `agents/diff_analyzer.py``(CodeBoardingAgent (Orchestration Engine), delegates tasks to, PlannerAgent (Task Planning))
+(CodeBoardingAgent (Orchestration Engine), delegates tasks to, MetaAgent (Project Metadata Analysis))
+(CodeBoardingAgent (Orchestration Engine), delegates tasks to, AbstractionAgent (High-Level Architectural Abstraction))
+(CodeBoardingAgent (Orchestration Engine), delegates tasks to, DetailsAgent (Detailed Component Analysis))
+(CodeBoardingAgent (Orchestration Engine), delegates tasks to, DiffAnalyzingAgent (Change Analysis))
+(CodeBoardingAgent (Orchestration Engine), utilizes, CodeBoardingToolkit (Repository Manager & Tooling Interface))
+(CodeBoardingAgent (Orchestration Engine), structures communication with, Agent Response Models (Data Models))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, CodeBoardingAgent (Orchestration Engine))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, PlannerAgent (Task Planning))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, MetaAgent (Project Metadata Analysis))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, AbstractionAgent (High-Level Architectural Abstraction))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, DetailsAgent (Detailed Component Analysis))
+(CodeBoardingToolkit (Repository Manager & Tooling Interface), provides analysis capabilities to, DiffAnalyzingAgent (Change Analysis))
+(Agent Response Models (Data Models), defines data structures for, CodeBoardingAgent (Orchestration Engine))
+(Agent Response Models (Data Models), defines data structures for, PlannerAgent (Task Planning))
+(Agent Response Models (Data Models), defines data structures for, MetaAgent (Project Metadata Analysis))
+(Agent Response Models (Data Models), defines data structures for, AbstractionAgent (High-Level Architectural Abstraction))
+(Agent Response Models (Data Models), defines data structures for, DetailsAgent (Detailed Component Analysis))
+(Agent Response Models (Data Models), defines data structures for, DiffAnalyzingAgent (Change Analysis))
+(PlannerAgent (Task Planning), receives project context from, MetaAgent (Project Metadata Analysis))
+(PlannerAgent (Task Planning), directs analysis flow to, AbstractionAgent (High-Level Architectural Abstraction))
+(PlannerAgent (Task Planning), directs analysis flow to, DetailsAgent (Detailed Component Analysis))
+(MetaAgent (Project Metadata Analysis), gathers project information via, CodeBoardingToolkit (Repository Manager & Tooling Interface))
+(AbstractionAgent (High-Level Architectural Abstraction), queries code context via, CodeBoardingToolkit (Repository Manager & Tooling Interface))
+(AbstractionAgent (High-Level Architectural Abstraction), generates high-level insights using, Agent Response Models (Data Models))
+(AbstractionAgent (High-Level Architectural Abstraction), prepares input for, DetailsAgent (Detailed Component Analysis))
+(DetailsAgent (Detailed Component Analysis), retrieves specific code details via, CodeBoardingToolkit (Repository Manager & Tooling Interface))
+(DetailsAgent (Detailed Component Analysis), enriches insights using, Agent Response Models (Data Models))
+(DiffAnalyzingAgent (Change Analysis), reads code changes via, CodeBoardingToolkit (Repository Manager & Tooling Interface))
+(DiffAnalyzingAgent (Change Analysis), proposes architectural updates using, Agent Response Models (Data Models))
+(DiffAnalyzingAgent (Change Analysis), informs, PlannerAgent (Task Planning))
+2026-02-04 03:25:35 INFO     [static_analyzer.reference_resolve_mixin:63] [Reference Resolution] Matched agents.diff_analyzer.DiffAnalyzingAgent in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py
+2026-02-04 03:25:35 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
+2026-02-04 03:25:35 INFO     [agents.planner_agent:103] [Planner] 8/8 components eligible for expansion
+Level 1: 100%|██████████| 6/6 [03:43<00:00, 25.78s/it]Level 1: 100%|██████████| 6/6 [03:43<00:00, 37.28s/it]
+2026-02-04 03:25:35 INFO     [diagram_analysis.diagram_generator:261] Completed level 1. Found 35 components for next level
+2026-02-04 03:25:35 INFO     [diagram_analysis.diagram_generator:264] Analysis complete. Generated 7 analysis files
+Generated analysis files: %s ['/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/analysis.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/Monitoring_Telemetry.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/AI_Prompt_LLM_Configuration.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/Job_Repository_Manager.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/Output_Workflow_Orchestrator.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/Static_Analysis_Engine.json', '/home/ivan/StartUp/CodeBoarding/0039f931_026bf6b9/init_resources/AI_Agent_Core_Toolkit.json']
+2026-02-04 03:25:35 INFO     [diagram_analysis.manifest:116] Saved analysis manifest to 0039f931_026bf6b9/init_resources/analysis_manifest.json
+2026-02-04 03:25:35 INFO     [diagram_analysis.diagram_generator:288] Saved manifest with 82 file mappings
+2026-02-04 03:25:35 INFO     [__main__:460] Documentation generated successfully in 0039f931_026bf6b9/init_resources

@@ -1,0 +1,229 @@
+{
+  "description": "The selection of these eight components is based on their fundamental importance to the \"AI Interpretation Layer\" within a \"Code analysis and documentation generation tool with IDE and CI/CD integrations\" project. Each component represents a distinct and critical responsibility, aligning with a modular and AI-driven architectural pattern.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent (Orchestrator)",
+      "description": "Manages the overall analysis workflow within the AI Interpretation Layer, invoking specialized agents, interacting with LLMs, and utilizing various code analysis tools. It acts as the central control unit for the subsystem, coordinating the interpretation process.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory (Prompt Management)",
+      "description": "Generates and manages LLM prompts, adapting them for different LLM providers and specific analysis tasks (e.g., classification, validation, expansion). It delegates to LLM-specific prompt implementations to ensure appropriate prompt construction.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisInsights (Data Model)",
+      "description": "Defines the standardized data structures for representing all analysis insights, identified components, relationships, and validation feedback. This ensures consistent communication between agents and structured output for documentation.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent (High-Level Analysis)",
+      "description": "Performs initial, high-level code analysis to identify potential architectural components and classify files based on their roles within the project, laying the groundwork for more detailed interpretation.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/abstraction_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidatorAgent (Validation)",
+      "description": "Conducts in-depth verification of the accuracy, consistency, and completeness of the generated analysis, including component definitions, inter-component relationships, and references to source code.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 20,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Detailed Analysis Agent",
+      "description": "Conducts in-depth analysis of specific components or code sections, generating detailed structural and Control Flow Graph (CFG) information to enrich the architectural understanding provided by the AI.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/details_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Configuration Manager",
+      "description": "Manages the configuration details (e.g., API keys, model names, temperature settings) for various Large Language Model providers used by the agents within the AI Interpretation Layer.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diff Analyzer",
+      "description": "Detects and analyzes changes between different versions of the codebase, enabling incremental analysis and updates to the architectural documentation, which is critical for CI/CD integration.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzer",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "AbstractionAgent (High-Level Analysis)"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "Detailed Analysis Agent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "ValidatorAgent (Validation)"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "PromptFactory (Prompt Management)"
+    },
+    {
+      "relation": "processes",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "AnalysisInsights (Data Model)"
+    },
+    {
+      "relation": "configures prompts based on settings from",
+      "src_name": "PromptFactory (Prompt Management)",
+      "dst_name": "LLM Configuration Manager"
+    },
+    {
+      "relation": "generates initial",
+      "src_name": "AbstractionAgent (High-Level Analysis)",
+      "dst_name": "AnalysisInsights (Data Model)"
+    },
+    {
+      "relation": "requests prompts from",
+      "src_name": "AbstractionAgent (High-Level Analysis)",
+      "dst_name": "PromptFactory (Prompt Management)"
+    },
+    {
+      "relation": "enriches",
+      "src_name": "Detailed Analysis Agent",
+      "dst_name": "AnalysisInsights (Data Model)"
+    },
+    {
+      "relation": "requests prompts from",
+      "src_name": "Detailed Analysis Agent",
+      "dst_name": "PromptFactory (Prompt Management)"
+    },
+    {
+      "relation": "validates",
+      "src_name": "ValidatorAgent (Validation)",
+      "dst_name": "AnalysisInsights (Data Model)"
+    },
+    {
+      "relation": "requests prompts from",
+      "src_name": "ValidatorAgent (Validation)",
+      "dst_name": "PromptFactory (Prompt Management)"
+    },
+    {
+      "relation": "provides LLM settings to",
+      "src_name": "LLM Configuration Manager",
+      "dst_name": "PromptFactory (Prompt Management)"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent (Orchestrator)",
+      "dst_name": "Diff Analyzer"
+    },
+    {
+      "relation": "provides change data to",
+      "src_name": "Diff Analyzer",
+      "dst_name": "CodeBoardingAgent (Orchestrator)"
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "description": "This component is responsible for observing and recording system execution, particularly LLM and tool usage, to provide insights into resource consumption and performance. It also provides a framework for evaluating the quality and effectiveness of the analysis pipeline.",
+  "components": [
+    {
+      "name": "Evaluation Orchestrator",
+      "description": "This component is responsible for initiating evaluation runs, parsing user arguments, loading project-specific configurations, and orchestrating the execution of different evaluation types. It leverages a foundational evaluation framework to manage the overall lifecycle of an evaluation, including report generation and result persistence.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.base.BaseEval",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Specialized Evaluation Engines",
+      "description": "Implements the core logic for specialized evaluation methodologies, such as end-to-end testing of LLM usage and tool interactions, static analysis for code quality, and scalability assessments for performance. Each engine is responsible for executing its specific analysis, extracting relevant metrics, and contributing to the overall evaluation report.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Collector",
+      "description": "Manages the real-time collection and aggregation of operational data during evaluation runs. This includes capturing events through a callback system and managing the context of data collection.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py",
+        "monitoring/__init__.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/paths.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Writer",
+      "description": "Handles the persistence of collected monitoring data to various output formats. It is responsible for writing accumulated runtime statistics and event logs.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation Data Models",
+      "description": "Defines the standardized data structures and schemas used throughout the `Monitoring & Evaluation` subsystem. This ensures consistency for all evaluation inputs, outputs, metrics (e.g., end-to-end, monitoring, scalability, static analysis), and token usage breakdowns, facilitating data interoperability and clear reporting.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/schemas.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation Utilities",
+      "description": "Provides a collection of general-purpose helper functions that support various aspects of the evaluation process. This includes generating system specifications, creating formatted headers for reports, and handling timestamp generation, offering common functionalities to other components.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.utils.SystemSpecGenerator",
+          "reference_file": "evals/utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.utils.ReportHeaderFormatter",
+          "reference_file": "evals/utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "evals.utils.TimestampGenerator",
+          "reference_file": "evals/utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "triggers execution of",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Specialized Evaluation Engines"
+    },
+    {
+      "relation": "configures and initializes",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Monitoring Data Collector"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Evaluation Data Models"
+    },
+    {
+      "relation": "leverages",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Evaluation Utilities"
+    },
+    {
+      "relation": "emits events and metrics to",
+      "src_name": "Specialized Evaluation Engines",
+      "dst_name": "Monitoring Data Collector"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Specialized Evaluation Engines",
+      "dst_name": "Evaluation Data Models"
+    },
+    {
+      "relation": "leverages",
+      "src_name": "Specialized Evaluation Engines",
+      "dst_name": "Evaluation Utilities"
+    },
+    {
+      "relation": "passes aggregated data to",
+      "src_name": "Monitoring Data Collector",
+      "dst_name": "Monitoring Data Writer"
+    },
+    {
+      "relation": "stores collected data using",
+      "src_name": "Monitoring Data Collector",
+      "dst_name": "Evaluation Data Models"
+    },
+    {
+      "relation": "writes data conforming to",
+      "src_name": "Monitoring Data Writer",
+      "dst_name": "Evaluation Data Models"
+    },
+    {
+      "relation": "provides schemas to",
+      "src_name": "Evaluation Data Models",
+      "dst_name": "Evaluation Orchestrator"
+    },
+    {
+      "relation": "provides data structures to",
+      "src_name": "Evaluation Data Models",
+      "dst_name": "Specialized Evaluation Engines"
+    },
+    {
+      "relation": "provides schemas to",
+      "src_name": "Evaluation Data Models",
+      "dst_name": "Monitoring Data Collector"
+    },
+    {
+      "relation": "provides schemas to",
+      "src_name": "Evaluation Data Models",
+      "dst_name": "Monitoring Data Writer"
+    },
+    {
+      "relation": "provides common functions to",
+      "src_name": "Evaluation Utilities",
+      "dst_name": "Evaluation Orchestrator"
+    },
+    {
+      "relation": "provides common functions to",
+      "src_name": "Evaluation Utilities",
+      "dst_name": "Specialized Evaluation Engines"
+    }
+  ]
+}

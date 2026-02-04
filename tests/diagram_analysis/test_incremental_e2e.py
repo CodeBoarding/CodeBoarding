@@ -60,7 +60,7 @@ COMMIT_FULL_REANALYSIS_END = "026bf6b9ec4f501ddfeed4505e4b83e523dc1156"
 
 
 # Cache directory for pre-generated test fixtures
-CACHE_ROOT = REPO_ROOT / "incremental_caches"
+CACHE_ROOT = Path(__file__).parent / "incremental_caches"
 
 
 def _get_cached_dirs(start_commit: str, end_commit: str) -> tuple[Path, Path]:

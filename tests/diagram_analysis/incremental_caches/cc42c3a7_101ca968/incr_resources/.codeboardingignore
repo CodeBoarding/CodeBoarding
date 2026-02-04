@@ -1,0 +1,12 @@
+# CodeBoarding Ignore File
+# Add patterns here for files and directories that should be excluded from CodeBoarding analysis.
+# Use the same format as .gitignore (gitignore syntax / gitwildmatch patterns).
+#
+# Examples:
+# - Ignore a specific directory: my_generated_files/
+# - Ignore a file pattern: *.temp
+# - Ignore nested patterns: **/cache/
+# - Negate a pattern (stop ignoring): !important_file.txt
+#
+# This file is automatically loaded by CodeBoarding analysis tools to exclude
+# specified paths from code analysis, architecture generation, and other processing.

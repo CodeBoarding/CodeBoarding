@@ -1,0 +1,160 @@
+{
+  "description": "This graph represents a job-driven documentation generation and code analysis pipeline. The main flow begins when the Job Orchestrator receives a documentation-generation request, validates it, creates a job record, provisions an isolated workspace, and requests source retrieval from remote Git repositories. The repository is cloned and prepared by the Repository Access Layer; diffs and file-level changes are computed by the Git Diff Calculator as needed. Throughout execution, the Job Database Manager persists job metadata, status updates, and results. The Workspace Manager ensures isolated temporary environments for each job and cleans up resources after completion. The orchestrator coordinates these components, monitors sub-tasks, aggregates results, and returns the final job output.",
+  "components": [
+    {
+      "name": "Job Orchestrator",
+      "description": "Central coordinator for the job lifecycle: receives requests, validates, creates job records, schedules sub-tasks (repository preparation, analysis, documentation generation), monitors progress, updates status, and returns results.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app.run_local_app_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "github_action.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Database Manager",
+      "description": "Handles persistent storage for job metadata and results: initializes DuckDB schema, inserts and updates job records, fetches job details, and lists jobs.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud.DuckDBCrud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Access Layer",
+      "description": "Manages interactions with Git repositories: validates remotes, clones repositories into workspaces, checks out commits/branches, and extracts repository metadata (name, commit hash, branch, sanitized URLs).",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/errors.py",
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Git Diff Calculator",
+      "description": "Computes and structures Git diffs between commits/branches: identifies changed files and hunks, builds file-level change objects with line-level modifications, and exposes structured diff data for analysis or summarization.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.git_diff.get_git_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Workspace Manager",
+      "description": "Creates, provisions, and cleans up isolated temporary directories used during job stages (cloning, staging analysis artifacts, storing outputs), ensuring each job runs in a separate environment and resources are released after completion.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app.workspace_manager",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.workspace_helpers",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "local_app.py",
+        "duckdb_crud.py",
+        "utils.py"
+      ],
+      "source_cluster_ids": [
+        1
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "persists to",
+      "src_name": "Job Orchestrator",
+      "dst_name": "Job Database Manager"
+    },
+    {
+      "relation": "requests code retrieval from",
+      "src_name": "Job Orchestrator",
+      "dst_name": "Repository Access Layer"
+    },
+    {
+      "relation": "requests workspace from",
+      "src_name": "Job Orchestrator",
+      "dst_name": "Workspace Manager"
+    },
+    {
+      "relation": "uses workspace provided by",
+      "src_name": "Repository Access Layer",
+      "dst_name": "Workspace Manager"
+    },
+    {
+      "relation": "requests diffs from",
+      "src_name": "Job Orchestrator",
+      "dst_name": "Git Diff Calculator"
+    },
+    {
+      "relation": "operates on repository managed by",
+      "src_name": "Git Diff Calculator",
+      "dst_name": "Repository Access Layer"
+    }
+  ]
+}

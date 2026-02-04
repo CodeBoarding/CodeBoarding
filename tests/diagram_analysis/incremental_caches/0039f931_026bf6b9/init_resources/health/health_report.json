@@ -1,0 +1,241 @@
+{
+  "repository_name": "CodeBoarding",
+  "timestamp": "2026-02-04T02:16:22.360631+00:00",
+  "overall_score": 0.9954223886808157,
+  "check_summaries": [
+    {
+      "check_name": "function_size",
+      "description": "Checks that functions/methods do not exceed line count thresholds",
+      "check_type": "standard",
+      "total_entities_checked": 580,
+      "findings_count": 2,
+      "warning_count": 2,
+      "score": 0.996551724137931,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 150,
+          "description": "Functions exceeding 150.0 lines",
+          "entities": [
+            {
+              "entity_name": "output_generators.html_template.populate_html_template",
+              "file_path": "output_generators/html_template.py",
+              "line_start": 5,
+              "line_end": 337,
+              "metric_value": 332
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 548,
+              "line_end": 735,
+              "metric_value": 187
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "fan_out",
+      "description": "Checks efferent coupling: how many other functions each function calls",
+      "check_type": "standard",
+      "total_entities_checked": 589,
+      "findings_count": 1,
+      "warning_count": 1,
+      "score": 0.99830220713073,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 10,
+          "description": "Functions calling more than 10.0 other functions",
+          "entities": [
+            {
+              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 548,
+              "line_end": 735,
+              "metric_value": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "fan_in",
+      "description": "Checks afferent coupling: how many other functions call each function",
+      "check_type": "standard",
+      "total_entities_checked": 589,
+      "findings_count": 4,
+      "warning_count": 4,
+      "score": 0.9932088285229203,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 10,
+          "description": "Functions called by more than 10.0 other functions",
+          "entities": [
+            {
+              "entity_name": "agents.prompts.prompt_factory.get_global_factory",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 126,
+              "line_end": 133,
+              "metric_value": 22
+            },
+            {
+              "entity_name": "agents.agent_responses.llm_str",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 24,
+              "line_end": 26,
+              "metric_value": 15
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client._send_request",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 107,
+              "line_end": 126,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client._wait_for_response",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 174,
+              "line_end": 182,
+              "metric_value": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "god_class",
+      "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "inheritance_depth",
+      "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
+      "check_type": "standard",
+      "total_entities_checked": 111,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "circular_dependencies",
+      "description": "Detects circular dependencies between packages",
+      "check_type": "circular_dependencies",
+      "cycles": [
+        "static_analyzer -> agents -> diagram_analysis -> static_analyzer",
+        "static_analyzer -> agents -> static_analyzer",
+        "diagram_analysis -> agents -> diagram_analysis",
+        "diagram_analysis -> output_generators -> agents -> diagram_analysis",
+        "output_generators -> agents -> output_generators"
+      ],
+      "packages_checked": 14,
+      "packages_in_cycles": 4
+    },
+    {
+      "check_name": "package_instability",
+      "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
+      "check_type": "standard",
+      "total_entities_checked": 14,
+      "findings_count": 3,
+      "warning_count": 3,
+      "score": 0.7857142857142857,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 0.8,
+          "description": "Packages with instability >= 0.8 that are depended on by others",
+          "entities": [
+            {
+              "entity_name": "evals",
+              "metric_value": 0.938
+            },
+            {
+              "entity_name": "diagram_analysis",
+              "metric_value": 0.895
+            },
+            {
+              "entity_name": "agents",
+              "metric_value": 0.844
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "component_cohesion",
+      "description": "Measures internal vs external edge ratio per component/cluster",
+      "check_type": "standard",
+      "total_entities_checked": 20,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "orphan_code",
+      "description": "Detects functions with no incoming or outgoing calls (potential dead code)",
+      "check_type": "standard",
+      "total_entities_checked": 500,
+      "findings_count": 1,
+      "warning_count": 1,
+      "score": 0.998,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Functions with no incoming or outgoing calls (high confidence dead code)",
+          "entities": [
+            {
+              "entity_name": "output_generators.html.component_header_html",
+              "file_path": "output_generators/html.py",
+              "line_start": 143,
+              "line_end": 151,
+              "metric_value": 0.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "file_summaries": [
+    {
+      "file_path": "static_analyzer/lsp_client/client.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "output_generators/html_template.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    },
+    {
+      "file_path": "agents/prompts/prompt_factory.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    },
+    {
+      "file_path": "agents/agent_responses.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    },
+    {
+      "file_path": "output_generators/html.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    }
+  ]
+}

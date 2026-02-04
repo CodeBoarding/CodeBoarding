@@ -1,0 +1,179 @@
+{
+  "description": "The `AI Interpretation Layer` serves as the core intelligence component, responsible for interpreting static analysis results and generating architectural insights using Large Language Models (LLMs). It orchestrates specialized agents, manages LLM prompts, and provides tools for agents to interact with code and analysis results.",
+  "components": [
+    {
+      "name": "AI Agent (CodeBoardingAgent)",
+      "description": "The primary intelligent agent responsible for orchestrating the interpretation of static analysis results, generating architectural insights, and managing the overall AI-driven analysis workflow. It leverages LLMs and specialized tools to perform its tasks.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/agent_responses.py",
+        "agents/details_agent.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diff Analysis Agent (DiffAnalyzingAgent)",
+      "description": "A specialized AI agent focused on analyzing code differences to identify architectural changes, refactorings, or new components introduced in a codebase. It provides insights into the evolution of the architecture.",
+      "key_entities": [
+        {
+          "qualified_name": "DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 20,
+          "reference_end_line": 145
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Prompt Factory (PromptFactory)",
+      "description": "Manages the creation and generation of structured prompts for Large Language Models. It ensures that LLMs receive contextually relevant and well-formatted input for various analysis tasks, optimizing their performance.",
+      "key_entities": [
+        {
+          "qualified_name": "PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Agent Toolkit (CodeBoardingToolkit)",
+      "description": "Aggregates and provides a unified interface to various specialized tools that AI agents can use to interact with the codebase and static analysis results. This includes tools for reading files, getting file structures, and accessing CFG data.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/toolkit.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Configuration (LLMConfig)",
+      "description": "Manages the configuration and instantiation of different Large Language Model clients and models. It handles environment settings and overrides to ensure proper integration and selection of LLM providers for various analysis tasks.",
+      "key_entities": [
+        {
+          "qualified_name": "LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "requests tailored prompts from",
+      "src_name": "AI Agent (CodeBoardingAgent)",
+      "dst_name": "Prompt Factory (PromptFactory)"
+    },
+    {
+      "relation": "provides structured prompts to",
+      "src_name": "Prompt Factory (PromptFactory)",
+      "dst_name": "AI Agent (CodeBoardingAgent)"
+    },
+    {
+      "relation": "utilizes specialized tools from",
+      "src_name": "AI Agent (CodeBoardingAgent)",
+      "dst_name": "Agent Toolkit (CodeBoardingToolkit)"
+    },
+    {
+      "relation": "provides access to code and analysis data to",
+      "src_name": "Agent Toolkit (CodeBoardingToolkit)",
+      "dst_name": "AI Agent (CodeBoardingAgent)"
+    },
+    {
+      "relation": "retrieves LLM settings and instances from",
+      "src_name": "AI Agent (CodeBoardingAgent)",
+      "dst_name": "LLM Configuration (LLMConfig)"
+    },
+    {
+      "relation": "provides configured LLM clients to",
+      "src_name": "LLM Configuration (LLMConfig)",
+      "dst_name": "AI Agent (CodeBoardingAgent)"
+    },
+    {
+      "relation": "requests diff-specific prompts from",
+      "src_name": "Diff Analysis Agent (DiffAnalyzingAgent)",
+      "dst_name": "Prompt Factory (PromptFactory)"
+    },
+    {
+      "relation": "generates specialized prompts for",
+      "src_name": "Prompt Factory (PromptFactory)",
+      "dst_name": "Diff Analysis Agent (DiffAnalyzingAgent)"
+    },
+    {
+      "relation": "uses tools from",
+      "src_name": "Diff Analysis Agent (DiffAnalyzingAgent)",
+      "dst_name": "Agent Toolkit (CodeBoardingToolkit)"
+    },
+    {
+      "relation": "provides code comparison functionalities to",
+      "src_name": "Agent Toolkit (CodeBoardingToolkit)",
+      "dst_name": "Diff Analysis Agent (DiffAnalyzingAgent)"
+    },
+    {
+      "relation": "adapts prompt generation based on",
+      "src_name": "Prompt Factory (PromptFactory)",
+      "dst_name": "LLM Configuration (LLMConfig)"
+    },
+    {
+      "relation": "informs",
+      "src_name": "LLM Configuration (LLMConfig)",
+      "dst_name": "Prompt Factory (PromptFactory)"
+    }
+  ]
+}

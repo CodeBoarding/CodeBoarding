@@ -1,0 +1,215 @@
+{
+  "description": "This system provides a comprehensive toolkit for code analysis and documentation. It orchestrates various tools to inspect the file system, extract detailed code structures, manage interactions with Git repositories, and monitor repository health. The main flow involves an orchestrator component that utilizes file system and code structure extractors, both of which rely on a repository operations manager to access and manage the codebase. A repository health monitor also queries the repository operations manager to ensure the integrity of the codebase, ultimately enabling agents to gain deep insights into software projects.",
+  "components": [
+    {
+      "name": "Analysis Toolkit Orchestrator",
+      "description": "Serves as the central hub for exposing and coordinating various code analysis capabilities. It provides a unified interface for agents to access tools for reading code structure, file structure, CFG, and documentation. This component is crucial for orchestrating different analysis tools to support comprehensive code understanding.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        },
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit.get_file_structure_tool",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 50,
+          "reference_end_line": 60
+        },
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit.get_code_structure_tool",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 70,
+          "reference_end_line": 80
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "File System Inspector",
+      "description": "Responsible for generating a hierarchical representation of the project's file and directory structure. Its main flow involves listing files, directories, and their relationships, providing foundational information for documentation generation and initial code analysis by outlining the project's layout.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_file_structure.FileSystemInspectorTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": 10,
+          "reference_end_line": 90
+        },
+        {
+          "qualified_name": "agents.tools.read_file_structure.FileSystemInspectorTool.read_directory_tree",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": 30,
+          "reference_end_line": 70
+        },
+        {
+          "qualified_name": "agents.tools.read_file_structure.FileSystemInspectorTool.list_files_in_dir",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": 75,
+          "reference_end_line": 85
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_file_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Code Structure Extractor",
+      "description": "Extracts high-level structural elements from source code, such as classes, functions, and methods. Its main flow involves analyzing code to provide detailed insights into the internal architecture, directly contributing to in-depth code analysis by revealing the internal organization of the codebase.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.read_structure.CodeStructureExtractorTool",
+          "reference_file": "agents/tools/read_structure.py",
+          "reference_start_line": 10,
+          "reference_end_line": 120
+        },
+        {
+          "qualified_name": "agents.tools.read_structure.CodeStructureExtractorTool.extract_classes",
+          "reference_file": "agents/tools/read_structure.py",
+          "reference_start_line": 40,
+          "reference_end_line": 80
+        },
+        {
+          "qualified_name": "agents.tools.read_structure.CodeStructureExtractorTool.extract_functions",
+          "reference_file": "agents/tools/read_structure.py",
+          "reference_start_line": 85,
+          "reference_end_line": 110
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Operations Manager",
+      "description": "Manages all interactions with Git repositories. Its main flow includes cloning, checking out specific branches or commits, and querying repository metadata. This component is crucial for acquiring and managing the source code necessary for analysis and documentation, and supports CI/CD integrations.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.GitRepositoryManager",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 15,
+          "reference_end_line": 200
+        },
+        {
+          "qualified_name": "repo_utils.GitRepositoryManager.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 50,
+          "reference_end_line": 70
+        },
+        {
+          "qualified_name": "repo_utils.GitRepositoryManager.checkout_branch",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 80,
+          "reference_end_line": 100
+        },
+        {
+          "qualified_name": "repo_utils.GitRepositoryManager.get_commit_history",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 110,
+          "reference_end_line": 130
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Health Monitor",
+      "description": "Assesses the health and configuration of a repository. Its main flow involves ensuring the repository meets predefined standards and identifying potential issues. This component is vital for reliable code analysis and documentation generation, especially in automated CI/CD pipelines.",
+      "key_entities": [
+        {
+          "qualified_name": "health.config.HealthConfiguration",
+          "reference_file": "health/config.py",
+          "reference_start_line": 10,
+          "reference_end_line": 50
+        },
+        {
+          "qualified_name": "health_main.RepositoryHealthChecker",
+          "reference_file": "health_main.py",
+          "reference_start_line": 20,
+          "reference_end_line": 150
+        },
+        {
+          "qualified_name": "health_main.RepositoryHealthChecker.check_standards",
+          "reference_file": "health_main.py",
+          "reference_start_line": 60,
+          "reference_end_line": 100
+        },
+        {
+          "qualified_name": "health_main.RepositoryHealthChecker.identify_issues",
+          "reference_file": "health_main.py",
+          "reference_start_line": 110,
+          "reference_end_line": 140
+        }
+      ],
+      "assigned_files": [
+        "health/config.py",
+        "health_main.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Uses",
+      "src_name": "Analysis Toolkit Orchestrator",
+      "dst_name": "File System Inspector"
+    },
+    {
+      "relation": "Uses",
+      "src_name": "Analysis Toolkit Orchestrator",
+      "dst_name": "Code Structure Extractor"
+    },
+    {
+      "relation": "Informs",
+      "src_name": "File System Inspector",
+      "dst_name": "Analysis Toolkit Orchestrator"
+    },
+    {
+      "relation": "Accesses",
+      "src_name": "File System Inspector",
+      "dst_name": "Repository Operations Manager"
+    },
+    {
+      "relation": "Informs",
+      "src_name": "Code Structure Extractor",
+      "dst_name": "Analysis Toolkit Orchestrator"
+    },
+    {
+      "relation": "Accesses",
+      "src_name": "Code Structure Extractor",
+      "dst_name": "Repository Operations Manager"
+    },
+    {
+      "relation": "Manages state for",
+      "src_name": "Repository Operations Manager",
+      "dst_name": "Repository Health Monitor"
+    },
+    {
+      "relation": "Provides access for",
+      "src_name": "Repository Operations Manager",
+      "dst_name": "File System Inspector"
+    },
+    {
+      "relation": "Provides access for",
+      "src_name": "Repository Operations Manager",
+      "dst_name": "Code Structure Extractor"
+    },
+    {
+      "relation": "Queries",
+      "src_name": "Repository Health Monitor",
+      "dst_name": "Repository Operations Manager"
+    }
+  ]
+}

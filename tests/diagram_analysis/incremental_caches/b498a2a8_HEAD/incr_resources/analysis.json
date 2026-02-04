@@ -1,0 +1,284 @@
+{
+  "description": "The CodeBoarding system operates as a pipeline-driven code analysis and documentation generation tool. It begins with the `Orchestration & Job Management` component, which coordinates the entire workflow, from initiating repository interactions to directing the final output generation. The `Repository Interaction Service` handles code retrieval and management. The retrieved code then flows to the `Static Code Analysis Engine` for deep structural and behavioral analysis. The extracted analysis data is then processed by the `AI Interpretation & Reasoning Layer`, which leverages large language models to generate structured insights. Finally, the `Documentation Output Generator` transforms these insights into various human-readable documentation formats.",
+  "components": [
+    {
+      "name": "Orchestration & Job Management",
+      "description": "This component serves as the central coordinator for the entire CodeBoarding workflow, managing the lifecycle of analysis and documentation generation jobs. It handles CLI arguments, orchestrates the high-level steps of the analysis pipeline, and manages job persistence.",
+      "key_entities": [
+        {
+          "qualified_name": "main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.create_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action.run_github_action",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "duckdb_crud.py",
+        "github_action.py",
+        "utils.py",
+        "main.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/version.py",
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "logging_config.py",
+        "monitoring/__init__.py",
+        "monitoring/callbacks.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/paths.py",
+        "monitoring/stats.py",
+        "monitoring/writers.py",
+        "setup.py"
+      ],
+      "source_cluster_ids": [
+        7,
+        8
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Interaction Service",
+      "description": "This component is dedicated to interacting with and managing code repositories. It provides functionalities for cloning repositories, checking out specific branches, sanitizing URLs, and retrieving Git-related information.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.get_diff_content",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [
+        13
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Code Analysis Engine",
+      "description": "This component is responsible for performing deep code analysis to extract structural and behavioral information from the codebase. It leverages Language Server Protocol (LSP) clients to gather detailed information like symbols, definitions, references, and call hierarchies.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/programming_language.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [
+        2,
+        9,
+        11,
+        12,
+        14
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation & Reasoning Layer",
+      "description": "This component is the brain of CodeBoarding, responsible for all AI-driven analysis and interpretation. It encompasses prompt management, orchestrates LLM interactions, parses responses, and generates structured insights based on static analysis data.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent.LargeModelAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 149
+        },
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/agent_responses.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/agent.py",
+        "agents/diff_analyzer.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/details_agent.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/llm_config.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/prompts/__init__.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py",
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        10,
+        17,
+        19,
+        20
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Documentation Output Generator",
+      "description": "This component takes the processed analysis results and transforms them into various human-readable documentation formats, including HTML, Markdown, MDX, and reStructuredText, incorporating diagrams and structured insights.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators.html.generate_html_output",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown_output",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.analysis_json.AnalysisJson",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py",
+        "diagram_analysis/analysis_json.py",
+        "output_generators/markdown.py",
+        "output_generators/html.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [
+        10
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Requests repository cloning and checkout.",
+      "src_name": "Orchestration & Job Management",
+      "dst_name": "Repository Interaction Service"
+    },
+    {
+      "relation": "Initiates static code analysis.",
+      "src_name": "Orchestration & Job Management",
+      "dst_name": "Static Code Analysis Engine"
+    },
+    {
+      "relation": "Provides raw analysis data (CFG, symbols).",
+      "src_name": "Static Code Analysis Engine",
+      "dst_name": "AI Interpretation & Reasoning Layer"
+    },
+    {
+      "relation": "Generates structured insights for documentation.",
+      "src_name": "AI Interpretation & Reasoning Layer",
+      "dst_name": "Documentation Output Generator"
+    },
+    {
+      "relation": "Directs final output generation.",
+      "src_name": "Orchestration & Job Management",
+      "dst_name": "Documentation Output Generator"
+    }
+  ]
+}

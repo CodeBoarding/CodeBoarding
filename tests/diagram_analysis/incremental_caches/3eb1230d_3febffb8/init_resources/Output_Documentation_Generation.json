@@ -1,0 +1,64 @@
+{
+  "description": "This system is designed to perform comprehensive code analysis, leveraging an AI interpretation layer to generate deep insights. The main flow involves scanning code repositories, processing the code to produce raw analytical data, and then transforming these insights into various human-readable documentation formats and visual diagrams for user consumption.",
+  "components": [
+    {
+      "name": "Code Analysis Engine & AI Interpretation Layer",
+      "description": "This component serves as the intelligent core of the system, orchestrating the entire code analysis process. It handles scanning repositories, generating initial insights, and managing interactions with specialized AI agents (e.g., for abstraction, detail extraction, diff analysis, planning, validation, and meta-analysis) to perform deep code comprehension. Its primary responsibility is to process raw code and generate comprehensive analytical data, embodying the \"Static Analysis Engine\" and \"AI Interpretation Layer\" patterns.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Output & Documentation Generation",
+      "description": "This component is responsible for transforming interpreted analysis insights into various human-readable documentation formats (HTML, Markdown, MDX, reStructuredText) and generating visual diagrams (e.g., Mermaid.js) from structured analysis data. It also standardizes and serializes the raw analysis insights and component data into a consistent JSON format, ensuring data integrity and facilitating seamless data flow for documentation generation. This component is central to the \"Documentation Generation Tool\" aspect, delivering the final, user-facing documentation.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.analysis_json.AnalysisJsonConverter",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.markdown.generate_markdown",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.html.generate_html",
+          "reference_file": "output_generators/html.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/markdown.py",
+        "diagram_analysis/analysis_json.py",
+        "output_generators/html.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/version.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Produces raw analysis data",
+      "src_name": "Code Analysis Engine & AI Interpretation Layer",
+      "dst_name": "Output & Documentation Generation"
+    }
+  ]
+}

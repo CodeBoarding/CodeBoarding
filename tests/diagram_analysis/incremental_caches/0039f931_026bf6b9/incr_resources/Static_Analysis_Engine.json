@@ -1,0 +1,242 @@
+{
+  "description": "The Static Analysis Engine performs deep, multi-language static analysis for code repositories. It uses language-specific configurations and Language Server Protocol (LSP) clients to discover project structure, extract symbols, definitions, and call/CFG information, resolve ambiguous references, and persist analysis artifacts for downstream consumption. The subsystem is implemented within the static_analyzer Python package and coordinates scanning, LSP interactions, configuration parsing, result storage, and reference resolution to produce a comprehensive, language-agnostic view of a project's static structure.",
+  "components": [
+    {
+      "name": "StaticAnalysisOrchestrator",
+      "description": "Orchestrates the entire static analysis workflow for a repository, coordinating scanning, language detection, LSP client initialization, configuration scanning, caching, and control flow.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.__init__.StaticAnalyzer",
+          "reference_file": "static_analyzer/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ProjectCodeScanner",
+      "description": "Scans a repository path to discover source files, categorize them by language, and collect initial metrics and file inventories.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LanguageConfigurationManager",
+      "description": "Manages configuration and properties for supported languages, including file extensions, LSP server commands, and language-specific settings.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSPClientInterface",
+      "description": "A generic, language-agnostic interface for communicating with Language Server Protocol servers, defining the contract for requests and structural responses.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "JavaLSPClient",
+      "description": "A Java-specific LSP client extending the generic interface, managing setup and interaction with JDTLS and handling Java project specifics.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client.JavaLSPClient",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/java_utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LanguageConfigScanner",
+      "description": "Discovers and parses language-specific build configurations (e.g., pom.xml, build.gradle, tsconfig.json) to determine modules, dependencies, and project structure.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
+          "reference_file": "static_analyzer/java_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisResultStore",
+      "description": "A central data store and caching mechanism for static analysis outputs, storing CFGs, class hierarchies, package dependencies, and metadata.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ReferenceResolver",
+      "description": "Resolves ambiguous or incomplete code references using heuristics, existing analysis data, and optional LLM-assisted strategies to improve code linking.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "StaticAnalysisOrchestrator",
+      "dst_name": "ProjectCodeScanner"
+    },
+    {
+      "relation": "configures with",
+      "src_name": "StaticAnalysisOrchestrator",
+      "dst_name": "LanguageConfigurationManager"
+    },
+    {
+      "relation": "initializes and uses",
+      "src_name": "StaticAnalysisOrchestrator",
+      "dst_name": "JavaLSPClient"
+    },
+    {
+      "relation": "stores data in",
+      "src_name": "StaticAnalysisOrchestrator",
+      "dst_name": "AnalysisResultStore"
+    },
+    {
+      "relation": "leverages",
+      "src_name": "StaticAnalysisOrchestrator",
+      "dst_name": "ReferenceResolver"
+    },
+    {
+      "relation": "provides file inventory to",
+      "src_name": "ProjectCodeScanner",
+      "dst_name": "StaticAnalysisOrchestrator"
+    },
+    {
+      "relation": "consults",
+      "src_name": "ProjectCodeScanner",
+      "dst_name": "LanguageConfigurationManager"
+    },
+    {
+      "relation": "provides settings to",
+      "src_name": "LanguageConfigurationManager",
+      "dst_name": "StaticAnalysisOrchestrator"
+    },
+    {
+      "relation": "informs configuration of",
+      "src_name": "LanguageConfigurationManager",
+      "dst_name": "JavaLSPClient"
+    },
+    {
+      "relation": "defines contract for",
+      "src_name": "LSPClientInterface",
+      "dst_name": "JavaLSPClient"
+    },
+    {
+      "relation": "uses configuration from",
+      "src_name": "JavaLSPClient",
+      "dst_name": "LanguageConfigurationManager"
+    },
+    {
+      "relation": "consults",
+      "src_name": "JavaLSPClient",
+      "dst_name": "LanguageConfigScanner"
+    },
+    {
+      "relation": "extracts data for",
+      "src_name": "JavaLSPClient",
+      "dst_name": "StaticAnalysisOrchestrator"
+    },
+    {
+      "relation": "provides project context to",
+      "src_name": "LanguageConfigScanner",
+      "dst_name": "JavaLSPClient"
+    },
+    {
+      "relation": "informs",
+      "src_name": "LanguageConfigScanner",
+      "dst_name": "StaticAnalysisOrchestrator"
+    },
+    {
+      "relation": "persists data from",
+      "src_name": "AnalysisResultStore",
+      "dst_name": "StaticAnalysisOrchestrator"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "AnalysisResultStore",
+      "dst_name": "ReferenceResolver"
+    },
+    {
+      "relation": "accesses data in",
+      "src_name": "ReferenceResolver",
+      "dst_name": "AnalysisResultStore"
+    },
+    {
+      "relation": "enhances results for",
+      "src_name": "ReferenceResolver",
+      "dst_name": "StaticAnalysisOrchestrator"
+    }
+  ]
+}

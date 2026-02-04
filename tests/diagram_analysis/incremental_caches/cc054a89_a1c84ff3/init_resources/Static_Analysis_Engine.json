@@ -1,0 +1,92 @@
+{
+  "description": "The `Static Analysis Engine` subsystem is a core component responsible for extracting deep code intelligence from various programming languages. It acts as the foundational layer for structured code data, which is then consumed by the AI Interpretation Layer. Its primary function is to transform raw source code into a rich, queryable representation, including control flow graphs, call graphs, and resolved code references.",
+  "components": [
+    {
+      "name": "Project Scanner & Language Configurator",
+      "description": "This component is responsible for discovering source files within a project, identifying the programming languages used, and managing language-specific configurations. It sets up the initial context for static analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer/programming_language.py",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/programming_language.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Server Protocol (LSP) Client",
+      "description": "This component establishes and manages communication with external Language Servers. It performs deep semantic analysis operations such as symbol lookups, definition retrieval, and reference resolution by leveraging LSP capabilities.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer/lsp_client/client.py",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Graph & Results Manager",
+      "description": "This component takes the raw data gathered from project scanning and LSP interactions to construct complex code representations, such as Call Graphs. It also applies clustering algorithms to identify logical components, resolves ambiguous code references, and acts as the central repository for all static analysis results and artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer/graph.py",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/analysis_result.py",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer/reference_resolve_mixin.py",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Provides Configuration to",
+      "src_name": "Project Scanner & Language Configurator",
+      "dst_name": "Language Server Protocol (LSP) Client"
+    },
+    {
+      "relation": "Provides File List to",
+      "src_name": "Project Scanner & Language Configurator",
+      "dst_name": "Analysis Graph & Results Manager"
+    },
+    {
+      "relation": "Provides Semantic Data to",
+      "src_name": "Language Server Protocol (LSP) Client",
+      "dst_name": "Analysis Graph & Results Manager"
+    }
+  ]
+}

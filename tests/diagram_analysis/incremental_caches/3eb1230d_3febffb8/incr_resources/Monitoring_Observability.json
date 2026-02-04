@@ -1,0 +1,138 @@
+{
+  "description": "The 'Monitoring & Observability' subsystem is designed to capture, aggregate, and persist real-time execution events and statistics from an AI/ML application or code analysis tool. Its main flow involves event listeners capturing metrics, a statistics manager consolidating this data, a context manager defining monitoring scopes, and a data writer persisting the results to organized files. The purpose is to provide comprehensive insights into application performance, resource usage, and operational behavior for analysis and reporting.",
+  "components": [
+    {
+      "name": "Monitoring Callback Handler",
+      "description": "Acts as an event listener, capturing real-time execution events such as the start and end of LLM calls and tool invocations. It extracts relevant metrics like token usage, latency, and error information from these events.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Run Statistics Manager",
+      "description": "Aggregates and maintains a comprehensive set of statistics for a single execution run. This includes tracking input/output token counts, tool usage frequency, tool execution latencies, and error occurrences. It provides a centralized data store for run-specific metrics.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.stats.MonitoringStats",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Context Manager",
+      "description": "Provides a contextual wrapper for code execution, enabling the definition and management of monitored scopes or steps within a larger operation. It facilitates the initiation and termination of monitoring for specific blocks of code, capturing their duration and associated metadata.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.context.MonitoringContextManager",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/context.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Writer",
+      "description": "Handles the persistence of collected monitoring data. It is responsible for writing aggregated statistics, LLM usage details, and other run-specific metadata to designated output files or streams, ensuring that monitoring results are saved for later analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Path Resolver",
+      "description": "Manages the file system organization for monitoring outputs. It generates unique run identifiers and determines the appropriate directory structure for storing monitoring logs and data, ensuring clear separation and traceability of different execution runs.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.paths.MonitoringPathResolver",
+          "reference_file": "monitoring/paths.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Integration Mixin",
+      "description": "Offers a reusable set of monitoring functionalities that can be easily integrated into other classes or components of the CodeBoarding project. It provides convenient access to monitoring callbacks and aggregated statistics, simplifying the adoption of monitoring capabilities across the codebase.",
+      "key_entities": [],
+      "assigned_files": [
+        "monitoring/__init__.py",
+        "monitoring/mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Updates",
+      "src_name": "Monitoring Callback Handler",
+      "dst_name": "Run Statistics Manager"
+    },
+    {
+      "relation": "Activates",
+      "src_name": "Monitoring Context Manager",
+      "dst_name": "Monitoring Callback Handler"
+    },
+    {
+      "relation": "Provides Data To",
+      "src_name": "Run Statistics Manager",
+      "dst_name": "Monitoring Data Writer"
+    },
+    {
+      "relation": "Consults",
+      "src_name": "Monitoring Data Writer",
+      "dst_name": "Monitoring Path Resolver"
+    },
+    {
+      "relation": "Utilizes",
+      "src_name": "Monitoring Integration Mixin",
+      "dst_name": "Monitoring Callback Handler"
+    },
+    {
+      "relation": "Accesses",
+      "src_name": "Monitoring Integration Mixin",
+      "dst_name": "Run Statistics Manager"
+    },
+    {
+      "relation": "Initializes",
+      "src_name": "Monitoring Context Manager",
+      "dst_name": "Run Statistics Manager"
+    }
+  ]
+}

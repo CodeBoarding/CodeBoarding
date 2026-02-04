@@ -1,0 +1,197 @@
+{
+  "description": "Performs deep static analysis across multiple programming languages, leveraging Language Server Protocol (LSP) clients to extract detailed code insights such as symbols, references, and call hierarchies. It stores and manages analysis results in a cache.",
+  "components": [
+    {
+      "name": "LSP Client Core",
+      "description": "The primary component responsible for orchestrating the initialization and communication with Language Server Protocols (LSPs). It manages the lifecycle of LSP sessions and coordinates requests for code insights.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 59,
+          "reference_end_line": 1184
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSP Communication Handler",
+      "description": "Handles the low-level, generic communication protocol with LSP servers, sending requests and receiving raw analysis data. It abstracts the underlying communication mechanism from the higher-level LSP client logic.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "LSP Adapter",
+      "description": "Provides language-specific adaptations and configurations for LSP interactions. It translates generic LSP requests into language-specific formats and processes responses tailored to each programming language.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.java_client.JavaClient",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": 26,
+          "reference_end_line": 517
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": 10,
+          "reference_end_line": 235
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Configuration Manager",
+      "description": "Defines, loads, and manages language-specific settings and configurations required for LSP initialization and analysis. It ensures that the correct parameters are applied for each programming language.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.programming_language.LanguageConfig",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": 10,
+          "reference_end_line": 13
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguageBuilder",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": 77,
+          "reference_end_line": 147
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Configuration Scanner",
+      "description": "Scans project configurations (e.g., pyproject.toml, package.json) to identify language settings, project roots, and other relevant information necessary for configuring LSP clients and initiating analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": 13,
+          "reference_end_line": 85
+        },
+        {
+          "qualified_name": "static_analyzer.java_config_scanner.JavaProjectConfig",
+          "reference_file": "static_analyzer/java_config_scanner.py",
+          "reference_start_line": 10,
+          "reference_end_line": 30
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/java_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Result Store",
+      "description": "Serves as the central repository for all static analysis artifacts, including Control Flow Graphs (CFGs), class hierarchies, package dependencies, and resolved code references. It ensures the persistence and queryability of analysis outcomes.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": 52,
+          "reference_end_line": 224
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.AnalysisCache",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": 12,
+          "reference_end_line": 49
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Reference Resolver",
+      "description": "Dedicated to resolving ambiguous or incomplete code references identified during static analysis. It employs various strategies, including direct matches, file path heuristics, and potentially querying the Analysis Result Store or LSP Communication Handler for more context.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolver",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": 15,
+          "reference_end_line": 210
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "informs about detected project languages and settings",
+      "src_name": "Project Configuration Scanner",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "provides project context for initialization",
+      "src_name": "Project Configuration Scanner",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "supplies language-specific settings to",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "LSP Adapter"
+    },
+    {
+      "relation": "utilizes for language-specific request formatting",
+      "src_name": "LSP Client Core",
+      "dst_name": "LSP Adapter"
+    },
+    {
+      "relation": "interacts with to send and receive raw LSP messages",
+      "src_name": "LSP Client Core",
+      "dst_name": "LSP Communication Handler"
+    },
+    {
+      "relation": "transmits raw data to",
+      "src_name": "LSP Communication Handler",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "stores extracted code insights into",
+      "src_name": "LSP Client Core",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "queries for existing analysis data",
+      "src_name": "LSP Client Core",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "queries for existing reference information",
+      "src_name": "Reference Resolver",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "requests additional context from for unresolved references",
+      "src_name": "Reference Resolver",
+      "dst_name": "LSP Communication Handler"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Analysis Result Store",
+      "dst_name": "Reference Resolver"
+    }
+  ]
+}

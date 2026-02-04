@@ -1,0 +1,152 @@
+{
+  "description": "The AI Prompt & LLM Configuration subsystem provides prompt generation and LLM configuration management for a Code Analysis Tool / Documentation Generator. Its main flow: the Prompt Factory Orchestrator queries the LLM Configuration Manager for the active provider/configuration, selects and instantiates an appropriate concrete prompt factory (based on provider and prompting semantics), and returns LLM-specific prompts to consumers. Abstract prompt factory interfaces define the contract for prompt creation, while concrete factories implement templates for specific LLMs. The package API exposes the orchestrator and interfaces to the rest of the system.",
+  "components": [
+    {
+      "name": "Prompt Factory Orchestrator",
+      "description": "Central orchestrator for prompt generation; queries LLM configuration, selects and instantiates the appropriate concrete prompt factory, and exposes a unified get_prompt interface.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactoryOrchestrator",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLM Configuration Manager",
+      "description": "Manages LLM settings (API keys, provider names, model ids, inference parameters), stores/retrieves configurations, and indicates the currently active LLM provider and model.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfigManager",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Abstract Prompt Factory Interface",
+      "description": "Defines the abstract contract that all concrete prompt factories must implement, declaring methods for generating system prompts, CFG-related prompts, classification prompts, and validation messages.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/abstract_prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Concrete LLM Prompt Factories",
+      "description": "Collection of concrete implementations of the Abstract Prompt Factory Interface, each tailored for a specific LLM provider and prompting strategy (unidirectional/bidirectional).",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.claude_prompts_bidirectional.ClaudeBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
+          "reference_start_line": 382,
+          "reference_end_line": 446
+        },
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_bidirectional.GeminiFlashBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
+          "reference_start_line": 369,
+          "reference_end_line": 433
+        },
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_bidirectional.GPTBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts_bidirectional.py",
+          "reference_start_line": 571,
+          "reference_end_line": 635
+        },
+        {
+          "qualified_name": "agents.prompts.claude_prompts_unidirectional.ClaudeUnidirectionalPromptFactory",
+          "reference_file": "agents/prompts/claude_prompts_unidirectional.py",
+          "reference_start_line": 371,
+          "reference_end_line": 435
+        },
+        {
+          "qualified_name": "agents.prompts.gemini_flash_prompts_unidirectional.GeminiFlashUnidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
+          "reference_start_line": 369,
+          "reference_end_line": 434
+        },
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_unidirectional.GPTUnidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts_unidirectional.py",
+          "reference_start_line": 1025,
+          "reference_end_line": 1089
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/prompts/claude_prompts_bidirectional.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Prompt Package API",
+      "description": "Public-facing entry point and facade for the agents.prompts package; exposes the Prompt Factory Orchestrator and interfaces to external modules.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.__init__.__init__",
+          "reference_file": "agents/prompts/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "Prompt Factory Orchestrator",
+      "dst_name": "LLM Configuration Manager"
+    },
+    {
+      "relation": "instantiates",
+      "src_name": "Prompt Factory Orchestrator",
+      "dst_name": "Concrete LLM Prompt Factories"
+    },
+    {
+      "relation": "implements",
+      "src_name": "Concrete LLM Prompt Factories",
+      "dst_name": "Abstract Prompt Factory Interface"
+    },
+    {
+      "relation": "exposes",
+      "src_name": "Prompt Package API",
+      "dst_name": "Prompt Factory Orchestrator"
+    },
+    {
+      "relation": "exposes",
+      "src_name": "Prompt Package API",
+      "dst_name": "Abstract Prompt Factory Interface"
+    }
+  ]
+}

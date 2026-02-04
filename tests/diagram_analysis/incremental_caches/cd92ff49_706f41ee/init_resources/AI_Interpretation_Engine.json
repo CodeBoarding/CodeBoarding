@@ -1,0 +1,239 @@
+{
+  "description": "The `AI Interpretation Engine` is the core intelligence of CodeBoarding, responsible for interpreting static analysis results and generating high-level insights and documentation. It encompasses the prompt management system, various specialized AI agents, and the tools these agents use to interact with the codebase and existing documentation.",
+  "components": [
+    {
+      "name": "Orchestration and Planning Component",
+      "description": "Manages the overall workflow of the code analysis, coordinating the execution of various AI agents and dynamically planning the analysis steps based on intermediate results. It acts as the central director for the interpretation process.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Agents Component",
+      "description": "Comprises specialized AI agents responsible for interpreting raw static analysis data, generating high-level architectural abstractions, detailed component analysis, validating results, and analyzing code differences. These agents embody the core AI logic.",
+      "key_entities": [
+        {
+          "qualified_name": "DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 20,
+          "reference_end_line": 136
+        },
+        {
+          "qualified_name": "ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 15,
+          "reference_end_line": 143
+        },
+        {
+          "qualified_name": "AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 19,
+          "reference_end_line": 150
+        },
+        {
+          "qualified_name": "DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": 19,
+          "reference_end_line": 154
+        },
+        {
+          "qualified_name": "MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 15,
+          "reference_end_line": 37
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/details_agent.py",
+        "agents/meta_agent.py",
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Prompt Management Component",
+      "description": "Responsible for creating, managing, and providing context-specific prompts to the AI interpretation agents, ensuring effective and consistent communication with underlying Large Language Models (LLMs). It abstracts the complexities of prompt engineering.",
+      "key_entities": [
+        {
+          "qualified_name": "GeminiFlashBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gemini_flash_prompts_bidirectional.py",
+          "reference_start_line": 365,
+          "reference_end_line": 429
+        },
+        {
+          "qualified_name": "PromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 95
+        },
+        {
+          "qualified_name": "GeminiFlashUnidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gemini_flash_prompts_unidirectional.py",
+          "reference_start_line": 365,
+          "reference_end_line": 430
+        },
+        {
+          "qualified_name": "AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 95
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Tools Component",
+      "description": "Provides the AI agents with various tools to interact with the codebase, retrieve file structures, read documentation, access source code, and obtain static analysis data like Control Flow Graphs (CFG) and package dependencies. It serves as the data acquisition layer for the agents.",
+      "key_entities": [
+        {
+          "qualified_name": "FileStructureTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ReadDocsTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ReadFileTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ReadDiffTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "CodeReferenceReader",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "PackageRelationsTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ExternalDepsTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "CodeStructureTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "GetCFGTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "MethodInvocationsTool",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_file_structure.py",
+        "agents/tools/__init__.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Response Models Component",
+      "description": "Defines the standardized data structures and Pydantic models used by all agents to represent analysis outputs, insights, and intermediate results, ensuring consistent data exchange and serialization across the subsystem.",
+      "key_entities": [
+        {
+          "qualified_name": "AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "coordinates and receives reports from",
+      "src_name": "Orchestration and Planning Component",
+      "dst_name": "AI Interpretation Agents Component"
+    },
+    {
+      "relation": "requests and receives prompts from",
+      "src_name": "Orchestration and Planning Component",
+      "dst_name": "Prompt Management Component"
+    },
+    {
+      "relation": "consumes results defined by",
+      "src_name": "Orchestration and Planning Component",
+      "dst_name": "Analysis Response Models Component"
+    },
+    {
+      "relation": "utilizes tools from",
+      "src_name": "AI Interpretation Agents Component",
+      "dst_name": "Static Analysis Tools Component"
+    },
+    {
+      "relation": "requests and receives prompts from",
+      "src_name": "AI Interpretation Agents Component",
+      "dst_name": "Prompt Management Component"
+    },
+    {
+      "relation": "produces outputs conforming to",
+      "src_name": "AI Interpretation Agents Component",
+      "dst_name": "Analysis Response Models Component"
+    }
+  ]
+}

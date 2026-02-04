@@ -1,0 +1,236 @@
+{
+  "description": "The Static Analysis Orchestrator serves as the main entry point for the static analysis process. It orchestrates the entire workflow, from project scanning and client creation to initiating analysis and collecting results, leveraging various components to achieve its purpose.",
+  "components": [
+    {
+      "name": "Static Analysis Orchestrator",
+      "description": "Serves as the main entry point for the static analysis process. It orchestrates the entire workflow, from project scanning and client creation to initiating analysis and collecting results.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project File Scanner",
+      "description": "Discovers and filters source files within a given project directory. It includes specialized logic for identifying TypeScript project configurations (TypeScriptConfigScanner).",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Configuration Manager",
+      "description": "Defines and manages the properties of supported programming languages, including their file extensions, language IDs, and parameters required for initializing their respective LSP servers.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/programming_language.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSP Client Core",
+      "description": "Establishes and manages a generic Language Server Protocol (LSP) connection. It handles the low-level communication, sending standard LSP requests (e.g., document symbols, definitions, references, call hierarchies) and parsing raw LSP responses.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "TypeScript LSP Client",
+      "description": "A specialized LSP client built upon the LSP Client Core, tailored for TypeScript projects. It handles TypeScript-specific initialization, project bootstrapping, configuration, and validation.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Result Store",
+      "description": "Aggregates, stores, and provides access to all static analysis outputs, including Control Flow Graphs (CFGs), class hierarchies, package dependencies, and resolved code references.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.AnalysisResultStore",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.CFGStore",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Code Graph Model",
+      "description": "Provides the fundamental data structures (Nodes, Edges, CallGraph) for representing various code relationships, such as call graphs, inheritance hierarchies, and package dependencies, in a structured and queryable format.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.Node",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.Edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Reference Resolution Utility",
+      "description": "Offers a mixin with methods to resolve ambiguous or incomplete code references using various strategies (e.g., exact match, file path-based, LLM-assisted).",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.resolve_reference",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates analysis with",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Project File Scanner"
+    },
+    {
+      "relation": "configures clients using",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "manages lifecycle of",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "collects results from",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "provides file list to",
+      "src_name": "Project File Scanner",
+      "dst_name": "Static Analysis Orchestrator"
+    },
+    {
+      "relation": "queries supported types from",
+      "src_name": "Project File Scanner",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "supplies settings to",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "Static Analysis Orchestrator"
+    },
+    {
+      "relation": "configures",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "stores analysis data in",
+      "src_name": "LSP Client Core",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "leverages",
+      "src_name": "LSP Client Core",
+      "dst_name": "Reference Resolution Utility"
+    },
+    {
+      "relation": "receives configuration from",
+      "src_name": "LSP Client Core",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "extends functionality of",
+      "src_name": "TypeScript LSP Client",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "contributes data to",
+      "src_name": "TypeScript LSP Client",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "receives analysis data from",
+      "src_name": "Analysis Result Store",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "persists graph structures using",
+      "src_name": "Analysis Result Store",
+      "dst_name": "Code Graph Model"
+    },
+    {
+      "relation": "provides aggregated results to",
+      "src_name": "Analysis Result Store",
+      "dst_name": "Static Analysis Orchestrator"
+    },
+    {
+      "relation": "defines data structures for",
+      "src_name": "Code Graph Model",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "is populated via",
+      "src_name": "Code Graph Model",
+      "dst_name": "Analysis Result Store"
+    },
+    {
+      "relation": "enhances reference accuracy for",
+      "src_name": "Reference Resolution Utility",
+      "dst_name": "LSP Client Core"
+    }
+  ]
+}

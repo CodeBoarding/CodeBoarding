@@ -1,0 +1,144 @@
+{
+  "description": "The Repository Manager subsystem is dedicated to all interactions with code repositories. It encompasses functionalities for managing Git operations, validating the Git environment, processing code differences, and uploading generated artifacts. This subsystem acts as the primary interface for accessing and manipulating source code within the project.",
+  "components": [
+    {
+      "name": "Git Operations Handler",
+      "description": "Manages core Git repository actions such as cloning repositories, checking out specific branches or commits, and extracting repository metadata like name, branch, and commit hash. It ensures the correct version of the code is available for analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.__init__.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.checkout_repo",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.get_repo_name",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Git Environment Validator",
+      "description": "Verifies the availability and correct configuration of the Git execution environment and its dependencies. It acts as a prerequisite checker, ensuring that Git operations can proceed without environmental issues.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.__init__.check_git_installed",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.validate_remote_repo",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.verify_git_config",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Code Diff Processor",
+      "description": "Focuses on identifying and extracting code differences between versions using Git's diff capabilities. It prepares these change sets for subsequent processing, particularly for static analysis and AI interpretation.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.__init__.get_diff",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.parse_diff_output",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.extract_changed_files",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py",
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Artifact Uploader",
+      "description": "Manages the process of publishing or uploading generated documentation, onboarding materials, or other artifacts to a designated storage or publishing mechanism. It represents the delivery mechanism for the project's output.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.__init__.upload_onboarding_materials",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.__init__.publish_documentation",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Ensures operational readiness",
+      "src_name": "Git Environment Validator",
+      "dst_name": "Git Operations Handler"
+    },
+    {
+      "relation": "Provides repository access",
+      "src_name": "Git Operations Handler",
+      "dst_name": "Code Diff Processor"
+    },
+    {
+      "relation": "Manages local repository state",
+      "src_name": "Git Operations Handler",
+      "dst_name": "Artifact Uploader"
+    },
+    {
+      "relation": "Relies on repository state",
+      "src_name": "Code Diff Processor",
+      "dst_name": "Git Operations Handler"
+    },
+    {
+      "relation": "Consumes repository context",
+      "src_name": "Artifact Uploader",
+      "dst_name": "Git Operations Handler"
+    }
+  ]
+}

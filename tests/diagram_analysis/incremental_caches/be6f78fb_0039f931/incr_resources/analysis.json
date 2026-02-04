@@ -1,0 +1,377 @@
+{
+  "description": "The CodeBoarding system operates as a sophisticated code analysis and documentation generation tool, orchestrating a pipeline that integrates static analysis with AI-driven interpretation. It begins with an Application Orchestration & Output component managing the overall workflow, initiating static analysis and AI agent tasks. The Static Analysis Engine extracts deep code insights, which are then consumed by the AI Agent Orchestration component. These agents, powered by LLM & Prompt Management, interpret the code and analysis results, leveraging a Repository & Tooling Interface to interact with the codebase. Throughout this process, the Monitoring & Metrics component observes execution to gather performance and usage data, ultimately feeding into the generation of comprehensive documentation and diagrams by the Application Orchestration & Output component.",
+  "components": [
+    {
+      "name": "LLM & Prompt Management",
+      "description": "Manages the configuration and instantiation of Large Language Models (LLMs) and provides factories for generating various prompt types (bidirectional, unidirectional) tailored for different LLMs (Claude, Gemini, GPT). It ensures AI agents have access to the correct LLM models and task-specific prompts.",
+      "key_entities": [
+        {
+          "qualified_name": "AbstractPromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 95
+        },
+        {
+          "qualified_name": "PromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": 10,
+          "reference_end_line": 95
+        },
+        {
+          "qualified_name": "LLMConfiguration",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ClaudeBidirectionalPromptFactory",
+          "reference_file": "agents/prompts/claude_prompts_bidirectional.py",
+          "reference_start_line": 382,
+          "reference_end_line": 446
+        },
+        {
+          "qualified_name": "GPTUnidirectionalPromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts_unidirectional.py",
+          "reference_start_line": 1025,
+          "reference_end_line": 1089
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/llm_config.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/__init__.py"
+      ],
+      "source_cluster_ids": [
+        1,
+        2,
+        20
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AI Agent Orchestration",
+      "description": "Orchestrates the execution of AI agents, including general-purpose agents and specialized agents like `DiffAnalyzingAgent`. It defines the structured data models used for agent communication, input, and output, driving the AI-powered interpretation and analysis of code.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 34,
+          "reference_end_line": 262
+        },
+        {
+          "qualified_name": "LargeModelAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 265,
+          "reference_end_line": 282
+        },
+        {
+          "qualified_name": "DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 197
+        },
+        {
+          "qualified_name": "AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 131,
+          "reference_end_line": 170
+        },
+        {
+          "qualified_name": "Component",
+          "reference_file": "agents/tools/read_cfg.py",
+          "reference_start_line": 41,
+          "reference_end_line": 41
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/agent_responses.py",
+        "agents/diff_analyzer.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/details_agent.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [
+        6,
+        8,
+        15
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Extracts deep code insights by leveraging Language Server Protocol (LSP) clients for various languages (generic, Java, TypeScript). It performs static analysis to collect call graphs, class hierarchies, and references, manages language-specific configurations, and processes raw LSP output into structured, actionable insights, including clustering call graph data and resolving source code references.",
+      "key_entities": [
+        {
+          "qualified_name": "LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": 59,
+          "reference_end_line": 1165
+        },
+        {
+          "qualified_name": "JavaLSPClient",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "CallGraphDataStructures",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "StaticAnalysisResultsStorage",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ReferenceResolutionMixin",
+          "reference_file": "static_analyzer/lsp_client/java_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/programming_language.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/java_utils.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [
+        3,
+        4,
+        10,
+        11,
+        12,
+        13,
+        14,
+        17
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Repository & Tooling Interface",
+      "description": "Provides AI agents with an interface to interact with the codebase and its Git repository. It includes a toolkit of specialized tools for reading file structures, code content, static analysis results, and documentation, along with utilities for managing Git operations like cloning and branch checkout.",
+      "key_entities": [
+        {
+          "qualified_name": "CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": 20,
+          "reference_end_line": 117
+        },
+        {
+          "qualified_name": "read_file_tool",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 89,
+          "reference_end_line": 91
+        },
+        {
+          "qualified_name": "GitRepositoryManager",
+          "reference_file": "agents/tools/read_file_structure.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": 94,
+          "reference_end_line": 111
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_structure.py",
+        "repo_utils/__init__.py",
+        "agents/tools/toolkit.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "repo_utils/errors.py",
+        "repo_utils/git_diff.py",
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [
+        7,
+        16
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Application Orchestration & Output",
+      "description": "Manages the overall application workflow, from initiating analysis jobs and parsing CLI arguments to generating final documentation and diagrams. It handles job data persistence (using DuckDB) and produces various output formats (HTML, Markdown, MDX, RST) and visual diagrams, making analysis results presentable.",
+      "key_entities": [
+        {
+          "qualified_name": "main",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 281,
+          "reference_end_line": 281
+        },
+        {
+          "qualified_name": "DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": 35,
+          "reference_end_line": 298
+        },
+        {
+          "qualified_name": "JobManager",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "OutputGenerator",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "diagram_analysis/diagram_generator.py",
+        "local_app.py",
+        "utils.py",
+        "github_action.py",
+        "duckdb_crud.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py",
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "logging_config.py",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py",
+        "setup.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [
+        5,
+        9
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring & Metrics",
+      "description": "Observes and records system operational metrics, capturing events during LLM and tool execution to extract statistics like token usage and execution times. It processes and persists these metrics, providing insights into performance, cost, and behavior of the AI agents and the overall analysis pipeline.",
+      "key_entities": [
+        {
+          "qualified_name": "LLMCallbackHandler",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "ToolCallbackHandler",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "MetricsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "TokenUsageMetrics",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/callbacks.py",
+        "monitoring/__init__.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/paths.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [
+        18,
+        19
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Initiates static analysis jobs and consumes processed results.",
+      "src_name": "Application Orchestration & Output",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Triggers AI agent analysis workflows.",
+      "src_name": "Application Orchestration & Output",
+      "dst_name": "AI Agent Orchestration"
+    },
+    {
+      "relation": "Requests LLM configurations and specific prompts.",
+      "src_name": "AI Agent Orchestration",
+      "dst_name": "LLM & Prompt Management"
+    },
+    {
+      "relation": "Utilizes tools to access code and repository data.",
+      "src_name": "AI Agent Orchestration",
+      "dst_name": "Repository & Tooling Interface"
+    },
+    {
+      "relation": "Queries for processed code insights (e.g., call graphs, references).",
+      "src_name": "AI Agent Orchestration",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Provides raw code content and file structure for analysis.",
+      "src_name": "Repository & Tooling Interface",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Observes LLM and tool execution events for metrics collection.",
+      "src_name": "Monitoring & Metrics",
+      "dst_name": "AI Agent Orchestration"
+    },
+    {
+      "relation": "Monitors LLM interactions for token usage and performance.",
+      "src_name": "Monitoring & Metrics",
+      "dst_name": "LLM & Prompt Management"
+    }
+  ]
+}

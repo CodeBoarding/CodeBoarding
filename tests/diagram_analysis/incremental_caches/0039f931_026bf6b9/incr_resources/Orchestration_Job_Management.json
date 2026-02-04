@@ -1,0 +1,128 @@
+{
+  "description": "The Orchestration & Job Management subsystem is the central controller for the CodeBoarding application. It manages the lifecycle of repository analysis and documentation-generation jobs: accepting requests, persisting job metadata, orchestrating static analysis and AI-driven interpretation steps, constructing intermediate analysis models (e.g., AnalysisInsightsJson, ComponentJson), and invoking output generators (such as diagram generation). Its primary purpose is to coordinate the end-to-end flow from job ingestion to final result delivery, ensuring state persistence, progress tracking, and transformation of analysis results into human-consumable outputs.",
+  "components": [
+    {
+      "name": "Orchestration Engine",
+      "description": "Core control unit that drives the analysis and documentation generation pipeline, coordinates static analysis and AI agent interactions, builds intermediate data models, and invokes output generators.",
+      "key_entities": [
+        {
+          "qualified_name": "main.main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "install.py",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py",
+        "utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Manager / API Service",
+      "description": "Handles external requests to start and monitor documentation generation jobs, manages job lifecycle states, persists job metadata, and triggers the Orchestration Engine.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app.LocalApp",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py",
+        "github_action.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Database",
+      "description": "Provides persistent storage for job-related metadata (statuses, repository URLs, timestamps, results) using DuckDB, allowing the system to track job state and history.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud.DuckDBCrud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Diagram Generator",
+      "description": "Transforms structured analysis data (component relationships and architectural insights) into visual diagrams (e.g., Mermaid.js) as part of the final output generation.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates new analysis jobs",
+      "src_name": "Job Manager / API Service",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "provides job progress updates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Manager / API Service"
+    },
+    {
+      "relation": "retrieves job configurations and states",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "updates job progress and final results",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "stores new job requests and initial metadata",
+      "src_name": "Job Manager / API Service",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "queries job statuses for monitoring",
+      "src_name": "Job Manager / API Service",
+      "dst_name": "Job Database"
+    },
+    {
+      "relation": "triggers diagram generation with processed analysis data",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Diagram Generator"
+    },
+    {
+      "relation": "delivers generated diagram content",
+      "src_name": "Diagram Generator",
+      "dst_name": "Orchestration Engine"
+    }
+  ]
+}

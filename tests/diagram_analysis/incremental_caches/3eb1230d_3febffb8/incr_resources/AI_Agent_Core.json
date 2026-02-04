@@ -1,0 +1,251 @@
+{
+  "description": "The analysis has been corrected based on the identified issues. The missing key entities have been added, and the problematic relationship between `ValidationAgent` and `ArchitectureSynthesizer` has been re-evaluated and adjusted to reflect a more accurate interaction via `AnalysisInsights`. The subsystem under analysis is the AI Agent Core, which encompasses the intelligent agents responsible for interpreting static analysis results, performing specialized analysis tasks, and structuring their findings. It acts as the 'brain' of the system, utilizing various tools to interact with the codebase context.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent",
+      "description": "Orchestrates the entire codeboarding workflow, managing the execution of other specialized agents, integrating their outputs, and handling overall flow, retries, and LLM prompt management. It is the primary control component for the analysis process.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/llm_config.py",
+        "agents/meta_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAnalyzingAgent",
+      "description": "Specializes in analyzing code differences (diffs) to identify changes relevant for architectural updates, component evolution, or new feature integration. It filters and processes diff data to focus on significant modifications.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 211
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "Enriches the architectural analysis by extracting and refining granular details from CFG, meta-context, and structural information. It provides deeper insights into component functionality and internal workings.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/details_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Tooling Interface",
+      "description": "Provides a unified interface for all agents to interact with the project's codebase and static analysis data. It aggregates specialized tools for reading files, file structures, CFG data, documentation, and source code references.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.ReadFileTool",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/toolkit.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisInsights",
+      "description": "Defines the unified data structures and response schemas used by all agents to represent analysis insights, identified components, their relations, and file classifications.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ArchitectureSynthesizer",
+      "description": "Synthesizes raw analysis data, particularly from CFG clusters, into high-level architectural abstractions. It identifies core components, their initial responsibilities, and relationships, utilizing utility methods for cluster and file assignments.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/abstraction_agent.py",
+        "agents/cluster_methods_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidationAgent",
+      "description": "Ensures the consistency, correctness, and completeness of the identified components, their responsibilities, and their relationships. It validates code references and structural integrity of the analysis results.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "AnalysisPlanner",
+      "description": "Determines the strategic steps and components to expand or analyze further based on the current state of the analysis and project goals. It guides the overall analysis trajectory and resource allocation.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "ArchitectureSynthesizer"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "ValidationAgent"
+    },
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AnalysisPlanner"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Tooling Interface"
+    },
+    {
+      "relation": "structures output using",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "Tooling Interface"
+    },
+    {
+      "relation": "contributes findings to",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "produces results conforming to",
+      "src_name": "DiffAnalyzingAgent",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "interacts with",
+      "src_name": "DetailsAgent",
+      "dst_name": "Tooling Interface"
+    },
+    {
+      "relation": "provides refined insights to",
+      "src_name": "DetailsAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "produces results conforming to",
+      "src_name": "DetailsAgent",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Tooling Interface",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Tooling Interface",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Tooling Interface",
+      "dst_name": "ArchitectureSynthesizer"
+    },
+    {
+      "relation": "processes raw data from",
+      "src_name": "ArchitectureSynthesizer",
+      "dst_name": "Tooling Interface"
+    },
+    {
+      "relation": "provides high-level architectural abstractions to",
+      "src_name": "ArchitectureSynthesizer",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "produces results conforming to",
+      "src_name": "ArchitectureSynthesizer",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "validates",
+      "src_name": "ValidationAgent",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "reports validation status to",
+      "src_name": "ValidationAgent",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "informs about next steps in analysis",
+      "src_name": "AnalysisPlanner",
+      "dst_name": "CodeBoardingAgent"
+    },
+    {
+      "relation": "receives current analysis state from",
+      "src_name": "AnalysisPlanner",
+      "dst_name": "CodeBoardingAgent"
+    }
+  ]
+}

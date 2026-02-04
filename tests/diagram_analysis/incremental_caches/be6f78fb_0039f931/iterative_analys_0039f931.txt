@@ -1,0 +1,58 @@
+2026-02-04 03:09:55 INFO     [__main__:425] Starting CodeBoarding documentation generation...
+Monitoring enabled: false
+2026-02-04 03:09:55 INFO     [static_analyzer:102] Starting static analysis for Python in /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding
+2026-02-04 03:09:55 INFO     [static_analyzer.lsp_client.client:98] Starting server /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver --stdio...
+2026-02-04 03:09:55 INFO     [static_analyzer.lsp_client.client:234] Initializing connection for python...
+2026-02-04 03:09:55 INFO     [static_analyzer.lsp_client.client:256] Initialization successful.
+2026-02-04 03:09:55 INFO     [static_analyzer:118] Using incremental cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:65] Current commit: 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:156] Loaded analysis cache from /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: be6f78fb4760e04e23e754f7cd06a0e5713dba2a, iteration: 36)
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:642] Loaded cluster results from cache for 1 languages
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:83] Cache loaded successfully: commit be6f78fb4760e04e23e754f7cd06a0e5713dba2a, iteration 36
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:92] Cached analysis contains: 82 files, 3408 references, 111 classes, 14 packages, 2652 call graph nodes, 981 edges
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:113] Uncommitted changes detected in working directory
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:116] Performing incremental update from commit be6f78fb4760e04e23e754f7cd06a0e5713dba2a to 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:356] Identifying changed files between be6f78fb4760e04e23e754f7cd06a0e5713dba2a and 0039f93130fe90a5266e661daf7dd2a40362fec4
+2026-02-04 03:09:55 INFO     [static_analyzer.git_diff_analyzer:76] Found 22 changed files since commit be6f78fb4760e04e23e754f7cd06a0e5713dba2a
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:373] Found 22 changed files: 18 existing, 4 deleted
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:382] Invalidating 22 changed files from cache
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:187] Starting file invalidation for 22 changed files
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:296] File invalidation complete:
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:297]   - Removed 0 nodes, kept 2652 nodes
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:298]   - Removed 0 edges, kept 981 edges
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:299]   - Removed 0 class hierarchies, kept 111 class hierarchies
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:302]   - Removed 0 packages, updated 0 packages, kept 14 packages
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:305]   - Removed 0 references, kept 3408 references
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:306]   - Source files: 82 -> 82
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:386] Reanalyzing 18 existing changed files
+2026-02-04 03:09:55 INFO     [static_analyzer.lsp_client.client:1242] Analyzing 18 specific files for incremental update
+2026-02-04 03:09:55 INFO     [static_analyzer.lsp_client.client:1256] No relevant source files to reanalyze
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:390] Merging new analysis with cached results
+2026-02-04 03:09:55 INFO     [static_analyzer.analysis_cache:447] Merged cached and new analysis results
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:440] Incremental update complete: 82 files, 3408 references, 2652 nodes, 981 edges
+2026-02-04 03:09:55 INFO     [static_analyzer.incremental_orchestrator:447] Computing cluster results for incremental update...
+2026-02-04 03:09:55 INFO     [static_analyzer.graph:380] Starting adaptive clustering for 2652 nodes, target: 20 clusters
+2026-02-04 03:09:57 INFO     [static_analyzer.graph:273] Clustered 2652 nodes into 20 clusters using balanced_greedy_modularity
+2026-02-04 03:09:57 INFO     [static_analyzer.incremental_orchestrator:529] Computed clusters for python: 20 clusters, strategy=balanced_greedy_modularity
+2026-02-04 03:09:57 INFO     [static_analyzer.incremental_orchestrator:611] Cluster matching for python: 20/20 clusters matched to original
+2026-02-04 03:09:57 INFO     [static_analyzer.incremental_orchestrator:474] Saving updated cache to: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
+2026-02-04 03:09:57 INFO     [static_analyzer.incremental_orchestrator:317] Merged cluster results for python: 20 matched to original, 0 new clusters
+2026-02-04 03:09:57 INFO     [static_analyzer.analysis_cache:102] Saved analysis cache to /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: 0039f93130fe90a5266e661daf7dd2a40362fec4, iteration: 37)
+2026-02-04 03:09:57 INFO     [static_analyzer.analysis_cache:612] Saved cluster results to cache for 1 languages
+2026-02-04 03:09:57 INFO     [static_analyzer.incremental_orchestrator:495] Incremental analysis complete, cache updated (iteration 37)
+Static analysis complete: <static_analyzer.analysis_result.StaticAnalysisResults object at 0x7b420cb73380>
+2026-02-04 03:09:57 INFO     [diagram_analysis.diagram_generator:315] Loaded static analysis for incremental update
+2026-02-04 03:09:57 INFO     [diagram_analysis.manifest:143] Loaded manifest with 82 file mappings
+2026-02-04 03:09:57 INFO     [diagram_analysis.incremental.updater:101] Detected 2 changes from be6f78f: 0 renames, 2 modified, 0 added, 0 deleted
+2026-02-04 03:09:57 INFO     [diagram_analysis.incremental.updater:110] Impact analysis:
+Action: none
+Reason: No changes detected
+Renames: 0
+Modified: 0
+Added: 0
+Deleted: 0
+Dirty components: set()
+2026-02-04 03:09:57 INFO     [diagram_analysis.diagram_generator:332] Incremental update impact: none
+2026-02-04 03:09:57 INFO     [diagram_analysis.diagram_generator:335] No changes detected, analysis is up to date
+2026-02-04 03:09:57 INFO     [__main__:281] Incremental analysis completed: 1 files
+2026-02-04 03:09:57 INFO     [__main__:460] Documentation generated successfully in be6f78fb_0039f931/incr_resources

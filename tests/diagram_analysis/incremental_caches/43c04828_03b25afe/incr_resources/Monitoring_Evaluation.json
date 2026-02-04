@@ -1,0 +1,196 @@
+{
+  "description": "The Monitoring & Evaluation subsystem encompasses all functionalities related to initiating, configuring, executing, and reporting on various types of code analysis and AI/ML model evaluations. This includes static code analysis, end-to-end pipeline evaluations, scalability assessments, and the comprehensive collection and persistence of runtime metrics and configuration data.",
+  "components": [
+    {
+      "name": "Evaluation Orchestrator",
+      "description": "Initiates and manages the execution of various evaluation types (static analysis, end-to-end, scalability) based on command-line interface (CLI) arguments. It orchestrates the overall evaluation workflow, acting as the central coordinator for all analysis tasks.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli.main",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": 37,
+          "reference_end_line": 68
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation Framework",
+      "description": "Provides a foundational structure, common functionalities, data models, and utilities for all evaluation types. This includes managing run directories, reading/writing JSON data, generating reports, extracting system specifications, and defining consistent data structures for metrics and results.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.base.BaseEval",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Performs static code analysis, extracts metrics such as lines of code (LOC), file counts, and language summaries, and generates detailed static analysis reports. It provides fundamental insights into the code structure without requiring execution.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Dynamic Evaluation Engine",
+      "description": "Conducts comprehensive end-to-end and scalability evaluations. This involves aggregating LLM token usage, tool usage, and overall resource consumption across multiple runs or projects, generating reports that may include architectural diagrams (e.g., Mermaid).",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Monitoring & Metrics Collection",
+      "description": "Acts as an observer for LLM and tool interactions, extracting detailed runtime metrics such as token usage, latency, and other operational data. It provides mechanisms (e.g., context managers, callbacks) to instrument code blocks and aggregates runtime statistics for a single execution run.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py",
+        "monitoring/__init__.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Persistence & Management",
+      "description": "Persists collected monitoring data (e.g., LLM usage, run metadata, static analysis statistics) to files, potentially in a streaming fashion for large datasets. It also manages the creation and retrieval of monitoring-related directories and run IDs, ensuring organized storage of evaluation results and monitoring data.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Evaluation Configuration Manager",
+      "description": "Defines and manages project-specific configurations for different evaluation types (static analysis, end-to-end, scalability), allowing for flexible and parameterized evaluations. It provides the necessary settings for tailoring analysis to specific project requirements.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "configures",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Evaluation Framework"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Evaluation Orchestrator",
+      "dst_name": "Evaluation Configuration Manager"
+    },
+    {
+      "relation": "supports",
+      "src_name": "Evaluation Framework",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "supports",
+      "src_name": "Evaluation Framework",
+      "dst_name": "Dynamic Evaluation Engine"
+    },
+    {
+      "relation": "integrates with",
+      "src_name": "Evaluation Framework",
+      "dst_name": "Monitoring & Metrics Collection"
+    },
+    {
+      "relation": "relies on",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Evaluation Framework"
+    },
+    {
+      "relation": "stores results via",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Monitoring Data Persistence & Management"
+    },
+    {
+      "relation": "relies on",
+      "src_name": "Dynamic Evaluation Engine",
+      "dst_name": "Evaluation Framework"
+    },
+    {
+      "relation": "integrates with",
+      "src_name": "Dynamic Evaluation Engine",
+      "dst_name": "Monitoring & Metrics Collection"
+    },
+    {
+      "relation": "stores results via",
+      "src_name": "Dynamic Evaluation Engine",
+      "dst_name": "Monitoring Data Persistence & Management"
+    },
+    {
+      "relation": "provides data to",
+      "src_name": "Monitoring & Metrics Collection",
+      "dst_name": "Monitoring Data Persistence & Management"
+    },
+    {
+      "relation": "observes",
+      "src_name": "Monitoring & Metrics Collection",
+      "dst_name": "Dynamic Evaluation Engine"
+    },
+    {
+      "relation": "stores data from",
+      "src_name": "Monitoring Data Persistence & Management",
+      "dst_name": "Monitoring & Metrics Collection"
+    },
+    {
+      "relation": "stores data from",
+      "src_name": "Monitoring Data Persistence & Management",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "stores data from",
+      "src_name": "Monitoring Data Persistence & Management",
+      "dst_name": "Dynamic Evaluation Engine"
+    },
+    {
+      "relation": "informs",
+      "src_name": "Evaluation Configuration Manager",
+      "dst_name": "Evaluation Orchestrator"
+    },
+    {
+      "relation": "configures",
+      "src_name": "Evaluation Configuration Manager",
+      "dst_name": "Evaluation Framework"
+    }
+  ]
+}

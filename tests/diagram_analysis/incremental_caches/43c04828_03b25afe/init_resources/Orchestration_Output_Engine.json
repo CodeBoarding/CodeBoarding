@@ -1,0 +1,269 @@
+{
+  "description": "This project outlines a comprehensive software system designed to analyze code repositories, extract architectural insights using AI, and generate documentation and diagrams. The main flow involves orchestrating various steps from repository acquisition and static analysis to AI interpretation and final output generation, all while managing configurations and data through a central model. Its purpose is to automate the understanding and documentation of software architectures.",
+  "components": [
+    {
+      "name": "Orchestration & Output Engine",
+      "description": "Acts as the central orchestrator, managing the overall workflow from job initiation to final documentation generation. It handles CLI arguments, job processing, interacts with a job database, and generates various output formats, including diagrams and markdown documentation.",
+      "key_entities": [
+        {
+          "qualified_name": "main.main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app.run_local_analysis",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud.create_job",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators.markdown.MarkdownGenerator",
+          "reference_file": "output_generators/markdown.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/diagram_generator.py",
+        "output_generators/markdown.py",
+        "duckdb_crud.py",
+        "main.py",
+        "local_app.py",
+        "diagram_analysis/__init__.py",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py",
+        "utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Handles the acquisition, cloning, and management of code repositories, ensuring the codebase is accessible and prepared for subsequent analysis steps. It manages temporary storage and Git operations.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.git_diff.GitDiff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.git_diff.get_repo_diff",
+          "reference_file": "repo_utils/git_diff.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "Performs initial static analysis of the source code to extract fundamental structural and semantic information, such as file lists, lines of code, and basic code constructs. It populates the Analysis Data Model with raw structural information.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.GraphBuilder",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
+          "reference_file": "static_analyzer/java_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "Processes the raw output from the Static Analysis Engine using AI models to derive higher-level architectural insights, identify components, understand relationships, and generate descriptive summaries. It enriches the Analysis Data Model with interpreted architectural components and relationships.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.Agent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/abstraction_agent.py",
+        "agents/meta_agent.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Data Model",
+      "description": "Defines and manages the structured data format for storing all analysis results, including identified components, their responsibilities, interactions, and generated insights. It acts as the central data repository for the analysis output, consumed by output generators.",
+      "key_entities": [
+        {
+          "qualified_name": "diagram_analysis.analysis_json.AnalysisJson",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py",
+        "diagram_analysis/analysis_json.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "API Service",
+      "description": "Provides a web-based interface (FastAPI) for external systems to trigger and monitor documentation generation jobs, enabling remote interaction and integration.",
+      "key_entities": [
+        {
+          "qualified_name": "github_action.run_action",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "github_action.py",
+        "local_app.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Configuration Management",
+      "description": "Manages application-wide settings, environment variables, tool-specific configurations, logging setup, version information, and external tool installations.",
+      "key_entities": [
+        {
+          "qualified_name": "logging_config.setup_logging",
+          "reference_file": "logging_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analysis_config.yml",
+          "reference_file": "static_analysis_config.yml",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analysis_config.yml",
+        "logging_config.py",
+        "diagram_analysis/version.py",
+        "setup.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Orchestration & Output Engine initiates the acquisition or cloning of the target codebase. Repository Manager provides the local path to the prepared repository for analysis.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "Orchestration & Output Engine triggers the static analysis process on the codebase.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Orchestration & Output Engine invokes the AI models to generate architectural insights.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Orchestration & Output Engine stores job-related metadata and final analysis results. Analysis Data Model provides structured analysis data for diagram and documentation generation.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "API Service forwards external requests to the Orchestration & Output Engine for processing. Orchestration & Output Engine exposes its core functionalities to the API Service.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "API Service"
+    },
+    {
+      "relation": "Orchestration & Output Engine retrieves application-wide and job-specific configuration settings. Configuration Management provides the necessary settings to the Orchestration & Output Engine.",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Configuration Management"
+    },
+    {
+      "relation": "Static Analysis Engine populates the Analysis Data Model with raw structural information extracted from the code.",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "AI Interpretation Layer enriches the Analysis Data Model with higher-level architectural insights and identified components.",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "Repository Manager makes the acquired codebase available for the Static Analysis Engine.",
+      "src_name": "Repository Manager",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Configuration Management supplies static analysis-specific parameters and settings.",
+      "src_name": "Configuration Management",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Configuration Management provides LLM and agent-specific configurations to the AI Interpretation Layer.",
+      "src_name": "Configuration Management",
+      "dst_name": "AI Interpretation Layer"
+    }
+  ]
+}

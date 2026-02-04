@@ -1,0 +1,361 @@
+{
+  "description": "The Static Analysis Engine subsystem is responsible for performing deep code analysis to extract structural, relational, and semantic information from the source code. It primarily uses Language Server Protocol (LSP) clients to interact with language-specific analysis tools and aggregates the raw analysis results. Its boundaries encompass all components involved in scanning the project, configuring language servers, executing LSP commands, building internal representations like call graphs, and storing the analysis outcomes.",
+  "components": [
+    {
+      "name": "Static Analysis Orchestrator",
+      "description": "Coordinates the entire static analysis workflow, from project scanning and client creation to initiating the analysis process and collecting results. It acts as the primary entry point and control hub for the static analysis subsystem.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient.start",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._initialize",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Scanner",
+      "description": "Scans the project directory to identify and categorize source files based on their programming languages, determining the scope of analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.scanner.ProjectScanner.scan",
+          "reference_file": "static_analyzer/scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Configuration Manager",
+      "description": "Manages the definitions and configurations for various supported programming languages, including their associated LSP server parameters and file extensions.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguageBuilder",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguageBuilder.build",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage.get_server_parameters",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/programming_language.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSP Client",
+      "description": "Provides a generic interface for communicating with Language Server Protocol servers, enabling fundamental code analysis tasks such as symbol extraction, reference finding, and call hierarchy generation. It handles the general static analysis building process.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._get_document_symbols",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient._prepare_call_hierarchy",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.FileAnalysisResult",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Configuration Reader",
+      "description": "Locates and interprets project-specific configuration files (e.g., `tsconfig.json` for TypeScript) to understand project structure, build settings, and dependencies.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.typescript_config_scanner.TypeScriptConfigScanner.find_typescript_projects",
+          "reference_file": "static_analyzer/typescript_config_scanner.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Analysis Results Store",
+      "description": "Aggregates and stores all collected static analysis outputs, including Control Flow Graphs (CFG), class hierarchies, package dependencies, and source file references.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_references",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Call Graph Builder",
+      "description": "Constructs and maintains the call graph based on inter-function and inter-method calls identified during the static analysis, illustrating execution flow.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.Node",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph.add_node",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph.add_edge",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Reference Resolver",
+      "description": "Provides mechanisms to resolve various types of code references within the analyzed project, potentially employing different strategies including LLM-based resolution for ambiguity.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._try_exact_match",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._try_llm_resolution",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Uses",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Project Scanner"
+    },
+    {
+      "relation": "Consults",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "Manages",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Populates",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Analysis Results Store"
+    },
+    {
+      "relation": "Triggers",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Call Graph Builder"
+    },
+    {
+      "relation": "Initiates",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "Consults",
+      "src_name": "Project Scanner",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "Configures",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Reads",
+      "src_name": "LSP Client",
+      "dst_name": "Project Configuration Reader"
+    },
+    {
+      "relation": "Generates data for",
+      "src_name": "LSP Client",
+      "dst_name": "Analysis Results Store"
+    },
+    {
+      "relation": "Feeds information to",
+      "src_name": "LSP Client",
+      "dst_name": "Call Graph Builder"
+    },
+    {
+      "relation": "Provides data to",
+      "src_name": "LSP Client",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "Provides context to",
+      "src_name": "Project Configuration Reader",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Stores outputs from",
+      "src_name": "Analysis Results Store",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Stores graphs from",
+      "src_name": "Analysis Results Store",
+      "dst_name": "Call Graph Builder"
+    },
+    {
+      "relation": "Stores references from",
+      "src_name": "Analysis Results Store",
+      "dst_name": "Reference Resolver"
+    },
+    {
+      "relation": "Processes information from",
+      "src_name": "Call Graph Builder",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Stores graph in",
+      "src_name": "Call Graph Builder",
+      "dst_name": "Analysis Results Store"
+    },
+    {
+      "relation": "Processes data from",
+      "src_name": "Reference Resolver",
+      "dst_name": "LSP Client"
+    },
+    {
+      "relation": "Stores information in",
+      "src_name": "Reference Resolver",
+      "dst_name": "Analysis Results Store"
+    }
+  ]
+}

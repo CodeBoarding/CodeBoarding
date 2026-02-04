@@ -1,0 +1,178 @@
+{
+  "description": "The Monitoring & Metrics subsystem observes and records runtime events from LLM and tool executions within the Code Analysis / Documentation Generation Tool. It captures granular events (prompts, responses, token counts, errors, latencies), aggregates per-run statistics in-memory, organizes output paths and run IDs, and persists structured metrics and traces to the filesystem. The subsystem provides a context-managed lifecycle for monitoring sessions and exposes a reuseable integration interface so other application components can access monitoring instances and metrics.",
+  "components": [
+    {
+      "name": "MonitoringCallback (Event Capture)",
+      "description": "Primary event listener for LLM and tool events. Captures real-time data such as prompts, responses, token counts, tool names, errors, and latencies during execution.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.LLMCallbackHandler",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.writers.ToolCallbackHandler",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/callbacks.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "RunStats Aggregator (In-Memory Aggregation)",
+      "description": "An in-memory accumulator that processes raw events captured by MonitoringCallback and maintains per-run summaries (token totals, per-tool call counts, error counts, latencies).",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.TokenUsageMetrics",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py",
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Metrics Persistence Writer (Data Storage)",
+      "description": "Formats and writes aggregated monitoring data and metadata to the filesystem (e.g., JSON/Markdown). Invoked at run completion or periodically to persist structured outputs into the monitoring directory.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.MetricsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Context Manager (Session Management)",
+      "description": "Orchestrates lifecycle of monitoring sessions, providing scoped run contexts and generating unique run IDs. Ensures MonitoringCallback instances are initialized and available during monitored runs.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.contexts.MonitorContext",
+          "reference_file": "monitoring/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/__init__.py",
+        "monitoring/context.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Path Resolver (Output Organization)",
+      "description": "Manages filesystem layout for monitoring outputs, generates run IDs, creates directories, and provides canonical paths for artifacts like trace and statistics files.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.paths.MonitoringPaths",
+          "reference_file": "monitoring/paths.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Integration Mixin (API for External Components)",
+      "description": "A reusable interface/mixin exposing configured MonitoringCallback instances and aggregated statistics to external components, simplifying integration with the rest of the application.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.mixin.MonitoringMixin",
+          "reference_file": "monitoring/mixin.py",
+          "reference_start_line": 5,
+          "reference_end_line": 16
+        }
+      ],
+      "assigned_files": [
+        "monitoring/mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "updates",
+      "src_name": "MonitoringCallback (Event Capture)",
+      "dst_name": "RunStats Aggregator (In-Memory Aggregation)"
+    },
+    {
+      "relation": "receives events from",
+      "src_name": "MonitoringCallback (Event Capture)",
+      "dst_name": "LLM/Tool Execution Engine (external)"
+    },
+    {
+      "relation": "aggregates data from",
+      "src_name": "RunStats Aggregator (In-Memory Aggregation)",
+      "dst_name": "MonitoringCallback (Event Capture)"
+    },
+    {
+      "relation": "provides aggregated metrics to",
+      "src_name": "RunStats Aggregator (In-Memory Aggregation)",
+      "dst_name": "Metrics Persistence Writer (Data Storage)"
+    },
+    {
+      "relation": "retrieves aggregated metrics from",
+      "src_name": "Metrics Persistence Writer (Data Storage)",
+      "dst_name": "RunStats Aggregator (In-Memory Aggregation)"
+    },
+    {
+      "relation": "obtains output paths from",
+      "src_name": "Metrics Persistence Writer (Data Storage)",
+      "dst_name": "Monitoring Path Resolver (Output Organization)"
+    },
+    {
+      "relation": "manages lifecycle of",
+      "src_name": "Monitoring Context Manager (Session Management)",
+      "dst_name": "MonitoringCallback (Event Capture)"
+    },
+    {
+      "relation": "orchestrates persistence via",
+      "src_name": "Monitoring Context Manager (Session Management)",
+      "dst_name": "Metrics Persistence Writer (Data Storage)"
+    },
+    {
+      "relation": "generates paths for",
+      "src_name": "Monitoring Path Resolver (Output Organization)",
+      "dst_name": "Metrics Persistence Writer (Data Storage)"
+    },
+    {
+      "relation": "provides run ID generation to",
+      "src_name": "Monitoring Path Resolver (Output Organization)",
+      "dst_name": "Monitoring Context Manager (Session Management)"
+    },
+    {
+      "relation": "accesses",
+      "src_name": "Monitoring Integration Mixin (API for External Components)",
+      "dst_name": "Monitoring Context Manager (Session Management)"
+    },
+    {
+      "relation": "exposes monitoring interfaces to",
+      "src_name": "Monitoring Integration Mixin (API for External Components)",
+      "dst_name": "External System Components"
+    }
+  ]
+}

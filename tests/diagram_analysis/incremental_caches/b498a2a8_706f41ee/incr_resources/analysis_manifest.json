@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.2.0",
+  "repo_state_hash": "706f41e_01ba4719",
+  "base_commit": "706f41ee44136a782c2ea01809f5c0fd010c351c",
+  "file_to_component": {
+    "local_app.py": "Application & Job Orchestrator",
+    "utils.py": "Application & Job Orchestrator",
+    "diagram_analysis/diagram_generator.py": "Application & Job Orchestrator",
+    "duckdb_crud.py": "Application & Job Orchestrator",
+    "logging_config.py": "Application & Job Orchestrator",
+    "github_action.py": "Application & Job Orchestrator",
+    "main.py": "Application & Job Orchestrator",
+    "repo_utils/__init__.py": "Repository Management & Toolkit",
+    "agents/tools/read_structure.py": "Repository Management & Toolkit",
+    "agents/tools/read_file_structure.py": "Repository Management & Toolkit",
+    "health/config.py": "Repository Management & Toolkit",
+    "health_main.py": "Repository Management & Toolkit",
+    "agents/tools/toolkit.py": "Repository Management & Toolkit",
+    "static_analyzer/java_config_scanner.py": "Static Analysis Engine",
+    "static_analyzer/lsp_client/typescript_client.py": "Static Analysis Engine",
+    "static_analyzer/lsp_client/java_client.py": "Static Analysis Engine",
+    "static_analyzer/programming_language.py": "Static Analysis Engine",
+    "static_analyzer/lsp_client/client.py": "Static Analysis Engine",
+    "static_analyzer/reference_resolve_mixin.py": "Static Analysis Engine",
+    "static_analyzer/analysis_result.py": "Static Analysis Engine",
+    "static_analyzer/graph.py": "Architectural Graph Engine",
+    "agents/agent.py": "AI Orchestration Layer",
+    "agents/prompts/gpt_prompts.py": "AI Orchestration Layer",
+    "agents/agent_responses.py": "AI Orchestration Layer",
+    "agents/prompts/abstract_prompt_factory.py": "AI Orchestration Layer",
+    "agents/prompts/gemini_flash_prompts.py": "AI Orchestration Layer",
+    "agents/prompts/prompt_factory.py": "AI Orchestration Layer",
+    "agents/prompts/claude_prompts.py": "AI Orchestration Layer"
+  },
+  "expanded_components": [
+    "AI Orchestration Layer",
+    "Architectural Graph Engine",
+    "Application & Job Orchestrator",
+    "Repository Management & Toolkit",
+    "Static Analysis Engine"
+  ]
+}

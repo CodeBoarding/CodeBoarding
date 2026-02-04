@@ -1,0 +1,102 @@
+{
+  "description": "The `Application Orchestration & Persistence` subsystem is critical for managing the overall application workflow, including job scheduling, execution, and the persistence of analysis data. It acts as the central control for initiating and managing the code analysis and documentation generation process.",
+  "components": [
+    {
+      "name": "Application Workflow Orchestrator",
+      "description": "This component serves as the primary entry point for initiating and managing the code analysis and documentation generation process. It handles command-line argument parsing for local execution and integrates with GitHub Actions for automated workflows. Its core responsibility is to set up the environment, validate inputs, and delegate the creation and execution of analysis jobs.",
+      "key_entities": [
+        {
+          "qualified_name": "main.generate_analysis",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "github_action.generate_analysis",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "main.py",
+        "github_action.py",
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "logging_config.py",
+        "setup.py",
+        "utils.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Management System",
+      "description": "Responsible for the lifecycle management of individual analysis jobs. It receives requests from the Application Workflow Orchestrator to create new jobs, manages their execution, tracks their status (e.g., PENDING, RUNNING, COMPLETED, FAILED), and ensures proper resource allocation. It abstracts the underlying execution details.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app.make_job",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Local Data Persistence",
+      "description": "Provides a dedicated layer for storing and retrieving all persistent data required by the application, including job metadata, analysis configurations, and potentially intermediate or final analysis results. It utilizes a local DuckDB database to ensure data integrity and availability across different application runs.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud.DuckDBCRUD",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "initiates job",
+      "src_name": "Application Workflow Orchestrator",
+      "dst_name": "Job Management System"
+    },
+    {
+      "relation": "stores configuration/results in",
+      "src_name": "Application Workflow Orchestrator",
+      "dst_name": "Local Data Persistence"
+    },
+    {
+      "relation": "records job data in",
+      "src_name": "Job Management System",
+      "dst_name": "Local Data Persistence"
+    },
+    {
+      "relation": "retrieves job data from",
+      "src_name": "Job Management System",
+      "dst_name": "Local Data Persistence"
+    },
+    {
+      "relation": "provides configuration/results to",
+      "src_name": "Local Data Persistence",
+      "dst_name": "Application Workflow Orchestration"
+    }
+  ]
+}
