@@ -25,7 +25,6 @@ class AnalysisCacheMetadata:
     commit_hash: str
     iteration_id: int
     timestamp: float
-    version: str = "1.0"
 
 
 class AnalysisCacheManager:
@@ -82,7 +81,6 @@ class AnalysisCacheManager:
                     "commit_hash": commit_hash,
                     "iteration_id": iteration_id,
                     "timestamp": time.time(),
-                    "version": "1.0",
                 },
                 "call_graph": self._serialize_call_graph(analysis_result["call_graph"]),
                 "class_hierarchies": analysis_result["class_hierarchies"],
@@ -531,7 +529,7 @@ class AnalysisCacheManager:
 
         # Validate metadata structure
         metadata = cache_data.get("metadata", {})
-        required_metadata = {"commit_hash", "iteration_id", "timestamp", "version"}
+        required_metadata = {"commit_hash", "iteration_id", "timestamp"}
         if not all(key in metadata for key in required_metadata):
             return False
 

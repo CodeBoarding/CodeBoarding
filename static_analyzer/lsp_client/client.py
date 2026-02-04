@@ -562,43 +562,6 @@ class LSPClient(ABC):
             "source_files": src_files,
         }
 
-    def build_incremental_analysis(self, cache_path: Path) -> dict:
-        """
-        Build static analysis using incremental approach with caching.
-
-        This method uses the IncrementalAnalysisOrchestrator to perform
-        incremental analysis, reusing cached results when possible and
-        only reanalyzing changed files.
-
-        Args:
-            cache_path: Path to the cache file for storing/loading results
-
-        Returns:
-            Dictionary containing complete analysis results with same structure
-            as build_static_analysis()
-        """
-        from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
-
-        logger.info("Starting incremental static analysis")
-        orchestrator = IncrementalAnalysisOrchestrator()
-        result = orchestrator.run_incremental_analysis(self, cache_path)
-
-        # Log final statistics
-        call_graph = result.get("call_graph", CallGraph())
-        class_hierarchies = result.get("class_hierarchies", {})
-        package_relations = result.get("package_relations", {})
-        references = result.get("references", [])
-        source_files = result.get("source_files", [])
-
-        logger.info(
-            f"Incremental analysis complete: {len(source_files)} files, "
-            f"{len(references)} references, {len(class_hierarchies)} classes, "
-            f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, "
-            f"{len(call_graph.edges)} edges"
-        )
-
-        return result
-
     def _analyze_single_file(self, file_path: Path, all_classes: list[dict]) -> FileAnalysisResult:
         """
         Analyze a single file and return all analysis results.

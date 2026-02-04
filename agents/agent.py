@@ -394,12 +394,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(
-        self,
-        analysis: AnalysisInsights,
-        cluster_results: dict,
-        scope_files: list[str] | None = None,
-    ) -> None:
+    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str]) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -408,45 +403,23 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         Args:
             analysis: AnalysisInsights object to classify files for
             cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
-            scope_files: Optional list of file paths to limit classification scope.
-                        If None, uses all source files from static_analysis.
-                        Used by DetailsAgent to limit to component's assigned files.
+            scope_files: List of file paths to limit classification scope.
 
         Requires self to be a mixin with ClusterMethodsMixin for helper methods.
         """
-        # Pass 1: Deterministic assignment (uses mixin methods)
         for comp in analysis.components:
+            # Deterministic assignment (uses mixin methods)
             self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
+        self._classify_unassigned_files_llm(analysis, scope_files)
+        self._log_unclassified_files_count(analysis, scope_files)
 
-        # Normalize scope to lists only (ignore unexpected types)
-        scope: list[str] | None
-        if scope_files is None:
-            scope = None
-        elif isinstance(scope_files, list):
-            scope = scope_files
-        else:
-            logger.warning("[Agent] scope_files must be a list[str]; received %s. Ignoring scope.", type(scope_files))
-            scope = None
-
-        # Pass 2: LLM classification of unassigned files
-        self._classify_unassigned_files_llm(analysis, scope)
-
-        # Log final unclassified count
-        self._log_unclassified_files_count(analysis, scope)
-
-    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str] | None = None) -> None:
+    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
         """
-        Classify files from static analysis that weren't assigned to any component.
+        Classify files from the scope files that weren't assigned to any component.
         Uses a single LLM call to classify all unassigned files.
-
-        If scope_files is provided, only classifies files within that scope.
-        Otherwise, classifies all unassigned files from static analysis.
-
         Args:
             analysis: AnalysisInsights object
-            scope_files: Optional list of file paths to limit classification scope.
-                        If provided (e.g., DetailsAgent), only these files are considered.
-                        If None (e.g., AbstractionAgent), all files from static_analysis are used.
+            scope_files: List of file paths to limit classification scope.
         """
         # Get unassigned files using the helper method
         unassigned_files = self._get_unassigned_files(analysis, scope_files)
@@ -481,20 +454,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
 
-    def _get_unassigned_files(self, analysis: AnalysisInsights, scope_files: list[str] | None = None) -> list[str]:
+    def _get_unassigned_files(self, analysis: AnalysisInsights, scope_files: list[str]) -> list[str]:
         """
         Check which files remain unassigned after classification.
-
-        If scope_files is provided, only considers files within that scope.
-        Otherwise, uses all source files from static analysis to ensure
-        complete coverage of all scanned and analyzed files.
-
         Args:
             analysis: AnalysisInsights object with classified components
-            scope_files: Optional list of file paths to limit the scope.
-                        If provided (e.g., DetailsAgent), only these files are considered.
-                        If None (e.g., AbstractionAgent), all files from static_analysis are used.
-
+            scope_files: List of file paths to limit the scope.
         Returns:
             List of file paths that are still unassigned
         """
@@ -509,36 +474,21 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         # If scope_files is provided (e.g., DetailsAgent), use those
         # Otherwise use all source files from static_analysis (e.g., AbstractionAgent)
         all_files = set()
-        if scope_files is not None:
-            for file_path in scope_files:
-                file_path_str = str(file_path)
-                rel_path = (
-                    os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
-                )
-                all_files.add(rel_path)
-        else:
-            for file_path in self.static_analysis.get_all_source_files():
-                file_path_str = str(file_path)
-                rel_path = (
-                    os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
-                )
-                all_files.add(rel_path)
+        for file_path in scope_files:
+            file_path_str = str(file_path)
+            rel_path = os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
+            all_files.add(rel_path)
 
         # 3. Return unassigned files
         return sorted(all_files - assigned_files)
 
-    def _log_unclassified_files_count(self, analysis: AnalysisInsights, scope_files: list[str] | None = None) -> None:
+    def _log_unclassified_files_count(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
         """
-        Log how many files remain unclassified after classification.
-
-        If scope_files is provided, only considers files within that scope.
-        Otherwise, considers all files from static analysis.
+        Log how many files remain unclassified within the analysis.
 
         Args:
             analysis: AnalysisInsights object with classified components
-            scope_files: Optional list of file paths to limit the scope.
-                        If provided (e.g., DetailsAgent), only these files are considered.
-                        If None (e.g., AbstractionAgent), all files from static_analysis are used.
+            scope_files: List of file paths which are expected to be within the analysis.
         """
         unassigned = self._get_unassigned_files(analysis, scope_files)
         if unassigned:

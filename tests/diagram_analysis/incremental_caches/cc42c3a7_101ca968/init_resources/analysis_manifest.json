@@ -1,6 +1,5 @@
 {
   "schema_version": 1,
-  "tool_version": "0.2.0",
   "repo_state_hash": "cc42c3a_01ba4719",
   "base_commit": "cc42c3a78a233c7b44d59ca5e1ae12412c6c2865",
   "file_to_component": {

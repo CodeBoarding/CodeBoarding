@@ -25,7 +25,6 @@ class AnalysisManifest(BaseModel):
     """Persisted state for incremental updates."""
 
     schema_version: int = Field(default=MANIFEST_SCHEMA_VERSION)
-    tool_version: str = Field(default="0.2.0")
 
     # Git state at time of analysis
     repo_state_hash: str = Field(description="Hash from get_repo_state_hash()")

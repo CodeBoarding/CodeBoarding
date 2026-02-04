@@ -34,7 +34,7 @@ class LLMConfig:
     parsing_model: str
     llm_type: LLMType
     agent_temperature: float = 0.1
-    parsing_temperature: float = 0.1
+    parsing_temperature: float = 0
     extra_args: Dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 

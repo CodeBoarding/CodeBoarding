@@ -123,15 +123,6 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
         return False
 
-    # Create a minimal agent instance to access classify_files
-    # We need the mixin methods to perform classification
-    meta_agent = MetaAgent(
-        repo_dir,
-        static_analysis,
-        repo_dir.name,
-    )
-    meta_context = meta_agent.analyze_project_metadata()
-
     agent = LargeModelAgent(
         repo_dir=repo_dir,
         static_analysis=static_analysis,
@@ -142,22 +133,13 @@ def classify_new_files_in_component(
         # Add new files to the sub-analysis as unassigned (they'll be classified)
         # First, we need to ensure the new files are in the component's scope
         component_files = set(component.assigned_files)
-        files_to_classify = [
-            f for f in new_files if f in component_files or any(f.endswith(cf) for cf in component_files)
-        ]
-
-        if not files_to_classify:
-            logger.info(f"No new files to classify for '{component_name}' (files may not be in component scope)")
-            return True
 
         # Perform classification using the agent's classify_files method
         # This mimics DetailsAgent.run() step 5 but scoped to only new files
-        agent.classify_files(sub_analysis, cluster_results, scope_files=files_to_classify)
+        agent.classify_files(sub_analysis, cluster_results, component_files)
 
         # Save the updated sub-analysis
         save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)
-
-        logger.info(f"Successfully classified {len(files_to_classify)} new files in '{component_name}'")
         return True
 
     except Exception as e:

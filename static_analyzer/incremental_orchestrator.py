@@ -7,23 +7,19 @@ coordinating between cache management, git diff analysis, and LSP client operati
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from agents.agent_responses import AnalysisInsights
 from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.cluster_change_analyzer import (
     ClusterChangeAnalyzer,
-    ClusterChangeResult,
     ChangeClassification,
     analyze_cluster_changes_for_languages,
     get_overall_classification,
 )
-from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.lsp_client.client import LSPClient
 
-if TYPE_CHECKING:
-    from static_analyzer.lsp_client.client import LSPClient
 
 logger = logging.getLogger(__name__)
 

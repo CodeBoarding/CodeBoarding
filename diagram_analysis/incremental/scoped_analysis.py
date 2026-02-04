@@ -12,8 +12,6 @@ from typing import cast
 from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import plan_analysis
-from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_analysis,
@@ -148,7 +146,7 @@ def handle_scoped_component_update(
             project_name=repo_dir.name,
             static_analysis=static_analysis,
         )
-        meta_context = cast(MetaAnalysisInsights, meta_agent.analyze_project_metadata())
+        meta_context = meta_agent.analyze_project_metadata()
 
         details_agent = DetailsAgent(
             repo_dir=repo_dir,

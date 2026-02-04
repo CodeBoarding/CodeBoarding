@@ -235,7 +235,8 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         cluster_results = {"python": mock_cluster_result}
 
-        agent.classify_files(analysis, cluster_results)
+        scope_files = [str(self.repo_dir / "cluster_file.py"), str(self.repo_dir / "test_file.py")]
+        agent.classify_files(analysis, cluster_results, scope_files)
 
         # Check files were assigned from both clusters and key_entities
         self.assertIn("cluster_file.py", component.assigned_files)

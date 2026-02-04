@@ -5,16 +5,15 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 from tqdm import tqdm
 
-from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
+from agents.agent_responses import AnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from diagram_analysis.analysis_json import from_analysis_to_json
-from diagram_analysis.incremental.io_utils import load_sub_analysis, save_sub_analysis
+from diagram_analysis.incremental.io_utils import load_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.incremental.path_patching import patch_sub_analysis
 from diagram_analysis.incremental.component_checker import subcomponent_has_only_renames
@@ -135,7 +134,7 @@ def reexpand_components(
         project_name=repo_dir.name,
         static_analysis=context.static_analysis,
     )
-    meta_context = cast(MetaAnalysisInsights, meta_agent.analyze_project_metadata())
+    meta_context = meta_agent.analyze_project_metadata()
 
     details_agent = DetailsAgent(
         repo_dir=repo_dir,

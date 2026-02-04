@@ -10,6 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
+from agents.agent_responses import Component
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
@@ -57,7 +58,7 @@ class DiagramGenerator:
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
-        self.force_full = False  # Set to True to skip incremental updates
+        self.force_full_analysis = False  # Set to True to skip incremental updates
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
@@ -68,7 +69,7 @@ class DiagramGenerator:
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
-    def process_component(self, component):
+    def process_component(self, component: Component):
         """Process a single component and return its output path and any new components to analyze"""
         try:
             assert self.details_agent is not None
@@ -96,7 +97,7 @@ class DiagramGenerator:
         analysis_start_time = time.time()
 
         # When force_full is True, skip the cache to perform a full static analysis
-        if self.force_full:
+        if self.force_full_analysis:
             logger.info("Force full analysis: skipping static analysis cache")
             self.static_analysis = get_static_analysis(self.repo_location, skip_cache=True)
         else:
@@ -297,7 +298,7 @@ class DiagramGenerator:
             List of updated file paths if incremental update succeeded,
             None if full analysis is needed.
         """
-        if self.force_full:
+        if self.force_full_analysis:
             logger.info("Force full analysis requested, skipping incremental check")
             return None
 
@@ -307,8 +308,6 @@ class DiagramGenerator:
 
         # For UPDATE_COMPONENTS action, we need static analysis to properly
         # recompute file assignments with cluster matching. Load it first.
-        from static_analyzer import get_static_analysis
-
         static_analysis = None
         try:
             static_analysis = get_static_analysis(self.repo_location)
@@ -320,7 +319,7 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
             output_dir=self.output_dir,
             static_analysis=static_analysis,
-            force_full=self.force_full,
+            force_full=self.force_full_analysis,
         )
 
         if not updater.can_run_incremental():

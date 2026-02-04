@@ -11,9 +11,9 @@ Expansion Rules:
 3. If neither component nor its parent has clusters → leaf (stop expanding)
 
 Example:
-- Component "Agents" (clusters: [1,2,3]) → expand ✓
-  - Sub-component "DetailsAgent" (clusters: [], files: [details_agent.py]) → expand ✓ (parent had clusters)
-    - Sub-sub-component "run_method" (clusters: [], files: []) → DON'T expand ✗ (parent had no clusters)
+- Component: "Agents" (clusters: [1,2,3]) → expand ✓
+  - Sub-component: "DetailsAgent" (clusters: [], files: [details_agent.py]) → expand ✓ (parent had clusters)
+    - Sub-sub-component: "run_method" (clusters: [], files: []) → DON'T expand ✗ (parent had no clusters)
 """
 
 import logging
