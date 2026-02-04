@@ -325,6 +325,9 @@ class AnalysisCacheManager:
         existing_nodes = set(call_graph.nodes.keys())
         errors: list[str] = []
 
+        # Build source file string set once for all validation checks
+        source_file_strs = {str(path) for path in analysis_result["source_files"]}
+
         # Check edges reference existing nodes
         for edge in call_graph.edges:
             src_name = edge.get_source()
@@ -339,14 +342,12 @@ class AnalysisCacheManager:
         for ref in analysis_result["references"]:
             # References can be standalone (not necessarily in call graph nodes)
             # but they should have valid file paths that exist in source_files
-            source_file_strs = {str(path) for path in analysis_result["source_files"]}
             if ref.file_path not in source_file_strs:
                 errors.append(
                     f"Reference '{ref.fully_qualified_name}' from file '{ref.file_path}' references non-existent source file"
                 )
 
         # Check class hierarchies reference valid files
-        source_file_strs = {str(path) for path in analysis_result["source_files"]}
         for class_name, class_info in analysis_result["class_hierarchies"].items():
             class_file_path = class_info.get("file_path", "")
             if class_file_path and class_file_path not in source_file_strs:

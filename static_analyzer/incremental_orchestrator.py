@@ -624,6 +624,7 @@ class IncrementalAnalysisOrchestrator:
             cluster_mappings: Mapping from new cluster IDs to old cluster IDs
         """
         # Flatten all mappings (assuming single language for now)
+        # id_mapping maps new_cluster_id -> old_cluster_id
         id_mapping: dict[int, int] = {}
         for lang_mapping in cluster_mappings.values():
             id_mapping.update(lang_mapping)
@@ -631,34 +632,30 @@ class IncrementalAnalysisOrchestrator:
         if not id_mapping:
             return
 
-        # Update each component's source_cluster_ids
+        # Components have OLD cluster IDs from the previous analysis.
+        # The new clustering produced NEW cluster IDs.
+        # id_mapping is new_id -> old_id, so reverse_mapping is old_id -> new_id.
+        # We keep old IDs that still have a corresponding new cluster (i.e. exist in reverse_mapping).
+        reverse_mapping: dict[int, int] = {v: k for k, v in id_mapping.items()}
+
         updated_count = 0
         for component in analysis.components:
             if not component.source_cluster_ids:
                 continue
 
-        # Actually, we need a different approach: components have OLD cluster IDs
-        # The new clustering produced NEW cluster IDs
-        # We need to update the analysis to use the old IDs where possible
+            remapped_ids = []
+            for old_id in component.source_cluster_ids:
+                # If this old cluster was matched to a new cluster,
+                # keep the old ID (it's the stable one)
+                # If not matched, the cluster was deleted
+                if old_id in reverse_mapping:
+                    remapped_ids.append(old_id)
+                else:
+                    logger.debug(f"Cluster {old_id} no longer exists in component {component.name}")
 
-        # For now, let's create a reverse mapping: old_id -> new_id
-        reverse_mapping: dict[int, int] = {v: k for k, v in id_mapping.items()}
-
-        for component in analysis.components:
-            if component.source_cluster_ids:
-                remapped_ids = []
-                for old_id in component.source_cluster_ids:
-                    # If this old cluster was matched to a new cluster,
-                    # keep the old ID (it's the stable one)
-                    # If not matched, the cluster was deleted
-                    if old_id in reverse_mapping:
-                        remapped_ids.append(old_id)
-                    else:
-                        logger.debug(f"Cluster {old_id} no longer exists in component {component.name}")
-
-                if remapped_ids != component.source_cluster_ids:
-                    component.source_cluster_ids = remapped_ids
-                    updated_count += 1
+            if remapped_ids != component.source_cluster_ids:
+                component.source_cluster_ids = remapped_ids
+                updated_count += 1
 
         if updated_count > 0:
             logger.info(f"Updated cluster IDs for {updated_count} components")
