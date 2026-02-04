@@ -37,7 +37,7 @@ from git import Repo
 
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
-from .conftest import (
+from tests.integration.conftest import (
     REPOSITORY_CONFIGS,
     RepositoryTestConfig,
     create_mock_scanner,
