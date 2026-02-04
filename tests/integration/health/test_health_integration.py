@@ -25,8 +25,7 @@ from unittest.mock import patch
 import pytest
 from git import Repo
 
-from health.config import load_health_exclude_patterns, initialize_healthignore
-from health.models import HealthCheckConfig
+from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
@@ -159,9 +158,8 @@ class TestHealthCheckIntegration:
 
             # Set up health config
             health_config_dir = output_dir / "health"
-            initialize_healthignore(health_config_dir)
-            exclude_patterns = load_health_exclude_patterns(health_config_dir)
-            health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+            initialize_health_dir(health_config_dir)
+            health_config = load_health_config(health_config_dir)
 
             # Run health checks
             report = run_health_checks(static_analysis, repo_name, config=health_config, repo_path=repo_path)

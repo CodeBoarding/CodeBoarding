@@ -17,8 +17,7 @@ import os
 from pathlib import Path
 
 from health.runner import run_health_checks
-from health.config import load_health_exclude_patterns, initialize_healthignore
-from health.models import HealthCheckConfig
+from health.config import initialize_health_dir, load_health_config
 from logging_config import setup_logging
 from repo_utils import clone_repository, get_repo_name
 from static_analyzer import get_static_analysis
@@ -64,9 +63,8 @@ def run_health_check_command(
 
     # Load health check configuration and initialize health config dir
     health_config_dir = output_dir / "health"
-    initialize_healthignore(health_config_dir)
-    exclude_patterns = load_health_exclude_patterns(health_config_dir)
-    health_config = HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+    initialize_health_dir(health_config_dir)
+    health_config = load_health_config(health_config_dir)
 
     report = run_health_checks(
         static_analysis, resolved_project_name, config=health_config, repo_path=resolved_repo_path
