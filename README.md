@@ -87,15 +87,15 @@ The `python install.py` command creates a `.env` file if it doesn't exist with a
 
 ```bash
 # LLM Provider (choose one)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-VERCEL_API_KEY=
-AWS_BEARER_TOKEN_BEDROCK=
+OPENAI_API_KEY=                    # Single key, CSV, or JSON array
+ANTHROPIC_API_KEY=                 # Single key, CSV, or JSON array
+GOOGLE_API_KEY=                    # Single key, CSV, or JSON array
+VERCEL_API_KEY=                    # Single key, CSV, or JSON array
+AWS_BEARER_TOKEN_BEDROCK=          # Single token, CSV, or JSON array
 OLLAMA_BASE_URL=
 OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
 VERCEL_BASE_URL=                   # Optional: Custom Vercel endpoint
-CEREBRAS_API_KEY=
+CEREBRAS_API_KEY=                  # Single key, CSV, or JSON array
 AGENT_MODEL=                      # Optional: Specify model to use for the main agent (e.g., gpt-4o, claude-3-7-sonnet)
 PARSING_MODEL=                    # Optional: Specify model to use for parsing tasks (e.g., gpt-4o-mini, claude-3-haiku)
 

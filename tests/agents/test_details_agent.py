@@ -62,7 +62,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_init(self, mock_static_init):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -78,7 +78,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_create_strict_component_subgraph(self, mock_static_init):
         # Test creating subgraph from component assigned files
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -117,7 +117,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
     def test_step_cluster_grouping(self, mock_validation_invoke, mock_static_init):
         # Test step_cluster_grouping
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -136,7 +136,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
     def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
         # Test step_final_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -161,7 +161,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
     def test_run(self, mock_fix_ref, mock_parse_invoke, mock_static_init):
         # Test run method with subgraph + grouping + final analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -211,7 +211,7 @@ class TestDetailsAgent(unittest.TestCase):
     @patch("os.path.relpath")
     def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init):
         # Test classify_files (assigns files from clusters + key_entities)
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
 
         agent = DetailsAgent(

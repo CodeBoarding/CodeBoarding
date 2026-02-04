@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -17,7 +18,7 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.llm_config import LLM_PROVIDERS
-from agents.tools.base import RepoContext
+from agents.tools.base import RepoContext, BaseRepoTool
 from agents.tools.toolkit import CodeBoardingToolkit
 from agents.prompts import (
     get_unassigned_files_classification_message,
@@ -43,8 +44,18 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     _parsing_llm: Optional[BaseChatModel] = None
+    _parsing_llm_pool: list[BaseChatModel] | None = None
+    _parsing_llm_index = 0
+    _parsing_llm_lock = threading.Lock()
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        system_message: str,
+        llm: BaseChatModel,
+        llm_pool: list[BaseChatModel] | None = None,
+    ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.llm = llm
@@ -55,10 +66,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
         self.toolkit = CodeBoardingToolkit(context=context)
 
-        self.agent = create_react_agent(
-            model=self.llm,
-            tools=self.toolkit.get_agent_tools(),
-        )
+        self._llm_pool: list[BaseChatModel] = llm_pool or []
+        self._agent_pool: list = []
+        self._agent_pool_index = 0
+        self._agent_pool_lock = threading.Lock()
+        self._set_agent_tools(self.toolkit.get_agent_tools())
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
@@ -101,15 +113,26 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     @classmethod
     def get_parsing_llm(cls) -> BaseChatModel:
         """Shared access to the small model for parsing tasks."""
-        if cls._parsing_llm is None:
+        if cls._parsing_llm is None or cls._parsing_llm_pool is None:
             parsing_model = os.getenv("PARSING_MODEL", None)
-            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
-        return cls._parsing_llm
+            cls._parsing_llm, _, pool = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
+            cls._parsing_llm_pool = pool if pool else [cls._parsing_llm]
+
+        if not cls._parsing_llm_pool:
+            return cls._parsing_llm
+
+        if len(cls._parsing_llm_pool) == 1:
+            return cls._parsing_llm_pool[0]
+
+        with cls._parsing_llm_lock:
+            model = cls._parsing_llm_pool[cls._parsing_llm_index]
+            cls._parsing_llm_index = (cls._parsing_llm_index + 1) % len(cls._parsing_llm_pool)
+        return model
 
     @staticmethod
     def _static_initialize_llm(
         model_override: Optional[str] = None, is_parsing: bool = False
-    ) -> tuple[BaseChatModel, str]:
+    ) -> tuple[BaseChatModel, str, list[BaseChatModel] | None]:
         """Initialize LLM based on available API keys with priority order."""
         for name, config in LLM_PROVIDERS.items():
             if not config.is_active():
@@ -126,21 +149,33 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
             logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
 
-            kwargs = {
+            base_kwargs = {
                 "model": model_name,
                 "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
             }
-            kwargs.update(config.get_resolved_extra_args())
+            base_kwargs.update(config.get_resolved_extra_args())
 
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
+            if name in ["aws", "ollama"]:
+                model = config.chat_class(**base_kwargs)  # type: ignore[call-arg, arg-type]
+                MONITORING_CALLBACK.model_name = model_name
+                return model, model_name, None
 
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+            api_keys = config.get_api_keys()
+            if is_parsing or len(api_keys) <= 1:
+                kwargs = dict(base_kwargs)
+                kwargs["api_key"] = (api_keys[0] if api_keys else None) or "no-key-required"
+                model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+                MONITORING_CALLBACK.model_name = model_name
+                return model, model_name, None
 
-            # Update global monitoring callback
+            model_pool = []
+            for api_key in api_keys:
+                kwargs = dict(base_kwargs)
+                kwargs["api_key"] = api_key
+                model_pool.append(config.chat_class(**kwargs))  # type: ignore[call-arg, arg-type]
+
             MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
+            return model_pool[0], model_name, model_pool
 
         # Dynamically build error message with all possible env vars
         required_vars = []
@@ -235,7 +270,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _invoke_with_timeout(self, timeout_seconds: int, callback_list: list, prompt: str):
         """Invoke agent with a timeout using threading."""
-        import threading
         from queue import Queue, Empty
 
         result_queue: Queue = Queue()
@@ -243,7 +277,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         def invoke_target():
             try:
-                response = self.agent.invoke(
+                agent = self._get_agent()
+                response = agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]},
                     config={"callbacks": callback_list, "recursion_limit": 40},
                 )
@@ -277,6 +312,21 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
+
+    def _set_agent_tools(self, tools: list[BaseRepoTool]) -> None:
+        if self._llm_pool:
+            self._agent_pool = [create_react_agent(model=pool_llm, tools=tools) for pool_llm in self._llm_pool]
+            self.agent = self._agent_pool[0]
+        else:
+            self.agent = create_react_agent(model=self.llm, tools=tools)
+
+    def _get_agent(self):
+        if not self._agent_pool:
+            return self.agent
+        with self._agent_pool_lock:
+            agent = self._agent_pool[self._agent_pool_index]
+            self._agent_pool_index = (self._agent_pool_index + 1) % len(self._agent_pool)
+        return agent
 
     def _validation_invoke(
         self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
@@ -500,6 +550,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 class LargeModelAgent(CodeBoardingAgent):
     def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
-        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
-        super().__init__(repo_dir, static_analysis, system_message, llm)
+        llm, model_name, llm_pool = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
+        super().__init__(repo_dir, static_analysis, system_message, llm, llm_pool=llm_pool)
         self.agent_monitoring_callback.model_name = model_name

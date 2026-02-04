@@ -1,3 +1,4 @@
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Type, Dict, Any, Optional, Callable
@@ -40,6 +41,36 @@ class LLMConfig:
 
     def get_api_key(self) -> Optional[str]:
         return os.getenv(self.api_key_env)
+
+    def get_api_keys(self) -> list[str]:
+        """
+        Return a list of API keys from a single env var.
+
+        Accepted formats:
+        - Single key: "key"
+        - CSV: "key1,key2,key3"
+        - JSON array: ["key1","key2"]
+        """
+        keys: list[str] = []
+
+        raw = os.getenv(self.api_key_env)
+        if not raw:
+            return keys
+
+        raw = raw.strip()
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    keys.extend([str(item).strip() for item in parsed if str(item).strip()])
+            except json.JSONDecodeError:
+                # Fall back to CSV parsing
+                pass
+
+        if not keys:
+            keys.extend([item.strip() for item in raw.split(",") if item.strip()])
+
+        return keys
 
     def is_active(self) -> bool:
         """Check if any of the environment variables (primary or alternate) are set."""

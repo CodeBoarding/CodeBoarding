@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from agents.agent_responses import AnalysisInsights
+from agents.llm_config import LLM_PROVIDERS
 
 from diagram_analysis import DiagramGenerator
 from logging_config import setup_logging
@@ -25,22 +26,24 @@ logger = logging.getLogger(__name__)
 
 def validate_env_vars():
     """Validate that required API keys and environment variables are set."""
-    api_provider_keys = [
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "GOOGLE_API_KEY",
-        "AWS_BEARER_TOKEN_BEDROCK",
-        "OLLAMA_BASE_URL",
-        "CEREBRAS_API_KEY",
-        "VERCEL_API_KEY",
-    ]
-    api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
+    active_providers = []
+    all_env_options: list[str] = []
 
-    if len(api_env_keys) == 0:
-        logger.error(f"API key not set, set one of the following: {api_provider_keys}")
+    for name, config in LLM_PROVIDERS.items():
+        envs = [config.api_key_env]
+        envs.extend(config.alt_env_vars)
+        all_env_options.extend(envs)
+
+        if config.is_active():
+            active_providers.append(name)
+
+    if len(active_providers) == 0:
+        logger.error(f"API key not set, set one of the following: {sorted(set(all_env_options))}")
         exit(1)
-    elif len(api_env_keys) > 1:
-        logger.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
+    elif len(active_providers) > 1:
+        logger.error(
+            f"Detected multiple API providers set ({active_providers}), set ONE provider using: {sorted(set(all_env_options))}"
+        )
         exit(2)
 
 

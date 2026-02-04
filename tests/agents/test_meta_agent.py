@@ -29,7 +29,7 @@ class TestMetaAgent(unittest.TestCase):
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     def test_init(self, mock_static_init):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -44,7 +44,7 @@ class TestMetaAgent(unittest.TestCase):
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
@@ -74,7 +74,7 @@ class TestMetaAgent(unittest.TestCase):
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata_application(self, mock_parse_invoke, mock_static_init):
         # Test analyze_project_metadata for an application
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_static_init.return_value = (MagicMock(), "test-model", None)
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
