@@ -1,562 +1,0 @@
-2026-02-02 01:48:20 INFO     [__main__:417] Starting CodeBoarding documentation generation...
-Monitoring enabled: false
-2026-02-02 01:48:20 INFO     [static_analyzer:102] Starting static analysis for Python in /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding
-2026-02-02 01:48:20 INFO     [static_analyzer.lsp_client.client:98] Starting server /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver --stdio...
-2026-02-02 01:48:20 INFO     [static_analyzer.lsp_client.client:234] Initializing connection for python...
-2026-02-02 01:48:21 INFO     [static_analyzer.lsp_client.client:256] Initialization successful.
-2026-02-02 01:48:21 INFO     [static_analyzer:117] Using incremental cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-02 01:48:21 INFO     [static_analyzer.incremental_orchestrator:64] Current commit: 43c04828cdc85730b6fffd95ec161e6a937b5e42
-2026-02-02 01:48:21 INFO     [static_analyzer.analysis_cache:124] Cache file does not exist: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-02 01:48:21 INFO     [static_analyzer.incremental_orchestrator:71] No cache found, performing full analysis
-2026-02-02 01:48:21 INFO     [static_analyzer.incremental_orchestrator:174] Starting full static analysis
-2026-02-02 01:48:21 INFO     [static_analyzer.incremental_orchestrator:180] Will analyze 82 source files
-2026-02-02 01:48:21 INFO     [static_analyzer.lsp_client.client:428] Starting unified static analysis with multithreading...
-2026-02-02 01:48:21 INFO     [static_analyzer.lsp_client.client:450] Found 82 source files. Starting unified analysis...
-2026-02-02 01:48:21 INFO     [static_analyzer.lsp_client.client:457] Found 0 classes in workspace
-[Unified Analysis] Processing files:   0%|          | 0/82 [00:00<?, ?it/s][Unified Analysis] Processing files:   1%|          | 1/82 [00:03<04:10,  3.09s/it][Unified Analysis] Processing files:   2%|▏         | 2/82 [00:03<02:11,  1.64s/it][Unified Analysis] Processing files:   4%|▎         | 3/82 [00:04<01:56,  1.47s/it][Unified Analysis] Processing files:   5%|▍         | 4/82 [00:05<01:34,  1.21s/it][Unified Analysis] Processing files:   6%|▌         | 5/82 [00:07<01:58,  1.54s/it][Unified Analysis] Processing files:   7%|▋         | 6/82 [00:08<01:20,  1.06s/it][Unified Analysis] Processing files:   9%|▊         | 7/82 [00:09<01:33,  1.25s/it][Unified Analysis] Processing files:  10%|▉         | 8/82 [00:10<01:20,  1.08s/it][Unified Analysis] Processing files:  11%|█         | 9/82 [00:11<01:27,  1.20s/it][Unified Analysis] Processing files:  12%|█▏        | 10/82 [00:11<01:02,  1.16it/s][Unified Analysis] Processing files:  13%|█▎        | 11/82 [00:12<01:01,  1.16it/s][Unified Analysis] Processing files:  15%|█▍        | 12/82 [00:13<00:47,  1.46it/s][Unified Analysis] Processing files:  16%|█▌        | 13/82 [00:13<00:36,  1.88it/s][Unified Analysis] Processing files:  18%|█▊        | 15/82 [00:13<00:25,  2.67it/s][Unified Analysis] Processing files:  21%|██        | 17/82 [00:13<00:16,  3.90it/s][Unified Analysis] Processing files:  22%|██▏       | 18/82 [00:14<00:23,  2.76it/s][Unified Analysis] Processing files:  24%|██▍       | 20/82 [00:14<00:18,  3.38it/s][Unified Analysis] Processing files:  26%|██▌       | 21/82 [00:17<00:44,  1.37it/s][Unified Analysis] Processing files:  27%|██▋       | 22/82 [00:17<00:38,  1.57it/s][Unified Analysis] Processing files:  28%|██▊       | 23/82 [00:18<00:36,  1.61it/s][Unified Analysis] Processing files:  29%|██▉       | 24/82 [00:19<00:45,  1.27it/s][Unified Analysis] Processing files:  30%|███       | 25/82 [00:19<00:38,  1.47it/s][Unified Analysis] Processing files:  33%|███▎      | 27/82 [00:20<00:23,  2.34it/s][Unified Analysis] Processing files:  34%|███▍      | 28/82 [00:20<00:23,  2.28it/s][Unified Analysis] Processing files:  35%|███▌      | 29/82 [00:20<00:22,  2.31it/s][Unified Analysis] Processing files:  37%|███▋      | 30/82 [00:23<00:56,  1.09s/it][Unified Analysis] Processing files:  39%|███▉      | 32/82 [00:24<00:38,  1.31it/s][Unified Analysis] Processing files:  40%|████      | 33/82 [00:26<00:52,  1.07s/it][Unified Analysis] Processing files:  41%|████▏     | 34/82 [00:28<00:58,  1.22s/it][Unified Analysis] Processing files:  44%|████▍     | 36/82 [00:28<00:33,  1.36it/s][Unified Analysis] Processing files:  45%|████▌     | 37/82 [00:29<00:36,  1.23it/s][Unified Analysis] Processing files:  46%|████▋     | 38/82 [00:29<00:31,  1.41it/s][Unified Analysis] Processing files:  48%|████▊     | 39/82 [00:31<00:38,  1.11it/s][Unified Analysis] Processing files:  49%|████▉     | 40/82 [00:33<00:51,  1.22s/it][Unified Analysis] Processing files:  50%|█████     | 41/82 [00:34<00:50,  1.24s/it][Unified Analysis] Processing files:  51%|█████     | 42/82 [00:35<00:41,  1.04s/it][Unified Analysis] Processing files:  52%|█████▏    | 43/82 [00:35<00:30,  1.29it/s][Unified Analysis] Processing files:  54%|█████▎    | 44/82 [00:36<00:39,  1.04s/it][Unified Analysis] Processing files:  55%|█████▍    | 45/82 [00:38<00:48,  1.32s/it][Unified Analysis] Processing files:  56%|█████▌    | 46/82 [00:39<00:42,  1.18s/it][Unified Analysis] Processing files:  57%|█████▋    | 47/82 [00:41<00:50,  1.43s/it][Unified Analysis] Processing files:  59%|█████▊    | 48/82 [00:43<00:47,  1.39s/it][Unified Analysis] Processing files:  60%|█████▉    | 49/82 [00:47<01:16,  2.32s/it][Unified Analysis] Processing files:  61%|██████    | 50/82 [00:48<00:56,  1.77s/it][Unified Analysis] Processing files:  62%|██████▏   | 51/82 [00:49<00:49,  1.61s/it][Unified Analysis] Processing files:  63%|██████▎   | 52/82 [00:51<00:52,  1.76s/it][Unified Analysis] Processing files:  65%|██████▍   | 53/82 [00:52<00:44,  1.52s/it][Unified Analysis] Processing files:  66%|██████▌   | 54/82 [00:52<00:31,  1.13s/it][Unified Analysis] Processing files:  67%|██████▋   | 55/82 [00:53<00:27,  1.01s/it][Unified Analysis] Processing files:  68%|██████▊   | 56/82 [00:55<00:34,  1.31s/it][Unified Analysis] Processing files:  70%|██████▉   | 57/82 [00:55<00:23,  1.05it/s][Unified Analysis] Processing files:  71%|███████   | 58/82 [00:55<00:19,  1.21it/s][Unified Analysis] Processing files:  72%|███████▏  | 59/82 [00:56<00:14,  1.63it/s][Unified Analysis] Processing files:  73%|███████▎  | 60/82 [00:57<00:18,  1.20it/s][Unified Analysis] Processing files:  74%|███████▍  | 61/82 [00:57<00:15,  1.36it/s][Unified Analysis] Processing files:  76%|███████▌  | 62/82 [01:00<00:24,  1.24s/it][Unified Analysis] Processing files:  77%|███████▋  | 63/82 [01:01<00:21,  1.15s/it][Unified Analysis] Processing files:  78%|███████▊  | 64/82 [01:01<00:15,  1.17it/s][Unified Analysis] Processing files:  79%|███████▉  | 65/82 [01:02<00:17,  1.01s/it][Unified Analysis] Processing files:  80%|████████  | 66/82 [01:03<00:15,  1.03it/s][Unified Analysis] Processing files:  82%|████████▏ | 67/82 [01:03<00:10,  1.40it/s][Unified Analysis] Processing files:  83%|████████▎ | 68/82 [01:04<00:08,  1.58it/s][Unified Analysis] Processing files:  85%|████████▌ | 70/82 [01:04<00:05,  2.08it/s][Unified Analysis] Processing files:  87%|████████▋ | 71/82 [01:05<00:04,  2.58it/s][Unified Analysis] Processing files:  88%|████████▊ | 72/82 [01:05<00:05,  1.92it/s][Unified Analysis] Processing files:  89%|████████▉ | 73/82 [01:06<00:03,  2.32it/s][Unified Analysis] Processing files:  91%|█████████▏| 75/82 [01:06<00:02,  3.03it/s][Unified Analysis] Processing files:  93%|█████████▎| 76/82 [01:06<00:01,  3.47it/s][Unified Analysis] Processing files:  94%|█████████▍| 77/82 [01:06<00:01,  3.57it/s][Unified Analysis] Processing files:  95%|█████████▌| 78/82 [01:07<00:00,  4.20it/s][Unified Analysis] Processing files:  96%|█████████▋| 79/82 [01:10<00:03,  1.01s/it][Unified Analysis] Processing files:  98%|█████████▊| 80/82 [01:11<00:02,  1.11s/it][Unified Analysis] Processing files:  99%|█████████▉| 81/82 [01:16<00:02,  2.16s/it][Unified Analysis] Processing files: 100%|██████████| 82/82 [01:32<00:00,  6.26s/it][Unified Analysis] Processing files: 100%|██████████| 82/82 [01:32<00:00,  1.13s/it]
-2026-02-02 01:49:53 INFO     [static_analyzer.lsp_client.client:490] Successfully processed 82 files
-2026-02-02 01:49:53 INFO     [static_analyzer.lsp_client.client:535] Unified static analysis complete.
-2026-02-02 01:49:53 INFO     [static_analyzer.lsp_client.client:536] Results: 3390 references, 111 classes, 13 packages, 2635 call graph nodes, 1008 edges
-2026-02-02 01:49:53 INFO     [static_analyzer.incremental_orchestrator:194] Full analysis complete: 82 files processed, 3390 references, 111 classes, 13 packages, 2635 call graph nodes, 1008 edges
-2026-02-02 01:49:53 INFO     [static_analyzer.incremental_orchestrator:204] Computing cluster results for cache...
-2026-02-02 01:49:53 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 2635 nodes, target: 20 clusters
-2026-02-02 01:49:56 INFO     [static_analyzer.graph:222] Clustered 2635 nodes into 20 clusters using balanced_greedy_modularity
-2026-02-02 01:49:56 INFO     [static_analyzer.incremental_orchestrator:420] Computed clusters for python: 20 clusters, strategy=balanced_greedy_modularity
-2026-02-02 01:49:56 INFO     [static_analyzer.incremental_orchestrator:209] Saving analysis results to cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-02 01:49:56 INFO     [static_analyzer.analysis_cache:96] Saved analysis cache to /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: 43c04828cdc85730b6fffd95ec161e6a937b5e42, iteration: 1)
-2026-02-02 01:49:56 INFO     [static_analyzer.analysis_cache:599] Saved cluster results to cache for 1 languages
-2026-02-02 01:49:56 INFO     [static_analyzer.incremental_orchestrator:222] Full analysis complete and cached successfully
-Static analysis complete: <static_analyzer.analysis_result.StaticAnalysisResults object at 0x742d88b767b0>
-2026-02-02 01:49:56 INFO     [agents.agent:121] Initialized prompt factory for google with gemini_flash
-2026-02-02 01:49:56 INFO     [agents.agent:127] Using Google LLM with model: gemini-2.5-flash
-2026-02-02 01:49:56 INFO     [monitoring:132] {"event": "step_start", "step": "analyze_project_metadata", "timestamp": 1769993396.38266}
-2026-02-02 01:49:56 INFO     [agents.meta_agent:34] [MetaAgent] Analyzing metadata for project: CodeBoarding
-2026-02-02 01:49:56 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 1088, timeout: 300s
-2026-02-02 01:49:57 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 720, "output_tokens": 88, "total_tokens": 808}
-2026-02-02 01:49:57 INFO     [agents.tools.read_docs:89] [ReadDocs Tool] Reading file /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/README.md around line 0
-2026-02-02 01:49:59 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7206, "output_tokens": 408, "total_tokens": 7614}
-2026-02-02 01:49:59 INFO     [agents.tools.external_deps:56] [ExternalDeps Tool] Searching for dependency files
-2026-02-02 01:49:59 INFO     [agents.tools.external_deps:91] [ExternalDeps Tool] Found 2 dependency file(s): setup.py, uv.lock
-2026-02-02 01:50:00 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7313, "output_tokens": 77, "total_tokens": 7390}
-2026-02-02 01:50:12 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7442, "output_tokens": 2416, "total_tokens": 9858}
-2026-02-02 01:50:12 INFO     [agents.agent:182] Completed agent.invoke() - message count: 9, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:50:12 INFO     [agents.agent:127] Using Google Extractor LLM with model: gemini-2.5-flash
-2026-02-02 01:50:17 INFO     [monitoring:62] Token Usage: step=analyze_project_metadata model=gemini-2.5-flash usage={"input_tokens": 8012, "output_tokens": 1397, "total_tokens": 9409}
-2026-02-02 01:50:17 INFO     [agents.meta_agent:39] [MetaAgent] Completed metadata analysis for project: # 🎯 Project Metadata Analysis
-
-**Project Type:** Code Analysis and Documentation Generation Tool
-**Domain:** Software Engineering, Code Analysis, Architectural Documentation, and AI/ML-driven insights
-**Technology Stack:** Python, TypeScript/JavaScript, Large Language Model (LLM) providers, Mermaid.js, uv, GitHub Actions, Web Technologies
-**Architectural Patterns:** Pipeline/Workflow Architecture, Service-Oriented Architecture (SOA) / Microservices, Client-Server, Event-Driven/Queue-based
-**Expected Components:** API Service, Orchestration Engine, Repository Manager, Static Analysis Engine, AI Interpretation Layer, Output Generation Engine, Job Database, Configuration Management, Language Servers
-**Architectural Bias:** processing pipeline bias, AI-driven. Focus on illustrating the flow of control and data through the analysis pipeline. Sequence diagram or data flow diagram would be most effective. Components delineated by functional responsibilities, highlighting the central role of the Orchestration Engine.
-
-2026-02-02 01:50:17 INFO     [monitoring:142] {"event": "step_end", "step": "analyze_project_metadata", "duration_ms": 21097.48}
-2026-02-02 01:50:17 INFO     [agents.agent:121] Initialized prompt factory for google with gemini_flash
-2026-02-02 01:50:17 INFO     [agents.agent:127] Using Google LLM with model: gemini-2.5-flash
-2026-02-02 01:50:17 INFO     [agents.agent:121] Initialized prompt factory for google with gemini_flash
-2026-02-02 01:50:17 INFO     [agents.agent:127] Using Google LLM with model: gemini-2.5-flash
-2026-02-02 01:50:17 INFO     [diagram_analysis.diagram_generator:182] Generating initial analysis
-2026-02-02 01:50:17 INFO     [monitoring:132] {"event": "step_start", "step": "step_clusters_grouping", "timestamp": 1769993417.5160139}
-2026-02-02 01:50:17 INFO     [agents.abstraction_agent:60] [AbstractionAgent] Grouping CFG clusters for: CodeBoarding
-2026-02-02 01:50:17 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 43881, timeout: 300s
-2026-02-02 01:50:34 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 13400, "output_tokens": 3952, "total_tokens": 17352}
-2026-02-02 01:50:34 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:50:34 INFO     [agents.agent:127] Using Google Extractor LLM with model: gemini-2.5-flash
-2026-02-02 01:50:34 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:50:38 INFO     [monitoring:62] Token Usage: step=step_clusters_grouping model=gemini-2.5-flash usage={"input_tokens": 13203, "output_tokens": 1115, "total_tokens": 14318}
-2026-02-02 01:50:38 INFO     [agents.validation:61] [Validation] All clusters are represented in the ClusterAnalysis
-2026-02-02 01:50:38 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:50:38 INFO     [monitoring:142] {"event": "step_end", "step": "step_clusters_grouping", "duration_ms": 21482.81}
-2026-02-02 01:50:38 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993438.9988916}
-2026-02-02 01:50:38 INFO     [agents.abstraction_agent:92] [AbstractionAgent] Generating final analysis for: CodeBoarding
-2026-02-02 01:50:38 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 6876, timeout: 300s
-2026-02-02 01:50:47 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2344, "output_tokens": 2272, "total_tokens": 4616}
-2026-02-02 01:51:00 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 3349, "output_tokens": 3440, "total_tokens": 6789}
-2026-02-02 01:51:00 INFO     [agents.agent:182] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:51:00 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:51:14 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 7573, "output_tokens": 3853, "total_tokens": 11426}
-2026-02-02 01:51:14 WARNING  [agents.validation:126] [Validation] Invalid relationships: (Orchestration & Output Engine -> Repository Manager), (Repository Manager -> Static Analysis Engine), (Orchestration & Output Engine -> Static Analysis Engine), (Static Analysis Engine -> AI Interpretation Layer), (Orchestration & Output Engine -> AI Interpretation Layer), (AI Interpretation Layer -> Orchestration & Output Engine), (Orchestration & Output Engine -> System Monitoring & Evaluation), (AI Interpretation Layer -> System Monitoring & Evaluation)
-2026-02-02 01:51:14 INFO     [agents.validation:148] [Validation] All components have key entities assigned
-2026-02-02 01:51:14 INFO     [agents.validation:182] [Validation] All components have cluster IDs assigned
-2026-02-02 01:51:14 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:51:14 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 11792, timeout: 300s
-2026-02-02 01:51:38 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 3496, "output_tokens": 6543, "total_tokens": 10039}
-2026-02-02 01:51:38 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:51:38 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:51:48 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 21334, "output_tokens": 2451, "total_tokens": 23785}
-2026-02-02 01:51:48 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 69037.49}
-2026-02-02 01:51:48 INFO     [agents.agent:466] [Agent] Found 34 unassigned files, using LLM classification
-2026-02-02 01:51:48 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4984, timeout: 300s
-2026-02-02 01:51:57 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2246, "output_tokens": 2509, "total_tokens": 4755}
-2026-02-02 01:51:57 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:51:57 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:01 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 5912, "output_tokens": 1006, "total_tokens": 6918}
-2026-02-02 01:52:01 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:52:01 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:52:01 INFO     [agents.agent:488] [Agent] File classification complete: 34 files classified
-2026-02-02 01:52:01 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `Repository Manager`
-   - *Description*: Manages interactions with code repositories, including cloning, checking out specific versions, and handling temporary storage. It ensures the correct codebase is available for analysis.
-   - *Key Entities*: `QName:`repo_utils.clone_repository` FileRef: `repo_utils/__init__.py``, `QName:`repo_utils.git_diff.get_git_diff` FileRef: `repo_utils/git_diff.py``, `QName:`repo_utils.ignore.is_ignored` FileRef: `repo_utils/ignore.py``
-**Component:** `Static Analysis Engine`
-   - *Description*: Performs deep static analysis of the codebase, extracting structural information, building call graphs, identifying class hierarchies, and determining package dependencies across multiple languages. It stores comprehensive raw analysis results.
-   - *Key Entities*: `QName:`static_analyzer.analysis_result.AnalysisResult` FileRef: `static_analyzer/analysis_result.py``, `QName:`static_analyzer.graph.CallGraph` FileRef: `static_analyzer/graph.py``, `QName:`static_analyzer.java_config_scanner.JavaConfigScanner` FileRef: `static_analyzer/java_config_scanner.py``, `QName:`static_analyzer.java_utils.JavaUtils` FileRef: `static_analyzer/java_utils.py``
-**Component:** `AI Interpretation Layer`
-   - *Description*: The core intelligence component, responsible for interpreting static analysis results and generating architectural insights using Large Language Models (LLMs). It orchestrates specialized agents, manages LLM prompts, and provides tools for agents to interact with code and analysis results.
-   - *Key Entities*: `QName:`agents.agent.CodeBoardingAgent` FileRef: `agents/agent.py``, `QName:`agents.prompts.prompt_factory.PromptFactory` FileRef: `agents/prompts/prompt_factory.py``, `QName:`agents.tools.toolkit.CodeBoardingToolkit` FileRef: `agents/tools/toolkit.py``, `QName:`agents.llm_config.LLMConfig` FileRef: `agents/llm_config.py``, `QName:`agents.diff_analyzer.DiffAnalyzingAgent` FileRef: `agents/diff_analyzer.py``
-**Component:** `Orchestration & Output Engine`
-   - *Description*: Acts as the central orchestrator, managing the overall workflow from job initiation to final documentation generation. It handles CLI arguments, job processing, interacts with a job database, and generates various output formats, including diagrams.
-   - *Key Entities*: `QName:`main.main` FileRef: `main.py``, `QName:`local_app.run_local_analysis` FileRef: `local_app.py``, `QName:`duckdb_crud.create_job` FileRef: `duckdb_crud.py``, `QName:`diagram_analysis.diagram_generator.DiagramGenerator` FileRef: `diagram_analysis/diagram_generator.py``, `QName:`output_generators.markdown.MarkdownGenerator` FileRef: `output_generators/markdown.py``
-**Component:** `Monitoring & Evaluation`
-   - *Description*: This component is responsible for observing and recording system execution, particularly LLM and tool usage, to provide insights into resource consumption and performance. It also provides a framework for evaluating the quality and effectiveness of the analysis pipeline.
-   - *Key Entities*: `QName:`monitoring.callbacks.MonitoringCallback` FileRef: `monitoring/callbacks.py``, `QName:`monitoring.writers.StreamingStatsWriter` FileRef: `monitoring/writers.py``, `QName:`evals.base.BaseEval` FileRef: `evals/base.py``(Orchestration & Output Engine, Orchestration & Output Engine initiates repository operations., Repository Manager)
-(Repository Manager, Repository Manager provides the analyzed codebase., Static Analysis Engine)
-(Orchestration & Output Engine, Orchestration & Output Engine triggers static analysis., Static Analysis Engine)
-(Static Analysis Engine, Static Analysis Engine provides analysis results., AI Interpretation Layer)
-(Orchestration & Output Engine, Orchestration & Output Engine requests architectural insights., AI Interpretation Layer)
-(AI Interpretation Layer, AI Interpretation Layer delivers insights., Orchestration & Output Engine)
-(Orchestration & Output Engine, Orchestration & Output Engine reports job progress., Monitoring & Evaluation)
-(AI Interpretation Layer, AI Interpretation Layer logs LLM and tool usage., Monitoring & Evaluation)
-2026-02-02 01:52:01 INFO     [static_analyzer.reference_resolve_mixin:62] [Reference Resolution] Matched agents.diff_analyzer.DiffAnalyzingAgent in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py
-2026-02-02 01:52:01 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:52:01 INFO     [agents.planner_agent:103] [Planner] 5/5 components eligible for expansion
-2026-02-02 01:52:01 INFO     [diagram_analysis.diagram_generator:190] Found 5 components to analyze at level 0
-2026-02-02 01:52:01 INFO     [diagram_analysis.diagram_generator:209] Processing level 1 with 5 components
-2026-02-02 01:52:01 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Repository Manager
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 76 nodes, target: 20 clusters
-2026-02-02 01:52:01 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Static Analysis Engine
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 723 nodes, target: 20 clusters
-2026-02-02 01:52:01 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: AI Interpretation Layer
-2026-02-02 01:52:01 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Orchestration & Output Engine
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:222] Clustered 76 nodes into 4 clusters using balanced_greedy_modularity
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 928 nodes, target: 20 clusters
-2026-02-02 01:52:01 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: Monitoring & Evaluation
-Level 1:   0%|          | 0/5 [00:00<?, ?it/s]2026-02-02 01:52:01 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 513 nodes, target: 20 clusters
-2026-02-02 01:52:01 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1769993521.631594}
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 395 nodes, target: 20 clusters
-2026-02-02 01:52:01 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Repository Manager
-2026-02-02 01:52:01 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 3295, timeout: 300s
-2026-02-02 01:52:01 INFO     [static_analyzer.graph:659] Good clustering found: 12 clusters, 100.00% coverage, 0 singletons, largest: 212
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:222] Clustered 723 nodes into 12 clusters using structural_class
-2026-02-02 01:52:02 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1769993522.0925174}
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:659] Good clustering found: 11 clusters, 100.00% coverage, 0 singletons, largest: 187
-2026-02-02 01:52:02 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Static Analysis Engine
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:222] Clustered 513 nodes into 11 clusters using structural_class
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:659] Good clustering found: 14 clusters, 100.00% coverage, 0 singletons, largest: 52
-2026-02-02 01:52:02 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 37858, timeout: 300s
-2026-02-02 01:52:02 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1769993522.174235}
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:222] Clustered 395 nodes into 14 clusters using structural_class
-2026-02-02 01:52:02 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Orchestration & Output Engine
-2026-02-02 01:52:02 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1769993522.2148237}
-2026-02-02 01:52:02 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 18833, timeout: 300s
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:659] Good clustering found: 13 clusters, 100.00% coverage, 0 singletons, largest: 332
-2026-02-02 01:52:02 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: Monitoring & Evaluation
-2026-02-02 01:52:02 INFO     [static_analyzer.graph:222] Clustered 928 nodes into 13 clusters using structural_class
-2026-02-02 01:52:02 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 15421, timeout: 300s
-2026-02-02 01:52:02 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1769993522.2357981}
-2026-02-02 01:52:02 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: AI Interpretation Layer
-2026-02-02 01:52:02 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 47345, timeout: 300s
-2026-02-02 01:52:14 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 15167, "output_tokens": 2835, "total_tokens": 18002}
-2026-02-02 01:52:15 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 15271, "output_tokens": 152, "total_tokens": 15423}
-2026-02-02 01:52:16 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 15335, "output_tokens": 78, "total_tokens": 15413}
-2026-02-02 01:52:16 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1677, "output_tokens": 3504, "total_tokens": 5181}
-2026-02-02 01:52:16 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:16 INFO     [agents.agent:127] Using Google Extractor LLM with model: gemini-2.5-flash
-2026-02-02 01:52:16 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:17 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 11628, "output_tokens": 3660, "total_tokens": 15288}
-2026-02-02 01:52:17 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:17 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:17 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 15397, "output_tokens": 99, "total_tokens": 15496}
-2026-02-02 01:52:24 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 12025, "output_tokens": 1687, "total_tokens": 13712}
-2026-02-02 01:52:24 WARNING  [agents.validation:71] [Validation] Missing clusters: 11, 12
-2026-02-02 01:52:24 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:52:24 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 39588, timeout: 300s
-2026-02-02 01:52:24 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 5393, "output_tokens": 5535, "total_tokens": 10928}
-2026-02-02 01:52:24 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:24 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:26 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 15626, "output_tokens": 2033, "total_tokens": 17659}
-2026-02-02 01:52:26 INFO     [agents.agent:182] Completed agent.invoke() - message count: 11, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:26 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:27 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 6353, "output_tokens": 6505, "total_tokens": 12858}
-2026-02-02 01:52:27 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:27 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:28 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 11080, "output_tokens": 2722, "total_tokens": 13802}
-2026-02-02 01:52:28 WARNING  [agents.validation:71] [Validation] Missing clusters: 1, 2, 3, 4
-2026-02-02 01:52:28 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:52:28 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 5041, timeout: 300s
-2026-02-02 01:52:29 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 19334, "output_tokens": 1096, "total_tokens": 20430}
-2026-02-02 01:52:29 WARNING  [agents.validation:71] [Validation] Missing clusters: 11, 12, 13, 14
-2026-02-02 01:52:29 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:52:29 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 16910, timeout: 300s
-2026-02-02 01:52:32 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 4369, "output_tokens": 1454, "total_tokens": 5823}
-2026-02-02 01:52:32 INFO     [agents.validation:61] [Validation] All clusters are represented in the ClusterAnalysis
-2026-02-02 01:52:32 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:52:32 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 30236.52}
-2026-02-02 01:52:32 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993552.4723966}
-2026-02-02 01:52:32 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: AI Interpretation Layer
-2026-02-02 01:52:32 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4411, timeout: 300s
-2026-02-02 01:52:36 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 20241, "output_tokens": 2125, "total_tokens": 22366}
-2026-02-02 01:52:36 WARNING  [agents.validation:71] [Validation] Missing clusters: 10, 11
-2026-02-02 01:52:36 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:52:36 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 21199, timeout: 300s
-2026-02-02 01:52:36 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2032, "output_tokens": 1948, "total_tokens": 3980}
-2026-02-02 01:52:36 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:36 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:42 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 5444, "output_tokens": 1377, "total_tokens": 6821}
-2026-02-02 01:52:42 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 40920.12}
-2026-02-02 01:52:42 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993562.558272}
-2026-02-02 01:52:42 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Repository Manager
-2026-02-02 01:52:42 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 3447, timeout: 300s
-2026-02-02 01:52:44 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1783, "output_tokens": 2831, "total_tokens": 4614}
-2026-02-02 01:52:44 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:44 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:48 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 11977, "output_tokens": 5478, "total_tokens": 17455}
-2026-02-02 01:52:48 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:48 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:51 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 5690, "output_tokens": 5062, "total_tokens": 10752}
-2026-02-02 01:52:51 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:51 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:53 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1553, "output_tokens": 2530, "total_tokens": 4083}
-2026-02-02 01:52:53 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:52:53 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:52:55 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 9887, "output_tokens": 3043, "total_tokens": 12930}
-2026-02-02 01:52:55 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
-2026-02-02 01:52:55 INFO     [agents.validation:148] [Validation] All components have key entities assigned
-2026-02-02 01:52:55 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:52:55 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 22590.38}
-2026-02-02 01:52:55 INFO     [agents.agent:466] [Agent] Found 27 unassigned files, using LLM classification
-2026-02-02 01:52:55 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 3653, timeout: 300s
-2026-02-02 01:52:55 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 16586, "output_tokens": 2016, "total_tokens": 18602}
-2026-02-02 01:52:55 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 53663.37}
-2026-02-02 01:52:55 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993575.7559912}
-2026-02-02 01:52:55 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Static Analysis Engine
-2026-02-02 01:52:55 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4875, timeout: 300s
-2026-02-02 01:52:56 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 15184, "output_tokens": 1225, "total_tokens": 16409}
-2026-02-02 01:52:56 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 54030.08}
-2026-02-02 01:52:56 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993576.2449846}
-2026-02-02 01:52:56 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Monitoring & Evaluation
-2026-02-02 01:52:56 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4097, timeout: 300s
-2026-02-02 01:53:01 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 9224, "output_tokens": 2245, "total_tokens": 11469}
-2026-02-02 01:53:01 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
-2026-02-02 01:53:01 WARNING  [agents.validation:160] [Validation] Components without key entities: Git Environment Checker
-2026-02-02 01:53:01 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:53:01 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 5821, timeout: 300s
-2026-02-02 01:53:03 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1760, "output_tokens": 2323, "total_tokens": 4083}
-2026-02-02 01:53:03 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:03 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:04 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 6821, "output_tokens": 7343, "total_tokens": 14164}
-2026-02-02 01:53:04 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:04 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:06 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1668, "output_tokens": 2592, "total_tokens": 4260}
-2026-02-02 01:53:06 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:06 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:07 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 5717, "output_tokens": 1044, "total_tokens": 6761}
-2026-02-02 01:53:07 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:53:07 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:53:07 INFO     [agents.agent:488] [Agent] File classification complete: 27 files classified
-2026-02-02 01:53:07 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `AI Agent (CodeBoardingAgent)`
-   - *Description*: The primary intelligent agent responsible for orchestrating the interpretation of static analysis results, generating architectural insights, and managing the overall AI-driven analysis workflow. It leverages LLMs and specialized tools to perform its tasks.
-   - *Key Entities*: `QName:`CodeBoardingAgent` FileRef: `agents/agent.py``
-**Component:** `Diff Analysis Agent (DiffAnalyzingAgent)`
-   - *Description*: A specialized AI agent focused on analyzing code differences to identify architectural changes, refactorings, or new components introduced in a codebase. It provides insights into the evolution of the architecture.
-   - *Key Entities*: `QName:`DiffAnalyzingAgent` FileRef: `agents/diff_analyzer.py``
-**Component:** `Prompt Factory (PromptFactory)`
-   - *Description*: Manages the creation and generation of structured prompts for Large Language Models. It ensures that LLMs receive contextually relevant and well-formatted input for various analysis tasks, optimizing their performance.
-   - *Key Entities*: `QName:`PromptFactory` FileRef: `agents/prompts/prompt_factory.py``
-**Component:** `Agent Toolkit (CodeBoardingToolkit)`
-   - *Description*: Aggregates and provides a unified interface to various specialized tools that AI agents can use to interact with the codebase and static analysis results. This includes tools for reading files, getting file structures, and accessing CFG data.
-   - *Key Entities*: `QName:`CodeBoardingToolkit` FileRef: `agents/tools/toolkit.py``
-**Component:** `LLM Configuration (LLMConfig)`
-   - *Description*: Manages the configuration and instantiation of different Large Language Model clients and models. It handles environment settings and overrides to ensure proper integration and selection of LLM providers for various analysis tasks.
-   - *Key Entities*: `QName:`LLMConfig` FileRef: `agents/llm_config.py``(AI Agent (CodeBoardingAgent), requests tailored prompts from, Prompt Factory (PromptFactory))
-(Prompt Factory (PromptFactory), provides structured prompts to, AI Agent (CodeBoardingAgent))
-(AI Agent (CodeBoardingAgent), utilizes specialized tools from, Agent Toolkit (CodeBoardingToolkit))
-(Agent Toolkit (CodeBoardingToolkit), provides access to code and analysis data to, AI Agent (CodeBoardingAgent))
-(AI Agent (CodeBoardingAgent), retrieves LLM settings and instances from, LLM Configuration (LLMConfig))
-(LLM Configuration (LLMConfig), provides configured LLM clients to, AI Agent (CodeBoardingAgent))
-(Diff Analysis Agent (DiffAnalyzingAgent), requests diff-specific prompts from, Prompt Factory (PromptFactory))
-(Prompt Factory (PromptFactory), generates specialized prompts for, Diff Analysis Agent (DiffAnalyzingAgent))
-(Diff Analysis Agent (DiffAnalyzingAgent), uses tools from, Agent Toolkit (CodeBoardingToolkit))
-(Agent Toolkit (CodeBoardingToolkit), provides code comparison functionalities to, Diff Analysis Agent (DiffAnalyzingAgent))
-(Prompt Factory (PromptFactory), adapts prompt generation based on, LLM Configuration (LLMConfig))
-(LLM Configuration (LLMConfig), informs, Prompt Factory (PromptFactory))
-2026-02-02 01:53:07 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for DiffAnalyzingAgent in Python: Source code reference for 'DiffAnalyzingAgent' in language 'Python' not found in results.
-2026-02-02 01:53:07 INFO     [static_analyzer.reference_resolve_mixin:79] [Reference Resolution] Loosely matched DiffAnalyzingAgent in Python at /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/agents/diff_analyzer.py
-2026-02-02 01:53:07 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:53:07 INFO     [agents.planner_agent:103] [Planner] 5/5 components eligible for expansion
-Level 1:  20%|██        | 1/5 [01:06<04:25, 66.36s/it]2026-02-02 01:53:11 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2066, "output_tokens": 2271, "total_tokens": 4337}
-2026-02-02 01:53:11 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:11 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:11 INFO     [monitoring:62] Token Usage: step=step_cluster_grouping model=gemini-2.5-flash usage={"input_tokens": 23784, "output_tokens": 1616, "total_tokens": 25400}
-2026-02-02 01:53:11 INFO     [monitoring:142] {"event": "step_end", "step": "step_cluster_grouping", "duration_ms": 69572.1}
-2026-02-02 01:53:11 INFO     [monitoring:132] {"event": "step_start", "step": "step_final_analysis", "timestamp": 1769993591.7464428}
-2026-02-02 01:53:11 INFO     [agents.details_agent:105] [DetailsAgent] Generating final detailed analysis for: Orchestration & Output Engine
-2026-02-02 01:53:11 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4288, timeout: 300s
-2026-02-02 01:53:14 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1830, "output_tokens": 4627, "total_tokens": 6457}
-2026-02-02 01:53:14 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:14 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:17 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 9104, "output_tokens": 1358, "total_tokens": 10462}
-2026-02-02 01:53:17 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 34901.73}
-2026-02-02 01:53:17 INFO     [agents.agent:466] [Agent] Found 1 unassigned files, using LLM classification
-2026-02-02 01:53:17 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 2111, timeout: 300s
-2026-02-02 01:53:20 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1356, "output_tokens": 534, "total_tokens": 1890}
-2026-02-02 01:53:20 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:20 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:21 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2380, "output_tokens": 98, "total_tokens": 2478}
-2026-02-02 01:53:21 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:53:21 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:53:21 INFO     [agents.agent:488] [Agent] File classification complete: 1 files classified
-2026-02-02 01:53:21 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `Repository Manager`
-   - *Description*: Manages interactions with code repositories, including cloning, checking out specific versions, and handling temporary storage. It ensures the correct codebase is available for analysis. This component is fundamental for a code analysis tool as it directly handles the acquisition and preparation of the source code to be analyzed.
-   - *Key Entities*: `QName:`repo_utils.clone_repository` FileRef: `repo_utils/__init__.py``, `QName:`repo_utils.git_diff.get_git_diff` FileRef: `repo_utils/git_diff.py``, `QName:`repo_utils.ignore.is_ignored` FileRef: `repo_utils/ignore.py``
-**Component:** `Git Environment Checker`
-   - *Description*: Validates the presence, configuration, and readiness of the Git command-line tool and its associated environment. It acts as a gatekeeper, ensuring that all Git-dependent operations have the necessary prerequisites to execute successfully. This component is critical for the stability and reliability of any Git-dependent operations within the `Repository Manager`.
-   - *Key Entities*: `QName:`repo_utils.git_env.check_git_installation` FileRef: `repo_utils/git_env.py``, `QName:`repo_utils.git_env.get_git_version` FileRef: `repo_utils/git_env.py``(Repository Manager, requests validation, Git Environment Checker)
-(Git Environment Checker, provides status, Repository Manager)
-2026-02-02 01:53:21 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for repo_utils.git_env.check_git_installation in Python: Source code reference for 'repo_utils.git_env.check_git_installation' in language 'Python' not found in results.
-2026-02-02 01:53:21 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference repo_utils.git_env.check_git_installation in any language
-2026-02-02 01:53:21 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for repo_utils.git_env.get_git_version in Python: Source code reference for 'repo_utils.git_env.get_git_version' in language 'Python' not found in results.
-2026-02-02 01:53:21 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference repo_utils.git_env.get_git_version in any language
-2026-02-02 01:53:21 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'Git Environment Checker'
-2026-02-02 01:53:21 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Git Environment Checker'
-2026-02-02 01:53:21 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:53:21 INFO     [agents.planner_agent:103] [Planner] 1/2 components eligible for expansion
-Level 1:  40%|████      | 2/5 [01:19<01:45, 35.11s/it]2026-02-02 01:53:27 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 6909, "output_tokens": 5739, "total_tokens": 12648}
-2026-02-02 01:53:27 INFO     [agents.validation:115] [Validation] All component relationships have backing edges
-2026-02-02 01:53:27 WARNING  [agents.validation:160] [Validation] Components without key entities: Specialized Evaluation Engines, Evaluation Data Models, Evaluation Utilities
-2026-02-02 01:53:27 INFO     [agents.agent:319] [Validation] Retry 1/1 with 1 feedback items
-2026-02-02 01:53:27 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 8038, timeout: 300s
-2026-02-02 01:53:28 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 15752, "output_tokens": 3682, "total_tokens": 19434}
-2026-02-02 01:53:28 WARNING  [agents.validation:126] [Validation] Invalid relationships: (Static Analysis Orchestrator -> Language-Specific LSP Client), (LSP Communication Layer (Generic) -> Language-Specific LSP Client), (Language-Specific LSP Client -> Code Reference Resolver (AI-Enhanced))
-2026-02-02 01:53:28 WARNING  [agents.validation:160] [Validation] Components without key entities: Static Analysis Orchestrator, Language Configuration & Scanner, LSP Communication Layer (Generic), Language-Specific LSP Client, Analysis Data Store, Call Graph Builder & Analyzer, Code Reference Resolver (AI-Enhanced), Java Environment Utilities
-2026-02-02 01:53:28 INFO     [agents.agent:319] [Validation] Retry 1/1 with 2 feedback items
-2026-02-02 01:53:28 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 10266, timeout: 300s
-2026-02-02 01:53:31 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1770, "output_tokens": 5111, "total_tokens": 6881}
-2026-02-02 01:53:31 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:31 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:40 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2420, "output_tokens": 3401, "total_tokens": 5821}
-2026-02-02 01:53:40 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:40 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:47 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2869, "output_tokens": 5032, "total_tokens": 7901}
-2026-02-02 01:53:47 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:53:47 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:53:55 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 10385, "output_tokens": 3968, "total_tokens": 14353}
-2026-02-02 01:53:55 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 58936.78}
-2026-02-02 01:53:55 INFO     [agents.agent:466] [Agent] Found 11 unassigned files, using LLM classification
-2026-02-02 01:53:55 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4213, timeout: 300s
-2026-02-02 01:53:59 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 18593, "output_tokens": 7561, "total_tokens": 26154}
-2026-02-02 01:53:59 WARNING  [agents.validation:126] [Validation] Invalid relationships: (Static Analysis Engine -> Analysis Data Model), (AI Interpretation Layer -> Analysis Data Model), (Static Analysis Engine -> Analysis Data Model), (AI Interpretation Layer -> Analysis Data Model)
-2026-02-02 01:53:59 WARNING  [agents.validation:160] [Validation] Components without key entities: Repository Manager, Static Analysis Engine, AI Interpretation Layer, Analysis Data Model
-2026-02-02 01:53:59 INFO     [agents.agent:319] [Validation] Retry 1/1 with 2 feedback items
-2026-02-02 01:53:59 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 9508, timeout: 300s
-2026-02-02 01:54:01 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2797, "output_tokens": 386, "total_tokens": 3183}
-2026-02-02 01:54:02 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1859, "output_tokens": 1798, "total_tokens": 3657}
-2026-02-02 01:54:02 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:54:02 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:54:04 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 14313, "output_tokens": 4719, "total_tokens": 19032}
-2026-02-02 01:54:04 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 68958.0}
-2026-02-02 01:54:04 INFO     [agents.agent:466] [Agent] Found 9 unassigned files, using LLM classification
-2026-02-02 01:54:04 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 6491, timeout: 300s
-2026-02-02 01:54:04 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 6390, "output_tokens": 398, "total_tokens": 6788}
-2026-02-02 01:54:04 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:54:04 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:54:04 INFO     [agents.agent:488] [Agent] File classification complete: 11 files classified
-2026-02-02 01:54:04 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `Evaluation Orchestrator`
-   - *Description*: This component is responsible for initiating evaluation runs, parsing user arguments, loading project-specific configurations, and orchestrating the execution of different evaluation types. It leverages a foundational evaluation framework to manage the overall lifecycle of an evaluation, including report generation and result persistence.
-   - *Key Entities*: `QName:`evals.base.BaseEval` FileRef: `evals/base.py``
-**Component:** `Specialized Evaluation Engines`
-   - *Description*: Implements the core logic for specialized evaluation methodologies, such as end-to-end testing of LLM usage and tool interactions, static analysis for code quality, and scalability assessments for performance. Each engine is responsible for executing its specific analysis, extracting relevant metrics, and contributing to the overall evaluation report.
-   - *Key Entities*: `QName:`evals.end_to_end.EndToEndEval` FileRef: `evals/end_to_end.py``, `QName:`evals.static_analysis.StaticAnalysisEval` FileRef: `evals/static_analysis.py``, `QName:`evals.scalability.ScalabilityEval` FileRef: `evals/scalability.py``
-**Component:** `Monitoring Data Collector`
-   - *Description*: Manages the real-time collection and aggregation of operational data during evaluation runs. This includes capturing events through a callback system and managing the context of data collection.
-   - *Key Entities*: `QName:`monitoring.callbacks.MonitoringCallback` FileRef: `monitoring/callbacks.py``
-**Component:** `Monitoring Data Writer`
-   - *Description*: Handles the persistence of collected monitoring data to various output formats. It is responsible for writing accumulated runtime statistics and event logs.
-   - *Key Entities*: `QName:`monitoring.writers.StreamingStatsWriter` FileRef: `monitoring/writers.py``
-**Component:** `Evaluation Data Models`
-   - *Description*: Defines the standardized data structures and schemas used throughout the `Monitoring & Evaluation` subsystem. This ensures consistency for all evaluation inputs, outputs, metrics (e.g., end-to-end, monitoring, scalability, static analysis), and token usage breakdowns, facilitating data interoperability and clear reporting.
-   - *Key Entities*: `QName:`evals.data_models.EvaluationResult` FileRef: `evals/data_models.py``, `QName:`evals.data_models.Metric` FileRef: `evals/data_models.py``, `QName:`evals.data_models.TokenUsage` FileRef: `evals/data_models.py``, `QName:`evals.data_models.Report` FileRef: `evals/data_models.py``
-**Component:** `Evaluation Utilities`
-   - *Description*: Provides a collection of general-purpose helper functions that support various aspects of the evaluation process. This includes generating system specifications, creating formatted headers for reports, and handling timestamp generation, offering common functionalities to other components.
-   - *Key Entities*: `QName:`evals.utils.SystemSpecGenerator` FileRef: `evals/utils.py``, `QName:`evals.utils.ReportHeaderFormatter` FileRef: `evals/utils.py``, `QName:`evals.utils.TimestampGenerator` FileRef: `evals/utils.py``(Evaluation Orchestrator, triggers execution of, Specialized Evaluation Engines)
-(Evaluation Orchestrator, configures and initializes, Monitoring Data Collector)
-(Evaluation Orchestrator, utilizes, Evaluation Data Models)
-(Evaluation Orchestrator, leverages, Evaluation Utilities)
-(Specialized Evaluation Engines, emits events and metrics to, Monitoring Data Collector)
-(Specialized Evaluation Engines, uses, Evaluation Data Models)
-(Specialized Evaluation Engines, leverages, Evaluation Utilities)
-(Monitoring Data Collector, passes aggregated data to, Monitoring Data Writer)
-(Monitoring Data Collector, stores collected data using, Evaluation Data Models)
-(Monitoring Data Writer, writes data conforming to, Evaluation Data Models)
-(Evaluation Data Models, provides schemas to, Evaluation Orchestrator)
-(Evaluation Data Models, provides data structures to, Specialized Evaluation Engines)
-(Evaluation Data Models, provides schemas to, Monitoring Data Collector)
-(Evaluation Data Models, provides schemas to, Monitoring Data Writer)
-(Evaluation Utilities, provides common functions to, Evaluation Orchestrator)
-(Evaluation Utilities, provides common functions to, Specialized Evaluation Engines)
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.end_to_end.EndToEndEval in Python: Source code reference for 'evals.end_to_end.EndToEndEval' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.end_to_end.EndToEndEval in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.static_analysis.StaticAnalysisEval in Python: Source code reference for 'evals.static_analysis.StaticAnalysisEval' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.static_analysis.StaticAnalysisEval in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.scalability.ScalabilityEval in Python: Source code reference for 'evals.scalability.ScalabilityEval' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.scalability.ScalabilityEval in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.data_models.EvaluationResult in Python: Source code reference for 'evals.data_models.EvaluationResult' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.data_models.EvaluationResult in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.data_models.Metric in Python: Source code reference for 'evals.data_models.Metric' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.data_models.Metric in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.data_models.TokenUsage in Python: Source code reference for 'evals.data_models.TokenUsage' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.data_models.TokenUsage in any language
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for evals.data_models.Report in Python: Source code reference for 'evals.data_models.Report' in language 'Python' not found in results.
-2026-02-02 01:54:04 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference evals.data_models.Report in any language
-2026-02-02 01:54:04 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 3 unresolved reference(s) from component 'Specialized Evaluation Engines'
-2026-02-02 01:54:04 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 3 unresolved assigned file(s) from component 'Specialized Evaluation Engines'
-2026-02-02 01:54:04 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 4 unresolved reference(s) from component 'Evaluation Data Models'
-2026-02-02 01:54:04 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Evaluation Data Models'
-2026-02-02 01:54:04 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:54:04 INFO     [agents.planner_agent:103] [Planner] 6/6 components eligible for expansion
-Level 1:  60%|██████    | 3/5 [02:03<01:18, 39.01s/it]2026-02-02 01:54:11 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2373, "output_tokens": 1468, "total_tokens": 3841}
-2026-02-02 01:54:13 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2695, "output_tokens": 507, "total_tokens": 3202}
-2026-02-02 01:54:13 INFO     [agents.agent:182] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:54:13 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:54:15 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 1182, "output_tokens": 335, "total_tokens": 1517}
-2026-02-02 01:54:15 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:54:15 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:54:15 INFO     [agents.agent:488] [Agent] File classification complete: 9 files classified
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `Static Analysis Orchestrator`
-   - *Description*: This component serves as the central control unit for the entire static analysis pipeline. It is responsible for initiating analysis jobs, managing the lifecycle of language scanners and LSP clients, and aggregating the final results from various language-specific analyses. It acts as the primary entry point for triggering a static analysis operation.
-   - *Key Entities*: `QName:`static_analyzer.orchestrator.AnalysisOrchestrator` FileRef: `static_analyzer/orchestrator.py``, `QName:`static_analyzer.orchestrator.AnalysisJob` FileRef: `static_analyzer/orchestrator.py``
-**Component:** `Language Configuration & Scanner`
-   - *Description*: This component is tasked with identifying programming languages present in a project, detecting and parsing language-specific project configuration files (e.g., pom.xml for Java, tsconfig.json for TypeScript), and managing the corresponding language-specific configurations and LSP server parameters. It prepares the environment for detailed language analysis.
-   - *Key Entities*: `QName:`static_analyzer.java_config_scanner.JavaConfigScanner` FileRef: `static_analyzer/java_config_scanner.py``, `QName:`static_analyzer.config_scanner.LanguageScanner` FileRef: `static_analyzer/config_scanner.py``, `QName:`static_analyzer.config_scanner.ProjectConfigParser` FileRef: `static_analyzer/config_scanner.py``
-**Component:** `LSP Communication Layer (Generic)`
-   - *Description*: This component provides a standardized, low-level interface for communicating with any Language Server Protocol (LSP) server. It handles the fundamental mechanics of sending requests, receiving notifications, and processing responses, thereby abstracting away the complexities of LSP for higher-level, language-specific clients.
-   - *Key Entities*: `QName:`static_analyzer.lsp.LSPClient` FileRef: `static_analyzer/lsp.py``, `QName:`static_analyzer.lsp.LSPConnection` FileRef: `static_analyzer/lsp.py``
-**Component:** `Language-Specific LSP Client`
-   - *Description*: These components extend the generic LSP Communication Layer to implement specific logic for interacting with a particular language's LSP server (e.g., Java Development Tools Language Server, TypeScript Language Server). They perform detailed, language-aware tasks such as symbol extraction, definition lookup, and call hierarchy analysis.
-   - *Key Entities*: `QName:`static_analyzer.java_lsp_client.JavaLSPClient` FileRef: `static_analyzer/java_lsp_client.py``, `QName:`static_analyzer.typescript_lsp_client.TypeScriptLSPClient` FileRef: `static_analyzer/typescript_lsp_client.py``, `QName:`static_analyzer.lsp_client.BaseLSPClient` FileRef: `static_analyzer/lsp_client.py``
-**Component:** `Analysis Data Store`
-   - *Description*: This component serves as the central repository for all raw static analysis data generated throughout the process. It aggregates and stores Control Flow Graphs (CFG), class hierarchies, code references, and source file information, providing robust mechanisms for data retrieval, persistence, and management.
-   - *Key Entities*: `QName:`static_analyzer.analysis_result.AnalysisResult` FileRef: `static_analyzer/analysis_result.py``, `QName:`static_analyzer.data_store.AnalysisDataStore` FileRef: `static_analyzer/data_store.py``, `QName:`static_analyzer.data_store.CodeReference` FileRef: `static_analyzer/data_store.py``
-**Component:** `Call Graph Builder & Analyzer`
-   - *Description*: This component is dedicated to constructing and analyzing the call graph of the codebase, mapping the relationships and dependencies between functions and methods. It identifies logical structural components through clustering algorithms and provides critical insights into code execution flow.
-   - *Key Entities*: `QName:`static_analyzer.graph.CallGraph` FileRef: `static_analyzer/graph.py``, `QName:`static_analyzer.graph.CallGraphBuilder` FileRef: `static_analyzer/graph.py``, `QName:`static_analyzer.graph.GraphAnalyzer` FileRef: `static_analyzer/graph.py``
-**Component:** `Code Reference Resolver (AI-Enhanced)`
-   - *Description*: This component provides advanced methods for resolving code references within the codebase. It potentially leverages AI/ML models, specifically Large Language Models (LLMs), to enhance the accuracy and depth of reference resolution, offering more intelligent and context-aware linking of code elements.
-   - *Key Entities*: `QName:`static_analyzer.reference_resolver.ReferenceResolver` FileRef: `static_analyzer/reference_resolver.py``, `QName:`static_analyzer.reference_resolver.LLMReferenceEnhancer` FileRef: `static_analyzer/reference_resolver.py``
-**Component:** `Java Environment Utilities`
-   - *Description*: This component offers a collection of utility functions specifically designed for managing and interacting with Java development environments. This includes detecting Java installations, locating Java Development Tools Language Server (JDTLS) roots, and constructing JDTLS commands, which are crucial for setting up and operating the Java LSP client.
-   - *Key Entities*: `QName:`static_analyzer.java_utils.JavaUtils` FileRef: `static_analyzer/java_utils.py``, `QName:`static_analyzer.java_utils.JDTLSConfigurator` FileRef: `static_analyzer/java_utils.py``(Static Analysis Orchestrator, coordinates, Language Configuration & Scanner)
-(Static Analysis Orchestrator, manages, Language-Specific LSP Client)
-(Static Analysis Orchestrator, persists_results_to, Analysis Data Store)
-(Language Configuration & Scanner, configures, Language-Specific LSP Client)
-(Language Configuration & Scanner, utilizes, Java Environment Utilities)
-(LSP Communication Layer (Generic), supports, Language-Specific LSP Client)
-(Language-Specific LSP Client, interacts_via, LSP Communication Layer (Generic))
-(Language-Specific LSP Client, populates, Analysis Data Store)
-(Language-Specific LSP Client, contributes_to, Call Graph Builder & Analyzer)
-(Language-Specific LSP Client, provides_data_to, Code Reference Resolver (AI-Enhanced))
-(Analysis Data Store, provides_data_to, Call Graph Builder & Analyzer)
-(Analysis Data Store, provides_data_to, Code Reference Resolver (AI-Enhanced))
-(Call Graph Builder & Analyzer, stores_graph_in, Analysis Data Store)
-(Code Reference Resolver (AI-Enhanced), updates_data_in, Analysis Data Store)
-(Java Environment Utilities, supports, Language-Specific LSP Client)
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.orchestrator.AnalysisOrchestrator in Python: Source code reference for 'static_analyzer.orchestrator.AnalysisOrchestrator' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.orchestrator.AnalysisOrchestrator in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.orchestrator.AnalysisJob in Python: Source code reference for 'static_analyzer.orchestrator.AnalysisJob' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.orchestrator.AnalysisJob in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.config_scanner.LanguageScanner in Python: Source code reference for 'static_analyzer.config_scanner.LanguageScanner' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.config_scanner.LanguageScanner in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.config_scanner.ProjectConfigParser in Python: Source code reference for 'static_analyzer.config_scanner.ProjectConfigParser' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.config_scanner.ProjectConfigParser in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.lsp.LSPClient in Python: Source code reference for 'static_analyzer.lsp.LSPClient' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.lsp.LSPClient in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.lsp.LSPConnection in Python: Source code reference for 'static_analyzer.lsp.LSPConnection' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.lsp.LSPConnection in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.java_lsp_client.JavaLSPClient in Python: Source code reference for 'static_analyzer.java_lsp_client.JavaLSPClient' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.java_lsp_client.JavaLSPClient in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.typescript_lsp_client.TypeScriptLSPClient in Python: Source code reference for 'static_analyzer.typescript_lsp_client.TypeScriptLSPClient' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.typescript_lsp_client.TypeScriptLSPClient in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.lsp_client.BaseLSPClient in Python: Source code reference for 'static_analyzer.lsp_client.BaseLSPClient' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.lsp_client.BaseLSPClient in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.data_store.AnalysisDataStore in Python: Source code reference for 'static_analyzer.data_store.AnalysisDataStore' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.data_store.AnalysisDataStore in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.data_store.CodeReference in Python: Source code reference for 'static_analyzer.data_store.CodeReference' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.data_store.CodeReference in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.reference_resolver.ReferenceResolver in Python: Source code reference for 'static_analyzer.reference_resolver.ReferenceResolver' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.reference_resolver.ReferenceResolver in any language
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:67] [Reference Resolution] Exact match failed for static_analyzer.reference_resolver.LLMReferenceEnhancer in Python: Source code reference for 'static_analyzer.reference_resolver.LLMReferenceEnhancer' in language 'Python' not found in results.
-2026-02-02 01:54:15 WARNING  [static_analyzer.reference_resolve_mixin:52] [Reference Resolution] Could not resolve reference static_analyzer.reference_resolver.LLMReferenceEnhancer in any language
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'Static Analysis Orchestrator'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Static Analysis Orchestrator'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'Language Configuration & Scanner'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Language Configuration & Scanner'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'LSP Communication Layer (Generic)'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'LSP Communication Layer (Generic)'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 3 unresolved reference(s) from component 'Language-Specific LSP Client'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 3 unresolved assigned file(s) from component 'Language-Specific LSP Client'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'Analysis Data Store'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Analysis Data Store'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:138] [Reference Resolution] Removed 2 unresolved reference(s) from component 'Code Reference Resolver (AI-Enhanced)'
-2026-02-02 01:54:15 INFO     [static_analyzer.reference_resolve_mixin:152] [Reference Resolution] Removed 1 unresolved assigned file(s) from component 'Code Reference Resolver (AI-Enhanced)'
-2026-02-02 01:54:15 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:54:15 INFO     [agents.planner_agent:103] [Planner] 8/8 components eligible for expansion
-Level 1:  80%|████████  | 4/5 [02:13<00:27, 27.68s/it]2026-02-02 01:54:21 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 3802, "output_tokens": 5091, "total_tokens": 8893}
-2026-02-02 01:54:21 INFO     [agents.agent:182] Completed agent.invoke() - message count: 5, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:54:21 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:54:30 INFO     [monitoring:62] Token Usage: step=step_final_analysis model=gemini-2.5-flash usage={"input_tokens": 16176, "output_tokens": 2342, "total_tokens": 18518}
-2026-02-02 01:54:30 INFO     [monitoring:142] {"event": "step_end", "step": "step_final_analysis", "duration_ms": 78681.98}
-2026-02-02 01:54:30 INFO     [agents.agent:466] [Agent] Found 10 unassigned files, using LLM classification
-2026-02-02 01:54:30 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 4875, timeout: 300s
-2026-02-02 01:54:37 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 2056, "output_tokens": 1804, "total_tokens": 3860}
-2026-02-02 01:54:37 INFO     [agents.agent:182] Completed agent.invoke() - message count: 3, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-02 01:54:37 WARNING  [langchain_google_genai._function_utils:94] Key '$defs' is not supported in schema, ignoring
-2026-02-02 01:54:39 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 6447, "output_tokens": 321, "total_tokens": 6768}
-2026-02-02 01:54:39 INFO     [agents.validation:270] [Validation] All unassigned files correctly classified
-2026-02-02 01:54:39 INFO     [agents.agent:308] [Validation] All validations passed on attempt 1
-2026-02-02 01:54:39 INFO     [agents.agent:488] [Agent] File classification complete: 10 files classified
-2026-02-02 01:54:39 INFO     [static_analyzer.reference_resolve_mixin:20] Fixing source code reference lines for the analysis: # 📦 Abstract Components Overview
-**Component:** `Orchestration & Output Engine`
-   - *Description*: Acts as the central orchestrator, managing the overall workflow from job initiation to final documentation generation. It handles CLI arguments, job processing, interacts with a job database, and generates various output formats, including diagrams and markdown documentation.
-   - *Key Entities*: `QName:`main.main` FileRef: `main.py``, `QName:`local_app.run_local_analysis` FileRef: `local_app.py``, `QName:`duckdb_crud.create_job` FileRef: `duckdb_crud.py``, `QName:`diagram_analysis.diagram_generator.DiagramGenerator` FileRef: `diagram_analysis/diagram_generator.py``, `QName:`output_generators.markdown.MarkdownGenerator` FileRef: `output_generators/markdown.py``
-**Component:** `Repository Manager`
-   - *Description*: Handles the acquisition, cloning, and management of code repositories, ensuring the codebase is accessible and prepared for subsequent analysis steps. It manages temporary storage and Git operations.
-   - *Key Entities*: `QName:`repo_utils.git_diff.GitDiff` FileRef: `repo_utils/git_diff.py``, `QName:`repo_utils.git_diff.get_repo_diff` FileRef: `repo_utils/git_diff.py``
-**Component:** `Static Analysis Engine`
-   - *Description*: Performs initial static analysis of the source code to extract fundamental structural and semantic information, such as file lists, lines of code, and basic code constructs. It populates the Analysis Data Model with raw structural information.
-   - *Key Entities*: `QName:`static_analyzer.analysis_result.AnalysisResult` FileRef: `static_analyzer/analysis_result.py``, `QName:`static_analyzer.graph.GraphBuilder` FileRef: `static_analyzer/graph.py``, `QName:`static_analyzer.java_config_scanner.JavaConfigScanner` FileRef: `static_analyzer/java_config_scanner.py``
-**Component:** `AI Interpretation Layer`
-   - *Description*: Processes the raw output from the Static Analysis Engine using AI models to derive higher-level architectural insights, identify components, understand relationships, and generate descriptive summaries. It enriches the Analysis Data Model with interpreted architectural components and relationships.
-   - *Key Entities*: `QName:`agents.agent.Agent` FileRef: `agents/agent.py``, `QName:`agents.abstraction_agent.AbstractionAgent` FileRef: `agents/abstraction_agent.py``, `QName:`agents.meta_agent.MetaAgent` FileRef: `agents/meta_agent.py``, `QName:`agents.prompts.prompt_factory.PromptFactory` FileRef: `agents/prompts/prompt_factory.py``
-**Component:** `Analysis Data Model`
-   - *Description*: Defines and manages the structured data format for storing all analysis results, including identified components, their responsibilities, interactions, and generated insights. It acts as the central data repository for the analysis output, consumed by output generators.
-   - *Key Entities*: `QName:`diagram_analysis.analysis_json.AnalysisJson` FileRef: `diagram_analysis/analysis_json.py``, `QName:`static_analyzer.analysis_result.AnalysisResult` FileRef: `static_analyzer/analysis_result.py``
-**Component:** `API Service`
-   - *Description*: Provides a web-based interface (FastAPI) for external systems to trigger and monitor documentation generation jobs, enabling remote interaction and integration.
-   - *Key Entities*: `QName:`local_app.run_local_analysis` FileRef: `local_app.py``, `QName:`github_action.run_action` FileRef: `github_action.py``
-**Component:** `Configuration Management`
-   - *Description*: Manages application-wide settings, environment variables, tool-specific configurations, logging setup, version information, and external tool installations.
-   - *Key Entities*: `QName:`logging_config.setup_logging` FileRef: `logging_config.py``, `QName:`static_analysis_config.yml` FileRef: `static_analysis_config.yml``(Orchestration & Output Engine, Orchestration & Output Engine initiates the acquisition or cloning of the target codebase. Repository Manager provides the local path to the prepared repository for analysis., Repository Manager)
-(Orchestration & Output Engine, Orchestration & Output Engine triggers the static analysis process on the codebase., Static Analysis Engine)
-(Orchestration & Output Engine, Orchestration & Output Engine invokes the AI models to generate architectural insights., AI Interpretation Layer)
-(Orchestration & Output Engine, Orchestration & Output Engine stores job-related metadata and final analysis results. Analysis Data Model provides structured analysis data for diagram and documentation generation., Analysis Data Model)
-(Orchestration & Output Engine, API Service forwards external requests to the Orchestration & Output Engine for processing. Orchestration & Output Engine exposes its core functionalities to the API Service., API Service)
-(Orchestration & Output Engine, Orchestration & Output Engine retrieves application-wide and job-specific configuration settings. Configuration Management provides the necessary settings to the Orchestration & Output Engine., Configuration Management)
-(Static Analysis Engine, Static Analysis Engine populates the Analysis Data Model with raw structural information extracted from the code., Analysis Data Model)
-(AI Interpretation Layer, AI Interpretation Layer enriches the Analysis Data Model with higher-level architectural insights and identified components., Analysis Data Model)
-(Repository Manager, Repository Manager makes the acquired codebase available for the Static Analysis Engine., Static Analysis Engine)
-(Configuration Management, Configuration Management supplies static analysis-specific parameters and settings., Static Analysis Engine)
-(Configuration Management, Configuration Management provides LLM and agent-specific configurations to the AI Interpretation Layer., AI Interpretation Layer)
-2026-02-02 01:54:39 INFO     [agents.cluster_methods_mixin:127] [ClusterMethodsMixin] Ensuring key_entities are unique across components
-2026-02-02 01:54:39 INFO     [agents.planner_agent:103] [Planner] 7/7 components eligible for expansion
-Level 1: 100%|██████████| 5/5 [02:37<00:00, 26.51s/it]Level 1: 100%|██████████| 5/5 [02:37<00:00, 31.60s/it]
-2026-02-02 01:54:39 INFO     [diagram_analysis.diagram_generator:236] Completed level 1. Found 27 components for next level
-2026-02-02 01:54:39 INFO     [diagram_analysis.diagram_generator:239] Analysis complete. Generated 6 analysis files
-Generated analysis files: %s ['/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/analysis.json', '/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/AI_Interpretation_Layer.json', '/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/Repository_Manager.json', '/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/Monitoring_Evaluation.json', '/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/Static_Analysis_Engine.json', '/home/ivan/StartUp/CodeBoarding/43c04828_03b25afe/init_resources/Orchestration_Output_Engine.json']
-2026-02-02 01:54:39 INFO     [diagram_analysis.manifest:116] Saved analysis manifest to 43c04828_03b25afe/init_resources/analysis_manifest.json
-2026-02-02 01:54:39 INFO     [diagram_analysis.diagram_generator:263] Saved manifest with 82 file mappings
-2026-02-02 01:54:39 INFO     [__main__:452] Documentation generated successfully in 43c04828_03b25afe/init_resources

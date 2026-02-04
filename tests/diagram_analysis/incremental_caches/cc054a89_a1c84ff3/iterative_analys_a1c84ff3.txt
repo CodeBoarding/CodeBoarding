@@ -1,109 +1,0 @@
-2026-02-03 04:04:07 INFO     [__main__:420] Starting CodeBoarding documentation generation...
-Monitoring enabled: false
-2026-02-03 04:04:07 INFO     [static_analyzer:102] Starting static analysis for Python in /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:98] Starting server /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver --stdio...
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:234] Initializing connection for python...
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:256] Initialization successful.
-2026-02-03 04:04:07 INFO     [static_analyzer:118] Using incremental cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:65] Current commit: a1c84ff3b5f6b5592d80be08c33f8ace5c069f95
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:150] Loaded analysis cache from /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: 706f41ee44136a782c2ea01809f5c0fd010c351c, iteration: 22)
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:629] Loaded cluster results from cache for 1 languages
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:83] Cache loaded successfully: commit 706f41ee44136a782c2ea01809f5c0fd010c351c, iteration 22
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:92] Cached analysis contains: 94 files, 3801 references, 120 classes, 15 packages, 2909 call graph nodes, 867 edges
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:113] Uncommitted changes detected in working directory
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:116] Performing incremental update from commit 706f41ee44136a782c2ea01809f5c0fd010c351c to a1c84ff3b5f6b5592d80be08c33f8ace5c069f95
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:356] Identifying changed files between 706f41ee44136a782c2ea01809f5c0fd010c351c and a1c84ff3b5f6b5592d80be08c33f8ace5c069f95
-2026-02-03 04:04:07 INFO     [static_analyzer.git_diff_analyzer:76] Found 116 changed files since commit 706f41ee44136a782c2ea01809f5c0fd010c351c
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:373] Found 116 changed files: 75 existing, 41 deleted
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:382] Invalidating 116 changed files from cache
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:181] Starting file invalidation for 116 changed files
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:286] File invalidation complete:
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:287]   - Removed 1945 nodes, kept 964 nodes
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:288]   - Removed 610 edges, kept 257 edges
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:289]   - Removed 58 class hierarchies, kept 62 class hierarchies
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:292]   - Removed 13 packages, updated 1 packages, kept 2 packages
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:295]   - Removed 2630 references, kept 1171 references
-2026-02-03 04:04:07 INFO     [static_analyzer.analysis_cache:296]   - Source files: 94 -> 46
-2026-02-03 04:04:07 INFO     [static_analyzer.incremental_orchestrator:386] Reanalyzing 75 existing changed files
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:1223] Analyzing 75 specific files for incremental update
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:1246] Reanalyzing 37 files
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:428] Starting unified static analysis with multithreading...
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:450] Found 37 source files. Starting unified analysis...
-2026-02-03 04:04:07 INFO     [static_analyzer.lsp_client.client:457] Found 0 classes in workspace
-[Unified Analysis] Processing files:   0%|          | 0/37 [00:00<?, ?it/s][Unified Analysis] Processing files:   3%|▎         | 1/37 [00:03<02:20,  3.90s/it][Unified Analysis] Processing files:   8%|▊         | 3/37 [00:04<00:38,  1.13s/it][Unified Analysis] Processing files:  16%|█▌        | 6/37 [00:04<00:14,  2.15it/s][Unified Analysis] Processing files:  22%|██▏       | 8/37 [00:05<00:12,  2.38it/s][Unified Analysis] Processing files:  24%|██▍       | 9/37 [00:07<00:21,  1.30it/s][Unified Analysis] Processing files:  27%|██▋       | 10/37 [00:08<00:26,  1.00it/s][Unified Analysis] Processing files:  30%|██▉       | 11/37 [00:09<00:24,  1.07it/s][Unified Analysis] Processing files:  32%|███▏      | 12/37 [00:09<00:18,  1.36it/s][Unified Analysis] Processing files:  35%|███▌      | 13/37 [00:10<00:16,  1.44it/s][Unified Analysis] Processing files:  38%|███▊      | 14/37 [00:11<00:18,  1.21it/s][Unified Analysis] Processing files:  41%|████      | 15/37 [00:13<00:25,  1.16s/it][Unified Analysis] Processing files:  43%|████▎     | 16/37 [00:14<00:23,  1.13s/it][Unified Analysis] Processing files:  49%|████▊     | 18/37 [00:15<00:16,  1.18it/s][Unified Analysis] Processing files:  51%|█████▏    | 19/37 [00:16<00:14,  1.20it/s][Unified Analysis] Processing files:  54%|█████▍    | 20/37 [00:16<00:11,  1.54it/s][Unified Analysis] Processing files:  57%|█████▋    | 21/37 [00:17<00:13,  1.17it/s][Unified Analysis] Processing files:  59%|█████▉    | 22/37 [00:20<00:21,  1.43s/it][Unified Analysis] Processing files:  62%|██████▏   | 23/37 [00:24<00:27,  1.94s/it][Unified Analysis] Processing files:  65%|██████▍   | 24/37 [00:24<00:18,  1.45s/it][Unified Analysis] Processing files:  68%|██████▊   | 25/37 [00:24<00:13,  1.09s/it][Unified Analysis] Processing files:  70%|███████   | 26/37 [00:27<00:18,  1.71s/it][Unified Analysis] Processing files:  73%|███████▎  | 27/37 [00:29<00:15,  1.60s/it][Unified Analysis] Processing files:  76%|███████▌  | 28/37 [00:30<00:12,  1.42s/it][Unified Analysis] Processing files:  78%|███████▊  | 29/37 [00:31<00:10,  1.34s/it][Unified Analysis] Processing files:  81%|████████  | 30/37 [00:31<00:08,  1.15s/it][Unified Analysis] Processing files:  84%|████████▍ | 31/37 [00:33<00:08,  1.35s/it][Unified Analysis] Processing files:  86%|████████▋ | 32/37 [00:34<00:05,  1.19s/it][Unified Analysis] Processing files:  89%|████████▉ | 33/37 [00:35<00:04,  1.01s/it][Unified Analysis] Processing files:  92%|█████████▏| 34/37 [00:38<00:05,  1.71s/it][Unified Analysis] Processing files:  95%|█████████▍| 35/37 [00:41<00:04,  2.09s/it][Unified Analysis] Processing files:  97%|█████████▋| 36/37 [00:51<00:04,  4.55s/it][Unified Analysis] Processing files: 100%|██████████| 37/37 [00:53<00:00,  3.60s/it][Unified Analysis] Processing files: 100%|██████████| 37/37 [00:53<00:00,  1.44s/it]
-2026-02-03 04:05:00 INFO     [static_analyzer.lsp_client.client:490] Successfully processed 37 files
-2026-02-03 04:05:00 INFO     [static_analyzer.lsp_client.client:535] Unified static analysis complete.
-2026-02-03 04:05:00 INFO     [static_analyzer.lsp_client.client:536] Results: 2285 references, 48 classes, 11 packages, 1727 call graph nodes, 717 edges
-2026-02-03 04:05:00 INFO     [static_analyzer.lsp_client.client:1257] Targeted analysis complete: 2285 references, 48 classes, 11 packages
-2026-02-03 04:05:00 INFO     [static_analyzer.lsp_client.client:1310] Filtered to 2285 references, 48 classes from analyzed files
-2026-02-03 04:05:00 INFO     [static_analyzer.incremental_orchestrator:390] Merging new analysis with cached results
-2026-02-03 04:05:00 INFO     [static_analyzer.analysis_cache:434] Merged cached and new analysis results
-2026-02-03 04:05:00 INFO     [static_analyzer.incremental_orchestrator:440] Incremental update complete: 82 files, 3375 references, 2630 nodes, 973 edges
-2026-02-03 04:05:00 INFO     [static_analyzer.incremental_orchestrator:447] Computing cluster results for incremental update...
-2026-02-03 04:05:00 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 2630 nodes, target: 20 clusters
-2026-02-03 04:05:03 INFO     [static_analyzer.graph:222] Clustered 2630 nodes into 20 clusters using balanced_greedy_modularity
-2026-02-03 04:05:03 INFO     [static_analyzer.incremental_orchestrator:529] Computed clusters for python: 20 clusters, strategy=balanced_greedy_modularity
-2026-02-03 04:05:03 INFO     [static_analyzer.incremental_orchestrator:611] Cluster matching for python: 15/20 clusters matched to original
-2026-02-03 04:05:03 INFO     [static_analyzer.incremental_orchestrator:474] Saving updated cache to: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-03 04:05:03 INFO     [static_analyzer.incremental_orchestrator:317] Merged cluster results for python: 15 matched to original, 5 new clusters
-2026-02-03 04:05:03 INFO     [static_analyzer.analysis_cache:96] Saved analysis cache to /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json (commit: a1c84ff3b5f6b5592d80be08c33f8ace5c069f95, iteration: 23)
-2026-02-03 04:05:03 INFO     [static_analyzer.analysis_cache:599] Saved cluster results to cache for 1 languages
-2026-02-03 04:05:03 INFO     [static_analyzer.incremental_orchestrator:495] Incremental analysis complete, cache updated (iteration 23)
-Static analysis complete: <static_analyzer.analysis_result.StaticAnalysisResults object at 0x7e3dda3327b0>
-2026-02-03 04:05:03 INFO     [diagram_analysis.diagram_generator:295] Loaded static analysis for incremental update
-2026-02-03 04:05:03 INFO     [diagram_analysis.manifest:143] Loaded manifest with 79 file mappings
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:667] Detected 20 changes from cc054a8: 0 renames, 14 modified, 6 added, 0 deleted
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:676] Impact analysis:
-Action: update_components
-Reason: Update components: {'AI Interpretation Layer', 'Orchestration & Job Management', 'Static Analysis Engine'}
-Renames: 0
-Modified: 6
-Added: 3
-Deleted: 0
-Dirty components: {'AI Interpretation Layer', 'Orchestration & Job Management', 'Static Analysis Engine'}
-🔄 Components needing re-expansion: {'AI Interpretation Layer', 'Orchestration & Job Management', 'Static Analysis Engine'}
-⚠️ Unassigned files: ['static_analyzer/java_config_scanner.py', 'static_analyzer/java_utils.py', 'static_analyzer/lsp_client/java_client.py']
-2026-02-03 04:05:03 INFO     [diagram_analysis.diagram_generator:312] Incremental update impact: update_components
-2026-02-03 04:05:03 INFO     [diagram_analysis.diagram_generator:321] Recomputing affected components with updated cluster assignments...
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:728] Recomputing dirty components with updated cluster assignments...
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:791] Recomputed dirty components: 3 -> 0 (removed: {'AI Interpretation Layer', 'Orchestration & Job Management', 'Static Analysis Engine'}, added: set())
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:882] Updating 3 components: {'AI Interpretation Layer', 'Orchestration & Job Management', 'Static Analysis Engine'}
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:1519] File assignment: 3 assigned, 0 skipped (non-source)
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:932] Component 'AI Interpretation Layer' can be patched without LLM re-analysis
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:932] Component 'Orchestration & Job Management' can be patched without LLM re-analysis
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:932] Component 'Static Analysis Engine' can be patched without LLM re-analysis
-2026-02-03 04:05:03 INFO     [diagram_analysis.incremental_analyzer:1579] [Scoped Impact] Component 'AI Interpretation Layer' -> action=update_components dirty=1 added=0 deleted=0
-2026-02-03 04:05:03 INFO     [agents.agent:121] Initialized prompt factory for google with gemini_flash
-2026-02-03 04:05:03 INFO     [agents.agent:127] Using Google LLM with model: gemini-2.5-flash
-2026-02-03 04:05:03 INFO     [monitoring:132] {"event": "step_start", "step": "analyze_project_metadata", "timestamp": 1770087903.6278286}
-2026-02-03 04:05:03 INFO     [agents.meta_agent:34] [MetaAgent] Analyzing metadata for project: CodeBoarding
-2026-02-03 04:05:03 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 1088, timeout: 300s
-2026-02-03 04:05:05 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 720, "output_tokens": 194, "total_tokens": 914}
-2026-02-03 04:05:05 INFO     [agents.tools.read_docs:89] [ReadDocs Tool] Reading file /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/README.md around line 0
-2026-02-03 04:05:09 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7258, "output_tokens": 939, "total_tokens": 8197}
-2026-02-03 04:05:09 INFO     [agents.tools.external_deps:56] [ExternalDeps Tool] Searching for dependency files
-2026-02-03 04:05:09 INFO     [agents.tools.external_deps:91] [ExternalDeps Tool] Found 2 dependency file(s): setup.py, uv.lock
-2026-02-03 04:05:11 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7365, "output_tokens": 111, "total_tokens": 7476}
-2026-02-03 04:05:21 INFO     [monitoring:62] Token Usage: step=startup model=gemini-2.5-flash usage={"input_tokens": 7494, "output_tokens": 1829, "total_tokens": 9323}
-2026-02-03 04:05:21 INFO     [agents.agent:182] Completed agent.invoke() - message count: 9, last message type: <class 'langchain_core.messages.ai.AIMessage'>
-2026-02-03 04:05:21 INFO     [agents.agent:127] Using Google Extractor LLM with model: gemini-2.5-flash
-2026-02-03 04:05:26 INFO     [monitoring:62] Token Usage: step=analyze_project_metadata model=gemini-2.5-flash usage={"input_tokens": 5392, "output_tokens": 1318, "total_tokens": 6710}
-2026-02-03 04:05:26 INFO     [agents.meta_agent:39] [MetaAgent] Completed metadata analysis for project: # 🎯 Project Metadata Analysis
-
-**Project Type:** Code Analysis and Documentation Generation Tool, IDE Extension, CI/CD Integration
-**Domain:** Software Development, DevOps, AI/ML, Code Comprehension, Automated Documentation
-**Technology Stack:** Python, TypeScript, JavaScript, Java, Go, PHP, uv, npm, LangChain, OpenAI, Google Gemini, Anthropic, Vercel, AWS Bedrock, Ollama, Mermaid.js, VS Code Extension, GitHub Actions
-**Architectural Patterns:** Pipeline/Event-Driven Architecture, Service-Oriented Architecture (SOA) / Modular Design, Layered Architecture
-**Expected Components:** API Service, Job Database, Orchestration Engine, Repository Manager, Static Analysis Engine, AI Interpretation Layer, Output Generation Engine
-**Architectural Bias:** Modularity and Extensibility, Automation and Integration, AI-Driven Intelligence, Data Flow and Transformation, Loose Coupling
-
-2026-02-03 04:05:26 INFO     [monitoring:142] {"event": "step_end", "step": "analyze_project_metadata", "duration_ms": 22706.53}
-2026-02-03 04:05:26 INFO     [agents.agent:121] Initialized prompt factory for google with gemini_flash
-2026-02-03 04:05:26 INFO     [agents.agent:127] Using Google LLM with model: gemini-2.5-flash
-2026-02-03 04:05:26 INFO     [agents.details_agent:144] [DetailsAgent] Processing component: AI Interpretation Layer
-2026-02-03 04:05:26 INFO     [static_analyzer.graph:329] Starting adaptive clustering for 664 nodes, target: 20 clusters
-2026-02-03 04:05:26 INFO     [static_analyzer.graph:659] Good clustering found: 18 clusters, 100.00% coverage, 0 singletons, largest: 69
-2026-02-03 04:05:26 INFO     [static_analyzer.graph:222] Clustered 664 nodes into 18 clusters using structural_class
-2026-02-03 04:05:26 INFO     [monitoring:132] {"event": "step_start", "step": "step_cluster_grouping", "timestamp": 1770087926.5626833}
-2026-02-03 04:05:26 INFO     [agents.details_agent:67] [DetailsAgent] Grouping clusters for component: AI Interpretation Layer
-2026-02-03 04:05:26 INFO     [agents.agent:174] Starting agent.invoke() [attempt 1/5] with prompt length: 40830, timeout: 300s

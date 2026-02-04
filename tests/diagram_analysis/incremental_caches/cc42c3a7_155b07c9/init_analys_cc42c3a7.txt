@@ -1,16 +1,0 @@
-2026-02-02 03:49:41 INFO     [__main__:417] Starting CodeBoarding documentation generation...
-Monitoring enabled: false
-2026-02-02 03:49:41 INFO     [static_analyzer:102] Starting static analysis for Python in /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:98] Starting server /home/ivan/StartUp/CodeBoarding/static_analyzer/servers/node_modules/.bin/pyright-langserver --stdio...
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:234] Initializing connection for python...
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:256] Initialization successful.
-2026-02-02 03:49:41 INFO     [static_analyzer:117] Using incremental cache: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-02 03:49:41 INFO     [static_analyzer.incremental_orchestrator:65] Current commit: cc42c3a78a233c7b44d59ca5e1ae12412c6c2865
-2026-02-02 03:49:41 INFO     [static_analyzer.analysis_cache:124] Cache file does not exist: /home/ivan/StartUp/CodeBoarding/repos/CodeBoarding/.codeboarding/cache/incremental/incremental_cache_Python.json
-2026-02-02 03:49:41 INFO     [static_analyzer.incremental_orchestrator:72] No cache found, performing full analysis
-2026-02-02 03:49:41 INFO     [static_analyzer.incremental_orchestrator:175] Starting full static analysis
-2026-02-02 03:49:41 INFO     [static_analyzer.incremental_orchestrator:181] Will analyze 83 source files
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:428] Starting unified static analysis with multithreading...
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:450] Found 83 source files. Starting unified analysis...
-2026-02-02 03:49:41 INFO     [static_analyzer.lsp_client.client:457] Found 0 classes in workspace
-[Unified Analysis] Processing files:   0%|          | 0/83 [00:00<?, ?it/s]
