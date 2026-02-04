@@ -38,10 +38,10 @@ def analyze_expanded_component_impacts(
     manifest: AnalysisManifest,
     static_analysis: StaticAnalysisResults | None,
 ) -> dict[str, ChangeImpact]:
-    """Run analyze_impact within each expanded component's scope.
+    """Run impact analysis within each expanded component's scope.
 
-    This lets us reuse the same impact logic recursively for sub-analyses by
-    filtering the ChangeSet to the files that belong to a component.
+    Filters changes to component files and analyzes each expanded component
+    independently using the same impact logic.
     """
 
     if not manifest:
@@ -88,11 +88,9 @@ def handle_scoped_component_update(
     static_analysis: StaticAnalysisResults | None,
     repo_dir: Path,
 ) -> None:
-    """Apply scoped impact decisions recursively for expanded components.
+    """Apply scoped impact decisions for expanded components.
 
-    - If only renames -> patch paths in sub-analysis and manifest slice.
-    - If updates required -> run DetailsAgent on that component's sub-analysis
-      scope and patch/save results.
+    Patches paths for renames or re-runs DetailsAgent for component updates.
     """
 
     # Ensure this component is expanded (has a sub-analysis file)
@@ -200,8 +198,7 @@ def run_scoped_component_impacts(
 ) -> None:
     """Run impact analysis inside each component scope and log summaries.
 
-    This does not change the main update plan but enables recursive usage of
-    the same impact logic for sub-analyses when their files change.
+    Applies scoped updates to components with UPDATE_COMPONENTS or PATCH_PATHS actions.
     """
 
     if not components or not component_impacts:

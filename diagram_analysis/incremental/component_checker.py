@@ -39,18 +39,8 @@ def component_has_only_renames(
 ) -> bool:
     """Check if a component's structural changes are just file renames.
 
-    A component has "only renames" if:
-    1. All deleted files are old paths of renamed files
-    2. All modified files are the new paths of renamed files
-    3. No true additions or deletions
-
-    Args:
-        component_name: Name of the component to check
-        manifest: The analysis manifest
-        impact: The change impact analysis
-
-    Returns:
-        True if the component's changes are just renames that can be patched
+    Returns True if all deleted files are old rename paths and all modified
+    files are new rename paths (no true additions or deletions).
     """
     if not impact or not manifest:
         return False
@@ -119,24 +109,9 @@ def can_patch_sub_analysis(
 ) -> bool:
     """Check if a component's sub-analysis can be patched without LLM re-analysis.
 
-    This determines whether we can update file references in the existing
-    sub-analysis instead of regenerating it with DetailsAgent.
-
-    A sub-analysis can be patched if:
-    1. The component still exists in the current analysis
-    2. The sub-analysis file exists
-    3. Changes are limited to file assignments (added/deleted/renamed files)
-       without changing the component's logical structure
-
-    Args:
-        component_name: Name of the component to check
-        manifest: The analysis manifest
-        impact: The change impact analysis
-        output_dir: Directory where sub-analysis files are stored
-        analysis: The current analysis results
-
-    Returns:
-        True if the sub-analysis can be patched, False if it needs regeneration
+    Can patch if changes are limited to file assignments without affecting
+    the component's logical structure. Returns False for deletions or
+    if sub-analysis doesn't exist.
     """
     if not analysis or not manifest:
         return False
@@ -212,22 +187,8 @@ def subcomponent_has_only_renames(
 ) -> bool:
     """Check if changes within a component's sub-analysis are just renames.
 
-    This validates whether we can patch the sub-analysis instead of re-running
-    the DetailsAgent. Similar to component_has_only_renames but operates at
-    the sub-component level.
-
-    A sub-analysis has "only renames" if:
-    1. All deleted files in sub-components are old paths of renamed files
-    2. All modified files in sub-components are new paths of renamed files
-    3. No true structural changes (additions/deletions) in sub-components
-
-    Args:
-        component_name: Name of the parent component
-        sub_analysis: The sub-analysis to check
-        impact: The change impact analysis
-
-    Returns:
-        True if the sub-analysis changes are just renames that can be patched
+    Similar to component_has_only_renames but operates at the sub-component level.
+    Returns True if all structural changes in sub-components are just renames.
     """
     if not impact:
         return False

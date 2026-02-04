@@ -16,7 +16,7 @@ from diagram_analysis.manifest import (
     load_manifest,
     MANIFEST_FILENAME,
 )
-from diagram_analysis.incremental_analyzer import (
+from diagram_analysis.incremental import (
     IncrementalUpdater,
     UpdateAction,
     load_analysis,

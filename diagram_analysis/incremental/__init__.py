@@ -35,6 +35,7 @@ from diagram_analysis.incremental.io_utils import (
     save_sub_analysis,
 )
 from diagram_analysis.incremental.updater import IncrementalUpdater
+from diagram_analysis.incremental.validation import validate_incremental_update
 
 __all__ = [
     # Models
@@ -55,4 +56,6 @@ __all__ = [
     "save_sub_analysis",
     # Main Updater
     "IncrementalUpdater",
+    # Validation
+    "validate_incremental_update",
 ]

@@ -1,9 +1,4 @@
-"""
-Re-expansion utilities for incremental analysis.
-
-This module provides functions for re-expanding components that need
-sub-analysis regeneration during incremental updates.
-"""
+"""Re-expansion utilities for incremental analysis."""
 
 import logging
 import os
@@ -22,6 +17,7 @@ from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.incremental.io_utils import load_sub_analysis, save_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.incremental.path_patching import patch_sub_analysis
+from diagram_analysis.incremental.component_checker import subcomponent_has_only_renames
 from diagram_analysis.manifest import AnalysisManifest
 from output_generators.markdown import sanitize
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -31,93 +27,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ReexpansionContext:
-    """Context holding common parameters needed for re-expansion operations."""
+    """Context for re-expansion operations."""
 
     analysis: AnalysisInsights
     manifest: AnalysisManifest
     output_dir: Path
     impact: ChangeImpact | None = None
     static_analysis: StaticAnalysisResults | None = None
-
-
-def _subcomponent_has_only_renames(
-    component_name: str,
-    sub_analysis: AnalysisInsights,
-    impact: ChangeImpact,
-) -> bool:
-    """Check if changes within a component's sub-analysis are just renames.
-
-    This validates whether we can patch the sub-analysis instead of re-running
-    the DetailsAgent. Similar to _component_has_only_renames but operates at
-    the sub-component level.
-
-    A sub-analysis has "only renames" if:
-    1. All deleted files in sub-components are old paths of renamed files
-    2. All modified files in sub-components are new paths of renamed files
-    3. No true structural changes (additions/deletions) in sub-components
-
-    Args:
-        component_name: Name of the parent component
-        sub_analysis: The sub-analysis to check
-        impact: The change impact to analyze
-
-    Returns:
-        True if the sub-analysis changes are just renames that can be patched
-    """
-    if not impact:
-        return False
-
-    # Collect all files from sub-components
-    subcomponent_files: set[str] = set()
-    for sub_component in sub_analysis.components:
-        subcomponent_files.update(sub_component.assigned_files)
-
-    # Check deleted files in sub-components
-    deleted_in_subcomponent = set()
-    for file_path in impact.deleted_files:
-        if file_path in subcomponent_files:
-            deleted_in_subcomponent.add(file_path)
-
-    # Check modified files in sub-components
-    modified_in_subcomponent = set()
-    for file_path in impact.modified_files:
-        if file_path in subcomponent_files:
-            modified_in_subcomponent.add(file_path)
-
-    # Get renames that affect sub-components
-    renames_in_subcomponent = {}
-    for old_path, new_path in impact.renames.items():
-        if old_path in subcomponent_files or new_path in subcomponent_files:
-            renames_in_subcomponent[old_path] = new_path
-
-    # Log detailed analysis
-    logger.debug(
-        f"Sub-component analysis for '{component_name}': "
-        f"deleted={deleted_in_subcomponent}, modified={modified_in_subcomponent}, "
-        f"renames={renames_in_subcomponent}"
-    )
-
-    # If no structural changes in sub-components, nothing to patch
-    if not deleted_in_subcomponent and not modified_in_subcomponent:
-        return False
-
-    # Check if all deletions are just old paths of renames
-    deleted_are_all_renames = deleted_in_subcomponent.issubset(set(renames_in_subcomponent.keys()))
-
-    # Check if all modifications are just new paths of renames
-    modified_are_all_renames = modified_in_subcomponent.issubset(set(renames_in_subcomponent.values()))
-
-    # Log the decision
-    if deleted_are_all_renames and modified_are_all_renames:
-        logger.debug(f"Sub-analysis for '{component_name}' has only renames, can be patched")
-    else:
-        logger.debug(
-            f"Sub-analysis for '{component_name}' has true structural changes: "
-            f"deleted_are_renames={deleted_are_all_renames}, "
-            f"modified_are_renames={modified_are_all_renames}"
-        )
-
-    return deleted_are_all_renames and modified_are_all_renames
 
 
 def reexpand_single_component(
@@ -127,16 +43,7 @@ def reexpand_single_component(
 ) -> str | None:
     """Process a single component for re-expansion.
 
-    First checks if the existing sub-analysis can be patched instead of
-    regenerated (if changes are just renames/reassigns within this component).
-
-    Args:
-        component_name: The name of the component to re-expand
-        details_agent: The DetailsAgent instance to use for re-expansion
-        context: ReexpansionContext containing analysis, output_dir, impact, etc.
-
-    Returns:
-        The component name if successful, None otherwise
+    Checks if existing sub-analysis can be patched instead of regenerated.
     """
     # Find the component in analysis
     component = next(
@@ -156,7 +63,7 @@ def reexpand_single_component(
             existing_sub_analysis = load_sub_analysis(context.output_dir, component_name)
             if existing_sub_analysis and context.impact:
                 # Check if changes within this component are just renames
-                if _subcomponent_has_only_renames(
+                if subcomponent_has_only_renames(
                     component_name,
                     existing_sub_analysis,
                     context.impact,
@@ -209,20 +116,9 @@ def reexpand_components(
     repo_dir: Path,
     context: ReexpansionContext,
 ) -> list[str]:
-    """Re-run DetailsAgent for components that need sub-analysis regeneration.
+    """Re-run DetailsAgent for components needing sub-analysis regeneration.
 
-    This is called when files are added/deleted from an expanded component,
-    requiring the sub-analysis to be regenerated.
-
-    Components are processed in parallel using ThreadPoolExecutor for efficiency.
-
-    Args:
-        component_names: Set of component names to re-expand
-        repo_dir: Path to the repository root
-        context: ReexpansionContext containing analysis, manifest, output_dir, static_analysis, etc.
-
-    Returns:
-        List of successfully re-expanded component names
+    Processes components in parallel for efficiency.
     """
     if not component_names:
         return []

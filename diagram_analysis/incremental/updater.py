@@ -1,9 +1,4 @@
-"""
-Incremental updater for executing update strategies.
-
-This module provides the IncrementalUpdater class that executes
-incremental updates based on impact analysis results.
-"""
+"""Incremental updater for executing update strategies."""
 
 import logging
 from pathlib import Path
@@ -23,10 +18,7 @@ from diagram_analysis.incremental.path_patching import (
     patch_paths_in_analysis,
     patch_paths_in_manifest,
 )
-from diagram_analysis.incremental.impact_analyzer import (
-    analyze_impact,
-    _should_skip_file,
-)
+from diagram_analysis.incremental.impact_analyzer import analyze_impact
 from diagram_analysis.incremental.component_checker import (
     is_expanded_component,
     component_has_only_renames,
@@ -46,10 +38,12 @@ from diagram_analysis.incremental.scoped_analysis import (
     analyze_expanded_component_impacts,
     run_scoped_component_impacts,
 )
+from diagram_analysis.incremental.validation import validate_incremental_update
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest
 from output_generators.markdown import sanitize
 from repo_utils import get_repo_state_hash
 from repo_utils.change_detector import ChangeSet, detect_changes_from_commit, get_current_commit
+from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.graph import ClusterResult
@@ -58,13 +52,7 @@ logger = logging.getLogger(__name__)
 
 
 class IncrementalUpdater:
-    """
-    Executes incremental updates based on impact analysis.
-
-    Usage:
-        updater = IncrementalUpdater(repo_dir, output_dir)
-        result = updater.run()
-    """
+    """Executes incremental updates based on impact analysis."""
 
     def __init__(
         self,
@@ -127,11 +115,7 @@ class IncrementalUpdater:
         return self.impact
 
     def execute(self) -> bool:
-        """
-        Execute the update based on impact analysis.
-
-        Returns True if update was successful, False if full reanalysis is needed.
-        """
+        """Execute the update based on impact analysis."""
         if not self.impact or not self.manifest or not self.analysis:
             raise RuntimeError("Must call analyze() first")
 
@@ -157,16 +141,7 @@ class IncrementalUpdater:
         return False
 
     def recompute_dirty_components(self, static_analysis: StaticAnalysisResults) -> None:
-        """
-        Recompute which components are actually affected after static analysis.
-
-        This uses the updated cluster results from static analysis to determine
-        which components have files that actually changed, rather than relying
-        on the manifest's old file assignments.
-
-        Args:
-            static_analysis: Updated static analysis with new cluster assignments
-        """
+        """Recompute affected components using updated cluster assignments."""
         if not self.impact or not self.manifest or not self.analysis:
             logger.warning("Cannot recompute dirty components: missing impact, manifest, or analysis")
             return
@@ -193,7 +168,7 @@ class IncrementalUpdater:
 
         for file_path in changed_files:
             # Skip non-source files
-            if _should_skip_file(file_path):
+            if should_skip_file(file_path):
                 continue
 
             # Find which component this file should belong to based on cluster membership
@@ -238,16 +213,7 @@ class IncrementalUpdater:
         )
 
     def _find_component_for_file(self, file_path: str, cluster_results: dict) -> str | None:
-        """
-        Find which component a file belongs to based on cluster membership.
-
-        Args:
-            file_path: Path to the file
-            cluster_results: Cluster results from static analysis
-
-        Returns:
-            Component name if found, None otherwise
-        """
+        """Find which component a file belongs to based on cluster membership."""
         # Get the clusters this file belongs to
         file_clusters: set[int] = set()
         for lang_result in cluster_results.values():
@@ -308,15 +274,10 @@ class IncrementalUpdater:
         return True
 
     def _execute_update_components(self) -> bool:
-        """
-        Execute targeted component updates.
+        """Execute targeted component updates.
 
-        For most changes (file modifications within a component), we just update
-        the assigned_files list without re-running LLM analysis. The component's
-        description and structure don't change just because code was modified.
-
-        LLM re-analysis (via DetailsAgent) is needed when:
-        - Expanded component has files added or deleted (structural change)
+        Updates assigned_files without LLM re-analysis where possible.
+        Re-runs DetailsAgent only for expanded components with structural changes.
         """
         assert self.impact and self.manifest and self.analysis
 
@@ -436,7 +397,7 @@ class IncrementalUpdater:
 
         # Step 7: Validate the updated analysis
         if self.static_analysis:
-            is_valid = self._validate_incremental_update(self.analysis, self.static_analysis)
+            is_valid = validate_incremental_update(self.analysis, self.static_analysis)
             if not is_valid:
                 logger.warning(
                     "Incremental update validation failed - analysis may have inconsistencies. "
@@ -459,43 +420,6 @@ class IncrementalUpdater:
             f"Re-expanded: {reexpanded_components}, Classified: {classified_components}, Patched: {patched_components}"
         )
         return True
-
-    def _validate_incremental_update(self, analysis: AnalysisInsights, static_analysis: StaticAnalysisResults) -> bool:
-        """
-        Validate the updated analysis after incremental changes.
-
-        Returns True if validation passes, False otherwise.
-        """
-        logger.info("Running incremental update validation...")
-
-        cluster_results = build_all_cluster_results(static_analysis)
-
-        context = ValidationContext(
-            cluster_results=cluster_results,
-            cfg_graphs={lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()},
-        )
-
-        validators = [validate_component_relationships, validate_key_entities]
-        all_valid = True
-
-        for validator in validators:
-            try:
-                result = validator(analysis, context)
-                if not result.is_valid:
-                    all_valid = False
-                    logger.warning(f"[Incremental Validation] {validator.__name__} failed: {result.feedback_messages}")
-                else:
-                    logger.info(f"[Incremental Validation] {validator.__name__} passed")
-            except Exception as e:
-                logger.error(f"[Incremental Validation] {validator.__name__} raised exception: {e}")
-                all_valid = False
-
-        if all_valid:
-            logger.info("[Incremental Validation] All validation checks passed")
-        else:
-            logger.warning("[Incremental Validation] Some validation checks failed")
-
-        return all_valid
 
     def _analyze_expanded_component_impacts(self, changes: ChangeSet) -> dict[str, ChangeImpact]:
         """Run analyze_impact within each expanded component's scope."""

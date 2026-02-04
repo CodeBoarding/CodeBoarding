@@ -1,9 +1,4 @@
-"""
-File management utilities for incremental updates.
-
-This module provides standalone functions for managing file assignments,
-deletions, and classifications in the incremental analysis pipeline.
-"""
+"""File management utilities for incremental updates."""
 
 import logging
 import os
@@ -16,8 +11,8 @@ from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_sub_analysis,
 )
-from diagram_analysis.incremental.impact_analyzer import _should_skip_file
 from diagram_analysis.manifest import AnalysisManifest
+from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 
@@ -29,23 +24,14 @@ def assign_new_files(
     analysis: AnalysisInsights,
     manifest: AnalysisManifest,
 ) -> set[str]:
-    """Assign new files to components based on directory heuristics.
-
-    Args:
-        new_files: List of new file paths to assign
-        analysis: The main analysis containing components
-        manifest: The manifest for tracking file assignments
-
-    Returns:
-        Set of component names that received new files
-    """
+    """Assign new files to components based on directory heuristics."""
     assigned_count = 0
     skipped_count = 0
     components_with_new_files: set[str] = set()
 
     for file_path in new_files:
-        # Skip non-source files (uses same filter as _map_changes_to_components)
-        if _should_skip_file(file_path):
+        # Skip non-source files
+        if should_skip_file(file_path):
             logger.debug(f"Skipping non-source file: {file_path}")
             skipped_count += 1
             continue
@@ -81,13 +67,7 @@ def remove_deleted_files(
     analysis: AnalysisInsights,
     manifest: AnalysisManifest,
 ) -> None:
-    """Remove deleted files from analysis and manifest.
-
-    Args:
-        deleted_files: List of deleted file paths
-        analysis: The main analysis containing components
-        manifest: The manifest for tracking file assignments
-    """
+    """Remove deleted files from analysis and manifest."""
     for file_path in deleted_files:
         # Remove from manifest
         component_name = manifest.remove_file(file_path)
@@ -113,23 +93,10 @@ def classify_new_files_in_component(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
 ) -> bool:
-    """
-    Run targeted file classification for new files within a component's sub-analysis.
+    """Run targeted file classification for new files within a component's sub-analysis.
 
-    This loads the existing sub-analysis, classifies the new files into sub-components,
-    and saves the updated analysis. Much more efficient than full re-expansion.
-
-    Args:
-        component_name: Name of the component to classify files for
-        new_files: List of new file paths that need classification
-        analysis: The main analysis containing components
-        manifest: The manifest for tracking file assignments
-        output_dir: Directory where analysis outputs are stored
-        static_analysis: Static analysis results for the repository
-        repo_dir: Path to the repository root
-
-    Returns:
-        True if classification was successful, False otherwise
+    Loads existing sub-analysis, classifies new files, and saves results.
+    Much more efficient than full re-expansion.
     """
     # Find the component in the main analysis
     component = next(
@@ -203,20 +170,7 @@ def create_component_cluster_results(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
 ) -> dict:
-    """
-    Create cluster results for a component's assigned files.
-
-    This is a simplified version of _create_strict_component_subgraph from ClusterMethodsMixin
-    that returns only the cluster_results dict without the string representation.
-
-    Args:
-        component: Component with assigned_files
-        static_analysis: Static analysis results for the repository
-        repo_dir: Path to the repository root
-
-    Returns:
-        Dict mapping language -> ClusterResult for the subgraph
-    """
+    """Create cluster results for a component's assigned files."""
     if not component.assigned_files:
         return {}
 
@@ -250,20 +204,7 @@ def get_new_files_for_component(
     added_files: list[str],
     analysis: AnalysisInsights,
 ) -> list[str]:
-    """
-    Get the list of new files that belong to a specific component.
-
-    This checks which of the added files were assigned to the given component
-    by looking at the component's current assigned_files.
-
-    Args:
-        component_name: Name of the component
-        added_files: List of all added files from the impact
-        analysis: The main analysis containing components
-
-    Returns:
-        List of new file paths that belong to this component
-    """
+    """Get new files that belong to a specific component."""
     # Find the component
     component = next(
         (c for c in analysis.components if c.name == component_name),

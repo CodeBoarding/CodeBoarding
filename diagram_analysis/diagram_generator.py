@@ -20,7 +20,7 @@ from diagram_analysis.manifest import (
     load_manifest,
     manifest_exists,
 )
-from diagram_analysis.incremental_analyzer import IncrementalUpdater, UpdateAction
+from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import sanitize

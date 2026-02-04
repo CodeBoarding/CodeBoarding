@@ -9,7 +9,7 @@ from diagram_analysis.manifest import (
     save_manifest,
     load_manifest,
 )
-from diagram_analysis.incremental_analyzer import (
+from diagram_analysis.incremental import (
     ChangeImpact,
     UpdateAction,
     analyze_impact,

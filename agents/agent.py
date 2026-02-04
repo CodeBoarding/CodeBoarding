@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
@@ -16,16 +15,15 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from agents.agent_responses import AnalysisInsights, ComponentFiles, FileClassification
 from agents.llm_config import LLM_PROVIDERS
-from agents.tools.base import RepoContext
-from agents.tools.toolkit import CodeBoardingToolkit
 from agents.prompts import (
     get_unassigned_files_classification_message,
     get_validation_feedback_message,
     initialize_global_factory,
-    LLMType,
 )
-from agents.agent_responses import AnalysisInsights, ComponentFiles
+from agents.tools.base import RepoContext
+from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
@@ -396,7 +394,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str]) -> None:
+    def classify_files(
+        self,
+        analysis: AnalysisInsights,
+        cluster_results: dict,
+        scope_files: list[str] | None = None,
+    ) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -415,11 +418,21 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         for comp in analysis.components:
             self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
 
+        # Normalize scope to lists only (ignore unexpected types)
+        scope: list[str] | None
+        if scope_files is None:
+            scope = None
+        elif isinstance(scope_files, list):
+            scope = scope_files
+        else:
+            logger.warning("[Agent] scope_files must be a list[str]; received %s. Ignoring scope.", type(scope_files))
+            scope = None
+
         # Pass 2: LLM classification of unassigned files
-        self._classify_unassigned_files_llm(analysis, scope_files)
+        self._classify_unassigned_files_llm(analysis, scope)
 
         # Log final unclassified count
-        self._log_unclassified_files_count(analysis, scope_files)
+        self._log_unclassified_files_count(analysis, scope)
 
     def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str] | None = None) -> None:
         """
@@ -446,11 +459,13 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         # 4. Build component summary for LLM using llm_str()
         valid_components = [comp for comp in analysis.components if comp.name != "Unclassified"]
-        components_summary = "\n\n".join([comp.llm_str() for comp in valid_components])
+        components_summary = "\n\n".join(comp.llm_str() for comp in valid_components)
         component_map = {comp.name: comp for comp in valid_components}
 
         # 5. Classify all unassigned files with LLM
-        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary, analysis)
+        classifications: list[FileClassification] = self._classify_unassigned_files_with_llm(
+            unassigned_files, components_summary, analysis
+        )
 
         # 6. Append successfully classified files to components
         for fc in classifications:
@@ -533,7 +548,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _classify_unassigned_files_with_llm(
         self, unassigned_files: list[str], components_summary: str, analysis: AnalysisInsights
-    ) -> list:
+    ) -> list[FileClassification]:
         """
         Classify unassigned files using LLM with validation.
         Returns list of FileClassification objects.

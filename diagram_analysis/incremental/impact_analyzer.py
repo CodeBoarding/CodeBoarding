@@ -1,9 +1,4 @@
-"""
-Impact analysis for incremental updates.
-
-This module analyzes the impact of code changes and determines
-the appropriate update action based on the magnitude of changes.
-"""
+"""Impact analysis for incremental updates."""
 
 import logging
 from pathlib import Path
@@ -16,6 +11,7 @@ from diagram_analysis.incremental.models import (
 )
 from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet, ChangeType
+from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import CallGraph
 
@@ -27,17 +23,7 @@ def analyze_impact(
     manifest: AnalysisManifest,
     static_analysis: StaticAnalysisResults | None = None,
 ) -> ChangeImpact:
-    """
-    Analyze the impact of changes and determine the update action.
-
-    Args:
-        changes: Detected file changes from git
-        manifest: Previously saved analysis manifest
-        static_analysis: Optional static analysis for cross-boundary detection
-
-    Returns:
-        ChangeImpact with categorized changes and recommended action
-    """
+    """Analyze the impact of changes and determine the update action."""
     impact = ChangeImpact()
 
     if changes.is_empty():
@@ -46,11 +32,10 @@ def analyze_impact(
         return impact
 
     # Categorize changes - FILTER out non-source files upfront
-    # This ensures threshold calculations only consider relevant files
-    impact.renames = {old: new for old, new in changes.renames.items() if not _should_skip_file(new)}
-    impact.modified_files = [f for f in changes.modified_files if not _should_skip_file(f)]
-    impact.added_files = [f for f in changes.added_files if not _should_skip_file(f)]
-    impact.deleted_files = [f for f in changes.deleted_files if not _should_skip_file(f)]
+    impact.renames = {old: new for old, new in changes.renames.items() if not should_skip_file(new)}
+    impact.modified_files = [f for f in changes.modified_files if not should_skip_file(f)]
+    impact.added_files = [f for f in changes.added_files if not should_skip_file(f)]
+    impact.deleted_files = [f for f in changes.deleted_files if not should_skip_file(f)]
 
     # Map changes to components
     _map_changes_to_components(impact, manifest)
@@ -65,51 +50,10 @@ def analyze_impact(
     return impact
 
 
-def _should_skip_file(file_path: str) -> bool:
-    """Check if a file should be skipped (not part of core source analysis)."""
-    skip_patterns = [
-        "tests/",
-        "test_",
-        "__pycache__/",
-        ".pytest_cache/",
-        "README",
-        "CHANGELOG",
-        "LICENSE",
-        "CONTRIBUTING",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "pyproject.toml",
-        "setup.py",
-        "setup.cfg",
-        "requirements.txt",
-        "uv.lock",
-        "poetry.lock",
-        "Pipfile",
-        ".gitignore",
-        ".gitattributes",
-        ".editorconfig",
-        "Dockerfile",
-        "docker-compose",
-        ".dockerignore",
-        "Makefile",
-        "justfile",
-    ]
-    # Skip files matching patterns
-    if any(pattern in file_path for pattern in skip_patterns):
-        return True
-    # Skip non-source file extensions
-    skip_extensions = [".md", ".txt", ".rst", ".yml", ".yaml", ".json", ".toml", ".lock"]
-    if any(file_path.endswith(ext) for ext in skip_extensions):
-        return True
-    return False
-
-
 def _map_changes_to_components(impact: ChangeImpact, manifest: AnalysisManifest) -> None:
-    """Map all changed files to their owning components.
+    """Map changed files to their owning components.
 
-    Note: Files are already filtered by _should_skip_file() in analyze_impact().
-
-    Also tracks which expanded components need re-expansion due to structural changes.
+    Tracks components with structural changes for potential re-expansion.
     """
     # Track components with structural changes (added/deleted/modified files)
     # Modified files in expanded components need re-expansion to get fresh static analysis
@@ -157,13 +101,7 @@ def _check_cross_boundary_impact(
     manifest: AnalysisManifest,
     static_analysis: StaticAnalysisResults,
 ) -> None:
-    """
-    Check if modified files have references that cross component boundaries.
-
-    Uses CFG edges to detect:
-    - Functions in modified files that are called by other components
-    - Functions in modified files that call into other components
-    """
+    """Check if modified files have references crossing component boundaries."""
     for lang in static_analysis.get_languages():
         try:
             cfg = static_analysis.get_cfg(lang)
@@ -181,11 +119,7 @@ def _file_has_cross_boundary_refs(
     manifest: AnalysisManifest,
     cfg: CallGraph,
 ) -> bool:
-    """
-    Check if a file has CFG edges that cross component boundaries.
-
-    Returns True if any edge connects to a file in a different component.
-    """
+    """Check if a file has CFG edges crossing component boundaries."""
     owning_component = manifest.get_component_for_file(file_path)
     if not owning_component:
         return False
@@ -221,7 +155,6 @@ def _file_has_cross_boundary_refs(
 
 def _path_matches(absolute_path: str, relative_path: str) -> bool:
     """Check if an absolute path ends with the relative path."""
-    # Normalize paths
     abs_normalized = absolute_path.replace("\\", "/")
     rel_normalized = relative_path.replace("\\", "/").lstrip("./")
     return abs_normalized.endswith(rel_normalized)
@@ -274,12 +207,9 @@ def _determine_action(impact: ChangeImpact, manifest: AnalysisManifest) -> None:
 
 
 def _filter_changes_for_scope(changes: ChangeSet, scope_files: set[str]) -> ChangeSet:
-    """Filter a ChangeSet down to the files that belong to a scope.
+    """Filter a ChangeSet to files within a scope.
 
-    A change is included when either the path itself is part of the scope or it
-    lives in the same directory as a scoped file. This keeps added files (which
-    are not yet in the manifest) visible when they land alongside existing
-    scoped files.
+    Includes changes where the path is in scope or lives alongside scoped files.
     """
 
     if changes.is_empty() or not scope_files:

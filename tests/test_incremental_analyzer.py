@@ -2,7 +2,7 @@
 
 import pytest
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
-from diagram_analysis.incremental_analyzer import patch_sub_analysis
+from diagram_analysis.incremental import patch_sub_analysis
 
 
 class TestPatchSubAnalysis:
