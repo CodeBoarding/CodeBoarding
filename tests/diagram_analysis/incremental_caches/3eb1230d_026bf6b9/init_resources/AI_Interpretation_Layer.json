@@ -1,0 +1,253 @@
+{
+  "description": "The AI Interpretation Layer transforms raw static analysis artifacts (source code, CFGs, diffs, repository data) into high-level architectural intelligence using LLM-driven agents. The main flow: CodeBoardingAgent orchestrates analysis by requesting data from the CodeBoardingToolkit, generating LLM prompts via PromptFactory, invoking specialized agents (MetaAgent, AbstractionAgent, DiffAnalyzingAgent) to produce contextual summaries, abstractions, and change-impact reports, and then validating outputs with ValidatorAgent. AgentResponses defines shared data models used across the flow for consistent, structured outputs.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent",
+      "description": "The central orchestrator coordinating the AI-driven analysis and documentation workflow; manages sequencing and state for specialized agents and aggregates their outputs into final artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/details_agent.py",
+        "agents/llm_config.py",
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory",
+      "description": "Produces and customizes LLM prompts and templates; accepts context and intent and returns formatted prompts for agents.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory.PromptFactory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "CodeBoardingToolkit",
+      "description": "Provides codebase access and static analysis primitives (CFG, diffs, repo retrieval); fetches repository content and returns raw analysis artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/toolkit.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AgentResponses",
+      "description": "Defines standardized data models, schemas, and communication contracts used across agents to ensure consistent inter-agent exchange and serialized outputs.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MetaAgent",
+      "description": "Performs high-level project metadata and technology-stack analysis, scanning repository manifests and metadata to infer architecture and domain context.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.meta_agent.MetaAgent",
+          "reference_file": "agents/meta_agent.py",
+          "reference_start_line": 16,
+          "reference_end_line": 40
+        }
+      ],
+      "assigned_files": [
+        "agents/meta_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent",
+      "description": "Translates low-level static analysis artifacts (CFGs, clusters) into high-level architectural abstractions and component definitions.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": 27,
+          "reference_end_line": 105
+        }
+      ],
+      "assigned_files": [
+        "agents/abstraction_agent.py",
+        "agents/cluster_methods_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAnalyzingAgent",
+      "description": "Analyzes code diffs and commit ranges to identify modified components and assess change impact for incremental re-analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.diff_analyzer.DiffAnalyzingAgent",
+          "reference_file": "agents/diff_analyzer.py",
+          "reference_start_line": 21,
+          "reference_end_line": 211
+        }
+      ],
+      "assigned_files": [
+        "agents/diff_analyzer.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "ValidatorAgent",
+      "description": "Validates generated artifacts (models, docs) against source code and analysis artifacts, providing validation results and suggested corrections.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.validator_agent.ValidatorAgent",
+          "reference_file": "agents/validator_agent.py",
+          "reference_start_line": 20,
+          "reference_end_line": 167
+        }
+      ],
+      "assigned_files": [
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "relies on / supplies prompts",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "PromptFactory"
+    },
+    {
+      "relation": "directs / provides raw analysis data",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "CodeBoardingToolkit"
+    },
+    {
+      "relation": "adheres to / defines schemas for",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AgentResponses"
+    },
+    {
+      "relation": "initiates analysis by / informs",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "delegates architectural tasks to / delivers insights to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "triggers / provides change impact reports to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "submits results to / provides validation feedback to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "generates prompts for / utilized by",
+      "src_name": "PromptFactory",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "supplies prompts for / consumed by",
+      "src_name": "PromptFactory",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "provides prompts for / relied on by",
+      "src_name": "PromptFactory",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "generates prompts for / used by",
+      "src_name": "PromptFactory",
+      "dst_name": "ValidatorAgent"
+    },
+    {
+      "relation": "provides static analysis data to / queries for raw insights",
+      "src_name": "CodeBoardingToolkit",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "supplies repo data and diffs to / accesses repo info via",
+      "src_name": "CodeBoardingToolkit",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "provides data model for / structures output of",
+      "src_name": "AgentResponses",
+      "dst_name": "MetaAgent"
+    },
+    {
+      "relation": "dictates format for / adhered to by",
+      "src_name": "AgentResponses",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "specifies data model for / produces outputs conforming to",
+      "src_name": "AgentResponses",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "defines structure for / reports findings using",
+      "src_name": "AgentResponses",
+      "dst_name": "ValidatorAgent"
+    }
+  ]
+}

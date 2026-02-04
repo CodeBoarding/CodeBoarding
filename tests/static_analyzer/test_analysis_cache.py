@@ -42,7 +42,9 @@ class TestAnalysisCache(unittest.TestCase):
         loaded = self.cache.get("my_hash")
 
         self.assertIsNotNone(loaded)
-        assert loaded is not None
+        if loaded is None:
+            return
+
         self.assertEqual(loaded.get_source_files("python"), ["src/main.py", "src/utils.py"])
 
     def test_different_hashes_different_caches(self):
@@ -59,8 +61,11 @@ class TestAnalysisCache(unittest.TestCase):
         loaded1 = self.cache.get("hash1")
         loaded2 = self.cache.get("hash2")
 
-        assert loaded1 is not None
-        assert loaded2 is not None
+        self.assertIsNotNone(loaded1)
+        self.assertIsNotNone(loaded2)
+        if loaded1 is None or loaded2 is None:
+            return
+
         self.assertEqual(loaded1.get_source_files("python"), ["file1.py"])
         self.assertEqual(loaded2.get_source_files("typescript"), ["file2.ts"])
 
@@ -84,7 +89,10 @@ class TestAnalysisCache(unittest.TestCase):
         self.cache.save("same_hash", results2)
 
         loaded = self.cache.get("same_hash")
-        assert loaded is not None
+        self.assertIsNotNone(loaded)
+        if loaded is None:
+            return
+
         self.assertEqual(loaded.get_source_files("python"), ["new.py"])
 
     def test_cache_file_naming(self):

@@ -1,0 +1,172 @@
+{
+  "description": "The Evaluation subsystem provides a structured framework for defining, executing, and reporting on evaluation metrics for the CodeBoarding analysis and documentation generation. Its main flow begins with the CLI parsing user commands and configuration, selecting and instantiating concrete evaluation implementations (built on a shared BaseEval framework), executing them to collect static, end-to-end, and scalability metrics, validating results against canonical data schemas, and persisting comprehensive reports and visualizations. The subsystem supports repeatable runs, standardized reporting, and integration points for utilities and configuration management to enable consistent, maintainable evaluation workflows.",
+  "components": [
+    {
+      "name": "CLI (Command Line Interface)",
+      "description": "Primary user interface responsible for parsing command-line arguments, selecting evaluations, and orchestrating their execution.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli.cli",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Configuration Management",
+      "description": "Manages static configuration and environment-specific settings used to control evaluation runs and target project lists.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.config",
+          "reference_file": "evals/config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Base Evaluation Framework",
+      "description": "Abstract foundation for concrete evaluations, handling lifecycle, run orchestration, report generation, and result persistence.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.base.BaseEval",
+          "reference_file": "evals/base.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/base.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Evaluation",
+      "description": "Evaluation focused on collecting and analyzing static code metrics such as LOC, file counts, and language breakdowns.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/definitions/static_analysis.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "End-to-End Pipeline Evaluation",
+      "description": "Orchestrates and aggregates results from the full CodeBoarding pipeline, producing holistic metrics and visualizations.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/definitions/end_to_end.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Scalability Evaluation",
+      "description": "Measures performance and resource consumption metrics (e.g., token usage, tool invocation patterns, concurrency effects) to assess system scalability.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/definitions/scalability.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Data Schemas",
+      "description": "Defines canonical data models and structures for evaluation results, metrics, LLM/tool usage, and visualization outputs to ensure validation and serialization consistency.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.schemas",
+          "reference_file": "evals/schemas.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/schemas.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Utilities",
+      "description": "Shared helper functions and routines (e.g., headers, system specs, timestamp formatting) used across the evaluation components.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.utils",
+          "reference_file": "evals/utils.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/utils.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "uses",
+      "src_name": "CLI (Command Line Interface)",
+      "dst_name": "Configuration Management"
+    },
+    {
+      "relation": "instantiates/initiates",
+      "src_name": "CLI (Command Line Interface)",
+      "dst_name": "Base Evaluation Framework"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "Base Evaluation Framework",
+      "dst_name": "Utilities"
+    },
+    {
+      "relation": "relies on",
+      "src_name": "Base Evaluation Framework",
+      "dst_name": "Data Schemas"
+    },
+    {
+      "relation": "extends",
+      "src_name": "Static Analysis Evaluation",
+      "dst_name": "Base Evaluation Framework"
+    },
+    {
+      "relation": "produces results conforming to",
+      "src_name": "Static Analysis Evaluation",
+      "dst_name": "Data Schemas"
+    },
+    {
+      "relation": "extends",
+      "src_name": "End-to-End Pipeline Evaluation",
+      "dst_name": "Base Evaluation Framework"
+    },
+    {
+      "relation": "produces reports conforming to",
+      "src_name": "End-to-End Pipeline Evaluation",
+      "dst_name": "Data Schemas"
+    },
+    {
+      "relation": "extends",
+      "src_name": "Scalability Evaluation",
+      "dst_name": "Base Evaluation Framework"
+    },
+    {
+      "relation": "produces metrics conforming to",
+      "src_name": "Scalability Evaluation",
+      "dst_name": "Data Schemas"
+    }
+  ]
+}

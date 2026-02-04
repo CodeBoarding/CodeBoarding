@@ -1,0 +1,332 @@
+{
+  "description": "The CodeBoarding system operates as a sequential, data-flow-driven pipeline orchestrated by a central Orchestration & Output Engine. This engine initiates the process by interacting with the Repository Manager to prepare the codebase. Once the repository is ready, the Orchestration Engine triggers the Static Analysis Engine to perform in-depth code analysis. The results from static analysis are then fed into the AI Interpretation Layer, which leverages LLM agents, guided by the Prompt Management component and supported by Agent Tooling, to transform raw analysis data into high-level architectural insights. Finally, these insights are delivered back to the Orchestration & Output Engine for generating various documentation formats and visual diagrams.",
+  "components": [
+    {
+      "name": "Orchestration & Output Engine",
+      "description": "This component serves as the central coordinator for the entire analysis and documentation generation pipeline. It manages job execution, orchestrates the sequence of operations from repository setup and static analysis to AI interpretation and final output generation, and handles the persistence of job data. It also includes the logic for generating various documentation formats.",
+      "key_entities": [
+        {
+          "qualified_name": "main",
+          "reference_file": "main.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "diagram_analysis.diagram_generator",
+          "reference_file": "diagram_analysis/diagram_generator.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "duckdb_crud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators/markdown.py",
+        "output_generators/__init__.py",
+        "main.py",
+        "github_action.py",
+        "output_generators/html.py",
+        "output_generators/sphinx.py",
+        "duckdb_crud.py",
+        "local_app.py",
+        "output_generators/mdx.py",
+        "logging_config.py",
+        "utils.py",
+        "diagram_analysis/diagram_generator.py",
+        "vscode_constants.py",
+        "repo_utils/__init__.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/version.py",
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "install.py",
+        "monitoring/__init__.py",
+        "monitoring/callbacks.py",
+        "monitoring/context.py",
+        "monitoring/mixin.py",
+        "monitoring/paths.py",
+        "monitoring/stats.py",
+        "monitoring/writers.py",
+        "output_generators/html_template.py"
+      ],
+      "source_cluster_ids": [
+        2
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Manager",
+      "description": "Responsible for all interactions with code repositories, including cloning, checking out specific versions, and managing file filtering based on ignore rules. It ensures that the correct and relevant source code is available for analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.ignore.RepoIgnoreManager",
+          "reference_file": "repo_utils/ignore.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/ignore.py",
+        "repo_utils/__init__.py",
+        "repo_utils/errors.py",
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [
+        17,
+        19
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Engine",
+      "description": "This component performs in-depth static code analysis across multiple programming languages. It leverages Language Server Protocol (LSP) clients to extract code intelligence, builds call graphs, and stores comprehensive analysis results such as CFG, class hierarchies, and package dependencies.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.graph.CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
+          "reference_file": "static_analyzer/analysis_result.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
+          "reference_file": "static_analyzer/programming_language.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
+          "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/programming_language.py",
+        "static_analyzer/analysis_result.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/cluster_helpers.py",
+        "static_analyzer/java_utils.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [
+        3,
+        5,
+        9,
+        10,
+        11,
+        13
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Prompt Management",
+      "description": "This component is dedicated to generating, managing, and providing all prompts used by the LLM agents. It ensures a consistent and extensible way to create prompts tailored for different LLM providers and specific analysis stages.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.abstract_prompt_factory",
+          "reference_file": "agents/prompts/abstract_prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.prompts.prompt_factory",
+          "reference_file": "agents/prompts/prompt_factory.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gpt_prompts.py",
+        "agents/prompts/claude_prompts.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/gemini_flash_prompts.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/__init__.py"
+      ],
+      "source_cluster_ids": [
+        1,
+        6
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "AI Interpretation Layer",
+      "description": "This is the core intelligence layer, orchestrating the execution of LLM agents, handling their inputs and outputs, and validating their responses. It transforms raw static analysis results into higher-level architectural insights, such as component identification and classification.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent.LargeModelAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.validation",
+          "reference_file": "agents/validation.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
+          "reference_file": "agents/cluster_methods_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py",
+        "agents/cluster_methods_mixin.py",
+        "agents/validation.py",
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/details_agent.py",
+        "agents/llm_config.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py"
+      ],
+      "source_cluster_ids": [
+        7,
+        8,
+        18,
+        20
+      ],
+      "can_expand": true
+    },
+    {
+      "name": "Agent Tooling",
+      "description": "Provides the LLM agents with a suite of specialized tools to interact with and gather information from the codebase and its analysis results. These tools enable agents to read various data types, resolve code references, and access contextual information.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+          "reference_file": "agents/tools/toolkit.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/tools/read_packages.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/toolkit.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/read_file_structure.py"
+      ],
+      "source_cluster_ids": [
+        4,
+        12
+      ],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "Triggers repository preparation (clone, checkout)",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Repository Manager"
+    },
+    {
+      "relation": "Initiates static analysis process",
+      "src_name": "Orchestration & Output Engine",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Supplies codebase for analysis",
+      "src_name": "Repository Manager",
+      "dst_name": "Static Analysis Engine"
+    },
+    {
+      "relation": "Provides detailed static analysis results",
+      "src_name": "Static Analysis Engine",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "Requests prompts for various tasks",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Prompt Management"
+    },
+    {
+      "relation": "Utilizes specialized tools to gather code context",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Agent Tooling"
+    },
+    {
+      "relation": "Delivers generated architectural insights",
+      "src_name": "AI Interpretation Layer",
+      "dst_name": "Orchestration & Output Engine"
+    }
+  ]
+}

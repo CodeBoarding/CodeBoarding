@@ -1,0 +1,185 @@
+{
+  "description": "The Monitoring subsystem captures, aggregates, and persists operational metrics and usage data for the Code Analysis Tool / Documentation Generator, with a focus on LLM interactions and overall application performance. It listens to runtime events (LLM calls, tool invocations, errors), accumulates per-run statistics (token counts, latencies, error counts), manages monitoring session lifecycles and run identifiers, and writes the aggregated metrics to persistent storage for reporting, optimization, and debugging.",
+  "components": [
+    {
+      "name": "MonitoringCallback",
+      "description": "Captures real-time execution events (LLM calls, tool invocations, errors) and extracts raw metrics such as token usage, latencies, and error details.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "RunStats",
+      "description": "Aggregates and stores statistical data for individual execution runs, including token counts, tool invocation counts and latencies, and error counts.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.stats.RunStats",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MonitorContext",
+      "description": "Manages the lifecycle and scope of a monitoring session, initializing and orchestrating RunStats and MonitoringCallback for a specific run_id.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.context.MonitorContext",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/context.py",
+        "monitoring/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "StreamingStatsWriter",
+      "description": "Persists aggregated monitoring data (LLM usage, run metadata, static analysis statistics) to storage, supporting streaming or batch output modes.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.writers.StreamingStatsWriter",
+          "reference_file": "monitoring/writers.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "monitoring.paths",
+      "description": "Generates unique run_id values and manages creation and organization of file paths for storing monitoring outputs and artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.paths",
+          "reference_file": "monitoring/paths.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "MonitoringMixin",
+      "description": "Provides a reusable integration interface allowing other components to access and interact with the monitoring subsystem without embedding monitoring logic.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.mixin.MonitoringMixin",
+          "reference_file": "monitoring/mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "feeds events to",
+      "src_name": "MonitoringCallback",
+      "dst_name": "RunStats"
+    },
+    {
+      "relation": "managed by",
+      "src_name": "MonitoringCallback",
+      "dst_name": "MonitorContext"
+    },
+    {
+      "relation": "aggregates data from",
+      "src_name": "RunStats",
+      "dst_name": "MonitoringCallback"
+    },
+    {
+      "relation": "provides aggregated data to",
+      "src_name": "RunStats",
+      "dst_name": "StreamingStatsWriter"
+    },
+    {
+      "relation": "managed by",
+      "src_name": "RunStats",
+      "dst_name": "MonitorContext"
+    },
+    {
+      "relation": "initializes and orchestrates",
+      "src_name": "MonitorContext",
+      "dst_name": "MonitoringCallback"
+    },
+    {
+      "relation": "initializes and orchestrates",
+      "src_name": "MonitorContext",
+      "dst_name": "RunStats"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "MonitorContext",
+      "dst_name": "monitoring.paths"
+    },
+    {
+      "relation": "persists data from",
+      "src_name": "StreamingStatsWriter",
+      "dst_name": "RunStats"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "StreamingStatsWriter",
+      "dst_name": "monitoring.paths"
+    },
+    {
+      "relation": "provides path information to",
+      "src_name": "monitoring.paths",
+      "dst_name": "MonitorContext"
+    },
+    {
+      "relation": "provides path information to",
+      "src_name": "monitoring.paths",
+      "dst_name": "StreamingStatsWriter"
+    },
+    {
+      "relation": "integrates with",
+      "src_name": "MonitoringMixin",
+      "dst_name": "MonitorContext"
+    },
+    {
+      "relation": "exposes access to",
+      "src_name": "MonitoringMixin",
+      "dst_name": "MonitoringCallback"
+    },
+    {
+      "relation": "exposes access to",
+      "src_name": "MonitoringMixin",
+      "dst_name": "RunStats"
+    }
+  ]
+}

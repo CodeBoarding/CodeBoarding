@@ -1,0 +1,159 @@
+{
+  "description": "The Monitoring & Evaluation System captures, structures, aggregates, and persists telemetry and evaluation data produced by the Code Analysis Tool. It provides runtime hooks and mixins to emit events, a context manager to scope and annotate those events, an aggregator to consolidate high-volume event streams into metrics, a path manager to determine organized storage locations, and a writer to durably persist both raw and summarized monitoring artifacts for later analysis and auditing.",
+  "components": [
+    {
+      "name": "Monitoring Callback Handler & Mixin",
+      "description": "Primary interface for emitting real-time monitoring events and metrics. Provides a mixin for components to report telemetry such as token usage, tool invocations, errors, and latencies.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringCallback",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.callbacks.MonitoringMixin",
+          "reference_file": "monitoring/callbacks.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/callbacks.py",
+        "monitoring/__init__.py",
+        "monitoring/mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Context Manager",
+      "description": "Programmatic API to create and manage monitoring scopes around operations, capturing contextual telemetry (durations, errors, step names) and associating events with run context.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.context.MonitoringContext",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.context.monitor_scope",
+          "reference_file": "monitoring/context.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/context.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Stats Aggregator",
+      "description": "Processes and consolidates raw monitoring events into aggregated metrics and reports, reducing data volume and preparing summaries for persistence and analysis.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.stats.StatsAggregator",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.stats.aggregate_events",
+          "reference_file": "monitoring/stats.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/stats.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Path Manager",
+      "description": "Determines filesystem layout and generates unique run identifiers and directory/file paths for storing monitoring outputs and artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "monitoring.paths.PathManager",
+          "reference_file": "monitoring/paths.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "monitoring.paths.generate_run_path",
+          "reference_file": "monitoring/paths.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "monitoring/paths.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Monitoring Data Writer",
+      "description": "Handles durable persistence of raw and aggregated monitoring data and evaluation metadata, writing artifacts to storage locations provided by the Path Manager.",
+      "key_entities": [],
+      "assigned_files": [
+        "evals/base.py",
+        "evals/cli.py",
+        "evals/config.py",
+        "evals/definitions/end_to_end.py",
+        "evals/definitions/scalability.py",
+        "evals/definitions/static_analysis.py",
+        "evals/schemas.py",
+        "evals/utils.py",
+        "monitoring/writers.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "reports events within scopes provided by",
+      "src_name": "Monitoring Callback Handler & Mixin",
+      "dst_name": "Monitoring Context Manager"
+    },
+    {
+      "relation": "forwards raw events to",
+      "src_name": "Monitoring Callback Handler & Mixin",
+      "dst_name": "Monitoring Stats Aggregator"
+    },
+    {
+      "relation": "defines monitoring scopes for",
+      "src_name": "Monitoring Context Manager",
+      "dst_name": "Monitoring Callback Handler & Mixin"
+    },
+    {
+      "relation": "receives raw events from",
+      "src_name": "Monitoring Stats Aggregator",
+      "dst_name": "Monitoring Callback Handler & Mixin"
+    },
+    {
+      "relation": "sends aggregated data to",
+      "src_name": "Monitoring Stats Aggregator",
+      "dst_name": "Monitoring Data Writer"
+    },
+    {
+      "relation": "provides storage paths to",
+      "src_name": "Monitoring Path Manager",
+      "dst_name": "Monitoring Data Writer"
+    },
+    {
+      "relation": "persists aggregated data from",
+      "src_name": "Monitoring Data Writer",
+      "dst_name": "Monitoring Stats Aggregator"
+    },
+    {
+      "relation": "uses storage paths from",
+      "src_name": "Monitoring Data Writer",
+      "dst_name": "Monitoring Path Manager"
+    }
+  ]
+}

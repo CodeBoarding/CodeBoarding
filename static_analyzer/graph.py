@@ -13,8 +13,8 @@ class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
 
     clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
     cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
+    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
     strategy: str = ""  # which algorithm was used
 
     def get_cluster_ids(self) -> set[int]:
@@ -520,7 +520,13 @@ class CallGraph:
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
         elif algorithm == "leiden":
-            return list(nx_comm.louvain_communities(graph, seed=self.CLUSTERING_SEED))
+            if hasattr(nx_comm, "leiden_communities"):
+                return list(nx_comm.leiden_communities(graph, seed=self.CLUSTERING_SEED))
+            logger.warning(
+                "leiden_communities not available in this networkx version, "
+                "falling back to asynchronous label propagation"
+            )
+            return list(nx_comm.asyn_lpa_communities(graph, seed=self.CLUSTERING_SEED))
         else:
             logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
             return list(nx.community.greedy_modularity_communities(graph))

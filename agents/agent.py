@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
@@ -16,16 +15,15 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
+from agents.agent_responses import AnalysisInsights, ComponentFiles, FileClassification
 from agents.llm_config import LLM_PROVIDERS
-from agents.tools.base import RepoContext
-from agents.tools.toolkit import CodeBoardingToolkit
 from agents.prompts import (
     get_unassigned_files_classification_message,
     get_validation_feedback_message,
     initialize_global_factory,
-    LLMType,
 )
-from agents.agent_responses import AnalysisInsights, ComponentFiles
+from agents.tools.base import RepoContext
+from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
@@ -162,14 +160,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         max_retries = 5
 
         for attempt in range(max_retries):
+            timeout_seconds = 300 if attempt == 0 else 600
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
                 callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
-
-                # Timeout: 5 minutes for first attempt, 10 minutes for retries
-                timeout_seconds = 300 if attempt == 0 else 600
 
                 logger.info(
                     f"Starting agent.invoke() [attempt {attempt + 1}/{max_retries}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
@@ -333,8 +329,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            result = extractor.invoke(return_type.extractor_str() + response, config=config)  # type: ignore[arg-type]
+            result = extractor.invoke(
+                return_type.extractor_str() + response,
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:
@@ -384,8 +382,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
             parsing_llm = self.get_parsing_llm()
             chain = prompt | parsing_llm | parser
-            config = {"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]}
-            return chain.invoke({"adjective": message_content}, config=config)
+            return chain.invoke(
+                {"adjective": message_content},
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
         except (ValidationError, OutputParserException):
             for k, v in json.loads(message_content).items():
                 try:
@@ -394,7 +394,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
+    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str]) -> None:
         """
         Two-pass file assignment for AnalysisInsights:
         1. Deterministic: assign files from cluster_ids and key_entities
@@ -403,42 +403,26 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         Args:
             analysis: AnalysisInsights object to classify files for
             cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+            scope_files: List of file paths to limit classification scope.
 
         Requires self to be a mixin with ClusterMethodsMixin for helper methods.
         """
-        # Pass 1: Deterministic assignment (uses mixin methods)
         for comp in analysis.components:
+            # Deterministic assignment (uses mixin methods)
             self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
+        self._classify_unassigned_files_llm(analysis, scope_files)
+        self._log_unclassified_files_count(analysis, scope_files)
 
-        # Pass 2: LLM classification of unassigned files
-        self._classify_unassigned_files_llm(analysis, cluster_results)
-
-    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, cluster_results: dict) -> None:
+    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
         """
-        Classify files from static analysis that weren't assigned to any component.
+        Classify files from the scope files that weren't assigned to any component.
         Uses a single LLM call to classify all unassigned files.
-
         Args:
             analysis: AnalysisInsights object
-            cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
+            scope_files: List of file paths to limit classification scope.
         """
-        # 1. Gather all assigned files
-        assigned_files = set()
-        for comp in analysis.components:
-            for f in comp.assigned_files:
-                abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
-                assigned_files.add(os.path.relpath(abs_path, self.repo_dir))
-
-        # 2. Get all files from cluster results (uses passed cluster_results instead of fetching from static analysis)
-        all_files = set()
-        for lang, cluster_result in cluster_results.items():
-            for cluster_id in cluster_result.get_cluster_ids():
-                for file_path in cluster_result.get_files_for_cluster(cluster_id):
-                    rel_path = os.path.relpath(file_path, self.repo_dir) if os.path.isabs(file_path) else file_path
-                    all_files.add(rel_path)
-
-        # 3. Find unassigned files
-        unassigned_files = sorted(all_files - assigned_files)
+        # Get unassigned files using the helper method
+        unassigned_files = self._get_unassigned_files(analysis, scope_files)
 
         if not unassigned_files:
             logger.info("[Agent] All files already assigned, skipping LLM classification")
@@ -448,11 +432,13 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         # 4. Build component summary for LLM using llm_str()
         valid_components = [comp for comp in analysis.components if comp.name != "Unclassified"]
-        components_summary = "\n\n".join([comp.llm_str() for comp in valid_components])
+        components_summary = "\n\n".join(comp.llm_str() for comp in valid_components)
         component_map = {comp.name: comp for comp in valid_components}
 
         # 5. Classify all unassigned files with LLM
-        classifications = self._classify_unassigned_files_with_llm(unassigned_files, components_summary, analysis)
+        classifications: list[FileClassification] = self._classify_unassigned_files_with_llm(
+            unassigned_files, components_summary, analysis
+        )
 
         # 6. Append successfully classified files to components
         for fc in classifications:
@@ -468,9 +454,51 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
 
+    def _get_unassigned_files(self, analysis: AnalysisInsights, scope_files: list[str]) -> list[str]:
+        """
+        Check which files remain unassigned after classification.
+        Args:
+            analysis: AnalysisInsights object with classified components
+            scope_files: List of file paths to limit the scope.
+        Returns:
+            List of file paths that are still unassigned
+        """
+        # 1. Gather all assigned files
+        assigned_files = set()
+        for comp in analysis.components:
+            for f in comp.assigned_files:
+                abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
+                assigned_files.add(os.path.relpath(abs_path, self.repo_dir))
+
+        # 2. Get files to consider for classification
+        # If scope_files is provided (e.g., DetailsAgent), use those
+        # Otherwise use all source files from static_analysis (e.g., AbstractionAgent)
+        all_files = set()
+        for file_path in scope_files:
+            file_path_str = str(file_path)
+            rel_path = os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
+            all_files.add(rel_path)
+
+        # 3. Return unassigned files
+        return sorted(all_files - assigned_files)
+
+    def _log_unclassified_files_count(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
+        """
+        Log how many files remain unclassified within the analysis.
+
+        Args:
+            analysis: AnalysisInsights object with classified components
+            scope_files: List of file paths which are expected to be within the analysis.
+        """
+        unassigned = self._get_unassigned_files(analysis, scope_files)
+        if unassigned:
+            logger.warning(f"[Agent] {len(unassigned)} files have not been classified successfully: {unassigned}")
+        else:
+            logger.info("[Agent] All files have been classified successfully")
+
     def _classify_unassigned_files_with_llm(
         self, unassigned_files: list[str], components_summary: str, analysis: AnalysisInsights
-    ) -> list:
+    ) -> list[FileClassification]:
         """
         Classify unassigned files using LLM with validation.
         Returns list of FileClassification objects.

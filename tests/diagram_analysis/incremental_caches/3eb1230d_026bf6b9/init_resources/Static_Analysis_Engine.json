@@ -1,0 +1,207 @@
+{
+  "description": "The graph represents a Static Analysis Engine that converts source code across multiple languages into rich, queryable artifacts (symbols, references, class hierarchies, control-flow graphs, and call graphs). The main flow starts with repository scanning and language detection, then uses language-specific project scanners and an LSP client core to extract semantic information, stores results in a centralized results store, and post-processes data into call graphs and clusters with reference resolution and AI-assisted enrichment. The purpose is to provide a complete, language-agnostic pipeline for extracting, organizing, and refining code metadata to support architectural analysis and documentation generation.",
+  "components": [
+    {
+      "name": "Static Analysis Orchestrator",
+      "description": "Orchestrates the entire static analysis workflow: initiates scanning, determines languages, manages LSP clients, coordinates collection/storage of results, and triggers post-processing.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Project Scanner",
+      "description": "Scans the repository to detect programming languages, identify file distributions, and establish basic project structure; provides file lists and language proportions.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/programming_language.py",
+        "static_analyzer/scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Language Configuration Manager",
+      "description": "Maintains language-specific configurations and metadata (file suffixes, LSP command definitions, defaults) and supplies configuration to scanner and LSP client.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Language Project Scanners",
+      "description": "Parses language-specific build and project configs (e.g., Maven/Gradle, tsconfig/package.json) to supply module structure and bootstrap info for LSP initialization.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/java_config_scanner.py",
+        "static_analyzer/java_utils.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LSP Client Core",
+      "description": "Generic, language-agnostic layer for communicating with Language Servers: manages server lifecycles, request/response patterns, notifications, and extracts semantic code information.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.lsp_client.client:LSPClient",
+          "reference_file": "static_analyzer/lsp_client/client.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/lsp_client/typescript_client.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Static Analysis Results Store",
+      "description": "Central repository for all collected analysis data (CFGs, class hierarchies, package deps, symbols, references); provides query APIs and prepares data for downstream processing/persistence.",
+      "key_entities": [],
+      "assigned_files": [
+        "static_analyzer/analysis_result.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Call Graph & Clustering Engine",
+      "description": "Constructs call graphs and applies clustering algorithms on raw analysis data to group related code entities into logical components for architectural inference and visualization.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.graph:CallGraph",
+          "reference_file": "static_analyzer/graph.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/graph.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Reference Resolution & AI Assist",
+      "description": "Resolves and disambiguates code references (exact matching, path resolution) and optionally enriches results with AI assistance to improve accuracy and completeness.",
+      "key_entities": [
+        {
+          "qualified_name": "static_analyzer.reference_resolve_mixin:ReferenceResolver",
+          "reference_file": "static_analyzer/reference_resolve_mixin.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/reference_resolve_mixin.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "coordinates analysis initiation",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Project Scanner"
+    },
+    {
+      "relation": "directs language-specific analysis",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "triggers post-processing tasks",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Call Graph & Clustering Engine"
+    },
+    {
+      "relation": "instructs to refine analysis data",
+      "src_name": "Static Analysis Orchestrator",
+      "dst_name": "Reference Resolution & AI Assist"
+    },
+    {
+      "relation": "consults for language detection rules",
+      "src_name": "Project Scanner",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "provides detected language info",
+      "src_name": "Project Scanner",
+      "dst_name": "Static Analysis Orchestrator"
+    },
+    {
+      "relation": "supplies configurations",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "Project Scanner"
+    },
+    {
+      "relation": "provides LSP settings",
+      "src_name": "Language Configuration Manager",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "utilizes parsing rules",
+      "src_name": "Language Project Scanners",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "informs about project build context",
+      "src_name": "Language Project Scanners",
+      "dst_name": "LSP Client Core"
+    },
+    {
+      "relation": "receives config",
+      "src_name": "LSP Client Core",
+      "dst_name": "Language Configuration Manager"
+    },
+    {
+      "relation": "obtains project context",
+      "src_name": "LSP Client Core",
+      "dst_name": "Language Project Scanners"
+    },
+    {
+      "relation": "stores extracted code data",
+      "src_name": "LSP Client Core",
+      "dst_name": "Static Analysis Results Store"
+    },
+    {
+      "relation": "receives raw analysis data",
+      "src_name": "Static Analysis Results Store",
+      "dst_name": "Call Graph & Clustering Engine"
+    },
+    {
+      "relation": "supplies data for refinement",
+      "src_name": "Static Analysis Results Store",
+      "dst_name": "Reference Resolution & AI Assist"
+    },
+    {
+      "relation": "retrieves analysis data",
+      "src_name": "Call Graph & Clustering Engine",
+      "dst_name": "Static Analysis Results Store"
+    },
+    {
+      "relation": "updates store with generated graphs and clusters",
+      "src_name": "Call Graph & Clustering Engine",
+      "dst_name": "Static Analysis Results Store"
+    },
+    {
+      "relation": "accesses analysis data",
+      "src_name": "Reference Resolution & AI Assist",
+      "dst_name": "Static Analysis Results Store"
+    },
+    {
+      "relation": "updates resolved references",
+      "src_name": "Reference Resolution & AI Assist",
+      "dst_name": "Static Analysis Results Store"
+    }
+  ]
+}

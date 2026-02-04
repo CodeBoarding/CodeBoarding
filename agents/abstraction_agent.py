@@ -20,6 +20,8 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_key_entities,
+    validate_cluster_ids_populated,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -108,7 +110,10 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         )
 
         return self._validation_invoke(
-            prompt, AnalysisInsights, validators=[validate_component_relationships], context=context
+            prompt,
+            AnalysisInsights,
+            validators=[validate_component_relationships, validate_key_entities, validate_cluster_ids_populated],
+            context=context,
         )
 
     def run(self):
@@ -123,7 +128,7 @@ class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
         # Step 3: Sanitize cluster IDs (remove invalid ones)
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
         # Step 4: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, cluster_results)
+        self.classify_files(analysis, cluster_results, self.static_analysis.get_all_source_files())
         # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
         # Step 6: Ensure unique key entities across components

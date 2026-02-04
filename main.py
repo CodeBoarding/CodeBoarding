@@ -39,8 +39,13 @@ def validate_env_vars():
     if len(api_env_keys) == 0:
         logger.error(f"API key not set, set one of the following: {api_provider_keys}")
         exit(1)
-    elif len(api_env_keys) > 1:
-        logger.error(f"Detected multiple API keys set ({api_env_keys}), set ONE of the following: {api_provider_keys}")
+
+    if len(api_env_keys) > 1:
+        logger.error(
+            "Detected multiple API keys set (%s); please set only one of: %s",
+            api_env_keys,
+            api_provider_keys,
+        )
         exit(2)
 
 
@@ -60,6 +65,7 @@ def generate_analysis(
     depth_level: int = 1,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
+    force_full: bool = False,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -70,7 +76,9 @@ def generate_analysis(
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
     )
-    return generator.generate_analysis()
+    generator.force_full_analysis = force_full
+    generated_files = generator.generate_analysis()
+    return [Path(path) for path in generated_files]
 
 
 def generate_markdown_docs(
@@ -229,7 +237,7 @@ def process_remote_repository(
         elif upload:
             logger.warning(f"ROOT_RESULT directory '{root_result}' does not exist. Skipping upload.")
     finally:
-        remove_temp_repo_folder(temp_folder)
+        remove_temp_repo_folder(str(temp_folder))
 
 
 def process_local_repository(
@@ -240,8 +248,10 @@ def process_local_repository(
     component_name: str | None = None,
     analysis_name: str | None = None,
     monitoring_enabled: bool = False,
+    incremental: bool = False,
+    force_full: bool = False,
 ):
-    # Handle partial updates
+    # Handle legacy partial updates
     if component_name and analysis_name:
         partial_update(
             repo_path=repo_path,
@@ -251,15 +261,34 @@ def process_local_repository(
             analysis_name=analysis_name,
             depth_level=depth_level,
         )
-    else:
-        # Full analysis (local repo - no markdown generation)
-        generate_analysis(
+        return
+
+    # Use smart incremental analysis if requested
+    if incremental and not force_full:
+        generator = DiagramGenerator(
+            repo_location=repo_path,
+            temp_folder=output_dir,
             repo_name=project_name,
-            repo_path=repo_path,
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
         )
+        generator.force_full_analysis = force_full
+
+        # Try incremental first, fall back to full
+        result = generator.generate_analysis_smart()
+        if result:
+            logger.info(f"Incremental analysis completed: {len(result)} files")
+            return
+
+    # Full analysis (local repo - no markdown generation)
+    generate_analysis(
+        repo_name=project_name,
+        repo_path=repo_path,
+        output_dir=output_dir,
+        depth_level=depth_level,
+        monitoring_enabled=monitoring_enabled,
+    )
 
 
 def copy_files(temp_folder: Path, output_dir: Path):
@@ -340,6 +369,18 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
+    # Incremental update options
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force full reanalysis, skipping incremental update detection",
+    )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Use smart incremental updates (tries incremental first, falls back to full)",
+    )
+
 
 def main():
     """Main entry point for the unified CodeBoarding CLI."""
@@ -356,9 +397,15 @@ Examples:
   # Local repository
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
 
-  # Partial update
+  # Partial update (legacy - update single component)
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
                  --partial-component ComponentName --partial-analysis analysis_name
+
+  # Incremental update (smart - detects changes automatically)
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --incremental
+
+  # Force full reanalysis (skip incremental detection)
+  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --full
 
   # Use custom binary location
   python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
@@ -407,6 +454,8 @@ Examples:
             component_name=args.partial_component,
             analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
+            incremental=args.incremental,
+            force_full=args.full,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:

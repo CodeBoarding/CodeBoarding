@@ -84,36 +84,81 @@ BUILD_CONFIG_PATTERNS = [
     "*.json",
 ]
 
+# Documentation and configuration files that should be excluded from analysis
+DOCUMENTATION_CONFIG_PATTERNS = [
+    # Documentation files
+    "README*",
+    "CHANGELOG*",
+    "LICENSE*",
+    "CONTRIBUTING*",
+    "*.md",
+    "*.txt",
+    "*.rst",
+    # Config and lock files
+    "*.yml",
+    "*.yaml",
+    "*.toml",
+    "*.lock",
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    ".dockerignore",
+    # Package/dependency files
+    "setup.py",
+    "setup.cfg",
+    "requirements*.txt",
+    "Pipfile",
+    "Pipfile.lock",
+    "uv.lock",
+    "poetry.lock",
+    # Build files
+    "justfile",
+    # Cache directories (matched as path components)
+    "__pycache__",
+    ".pytest_cache",
+]
+
 
 def is_test_or_infrastructure_file(file_path: str | Path | None) -> bool:
-    """Check if a file path matches test, infrastructure, or build/config patterns.
+    """Check if a file path matches test, infrastructure, documentation, or config patterns.
 
     This is a standalone function that can be used without instantiating RepoIgnoreManager,
-    making it suitable for use in health checks and other contexts where only a file path
-    is available.
+    making it suitable for use in health checks, incremental analysis, and other contexts
+    where only a file path is available.
 
     Args:
         file_path: Path to check (string or Path object)
 
     Returns:
-        True if the file is a test, mock, build config, or infrastructure file
+        True if the file is a test, mock, build config, documentation, or infrastructure file
     """
     if not file_path:
         return False
 
     path_str = str(file_path).lower()
 
+    # Check test and infrastructure patterns
     for pattern in TEST_INFRASTRUCTURE_PATTERNS:
         if fnmatch(path_str, pattern.lower()):
             return True
 
-    # Also check basename against build/config patterns
+    # Check basename against build/config patterns
     name = os.path.basename(path_str)
     for pattern in BUILD_CONFIG_PATTERNS:
         if fnmatch(name, pattern.lower()):
             return True
 
+    # Check documentation and config patterns
+    for pattern in DOCUMENTATION_CONFIG_PATTERNS:
+        # Check both full path and basename
+        if fnmatch(path_str, pattern.lower()) or fnmatch(name, pattern.lower()):
+            return True
+
     return False
+
+
+# Alias for compatibility with incremental analysis code
+should_skip_file = is_test_or_infrastructure_file
 
 
 class RepoIgnoreManager:

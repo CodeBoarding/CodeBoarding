@@ -1,12 +1,10 @@
 import logging
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
-from langchain_core.prompts import PromptTemplate
-
-from agents.agent_responses import AnalysisInsights, FilePath
-from agents.prompts import get_file_classification_message
+from agents.agent_responses import AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -34,7 +32,7 @@ class ReferenceResolverMixin:
 
         return self._relative_paths(analysis)
 
-    def _resolve_single_reference(self, reference, assigned_files):
+    def _resolve_single_reference(self, reference, file_candidates: list[str] | None = None):
         """Orchestrates different resolution strategies for a single reference."""
         qname = reference.qualified_name.replace(os.sep, ".")
 
@@ -48,11 +46,11 @@ class ReferenceResolverMixin:
                 return
 
             # Try file path resolution
-            if self._try_file_path_resolution(reference, qname, lang):
+            if self._try_file_path_resolution(reference, qname, lang, file_candidates):
                 return
 
-        # Final fallback: LLM resolution
-        self._try_llm_resolution(reference, qname, assigned_files)
+        # No resolution found - will be cleaned up later
+        logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
 
     def _try_exact_match(self, reference, qname, lang):
         """Attempts exact reference matching."""
@@ -87,14 +85,14 @@ class ReferenceResolverMixin:
             logger.warning(f"[Reference Resolution] Loose match failed for {qname} in {lang}: {e}")
         return False
 
-    def _try_file_path_resolution(self, reference, qname, lang):
+    def _try_file_path_resolution(self, reference, qname, lang, file_candidates: list[str] | None = None):
         """Attempts to resolve reference through file path matching."""
         # First try existing reference file path
         if self._try_existing_reference_file(reference, lang):
             return True
 
         # Then try qualified name as file path
-        return self._try_qualified_name_as_path(reference, qname, lang)
+        return self._try_qualified_name_as_path(reference, qname, lang, file_candidates)
 
     def _try_existing_reference_file(self, reference, lang):
         """Tries to resolve using existing reference file path."""
@@ -110,12 +108,13 @@ class ReferenceResolverMixin:
                 reference.reference_file = None
         return False
 
-    def _try_qualified_name_as_path(self, reference, qname, lang):
+    def _try_qualified_name_as_path(self, reference, qname, lang, file_candidates: list[str] | None = None):
         """Tries to resolve qualified name as various file path patterns."""
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
+        extra_paths = file_candidates or []
+        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref, *extra_paths]
 
         for path in paths:
             if os.path.exists(path):
@@ -125,50 +124,6 @@ class ReferenceResolverMixin:
                 )
                 return True
         return False
-
-    def _try_llm_resolution(self, reference, qname, assigned_files):
-        """Uses LLM as final fallback for reference resolution."""
-        if reference.reference_file is None:
-            prompt = PromptTemplate(
-                template=get_file_classification_message(), input_variables=["qname", "files"]
-            ).format(qname=qname, files="\n".join(assigned_files))
-            file_assignment = self._parse_invoke(prompt, FilePath)
-            logger.info(f"[Reference Resolution] LLM matched {reference.qualified_name} at {file_assignment.file_path}")
-            reference.reference_file = file_assignment.file_path
-            reference.reference_start_line = file_assignment.start_line
-            reference.reference_end_line = file_assignment.end_line
-
-            # Normalize the path if it's not absolute and doesn't exist
-            if reference.reference_file and not os.path.isabs(reference.reference_file):
-                # Try as relative path from repo root
-                abs_path = os.path.join(self.repo_dir, reference.reference_file)
-                if os.path.exists(abs_path):
-                    reference.reference_file = abs_path
-                else:
-                    # File might be just a filename - search for it recursively
-                    matches = list(Path(self.repo_dir).rglob(os.path.basename(reference.reference_file)))
-                    if len(matches) == 1:
-                        # Unambiguous case: exactly one match found
-                        reference.reference_file = str(matches[0])
-                        logger.info(
-                            f"[Reference Resolution] Found unique file '{os.path.basename(reference.reference_file)}' at {reference.reference_file}"
-                        )
-                    else:
-                        # Ambiguous case: multiple files with the same name
-                        match_paths = [str(m) for m in matches]
-                        if len(matches) > 1:
-                            logger.error(
-                                f"[Reference Resolution] Ambiguous file name '{os.path.basename(reference.reference_file)}' "
-                                f"for reference '{qname}'. Found {len(matches)} matches: {match_paths}. "
-                                f"Cannot determine the correct file with certainty."
-                            )
-                        # Clear the reference to signal resolution failure
-                        reference.reference_file = None
-
-            if reference.reference_file is None:
-                logger.error(
-                    f"[Reference Resolution] Reference file could not be resolved for {reference.qualified_name} in any language."
-                )
 
     def _remove_unresolved_references(self, analysis: AnalysisInsights):
         """Remove references and assigned files that couldn't be resolved to existing files."""

@@ -1,0 +1,173 @@
+{
+  "description": "Core orchestration subsystem for CodeBoarding that manages the lifecycle of analysis jobs: it accepts job requests, prepares and clones repositories, runs analysis, persists job state, and generates documentation outputs in multiple formats. The Orchestration Engine (CLI) coordinates the workflow, the Job Management API provides an external HTTP interface for submitting and tracking jobs, the Job Persistence Layer stores job metadata and results (DuckDB), the Output Generation Core renders analysis results into documentation formats, and the GitHub Action Integration enables automation within CI/CD pipelines. The main flow is: a job is submitted (via CLI or API), the orchestration engine prepares the workspace and triggers analysis, results are saved in the persistence layer, and the output generation core produces final documentation; integration with GitHub Actions automates this pipeline in CI contexts.",
+  "components": [
+    {
+      "name": "Orchestration Engine",
+      "description": "Primary CLI entrypoint that parses arguments, prepares execution environment (cloning repositories, workspace setup), initiates analysis jobs, coordinates downstream processing, and triggers output generation.",
+      "key_entities": [
+        {
+          "qualified_name": "evals.cli",
+          "reference_file": "evals/cli.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "evals/cli.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/analysis_json.py",
+        "diagram_analysis/diagram_generator.py",
+        "diagram_analysis/version.py",
+        "health_main.py",
+        "install.py",
+        "logging_config.py",
+        "main.py",
+        "utils.py",
+        "vscode_constants.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Management API",
+      "description": "FastAPI-based service exposing endpoints to submit, queue, and track asynchronous documentation generation jobs; acts as a programmatic interface for external systems or UIs.",
+      "key_entities": [
+        {
+          "qualified_name": "local_app",
+          "reference_file": "local_app.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "local_app.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Job Persistence Layer",
+      "description": "Manages storage, retrieval, and updates of job data (status, config, results) using DuckDB to ensure durability and traceability of analysis and generation tasks.",
+      "key_entities": [
+        {
+          "qualified_name": "duckdb_crud",
+          "reference_file": "duckdb_crud.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "duckdb_crud.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Output Generation Core",
+      "description": "Engine responsible for rendering structured analysis results into documentation formats (HTML, MDX, Markdown, RST/Sphinx), applying templates and rendering logic to produce final artifacts.",
+      "key_entities": [
+        {
+          "qualified_name": "output_generators",
+          "reference_file": "output_generators/",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "output_generators",
+        "output_generators/__init__.py",
+        "output_generators/html.py",
+        "output_generators/html_template.py",
+        "output_generators/markdown.py",
+        "output_generators/mdx.py",
+        "output_generators/sphinx.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "GitHub Action Integration",
+      "description": "Adapters and orchestration logic to run the pipeline inside GitHub Actions CI/CD workflows, handling environment specifics and workspace management for automated documentation generation.",
+      "key_entities": [
+        {
+          "qualified_name": "github_action",
+          "reference_file": "github_action.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "github_action.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "invokes",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Analysis Engine"
+    },
+    {
+      "relation": "triggers",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Output Generation Core"
+    },
+    {
+      "relation": "updates",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Job Persistence Layer"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "Orchestration Engine",
+      "dst_name": "Repository & Filesystem Utility"
+    },
+    {
+      "relation": "submits jobs to",
+      "src_name": "Job Management API",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "queries/updates",
+      "src_name": "Job Management API",
+      "dst_name": "Job Persistence Layer"
+    },
+    {
+      "relation": "receives requests from",
+      "src_name": "Job Management API",
+      "dst_name": "External Clients/UI"
+    },
+    {
+      "relation": "serves data to",
+      "src_name": "Job Persistence Layer",
+      "dst_name": "Job Management API"
+    },
+    {
+      "relation": "serves data to",
+      "src_name": "Job Persistence Layer",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "consumes",
+      "src_name": "Output Generation Core",
+      "dst_name": "Analysis Data Model"
+    },
+    {
+      "relation": "triggered by",
+      "src_name": "Output Generation Core",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "invokes",
+      "src_name": "GitHub Action Integration",
+      "dst_name": "Orchestration Engine"
+    },
+    {
+      "relation": "utilizes",
+      "src_name": "GitHub Action Integration",
+      "dst_name": "Repository & Filesystem Utility"
+    }
+  ]
+}

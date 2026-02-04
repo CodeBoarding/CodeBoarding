@@ -16,6 +16,10 @@ class ConcreteReferenceResolver(ReferenceResolverMixin):
         super().__init__(repo_dir, static_analysis)
         self.mock_parse_invoke = Mock()
 
+    # Expose the protected helper for tests
+    def _try_llm_resolution(self, reference, qname, file_candidates=None):
+        return self._parse_invoke(reference, qname)
+
     def _parse_invoke(self, prompt, type):
         """Implementation of abstract method for testing"""
         return self.mock_parse_invoke(prompt, type)
@@ -203,76 +207,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
         assert reference.reference_file is not None
         self.assertTrue(reference.reference_file.endswith("nested/deep/module"))
 
-    def test_llm_resolution_with_relative_path(self):
-        """Test LLM resolution normalizes relative paths to absolute"""
-        reference = SourceCodeReference(
-            qualified_name="test.TestClass", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return relative path
-        mock_file_path = FilePath(file_path="test.py", start_line=1, end_line=2)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "test.TestClass", ["test.py"])
-
-        # Should normalize to absolute path
-        self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
-        self.assertEqual(reference.reference_start_line, 1)
-        self.assertEqual(reference.reference_end_line, 2)
-
-    def test_llm_resolution_with_filename_only(self):
-        """Test LLM resolution finds file by name recursively"""
-        # Create a uniquely named file in nested directory
-        unique_file = self.repo_dir / "nested" / "unique_test.py"
-        unique_file.write_text("# test content\n")
-
-        reference = SourceCodeReference(
-            qualified_name="unique_test", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return just filename
-        mock_file_path = FilePath(file_path="unique_test.py", start_line=1, end_line=1)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "unique_test", ["unique_test.py"])
-
-        # Should find the file recursively and convert to absolute path
-        assert reference.reference_file is not None
-        self.assertTrue(reference.reference_file.endswith("unique_test.py"))
-        self.assertTrue(os.path.isabs(reference.reference_file))
-        self.assertTrue(os.path.exists(reference.reference_file))
-
-    def test_llm_resolution_with_absolute_path(self):
-        """Test LLM resolution keeps absolute paths as-is"""
-        reference = SourceCodeReference(
-            qualified_name="test.TestClass", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return absolute path
-        abs_path = str(self.repo_dir / "test.py")
-        mock_file_path = FilePath(file_path=abs_path, start_line=1, end_line=2)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "test.TestClass", ["test.py"])
-
-        # Should keep absolute path unchanged
-        self.assertEqual(reference.reference_file, abs_path)
-
-    def test_llm_resolution_with_nonexistent_file(self):
-        """Test LLM resolution handles nonexistent files"""
-        reference = SourceCodeReference(
-            qualified_name="nonexistent.Class", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return nonexistent file
-        mock_file_path = FilePath(file_path="nonexistent.py", start_line=1, end_line=2)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "nonexistent.Class", ["nonexistent.py"])
-
-        # The reference should be None to signal resolution failure
-        self.assertIsNone(reference.reference_file)
-
     def test_relative_paths_conversion(self):
         """Test conversion of absolute paths to relative paths"""
         abs_path = str(self.repo_dir / "test.py")
@@ -331,61 +265,11 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.mock_static_analysis.get_reference.side_effect = ValueError("Not found")
         self.mock_static_analysis.get_loose_reference.side_effect = Exception("Not found")
 
-        # Mock LLM resolution to return a valid FilePath object
-        mock_file_path = FilePath(file_path="module/file.py", start_line=1, end_line=10)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        # Should fall back to LLM resolution after file path resolution fails
+        # Should fall back to other strategies; with no resolution keep as unresolved
         self.resolver._resolve_single_reference(reference, ["module/file.py"])
 
-        # Should resolve via LLM strategy and normalize the path
-        self.assertIsNotNone(reference.reference_file)
-        # Since module/file.py exists, it should be converted to absolute path
-        expected_abs_path = str(self.repo_dir / "module" / "file.py")
-        self.assertEqual(reference.reference_file, expected_abs_path)
-
-    def test_llm_resolution_with_ambiguous_filename(self):
-        """Test LLM resolution handles ambiguous file names (multiple matches)"""
-        # Create multiple files with the same name in different directories
-        (self.repo_dir / "dir1").mkdir()
-        (self.repo_dir / "dir1" / "common.py").write_text("# dir1 version\n")
-        (self.repo_dir / "dir2").mkdir()
-        (self.repo_dir / "dir2" / "common.py").write_text("# dir2 version\n")
-
-        reference = SourceCodeReference(
-            qualified_name="common", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return just filename (ambiguous)
-        mock_file_path = FilePath(file_path="common.py", start_line=1, end_line=1)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "common", ["common.py"])
-
-        # Should fail to resolve due to ambiguity and set reference_file to None
+        # Should remain unresolved without LLM
         self.assertIsNone(reference.reference_file)
-
-    def test_llm_resolution_with_unique_filename_in_subdirectory(self):
-        """Test LLM resolution succeeds with unique file name in subdirectory"""
-        # Create a uniquely named file in nested directory
-        (self.repo_dir / "subdir1").mkdir()
-        (self.repo_dir / "subdir1" / "unique_file.py").write_text("# unique content\n")
-
-        reference = SourceCodeReference(
-            qualified_name="unique_file", reference_file=None, reference_start_line=None, reference_end_line=None
-        )
-
-        # Mock LLM to return just filename (unambiguous - only one match)
-        mock_file_path = FilePath(file_path="unique_file.py", start_line=1, end_line=1)
-        self.resolver.mock_parse_invoke.return_value = mock_file_path
-
-        self.resolver._try_llm_resolution(reference, "unique_file", ["unique_file.py"])
-
-        # Should successfully resolve to the unique match
-        self.assertIsNotNone(reference.reference_file)
-        assert reference.reference_file is not None  # needed for mypy
-        self.assertTrue(reference.reference_file.endswith("unique_file.py"))
-        self.assertTrue(os.path.exists(reference.reference_file))
 
     def test_fix_source_code_reference_lines_multiple_languages(self):
         """Test resolution across multiple languages"""
@@ -420,7 +304,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
-        # Should have attempted both languages before falling back to LLM
+        # Should have attempted both languages; no LLM fallback
         self.assertEqual(self.mock_static_analysis.get_reference.call_count, 2)
 
     def test_remove_unresolved_references(self):

@@ -1,0 +1,137 @@
+{
+  "description": "The Repository Manager subsystem handles acquisition, preparation, and state management of source code repositories for the code analysis pipeline. Its main flow is: validate the Git environment, provision (clone or prepare) a repository locally, apply ignore rules to select relevant files, extract repository metadata (branch, commit, state), analyze code changes (diffs) between states, and collect/upload onboarding materials. This ensures the analysis system works with the correct repository snapshot and only processes relevant content.",
+  "components": [
+    {
+      "name": "Git Environment Manager",
+      "description": "Ensures the Git CLI environment and related dependencies are available and correctly configured before performing Git-dependent operations.",
+      "key_entities": [],
+      "assigned_files": [
+        "repo_utils/errors.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Provisioner",
+      "description": "Acquires and sets up code repositories locally: validating and sanitizing URLs, checking remote existence, and cloning or reinitializing local checkouts.",
+      "key_entities": [
+        {
+          "qualified_name": "repo_utils.sanitize_repo_url",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.clone_repository",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        },
+        {
+          "qualified_name": "repo_utils.remote_repo_exists",
+          "reference_file": "repo_utils/__init__.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "repo_utils/__init__.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Ignore Rule Processor",
+      "description": "Parses and applies file/path exclusion rules (e.g., .gitignore, .codeboardingignore) to filter repository contents so downstream components process only relevant files.",
+      "key_entities": [],
+      "assigned_files": [
+        "repo_utils/ignore.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Repository Metadata Extractor",
+      "description": "Retrieves repository state information such as current branch, commit hashes, repository state hash, and whether there are uncommitted changes.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    },
+    {
+      "name": "Code Change Analyzer",
+      "description": "Computes and formats diffs between repository states or commits, producing normalized and LLM-consumable outputs describing code changes.",
+      "key_entities": [],
+      "assigned_files": [
+        "repo_utils/git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "Onboarding Content Uploader",
+      "description": "Collects and registers repository onboarding materials into the CodeBoarding store, validating content and respecting ignore rules.",
+      "key_entities": [],
+      "assigned_files": [],
+      "source_cluster_ids": [],
+      "can_expand": false
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "provides git environment validation to",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Repository Provisioner"
+    },
+    {
+      "relation": "provides git environment validation to",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Repository Metadata Extractor"
+    },
+    {
+      "relation": "provides git environment validation to",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Code Change Analyzer"
+    },
+    {
+      "relation": "provides git environment validation to",
+      "src_name": "Git Environment Manager",
+      "dst_name": "Onboarding Content Uploader"
+    },
+    {
+      "relation": "requests path filtering from",
+      "src_name": "Repository Provisioner",
+      "dst_name": "Ignore Rule Processor"
+    },
+    {
+      "relation": "provides file filtering to",
+      "src_name": "Ignore Rule Processor",
+      "dst_name": "Repository Provisioner"
+    },
+    {
+      "relation": "provides file filtering to",
+      "src_name": "Ignore Rule Processor",
+      "dst_name": "Onboarding Content Uploader"
+    },
+    {
+      "relation": "provides formatted diffs to",
+      "src_name": "Code Change Analyzer",
+      "dst_name": "AI Interpretation Layer"
+    },
+    {
+      "relation": "requests git environment validation from",
+      "src_name": "Repository Provisioner",
+      "dst_name": "Git Environment Manager"
+    },
+    {
+      "relation": "requests git environment validation from",
+      "src_name": "Repository Metadata Extractor",
+      "dst_name": "Git Environment Manager"
+    },
+    {
+      "relation": "requests path filtering from",
+      "src_name": "Onboarding Content Uploader",
+      "dst_name": "Ignore Rule Processor"
+    }
+  ]
+}

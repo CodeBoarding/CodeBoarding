@@ -1,0 +1,212 @@
+{
+  "description": "This graph represents an AI Agent Orchestrator subsystem that coordinates multiple specialized AI agents to analyze code and produce structured insights. The main flow: a central orchestrator (CodeBoardingAgent) plans and delegates analysis tasks to specialized agents (DiffAnalyzingAgent, DetailsAgent, AbstractionAgent), which generate analysis outputs using LLM interactions mediated by a PromptFactory and configured by an LLMConfig manager. A LargeModelAgent provides core LLM interaction primitives. Results are normalized into the AnalysisInsights data model and returned to the orchestrator for aggregation and downstream use.",
+  "components": [
+    {
+      "name": "CodeBoardingAgent",
+      "description": "Primary orchestrator of the AI analysis pipeline; plans workflow, assigns tasks to specialized agents, and aggregates results.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.CodeBoardingAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 36,
+          "reference_end_line": 338
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/__init__.py",
+        "agents/cluster_methods_mixin.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/validator_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DiffAnalyzingAgent",
+      "description": "Specialized agent that analyzes code diffs and produces insights related to changes.",
+      "key_entities": [],
+      "assigned_files": [
+        "agents/diff_analyzer.py",
+        "agents/tools/read_git_diff.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "DetailsAgent",
+      "description": "Specialized agent focused on extracting detailed component-level information and insights.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.details_agent.DetailsAgent",
+          "reference_file": "agents/details_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/details_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AbstractionAgent",
+      "description": "Specialized agent that produces higher-level abstractions and summaries from lower-level analysis outputs.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+          "reference_file": "agents/abstraction_agent.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/abstraction_agent.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "PromptFactory",
+      "description": "Generates and manages LLM prompts tailored to agent tasks and LLM provider settings.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.prompts.gpt_prompts_bidirectional.PromptFactory",
+          "reference_file": "agents/prompts/gpt_prompts_bidirectional.py",
+          "reference_start_line": 503,
+          "reference_end_line": 561
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gpt_prompts_bidirectional.py",
+        "agents/prompts/__init__.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/claude_prompts_bidirectional.py",
+        "agents/prompts/claude_prompts_unidirectional.py",
+        "agents/prompts/gemini_flash_prompts_bidirectional.py",
+        "agents/prompts/gemini_flash_prompts_unidirectional.py",
+        "agents/prompts/gpt_prompts_unidirectional.py",
+        "agents/prompts/prompt_factory.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "AnalysisInsights",
+      "description": "Data model defining the standardized schema for AI analysis outputs, used for consistent result aggregation and exchange.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent_responses.AnalysisInsights",
+          "reference_file": "agents/agent_responses.py",
+          "reference_start_line": 149,
+          "reference_end_line": 164
+        }
+      ],
+      "assigned_files": [
+        "agents/agent_responses.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LLMConfig",
+      "description": "Manages configuration and provider-specific settings for LLMs used by agents and prompt generation.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.llm_config.LLMConfig",
+          "reference_file": "agents/llm_config.py",
+          "reference_start_line": null,
+          "reference_end_line": null
+        }
+      ],
+      "assigned_files": [
+        "agents/llm_config.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    },
+    {
+      "name": "LargeModelAgent",
+      "description": "Base agent providing core functionality for interacting with Large Language Models, used by specialized agents.",
+      "key_entities": [
+        {
+          "qualified_name": "agents.agent.LargeModelAgent",
+          "reference_file": "agents/agent.py",
+          "reference_start_line": 341,
+          "reference_end_line": 346
+        }
+      ],
+      "assigned_files": [
+        "agents/agent.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/read_source.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/toolkit.py"
+      ],
+      "source_cluster_ids": [],
+      "can_expand": true
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "orchestrates",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "Specialized AI Agents"
+    },
+    {
+      "relation": "assigns tasks to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "DiffAnalyzingAgent"
+    },
+    {
+      "relation": "assigns tasks to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "DetailsAgent"
+    },
+    {
+      "relation": "assigns tasks to",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AbstractionAgent"
+    },
+    {
+      "relation": "aggregates results from",
+      "src_name": "CodeBoardingAgent",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "provides prompts to",
+      "src_name": "PromptFactory",
+      "dst_name": "LargeModelAgent"
+    },
+    {
+      "relation": "provides prompts to",
+      "src_name": "PromptFactory",
+      "dst_name": "Specialized AI Agents"
+    },
+    {
+      "relation": "consults",
+      "src_name": "PromptFactory",
+      "dst_name": "LLMConfig"
+    },
+    {
+      "relation": "populates",
+      "src_name": "Specialized AI Agents",
+      "dst_name": "AnalysisInsights"
+    },
+    {
+      "relation": "uses",
+      "src_name": "Specialized AI Agents",
+      "dst_name": "LargeModelAgent"
+    }
+  ]
+}

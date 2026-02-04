@@ -182,14 +182,18 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
+    @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
     @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init):
+    def test_classify_files(
+        self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init, mock_classify_unassigned
+    ):
         # Test classify_files (assigns files from clusters + key_entities)
         mock_static_init.return_value = (MagicMock(), "test-model")
         mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
+        mock_classify_unassigned.return_value = []  # Mock LLM classification to return empty list
 
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
@@ -231,7 +235,8 @@ class TestAbstractionAgent(unittest.TestCase):
         )
         cluster_results = {"python": mock_cluster_result}
 
-        agent.classify_files(analysis, cluster_results)
+        scope_files = [str(self.repo_dir / "cluster_file.py"), str(self.repo_dir / "test_file.py")]
+        agent.classify_files(analysis, cluster_results, scope_files)
 
         # Check files were assigned from both clusters and key_entities
         self.assertIn("cluster_file.py", component.assigned_files)

@@ -17,6 +17,7 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_key_entities,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -121,7 +122,10 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         )
 
         return self._validation_invoke(
-            prompt, AnalysisInsights, validators=[validate_component_relationships], context=context
+            prompt,
+            AnalysisInsights,
+            validators=[validate_component_relationships, validate_key_entities],
+            context=context,
         )
 
     def run(self, component: Component):
@@ -152,7 +156,8 @@ class DetailsAgent(ClusterMethodsMixin, LargeModelAgent):
         self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
 
         # Step 5: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, subgraph_cluster_results)
+        # Pass component's assigned files as scope to limit classification to this component
+        self.classify_files(analysis, subgraph_cluster_results, component.assigned_files)
 
         # Step 6: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)
