@@ -13,35 +13,23 @@ from static_analyzer.scanner import ProgrammingLanguage
 
 
 class TestUriToPath(unittest.TestCase):
-    def test_uri_to_path_unix(self):
-        # Test converting Unix-style file URI to path
-        file_uri = "file:///home/user/project/file.py"
-        result = uri_to_path(file_uri)
-
-        # Result should be a Path object
+    def test_uri_to_path_conversion(self):
+        result = uri_to_path("file:///home/user/project/file.py")
         self.assertIsInstance(result, Path)
         self.assertIn("file.py", str(result))
 
-    def test_uri_to_path_windows(self):
-        # Test converting Windows-style file URI to path
-        file_uri = "file:///C:/Users/test/project/file.py"
-        result = uri_to_path(file_uri)
-
+    def test_uri_to_path_windows_style(self):
+        result = uri_to_path("file:///C:/Users/test/project/file.py")
         self.assertIsInstance(result, Path)
         self.assertIn("file.py", str(result))
 
-    def test_uri_to_path_with_encoding(self):
-        # Test URI with encoded characters
-        file_uri = "file:///home/user/my%20project/file.py"
-        result = uri_to_path(file_uri)
-
-        # Should decode %20 to space
+    def test_uri_to_path_with_url_encoding(self):
+        result = uri_to_path("file:///home/user/my%20project/file.py")
         self.assertIn("my project", str(result))
 
 
 class TestFileAnalysisResult(unittest.TestCase):
     def test_file_analysis_result_creation(self):
-        # Test creating a FileAnalysisResult
         file_path = Path("/test/file.py")
         result = FileAnalysisResult(
             file_path=file_path,
@@ -54,14 +42,12 @@ class TestFileAnalysisResult(unittest.TestCase):
             class_hierarchies={},
             external_references=[],
         )
-
         self.assertEqual(result.file_path, file_path)
         self.assertEqual(result.package_name, "test.package")
         self.assertEqual(len(result.imports), 2)
         self.assertIsNone(result.error)
 
     def test_file_analysis_result_with_error(self):
-        # Test FileAnalysisResult with error
         result = FileAnalysisResult(
             file_path=Path("/test/file.py"),
             package_name="test",
@@ -74,7 +60,6 @@ class TestFileAnalysisResult(unittest.TestCase):
             external_references=[],
             error="Test error message",
         )
-
         self.assertEqual(result.error, "Test error message")
 
 
@@ -373,25 +358,46 @@ class TestLSPClient(unittest.TestCase):
 
         self.assertEqual(package_name, "module")
 
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_get_package_name_multiple_root_level(self, mock_popen):
+        # Test that multiple root-level files form separate packages (not false cycles)
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_process.stdout = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Create multiple root-level files
+        main_file = self.project_path / "main.py"
+        utils_file = self.project_path / "utils.py"
+        config_file = self.project_path / "config.py"
+
+        main_file.touch()
+        utils_file.touch()
+        config_file.touch()
+
+        # Each should get its own package name based on filename
+        main_package = client._get_package_name(main_file)
+        utils_package = client._get_package_name(utils_file)
+        config_package = client._get_package_name(config_file)
+
+        # They should all be unique (based on stem)
+        self.assertEqual(main_package, "main")
+        self.assertEqual(utils_package, "utils")
+        self.assertEqual(config_package, "config")
+
+        # Verify they are different from each other
+        self.assertNotEqual(main_package, utils_package)
+        self.assertNotEqual(utils_package, config_package)
+        self.assertNotEqual(main_package, config_package)
+
     def test_extract_package_from_import(self):
-        # Test extracting top-level package from import
-        # This is a static method, no client needed
-        result = LSPClient._extract_package_from_import("os.path.join")
-        self.assertEqual(result, "os")
-
-        result = LSPClient._extract_package_from_import("django.http.response")
-        self.assertEqual(result, "django")
-
-        result = LSPClient._extract_package_from_import("mypackage")
-        self.assertEqual(result, "mypackage")
-
-    def test_extract_package_from_import_relative(self):
-        # Test relative imports
-        result = LSPClient._extract_package_from_import(".module")
-        self.assertEqual(result, "")
-
-        result = LSPClient._extract_package_from_import("..package")
-        self.assertEqual(result, "")
+        self.assertEqual(LSPClient._extract_package_from_import("os.path.join"), "os")
+        self.assertEqual(LSPClient._extract_package_from_import("django.http.response"), "django")
+        self.assertEqual(LSPClient._extract_package_from_import("mypackage"), "mypackage")
+        self.assertEqual(LSPClient._extract_package_from_import(".module"), "")
+        self.assertEqual(LSPClient._extract_package_from_import("..package"), "")
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_filter_src_files(self, mock_popen):
@@ -603,26 +609,21 @@ class TestLSPClient(unittest.TestCase):
         self.assertIn("variable", names)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_read_messages_with_response(self, mock_popen):
-        # Test _read_messages handling responses
+    def test_read_messages(self, mock_popen):
         mock_process = Mock()
         mock_stdout = Mock()
 
-        # Simulate server response
+        # Test response (with id field)
         response_body = json.dumps({"id": 1, "result": "test_value"})
-        response_msg = f"Content-Length: {len(response_body)}\r\n\r\n{response_body}"
 
-        # Mock readline to return header, blank line, then keep returning empty bytes
         def readline_side_effect():
             yield "Content-Length: 35\r\n".encode("utf-8")
-            yield b"\r\n"  # blank line after header
-            # Keep yielding empty bytes to prevent StopIteration
+            yield b"\r\n"
             while True:
                 yield b""
 
         mock_stdout.readline.side_effect = readline_side_effect()
         mock_stdout.read.return_value = response_body.encode("utf-8")
-
         mock_process.stdout = mock_stdout
         mock_popen.return_value = mock_process
 
@@ -630,7 +631,6 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
         client._shutdown_flag = threading.Event()
 
-        # Run reader in a thread briefly
         thread = threading.Thread(target=client._read_messages)
         thread.daemon = True
         thread.start()
@@ -638,40 +638,30 @@ class TestLSPClient(unittest.TestCase):
         client._shutdown_flag.set()
         thread.join(timeout=1)
 
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_read_messages_with_notification(self, mock_popen):
-        # Test _read_messages handling notifications
-        mock_process = Mock()
-        mock_stdout = Mock()
-
-        # Notification has no 'id' field
+        # Test notification (no id field)
         notification_body = json.dumps({"method": "textDocument/publishDiagnostics", "params": {}})
 
-        # Mock readline to return header, blank line, then keep returning empty bytes
-        def readline_side_effect():
+        def readline_side_effect2():
             yield f"Content-Length: {len(notification_body)}\r\n".encode("utf-8")
-            yield b"\r\n"  # blank line after header
-            # Keep yielding empty bytes to prevent StopIteration
+            yield b"\r\n"
             while True:
                 yield b""
 
-        mock_stdout.readline.side_effect = readline_side_effect()
-        mock_stdout.read.return_value = notification_body.encode("utf-8")
+        mock_stdout2 = Mock()
+        mock_stdout2.readline.side_effect = readline_side_effect2()
+        mock_stdout2.read.return_value = notification_body.encode("utf-8")
+        mock_process.stdout = mock_stdout2
 
-        mock_process.stdout = mock_stdout
-        mock_popen.return_value = mock_process
+        client2 = LSPClient(self.project_path, self.mock_language)
+        client2._process = mock_process
+        client2._shutdown_flag = threading.Event()
 
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-        client._shutdown_flag = threading.Event()
-
-        # Run reader briefly
-        thread = threading.Thread(target=client._read_messages)
-        thread.daemon = True
-        thread.start()
+        thread2 = threading.Thread(target=client2._read_messages)
+        thread2.daemon = True
+        thread2.start()
         time.sleep(0.1)
-        client._shutdown_flag.set()
-        thread.join(timeout=1)
+        client2._shutdown_flag.set()
+        thread2.join(timeout=1)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_initialize_with_error(self, mock_popen):
@@ -684,12 +674,15 @@ class TestLSPClient(unittest.TestCase):
         client._process = mock_process
 
         # Mock error response
-        client._wait_for_response = Mock(return_value={"error": {"message": "Init failed"}})  # type: ignore[method-assign]
+        with patch.object(
+            client,
+            "_wait_for_response",
+            return_value={"error": {"message": "Init failed"}},
+        ):
+            with self.assertRaises(RuntimeError) as context:
+                client._initialize()
 
-        with self.assertRaises(RuntimeError) as context:
-            client._initialize()
-
-        self.assertIn("Initialization failed", str(context.exception))
+            self.assertIn("Initialization failed", str(context.exception))
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_get_document_symbols(self, mock_popen):
@@ -851,11 +844,14 @@ class TestLSPClient(unittest.TestCase):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(return_value={"error": {"message": "Not found"}})  # type: ignore[method-assign]
+        with patch.object(
+            client,
+            "_wait_for_response",
+            return_value={"error": {"message": "Not found"}},
+        ):
+            result = client._get_definition_for_position("file:///test.py", 5, 10)
 
-        result = client._get_definition_for_position("file:///test.py", 5, 10)
-
-        self.assertEqual(result, [])
+            self.assertEqual(result, [])
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_extract_superclasses_from_text(self, mock_popen):
@@ -1065,10 +1061,18 @@ class DerivedClass(BaseClass):
         base_file = self.project_path / "base.py"
         base_file.write_text("class BaseClass:\n    pass\n")
 
-        class_symbol = {"name": "DerivedClass", "range": {"start": {"line": 1}, "end": {"line": 2}}}
+        class_symbol = {
+            "name": "DerivedClass",
+            "range": {"start": {"line": 1}, "end": {"line": 2}},
+        }
 
         # Mock definition pointing to base class
-        definition = [{"uri": base_file.as_uri(), "range": {"start": {"line": 0}, "end": {"line": 1}}}]
+        definition = [
+            {
+                "uri": base_file.as_uri(),
+                "range": {"start": {"line": 0}, "end": {"line": 1}},
+            }
+        ]
 
         client._get_definition_for_position = Mock(return_value=definition)  # type: ignore[method-assign]
 
@@ -1090,10 +1094,18 @@ class DerivedClass(BaseClass):
         derived_file = self.project_path / "derived.py"
         derived_file.write_text("class DerivedClass(BaseClass):\n    pass\n")
 
-        class_symbol = {"name": "BaseClass", "selectionRange": {"start": {"line": 0, "character": 6}}}
+        class_symbol = {
+            "name": "BaseClass",
+            "selectionRange": {"start": {"line": 0, "character": 6}},
+        }
 
         # Mock references pointing to derived class
-        references = [{"uri": derived_file.as_uri(), "range": {"start": {"line": 0}, "end": {"line": 1}}}]
+        references = [
+            {
+                "uri": derived_file.as_uri(),
+                "range": {"start": {"line": 0}, "end": {"line": 1}},
+            }
+        ]
 
         client._get_references = Mock(return_value=references)  # type: ignore[method-assign]
 
@@ -1111,7 +1123,13 @@ class DerivedClass(BaseClass):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        symbols = [{"name": "my_function", "kind": 12, "selectionRange": {"start": {"line": 5, "character": 4}}}]
+        symbols = [
+            {
+                "name": "my_function",
+                "kind": 12,
+                "selectionRange": {"start": {"line": 5, "character": 4}},
+            }
+        ]
 
         test_refs = [{"uri": "file:///other.py", "range": {"start": {"line": 10}}}]
         client._get_references = Mock(return_value=test_refs)  # type: ignore[method-assign]
@@ -1142,26 +1160,7 @@ class DerivedClass(BaseClass):
         self.assertEqual(len(result["references"]), 0)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_resolve_call_position_with_exception(self, mock_popen):
-        # Test resolve_call_position handling exceptions
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        # Mock to raise exception
-        client._get_definition_for_position = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
-
-        call_pos = {"line": 5, "char": 10, "name": "func"}
-        result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
-
-        # Should return None on exception
-        self.assertIsNone(result)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_get_definition_with_exception(self, mock_popen):
-        # Test _get_definition handling exceptions
+    def test_exception_handling_in_operations(self, mock_popen):
         mock_process = Mock()
         mock_process.stdin = Mock()
         mock_popen.return_value = mock_process
@@ -1169,27 +1168,21 @@ class DerivedClass(BaseClass):
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
-        client._wait_for_response = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
+        # Test _resolve_call_position exception handling
+        with patch.object(client, "_get_definition_for_position", side_effect=Exception("Test error")):
+            call_pos = {"line": 5, "char": 10, "name": "func"}
+            result = client._resolve_call_position("file:///test.py", Path("/test.py"), call_pos)
+            self.assertIsNone(result)
 
-        result = client._get_definition(5, 10)
+        # Test _get_definition exception handling
+        with patch.object(client, "_wait_for_response", side_effect=Exception("Test error")):
+            definition_result: list = client._get_definition(5, 10)
+            self.assertEqual(definition_result, [])
 
-        self.assertEqual(result, [])
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_get_references_with_exception(self, mock_popen):
-        # Test _get_references handling exceptions
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        client._wait_for_response = Mock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
-
-        result = client._get_references("file:///test.py", 5, 10)
-
-        self.assertEqual(result, [])
+        # Test _get_references exception handling
+        with patch.object(client, "_wait_for_response", side_effect=Exception("Test error")):
+            references_result: list = client._get_references("file:///test.py", 5, 10)
+            self.assertEqual(references_result, [])
 
     @patch("static_analyzer.lsp_client.client.ThreadPoolExecutor")
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
@@ -1220,7 +1213,13 @@ class DerivedClass(BaseClass):
             package_name="root",
             imports=["os"],
             symbols=[Node("root.func1", 12, str(test_file1), 0, 1)],
-            function_symbols=[{"name": "func1", "kind": 12, "selectionRange": {"start": {"line": 0, "character": 4}}}],
+            function_symbols=[
+                {
+                    "name": "func1",
+                    "kind": 12,
+                    "selectionRange": {"start": {"line": 0, "character": 4}},
+                }
+            ],
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
@@ -1252,7 +1251,10 @@ class DerivedClass(BaseClass):
         mock_executor.return_value = mock_executor_instance
 
         # Mock as_completed to return futures
-        with patch("static_analyzer.lsp_client.client.as_completed", return_value=[mock_future1, mock_future2]):
+        with patch(
+            "static_analyzer.lsp_client.client.as_completed",
+            return_value=[mock_future1, mock_future2],
+        ):
             result = client.build_static_analysis()
 
         # Verify result structure
@@ -1564,22 +1566,14 @@ class DerivedClass(BaseClass):
         self.assertGreater(len(result.class_hierarchies), 0)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_analyze_single_file_with_body_calls(self, mock_popen):
-        # Test analysis capturing calls in function bodies
+    def test_analyze_single_file_body_calls(self, mock_popen):
         mock_process = Mock()
         mock_popen.return_value = mock_process
-
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
         test_file = self.project_path / "body_calls.py"
-        test_content = """
-def main():
-    helper1()
-    helper2()
-"""
-        test_file.write_text(test_content)
-
+        test_file.write_text("def main():\n    helper1()\n    helper2()\n")
         test_symbols = [
             {
                 "name": "main",
@@ -1600,23 +1594,12 @@ def main():
         client._resolve_call_position = Mock(return_value="root.helper1")  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
-
-        # Verify function body calls were analyzed
         self.assertIsNone(result.error)
 
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_analyze_single_file_body_calls_exception(self, mock_popen):
-        # Test analysis handling exceptions in body call processing
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_file = self.project_path / "error_calls.py"
-        test_file.write_text("def func():\n    call()\n")
-
-        test_symbols = [
+        # Test exception handling in body call processing
+        test_file2 = self.project_path / "error_calls.py"
+        test_file2.write_text("def func():\n    call()\n")
+        test_symbols2 = [
             {
                 "name": "func",
                 "kind": 12,
@@ -1625,19 +1608,16 @@ def main():
             }
         ]
 
-        client._send_notification = Mock()  # type: ignore[method-assign]
-        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
-        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
-        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
-        # Make _find_call_positions_in_range raise exception
-        client._find_call_positions_in_range = Mock(side_effect=Exception("Parse error"))  # type: ignore[method-assign]
-
-        result = client._analyze_single_file(test_file, [])
-
-        # Should handle exception gracefully and still complete
-        self.assertIsNone(result.error)
+        with (
+            patch.object(client, "_get_document_symbols", return_value=test_symbols2),
+            patch.object(
+                client,
+                "_find_call_positions_in_range",
+                side_effect=Exception("Parse error"),
+            ),
+        ):
+            result2 = client._analyze_single_file(test_file2, [])
+            self.assertIsNone(result2.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_analyze_single_file_incoming_calls(self, mock_popen):
@@ -1679,16 +1659,13 @@ def main():
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_analyze_single_file_call_hierarchy_exception(self, mock_popen):
-        # Test handling exceptions in call hierarchy processing
         mock_process = Mock()
         mock_popen.return_value = mock_process
-
         client = LSPClient(self.project_path, self.mock_language)
         client._process = mock_process
 
         test_file = self.project_path / "func.py"
         test_file.write_text("def func(): pass")
-
         test_symbols = [
             {
                 "name": "func",
@@ -1697,7 +1674,6 @@ def main():
                 "selectionRange": {"start": {"line": 0, "character": 4}},
             }
         ]
-
         hierarchy_items = [{"name": "func", "uri": test_file.as_uri()}]
 
         client._send_notification = Mock()  # type: ignore[method-assign]
@@ -1705,14 +1681,11 @@ def main():
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
-        # Make outgoing calls raise exception
         client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
         client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
-
-        # Should handle exception and continue
         self.assertIsNone(result.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
@@ -1737,7 +1710,10 @@ def main():
         # Mock the handle_notification method
         with patch.object(client, "handle_notification") as mock_handler:
             # Test notification
-            notification = {"method": "textDocument/publishDiagnostics", "params": {"diagnostics": []}}
+            notification = {
+                "method": "textDocument/publishDiagnostics",
+                "params": {"diagnostics": []},
+            }
             client._handle_notification(notification)
 
             # Should call the handler
@@ -1756,6 +1732,164 @@ def main():
             # Test notification - should not propagate exception
             notification = {"method": "test/notification", "params": {}}
             client._handle_notification(notification)  # Should not raise
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_handle_server_requests(self, mock_popen):
+        """Test handling various server request types."""
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+
+        # Test workspace/configuration
+        request = {
+            "id": 1,
+            "method": "workspace/configuration",
+            "params": {"items": [{"section": "python"}]},
+        }
+        client._handle_server_request(request)
+        written = mock_process.stdin.write.call_args[0][0].decode("utf-8")
+        self.assertIn('"id": 1', written)
+
+        # Test window/workDoneProgress/create
+        mock_process.stdin.reset_mock()
+        request = {
+            "id": 2,
+            "method": "window/workDoneProgress/create",
+            "params": {"token": "123"},
+        }
+        client._handle_server_request(request)
+        written = mock_process.stdin.write.call_args[0][0].decode("utf-8")
+        self.assertIn('"id": 2', written)
+
+        # Test window/showDocument
+        mock_process.stdin.reset_mock()
+        request = {
+            "id": 3,
+            "method": "window/showDocument",
+            "params": {"uri": "file:///test.py"},
+        }
+        client._handle_server_request(request)
+        written = mock_process.stdin.write.call_args[0][0].decode("utf-8")
+        self.assertIn('"id": 3', written)
+
+        # Test unknown method
+        mock_process.stdin.reset_mock()
+        request = {"id": 4, "method": "unknown/method", "params": {}}
+        client._handle_server_request(request)
+        mock_process.stdin.write.assert_called_once()
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_handle_server_request_no_process(self, mock_popen):
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = None
+        request = {
+            "id": 6,
+            "method": "workspace/configuration",
+            "params": {"items": []},
+        }
+        client._handle_server_request(request)
+        mock_process.stdin.write.assert_not_called()
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_send_response(self, mock_popen):
+        """Test sending response to server request."""
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+
+        result = {"items": [{"enabled": True}]}
+        client._send_response(42, result)
+
+        mock_process.stdin.write.assert_called_once()
+        written = mock_process.stdin.write.call_args[0][0].decode("utf-8")
+        self.assertIn('"id": 42', written)
+        self.assertIn('"items":', written)
+        self.assertIn("Content-Length:", written)
+        mock_process.stdin.flush.assert_called_once()
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_send_response_no_stdin(self, mock_popen):
+        """Test sending response when stdin is not available."""
+        mock_process = Mock()
+        mock_process.stdin = None
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+
+        # Should not raise exception
+        client._send_response(1, {"test": "value"})
+
+        # Should not crash, just skip
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_read_messages_server_request(self, mock_popen):
+        """Test _read_messages correctly identifies and handles server-to-client requests."""
+        mock_process = Mock()
+        mock_stdout = Mock()
+
+        # Server-to-client REQUEST has both 'id' and 'method'
+        request_body = json.dumps({"id": 100, "method": "workspace/configuration", "params": {"items": []}})
+
+        def readline_side_effect():
+            yield f"Content-Length: {len(request_body)}\r\n".encode("utf-8")
+            yield b"\r\n"
+            while True:
+                yield b""
+
+        mock_stdout.readline.side_effect = readline_side_effect()
+        mock_stdout.read.return_value = request_body.encode("utf-8")
+
+        mock_process.stdout = mock_stdout
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+        client._shutdown_flag = threading.Event()
+
+        # Mock _handle_server_request to verify it was called
+        with patch.object(client, "_handle_server_request") as mock_handler:
+            # Run reader briefly
+            thread = threading.Thread(target=client._read_messages)
+            thread.daemon = True
+            thread.start()
+            time.sleep(0.1)
+            client._shutdown_flag.set()
+            thread.join(timeout=1)
+
+            # Verify _handle_server_request was called with the server request
+            mock_handler.assert_called_once()
+            call_args = mock_handler.call_args[0][0]
+            self.assertEqual(call_args["id"], 100)
+            self.assertEqual(call_args["method"], "workspace/configuration")
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_server_request_methods_constant(self, mock_popen):
+        """Test that SERVER_REQUEST_METHODS constant contains expected methods."""
+        mock_process = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+
+        # Verify all expected methods are in the constant
+        expected_methods = {
+            "workspace/configuration",
+            "window/workDoneProgress/create",
+            "client/registerCapability",
+            "window/showMessageRequest",
+            "window/showDocument",
+        }
+        self.assertTrue(expected_methods.issubset(client.SERVER_REQUEST_METHODS))
 
 
 if __name__ == "__main__":
