@@ -136,7 +136,7 @@ def classify_new_files_in_component(
 
         # Perform classification using the agent's classify_files method
         # This mimics DetailsAgent.run() step 5 but scoped to only new files
-        agent.classify_files(sub_analysis, cluster_results, component_files)
+        agent.classify_files(sub_analysis, cluster_results, list(component_files))
 
         # Save the updated sub-analysis
         save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)

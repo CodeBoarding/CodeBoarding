@@ -76,7 +76,7 @@ def generate_analysis(
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
     )
-    generator.force_full = force_full
+    generator.force_full_analysis = force_full
     generated_files = generator.generate_analysis()
     return [Path(path) for path in generated_files]
 
@@ -273,7 +273,7 @@ def process_local_repository(
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
         )
-        generator.force_full = force_full
+        generator.force_full_analysis = force_full
 
         # Try incremental first, fall back to full
         result = generator.generate_analysis_smart()
