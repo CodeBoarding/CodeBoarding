@@ -15,13 +15,13 @@ python install.py
 python scripts/check_lsp_servers.py
 
 # Step 2: Generate fixtures for languages with working LSP servers
-uv run python scripts/generate_integration_fixtures.py --repo codeboarding
+uv run python tests/integration/generate_integration_fixtures.py --repo codeboarding
 
 # Step 3: Run integration tests
 uv run pytest -m integration -v
 
 # Alternative: Generate all fixtures at once (requires all LSP servers)
-# uv run python scripts/generate_integration_fixtures.py --all
+# uv run python tests/integration/generate_integration_fixtures.py --all
 ```
 
 ## Overview
@@ -216,16 +216,16 @@ Ensure LSP servers are installed first (see Prerequisites above).
 
 ```bash
 # Generate fixture for CodeBoarding Python
-uv run python scripts/generate_integration_fixtures.py --repo codeboarding
+uv run python tests/integration/generate_integration_fixtures.py --repo codeboarding
 
 # Generate fixture for Mockito Java
-uv run python scripts/generate_integration_fixtures.py --repo mockito
+uv run python tests/integration/generate_integration_fixtures.py --repo mockito
 
 # Generate fixture for any repository (partial match)
-uv run python scripts/generate_integration_fixtures.py --repo prometheus
-uv run python scripts/generate_integration_fixtures.py --repo excalidraw
-uv run python scripts/generate_integration_fixtures.py --repo wordpress
-uv run python scripts/generate_integration_fixtures.py --repo lodash
+uv run python tests/integration/generate_integration_fixtures.py --repo prometheus
+uv run python tests/integration/generate_integration_fixtures.py --repo excalidraw
+uv run python tests/integration/generate_integration_fixtures.py --repo wordpress
+uv run python tests/integration/generate_integration_fixtures.py --repo lodash
 ```
 
 If a language server is not found, you'll see an error like:
@@ -238,7 +238,7 @@ In this case, run `python install.py` to install missing servers.
 ### Generate All Fixtures
 
 ```bash
-uv run python scripts/generate_integration_fixtures.py --all
+uv run python tests/integration/generate_integration_fixtures.py --all
 ```
 
 This will clone each repository at its pinned commit, run static analysis, and save the metrics to fixture files. **This takes 20-30 minutes** as it processes all supported languages.
@@ -248,13 +248,13 @@ This will clone each repository at its pinned commit, run static analysis, and s
 Suppress progress messages:
 
 ```bash
-uv run python scripts/generate_integration_fixtures.py --all --quiet
+uv run python tests/integration/generate_integration_fixtures.py --all --quiet
 ```
 
 ### List Available Repositories
 
 ```bash
-uv run python scripts/generate_integration_fixtures.py --list
+uv run python tests/integration/generate_integration_fixtures.py --list
 ```
 
 Output:
@@ -304,7 +304,7 @@ Fixtures should be regenerated when:
 
 ```bash
 # Update the CodeBoarding fixture
-uv run python scripts/generate_integration_fixtures.py --repo codeboarding
+uv run python tests/integration/generate_integration_fixtures.py --repo codeboarding
 ```
 
 This will:
@@ -470,7 +470,7 @@ python install.py
 python install.py
 
 # Then generate the fixture
-uv run python scripts/generate_integration_fixtures.py --repo <name>
+uv run python tests/integration/generate_integration_fixtures.py --repo <name>
 ```
 
 ### Test Fails with "Metrics Mismatch"
@@ -485,7 +485,7 @@ uv run python scripts/generate_integration_fixtures.py --repo <name>
 **Solution**:
 1. Verify the pinned commit hasn't moved
 2. Check if LSP servers were recently updated
-3. If intentional, regenerate fixture: `uv run python scripts/generate_integration_fixtures.py --repo <name>`
+3. If intentional, regenerate fixture: `uv run python tests/integration/generate_integration_fixtures.py --repo <name>`
 
 ### Test Fails with "Language Not in Results"
 
@@ -576,7 +576,7 @@ If you modify static analysis code:
 
 ```bash
 # Regenerate all fixtures
-uv run python scripts/generate_integration_fixtures.py --all
+uv run python tests/integration/generate_integration_fixtures.py --all
 
 # Verify tests pass
 uv run pytest -m integration
@@ -605,7 +605,7 @@ Monitor the integration test workflow in GitHub Actions:
 - **Fixtures**: [tests/integration/health/fixtures/health_report.json](tests/integration/health/fixtures/health_report.json)
 
 ### Shared Resources
-- **Generator**: [scripts/generate_integration_fixtures.py](scripts/generate_integration_fixtures.py)
+- **Generator**: [tests/integration/generate_integration_fixtures.py](tests/integration/generate_integration_fixtures.py)
 - **Workflow**: [.github/workflows/integration-tests.yml](.github/workflows/integration-tests.yml)
 - **pytest Config**: [pyproject.toml](pyproject.toml) (markers section)
 

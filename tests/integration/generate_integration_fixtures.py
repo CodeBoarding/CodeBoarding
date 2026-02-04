@@ -6,13 +6,13 @@ and saves the metrics to JSON fixture files for use in integration tests.
 
 Usage:
     # Generate fixture for a specific repository
-    uv run python scripts/generate_integration_fixtures.py --repo codeboarding
+    uv run python tests/integration/generate_integration_fixtures.py --repo codeboarding
 
     # Generate all fixtures
-    uv run python scripts/generate_integration_fixtures.py --all
+    uv run python tests/integration/generate_integration_fixtures.py --all
 
     # List available repositories
-    uv run python scripts/generate_integration_fixtures.py --list
+    uv run python tests/integration/generate_integration_fixtures.py --list
 """
 
 import argparse
@@ -27,7 +27,7 @@ from unittest.mock import patch
 from dotenv import load_dotenv
 
 # Add project root to path for imports
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Load .env file to get STATIC_ANALYSIS_CONFIG and other environment variables
@@ -37,7 +37,7 @@ from git import Repo
 
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
-from tests.integration.conftest import (
+from .conftest import (
     REPOSITORY_CONFIGS,
     RepositoryTestConfig,
     create_mock_scanner,
@@ -141,13 +141,13 @@ def main():
         epilog="""
 Examples:
     # Generate fixture for CodeBoarding Python
-    uv run python scripts/generate_integration_fixtures.py --repo codeboarding
+    uv run python tests/integration/generate_integration_fixtures.py --repo codeboarding
 
     # Generate all fixtures
-    uv run python scripts/generate_integration_fixtures.py --all
+    uv run python tests/integration/generate_integration_fixtures.py --all
 
     # List available repositories
-    uv run python scripts/generate_integration_fixtures.py --list
+    uv run python tests/integration/generate_integration_fixtures.py --list
 """,
     )
     parser.add_argument(
