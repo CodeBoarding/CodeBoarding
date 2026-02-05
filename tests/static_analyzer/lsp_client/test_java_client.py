@@ -23,7 +23,11 @@ class TestJavaClient(unittest.TestCase):
 
         # Create mock language
         self.mock_language = Mock(spec=ProgrammingLanguage)
-        self.mock_language.get_server_parameters.return_value = ["java", "-jar", "jdtls.jar"]
+        self.mock_language.get_server_parameters.return_value = [
+            "java",
+            "-jar",
+            "jdtls.jar",
+        ]
         self.mock_language.get_suffix_pattern.return_value = ["*.java"]
         self.mock_language.get_language_id.return_value = "java"
         self.mock_language.language_specific_config = None
@@ -335,8 +339,19 @@ class TestJavaClient(unittest.TestCase):
 
         client._send_request.assert_called_with("workspace/symbol", {"query": ""})
 
-    def test_validate_project_loaded_no_symbols(self):
+    @patch("time.sleep", return_value=None)
+    @patch("time.time")
+    def test_validate_project_loaded_no_symbols(self, mock_time, mock_sleep):
         """Test project validation with no symbols."""
+        # Use a generator that yields incrementing values - never runs out
+        counter = [0]
+
+        def incrementing_time():
+            counter[0] += 2
+            return counter[0]
+
+        mock_time.side_effect = incrementing_time
+
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -349,8 +364,19 @@ class TestJavaClient(unittest.TestCase):
         # Should not raise, just log warning
         client._validate_project_loaded()
 
-    def test_validate_project_loaded_error(self):
+    @patch("time.sleep", return_value=None)
+    @patch("time.time")
+    def test_validate_project_loaded_error(self, mock_time, mock_sleep):
         """Test project validation with error."""
+        # Use a generator that yields incrementing values - never runs out
+        counter = [0]
+
+        def incrementing_time():
+            counter[0] += 2
+            return counter[0]
+
+        mock_time.side_effect = incrementing_time
+
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -363,8 +389,19 @@ class TestJavaClient(unittest.TestCase):
         # Should not raise, just log warning
         client._validate_project_loaded()
 
-    def test_validate_project_loaded_exception(self):
+    @patch("time.sleep", return_value=None)
+    @patch("time.time")
+    def test_validate_project_loaded_exception(self, mock_time, mock_sleep):
         """Test project validation with exception."""
+        # Use a generator that yields incrementing values - never runs out
+        counter = [0]
+
+        def incrementing_time():
+            counter[0] += 2
+            return counter[0]
+
+        mock_time.side_effect = incrementing_time
+
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -672,7 +709,9 @@ class TestJavaClient(unittest.TestCase):
         # Mock the LSP request/response
         with patch.object(client, "_send_request", return_value=1) as mock_send:
             with patch.object(
-                client, "_wait_for_response", return_value={"result": [{"name": "TestClass", "kind": 5}]}
+                client,
+                "_wait_for_response",
+                return_value={"result": [{"name": "TestClass", "kind": 5}]},
             ) as mock_wait:
                 result = client._validate_project_loaded(max_wait=60)
 
@@ -722,7 +761,10 @@ class TestJavaClient(unittest.TestCase):
         mock_time.side_effect = [0, 0, 2, 4]
 
         # Mock responses: first error, then success
-        responses = [{"error": {"message": "Not ready"}}, {"result": [{"name": "TestClass", "kind": 5}]}]
+        responses = [
+            {"error": {"message": "Not ready"}},
+            {"result": [{"name": "TestClass", "kind": 5}]},
+        ]
 
         with patch.object(client, "_send_request", return_value=1):
             with patch.object(client, "_wait_for_response", side_effect=responses):
@@ -773,7 +815,15 @@ class TestJavaClient(unittest.TestCase):
         mock_time.side_effect = [0, 2, 4]
 
         # Mock responses: first empty, then with symbols
-        responses = [{"result": []}, {"result": [{"name": "Class1", "kind": 5}, {"name": "Interface1", "kind": 11}]}]
+        responses = [
+            {"result": []},
+            {
+                "result": [
+                    {"name": "Class1", "kind": 5},
+                    {"name": "Interface1", "kind": 11},
+                ]
+            },
+        ]
 
         with patch.object(client, "_send_request", return_value=1):
             with patch.object(client, "_wait_for_response", side_effect=responses):
