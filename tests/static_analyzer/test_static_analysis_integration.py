@@ -236,6 +236,100 @@ def test_static_analysis_nested_structure(tmp_path: Path) -> None:
 CODEBOARDING_REPO = "https://github.com/CodeBoarding/CodeBoarding.git"
 CODEBOARDING_COMMIT = "cc054a8"
 
+# Expected minimum counts for regression detection at commit cc054a8 (produced by and from this commit)
+# These are the exact counts from analyzing the repo at this commit
+EXPECTED_MIN_NODES = 2448
+EXPECTED_MIN_EDGES = 956
+
+# Key nodes that MUST be detected - representative symbols across core modules
+EXPECTED_NODES = {
+    # Static analyzer core
+    "static_analyzer.__init__.StaticAnalyzer",
+    "static_analyzer.__init__.analyze",
+    "static_analyzer.analysis_result.StaticAnalysisResults",
+    "static_analyzer.analysis_result.get_cfg",
+    "static_analyzer.analysis_result.get_reference",
+    "static_analyzer.graph.CallGraph",
+    "static_analyzer.graph.Edge",
+    "static_analyzer.graph.Node",
+    "static_analyzer.graph.add_edge",
+    "static_analyzer.graph.add_node",
+    "static_analyzer.lsp_client.client.LSPClient",
+    "static_analyzer.lsp_client.client.build_static_analysis",
+    "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
+    "static_analyzer.scanner.ProjectScanner",
+    "static_analyzer.scanner.scan",
+    "static_analyzer.programming_language.ProgrammingLanguage",
+    # Agents
+    "agents.agent.CodeBoardingAgent",
+    "agents.agent.LargeModelAgent",
+    "agents.abstraction_agent.AbstractionAgent",
+    "agents.details_agent.DetailsAgent",
+    "agents.validator_agent.ValidatorAgent",
+    "agents.meta_agent.MetaAgent",
+    "agents.planner_agent.PlannerAgent",
+    "agents.llm_config.LLMConfig",
+    "agents.tools.toolkit.CodeBoardingToolkit",
+    # Diagram analysis
+    "diagram_analysis.diagram_generator.DiagramGenerator",
+    "diagram_analysis.diagram_generator.generate_analysis",
+    # Main entry point
+    "main.main",
+    "main.process_local_repository",
+    "main.process_remote_repository",
+    # Output generators
+    "output_generators.markdown.generate_markdown",
+    "output_generators.html.generate_html",
+    "output_generators.mdx.generate_mdx",
+    "output_generators.sphinx.generate_rst",
+    # Monitoring
+    "monitoring.callbacks.MonitoringCallback",
+    "monitoring.context.MonitorContext",
+    "monitoring.writers.StreamingStatsWriter",
+    # Repo utils
+    "repo_utils.__init__.clone_repository",
+    "repo_utils.ignore.RepoIgnoreManager",
+    "repo_utils.git_diff.FileChange",
+}
+
+# Key edges (call relationships) that MUST be detected
+EXPECTED_EDGES = {
+    # StaticAnalyzer flow
+    ("static_analyzer.__init__.StaticAnalyzer", "static_analyzer.__init__.__init__"),
+    ("static_analyzer.__init__.StaticAnalyzer", "static_analyzer.__init__.analyze"),
+    ("static_analyzer.__init__.__init__", "static_analyzer.__init__.create_clients"),
+    # CallGraph operations
+    ("static_analyzer.graph.CallGraph", "static_analyzer.graph.add_edge"),
+    ("static_analyzer.graph.CallGraph", "static_analyzer.graph.add_node"),
+    ("static_analyzer.graph.add_edge", "static_analyzer.graph.Edge"),
+    # LSPClient flow
+    ("static_analyzer.lsp_client.client.LSPClient", "static_analyzer.lsp_client.client.build_static_analysis"),
+    ("static_analyzer.lsp_client.client.LSPClient", "static_analyzer.lsp_client.client.start"),
+    (
+        "static_analyzer.lsp_client.client.build_static_analysis",
+        "static_analyzer.lsp_client.client._analyze_single_file",
+    ),
+    # Agent hierarchy
+    ("agents.abstraction_agent.AbstractionAgent", "agents.abstraction_agent.run"),
+    ("agents.details_agent.DetailsAgent", "agents.details_agent.run"),
+    ("agents.validator_agent.ValidatorAgent", "agents.validator_agent.run"),
+    # DiagramGenerator flow
+    ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis.diagram_generator.generate_analysis"),
+    ("diagram_analysis.diagram_generator.generate_analysis", "diagram_analysis.diagram_generator.pre_analysis"),
+    # Main entry flow
+    ("main.main", "main.process_local_repository"),
+    ("main.main", "main.process_remote_repository"),
+    ("main.main", "logging_config.setup_logging"),
+    ("main.process_local_repository", "main.generate_analysis"),
+    ("main.generate_analysis", "diagram_analysis.diagram_generator.DiagramGenerator"),
+    # Output generation
+    ("output_generators.markdown.generate_markdown_file", "output_generators.markdown.generate_markdown"),
+    ("output_generators.html.generate_html_file", "output_generators.html.generate_html"),
+    # Monitoring
+    ("monitoring.writers.StreamingStatsWriter", "monitoring.writers.start"),
+    ("monitoring.writers.StreamingStatsWriter", "monitoring.writers.stop"),
+}
+
 
 def _clone_codeboarding(target: Path) -> None:
     subprocess.run(
@@ -306,3 +400,54 @@ def test_large_repo_determinism(tmp_path: Path) -> None:
             f"Run {i} produced different edges than run 0. "
             f"Missing: {len(first_edges - curr_edges)}, Extra: {len(curr_edges - first_edges)}"
         )
+
+
+@pytest.mark.slow
+def test_large_repo_expected_symbols(tmp_path: Path) -> None:
+    """Test that static analysis produces expected symbols on a known codebase version.
+
+    This regression test verifies that the static analyzer correctly detects
+    key classes, functions, and call relationships in the CodeBoarding repo
+    at commit cc054a8. It serves as a baseline to catch regressions where
+    the analyzer might miss symbols or edges that were previously detected.
+    """
+    if not _pyright_available():
+        pytest.skip("pyright-langserver not available")
+
+    repo = tmp_path / "codeboarding"
+    _clone_codeboarding(repo)
+
+    results = StaticAnalyzer(repo).analyze()
+
+    python_lang = next((lang for lang in results.get_languages() if lang.lower() == "python"), None)
+    assert python_lang is not None, "Python language not detected"
+
+    cfg = results.get_cfg(python_lang)
+    nodes = set(cfg.nodes)
+    edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+
+    # Verify minimum counts for regression detection
+    assert len(nodes) >= EXPECTED_MIN_NODES, (
+        f"Expected at least {EXPECTED_MIN_NODES} nodes, got {len(nodes)}. "
+        "This may indicate a regression in symbol detection."
+    )
+    assert len(edges) >= EXPECTED_MIN_EDGES, (
+        f"Expected at least {EXPECTED_MIN_EDGES} edges, got {len(edges)}. "
+        "This may indicate a regression in call relationship detection."
+    )
+
+    # Verify key nodes are present
+    missing_nodes = EXPECTED_NODES - nodes
+    assert not missing_nodes, (
+        f"Missing {len(missing_nodes)} expected nodes: {sorted(missing_nodes)[:10]}..."
+        if len(missing_nodes) > 10
+        else f"Missing expected nodes: {sorted(missing_nodes)}"
+    )
+
+    # Verify key edges are present
+    missing_edges = EXPECTED_EDGES - edges
+    assert not missing_edges, (
+        f"Missing {len(missing_edges)} expected edges: {sorted(missing_edges)[:5]}..."
+        if len(missing_edges) > 5
+        else f"Missing expected edges: {sorted(missing_edges)}"
+    )
