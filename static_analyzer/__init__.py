@@ -154,9 +154,6 @@ class StaticAnalyzer:
                     else:
                         logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
-                # First, open all files to trigger LSP diagnostic publishing
-                client.open_all_files_for_diagnostics()
-
                 # Use incremental orchestrator when cache is available
                 if cache_dir is not None and cache_path is not None:
                     orchestrator = IncrementalAnalysisOrchestrator()
@@ -176,7 +173,7 @@ class StaticAnalyzer:
                 results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
 
-                # Collect diagnostics for health checks (files are still open)
+                # Collect diagnostics for health checks (collected during analysis)
                 diagnostics = client.get_collected_diagnostics()
                 if diagnostics:
                     logger.info(f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}")
@@ -185,9 +182,6 @@ class StaticAnalyzer:
                     results.add_diagnostics(client.language.language, diagnostics)
                 else:
                     logger.warning(f"No diagnostics collected for {client.language.language}")
-
-                # Close all files
-                client.close_all_files_for_diagnostics()
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
         print(f"Static analysis complete: {results}")

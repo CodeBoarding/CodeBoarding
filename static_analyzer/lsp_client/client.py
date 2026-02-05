@@ -100,7 +100,8 @@ class LSPClient(ABC):
         self._message_id = 1
         self._responses: dict[int, dict] = {}
         self._notifications: list[dict] = []
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._response_condition = threading.Condition(self._lock)
 
         # Initialize CallGraph
         self.call_graph = CallGraph()
@@ -189,8 +190,9 @@ class LSPClient(ABC):
                     self._handle_server_request(response)
                 elif "id" in response:
                     # Response to our request (has id, no method)
-                    with self._lock:
+                    with self._response_condition:
                         self._responses[response["id"]] = response
+                        self._response_condition.notify_all()
                 else:
                     # Notification from server (has method, no id)
                     with self._lock:
@@ -205,13 +207,16 @@ class LSPClient(ABC):
 
     def _wait_for_response(self, message_id: int, timeout: int = 60):
         """Waits for a response with a specific message ID to arrive."""
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            with self._lock:
-                if message_id in self._responses:
-                    return self._responses.pop(message_id)
-            time.sleep(0.01)
-        raise TimeoutError(f"Timed out waiting for response to message {message_id}, after {timeout} seconds.")
+        deadline = time.time() + timeout
+        with self._response_condition:
+            while message_id not in self._responses:
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f"Timed out waiting for response to message {message_id}, after {timeout} seconds."
+                    )
+                self._response_condition.wait(timeout=remaining)
+            return self._responses.pop(message_id)
 
     def _handle_notification(self, notification: dict):
         """
@@ -537,19 +542,19 @@ class LSPClient(ABC):
             "position": {"line": line, "character": character},
         }
         req_id = self._send_request("textDocument/prepareCallHierarchy", params)
-        response = self._wait_for_response(req_id)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _get_incoming_calls(self, item: dict) -> list:
         """Gets incoming calls for a call hierarchy item."""
         req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-        response = self._wait_for_response(req_id)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _get_outgoing_calls(self, item: dict) -> list:
         """Gets outgoing calls for a call hierarchy item."""
         req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
-        response = self._wait_for_response(req_id)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> list[dict]:
@@ -758,11 +763,25 @@ class LSPClient(ABC):
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
+        # Allow time for final diagnostics to arrive from the LSP server
+        # before closing files. Files were kept open during analysis to
+        # give the server time to produce diagnostics.
+        time.sleep(2)
+
+        # Close all files that were opened during analysis
+        for file_path in src_files:
+            try:
+                file_uri = file_path.as_uri()
+                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
+            except Exception as e:
+                logger.debug(f"Error closing file {file_path}: {e}")
+
         # Sort results by file path for deterministic graph construction.
         # as_completed() returns results in non-deterministic order which causes
         # downstream metrics to fluctuate between runs.
         successful_results.sort(key=lambda r: str(r.file_path))
 
+        # First pass: add all nodes, package relations, and class hierarchies
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
@@ -787,11 +806,16 @@ class LSPClient(ABC):
                     package_relations[result.package_name]["imports"].add(ref_package)
                     package_relations[result.package_name]["reference_deps"].add(ref_package)
 
-            # 2. REFERENCES
+            # 2. REFERENCES - add all nodes first so edges can reference any node
             for symbol_node in result.symbols:
                 call_graph.add_node(symbol_node)
                 reference_nodes.append(symbol_node)
 
+            # 4. CLASS HIERARCHIES
+            class_hierarchies.update(result.class_hierarchies)
+
+        # Second pass: add all edges (all nodes are now in the graph)
+        for result in successful_results:
             # 3. CALL GRAPH (sorted for deterministic edge insertion order)
             for caller_name, callee_name in sorted(result.call_relationships):
                 try:
@@ -799,9 +823,6 @@ class LSPClient(ABC):
                     logger.debug(f"Added edge: {caller_name} -> {callee_name}")
                 except ValueError as e:
                     logger.debug(f"Could not add edge: {e}")
-
-            # 4. CLASS HIERARCHIES
-            class_hierarchies.update(result.class_hierarchies)
 
         # Post-processing: Build reverse relationships from import_deps only
         # (reference_deps indicate coupling but not dependency direction)
@@ -869,7 +890,6 @@ class LSPClient(ABC):
             # Get all symbols in this file once
             symbols = self._get_document_symbols(file_uri)
             if not symbols:
-                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
                 return result
 
             # 1. PACKAGE RELATIONS - Process imports and package structure
@@ -902,7 +922,10 @@ class LSPClient(ABC):
             # 3. CALL GRAPH - Process function/method calls
             result.function_symbols = self._flatten_symbols(symbols)
 
-            # Find call relationships - we need BOTH incoming AND outgoing calls
+            # Track functions that got outgoing calls via call hierarchy API
+            functions_with_outgoing_calls: set[str] = set()
+
+            # Find call relationships using outgoing calls (primary method)
             for symbol in result.function_symbols:
                 pos = symbol["selectionRange"]["start"]
                 current_qualified_name = self._create_qualified_name(file_path, symbol["name"])
@@ -913,11 +936,11 @@ class LSPClient(ABC):
                     continue
 
                 for item in hierarchy_items:
-                    # METHOD 1: Get OUTGOING calls (what this function calls)
-                    # This is the PRIMARY method - captures all calls made by this function
+                    # Get OUTGOING calls (what this function calls)
                     try:
                         outgoing_calls = self._get_outgoing_calls(item)
                         if outgoing_calls:
+                            functions_with_outgoing_calls.add(symbol["name"])
                             for call in outgoing_calls:
                                 callee_item = call["to"]
                                 try:
@@ -943,39 +966,12 @@ class LSPClient(ABC):
                     except Exception as e:
                         logger.debug(f"Error getting outgoing calls: {e}")
 
-                    # METHOD 2: Get INCOMING calls (who calls this function)
-                    # This is SUPPLEMENTARY - helps catch calls we might have missed
-                    try:
-                        incoming_calls = self._get_incoming_calls(item)
-                        if incoming_calls:
-                            for call in incoming_calls:
-                                caller_item = call["from"]
-                                try:
-                                    caller_uri = caller_item["uri"]
-                                    if caller_uri.startswith("file://"):
-                                        caller_path = uri_to_path(caller_uri)
-                                        caller_qualified_name = self._create_qualified_name(
-                                            caller_path, caller_item["name"]
-                                        )
-
-                                        # Add edge: calling_function -> current_function
-                                        result.call_relationships.append(
-                                            (
-                                                caller_qualified_name,
-                                                current_qualified_name,
-                                            )
-                                        )
-                                        logger.debug(
-                                            f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
-                                        )
-                                except Exception as e:
-                                    logger.debug(f"Error processing incoming call: {e}")
-                    except Exception as e:
-                        logger.debug(f"Error getting incoming calls: {e}")
-
-            # METHOD 3: Body-level calls by finding call positions
+            # Fallback: Body-level calls for functions where outgoing calls weren't found
             try:
                 for func_symbol in result.function_symbols:
+                    if func_symbol["name"] in functions_with_outgoing_calls:
+                        continue  # Already covered by call hierarchy API
+
                     func_range = func_symbol.get("range", {})
                     func_qualified_name = self._create_qualified_name(file_path, func_symbol["name"])
 
@@ -1021,11 +1017,6 @@ class LSPClient(ABC):
                 class_info["subclasses"] = subclasses
 
                 result.class_hierarchies[qualified_name] = class_info
-
-            # 5. EXTERNAL REFERENCES
-            result.external_references = self._find_external_references(file_uri, symbols)
-
-            self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
 
         except Exception as e:
             result.error = str(e)
@@ -1239,7 +1230,7 @@ class LSPClient(ABC):
                 "position": {"line": line, "character": character},
             }
             req_id = self._send_request("textDocument/definition", params)
-            response = self._wait_for_response(req_id)
+            response = self._wait_for_response(req_id, timeout=15)
 
             if "error" in response:
                 logger.debug(f"Definition request failed: {response['error']}")
@@ -1424,7 +1415,7 @@ class LSPClient(ABC):
                 "position": {"line": line, "character": character},
             }
             req_id = self._send_request("textDocument/definition", params)
-            response = self._wait_for_response(req_id)
+            response = self._wait_for_response(req_id, timeout=15)
             return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get definition: {e}")
@@ -1481,7 +1472,7 @@ class LSPClient(ABC):
                 "context": {"includeDeclaration": True},
             }
             req_id = self._send_request("textDocument/references", params)
-            response = self._wait_for_response(req_id)
+            response = self._wait_for_response(req_id, timeout=30)
             return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get references: {e}")
