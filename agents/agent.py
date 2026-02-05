@@ -162,7 +162,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         for attempt in range(max_retries):
             timeout_seconds = 300 if attempt == 0 else 600
             try:
-                callback_list = callbacks or []
+                callback_list = list(callbacks) if callbacks else []
                 # Always append monitoring callback - logging config controls output
                 callback_list.append(MONITORING_CALLBACK)
                 callback_list.append(self.agent_monitoring_callback)
@@ -510,7 +510,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
         # Get valid component names from the components_summary
         # Parse component names from the summary (components have format "**Component:** `ComponentName`")
-        valid_component_names = set([comp.name for comp in analysis.components])
+        valid_component_names = {comp.name for comp in analysis.components if comp.name != "Unclassified"}
 
         # Build validation context
         context = ValidationContext(
