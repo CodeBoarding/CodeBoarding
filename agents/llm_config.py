@@ -12,6 +12,7 @@ from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
 
+from agents.constants import LLMDefaults
 from agents.prompts.prompt_factory import LLMType
 from monitoring.callbacks import MonitoringCallback
 
@@ -43,8 +44,8 @@ class LLMConfig:
     agent_model: str
     parsing_model: str
     llm_type: LLMType
-    agent_temperature: float = 0.1
-    parsing_temperature: float = 0
+    agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
+    parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
