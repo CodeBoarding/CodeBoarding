@@ -1,4 +1,5 @@
 import os
+import logging
 from dataclasses import dataclass, field
 from typing import Type, Dict, Any, Optional, Callable
 
@@ -11,6 +12,8 @@ from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
 
 from agents.prompts.prompt_factory import LLMType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,6 +59,50 @@ class LLMConfig:
         return resolved
 
 
+def detect_llm_type_from_model(model_name: str) -> LLMType:
+    """
+    Detect the LLM type/family from the model name.
+    This determines which prompt factory to use.
+
+    Args:
+        model_name: The model name (e.g., "gpt-4o", "claude-3-7-sonnet", "gemini-2.5-flash")
+
+    Returns:
+        The detected LLMType enum value
+    """
+    model_lower = model_name.lower()
+
+    # DeepSeek family
+    if "deepseek" in model_lower:
+        return LLMType.DEEPSEEK
+
+    # GLM family (Zhipu AI)
+    if "glm" in model_lower:
+        return LLMType.GLM
+
+    # Kimi family (Moonshot AI)
+    if "kimi" in model_lower or "moonshot" in model_lower:
+        return LLMType.KIMI
+
+    # GPT family (OpenAI, O1, O3, etc.)
+    if any(pattern in model_lower for pattern in ["gpt-", "gpt4", "gpt5", "o1-", "o3-"]):
+        return LLMType.GPT4
+
+    # Claude family (Anthropic) - matches claude, opus, sonnet, haiku
+    if any(pattern in model_lower for pattern in ["claude", "opus", "sonnet", "haiku"]):
+        return LLMType.CLAUDE
+
+    # Gemini family (Google)
+    if "gemini" in model_lower:
+        return LLMType.GEMINI_FLASH
+
+    # Default fallback to Gemini (most permissive prompts)
+    logger.warning(
+        f"Could not detect LLM type from model name '{model_name}', " f"defaulting to GEMINI_FLASH prompt factory"
+    )
+    return LLMType.GEMINI_FLASH
+
+
 # Define supported providers in priority order
 LLM_PROVIDERS = {
     "openai": LLMConfig(
@@ -77,7 +124,7 @@ LLM_PROVIDERS = {
         api_key_env="VERCEL_API_KEY",
         agent_model="gemini-2.5-flash",
         parsing_model="gpt-5-mini",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
-        llm_type=LLMType.VERCEL,
+        llm_type=LLMType.GEMINI_FLASH,
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
@@ -144,6 +191,48 @@ LLM_PROVIDERS = {
         parsing_temperature=0.1,
         extra_args={
             "base_url": lambda: os.getenv("OLLAMA_BASE_URL"),
+        },
+    ),
+    "deepseek": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="DEEPSEEK_API_KEY",
+        agent_model="deepseek-chat",
+        parsing_model="deepseek-chat",
+        llm_type=LLMType.DEEPSEEK,
+        alt_env_vars=["DEEPSEEK_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
+    "glm": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="GLM_API_KEY",
+        agent_model="glm-4-flash",
+        parsing_model="glm-4-flash",
+        llm_type=LLMType.GLM,
+        alt_env_vars=["GLM_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
+    "kimi": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="KIMI_API_KEY",
+        agent_model="kimi-k2.5",
+        parsing_model="kimi-k2.5",
+        llm_type=LLMType.KIMI,
+        alt_env_vars=["KIMI_BASE_URL", "MOONSHOT_API_KEY"],
+        extra_args={
+            "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
         },
     ),
 }

@@ -113,14 +113,20 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             if not config.is_active():
                 continue
 
-            # Initialize global prompt factory based on provider (only once, for agent model)
-            if not is_parsing:
-                initialize_global_factory(config.llm_type)
-                logger.info(f"Initialized prompt factory for {name} with {config.llm_type.value}")
-
-            # Determine model name
+            # Determine final model name (override takes precedence)
             default_model = config.parsing_model if is_parsing else config.agent_model
             model_name = model_override if model_override else default_model
+
+            # Initialize global prompt factory based on ACTUAL model (only for agent, not parsing)
+            if not is_parsing:
+                from agents.llm_config import detect_llm_type_from_model
+
+                detected_llm_type = detect_llm_type_from_model(model_name)
+                initialize_global_factory(detected_llm_type)
+                logger.info(
+                    f"Initialized prompt factory for {name} provider with model '{model_name}' "
+                    f"-> {detected_llm_type.value} prompt factory"
+                )
 
             logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
 
