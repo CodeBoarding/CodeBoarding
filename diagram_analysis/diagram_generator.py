@@ -134,8 +134,18 @@ class DiagramGenerator:
         else:
             logger.warning("Health checks skipped: no languages found in static analysis results")
 
+        # Initialize LLMs ONCE before creating any agents
+        from agents.llm_config import initialize_llms
+
+        agent_llm, parsing_llm, model_name = initialize_llms()
+        logger.info(f"Initialized LLMs for agents with model: {model_name}")
+
         self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
         self._monitoring_agents["MetaAgent"] = self.meta_agent
         meta_context = self.meta_agent.analyze_project_metadata()
@@ -144,6 +154,8 @@ class DiagramGenerator:
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
+            llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
@@ -151,6 +163,8 @@ class DiagramGenerator:
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
+            llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 

@@ -3,8 +3,9 @@ import os.path
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
+from langchain_core.language_models import BaseChatModel
 
-from agents.agent import LargeModelAgent
+from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
@@ -31,15 +32,17 @@ from static_analyzer.cluster_helpers import build_all_cluster_results, get_all_c
 logger = logging.getLogger(__name__)
 
 
-class AbstractionAgent(ClusterMethodsMixin, LargeModelAgent):
+class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def __init__(
         self,
         repo_dir: Path,
         static_analysis: StaticAnalysisResults,
         project_name: str,
         meta_context: MetaAnalysisInsights,
+        llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_message())
+        super().__init__(repo_dir, static_analysis, get_system_message(), llm, parsing_llm)
 
         self.project_name = project_name
         self.meta_context = meta_context

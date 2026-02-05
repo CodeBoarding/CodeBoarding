@@ -2,9 +2,10 @@ import logging
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
+from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt import create_react_agent
 
-from agents.agent import LargeModelAgent
+from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
 from monitoring import trace
@@ -13,10 +14,17 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 
-class MetaAgent(LargeModelAgent):
+class MetaAgent(CodeBoardingAgent):
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, project_name: str):
-        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message())
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        project_name: str,
+        llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
+    ):
+        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), llm, parsing_llm)
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from agents.llm_config import initialize_llms
 from agents.agent_responses import AnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
@@ -128,11 +129,15 @@ def reexpand_components(
         logger.error("No static analysis available for re-expansion")
         return []
 
+    agent_llm, parsing_llm, _ = initialize_llms()
+
     # Initialize agents using existing static analysis
     meta_agent = MetaAgent(
         repo_dir=repo_dir,
         project_name=repo_dir.name,
         static_analysis=context.static_analysis,
+        llm=agent_llm,
+        parsing_llm=parsing_llm,
     )
     meta_context = meta_agent.analyze_project_metadata()
 
@@ -141,6 +146,8 @@ def reexpand_components(
         project_name=repo_dir.name,
         static_analysis=context.static_analysis,
         meta_context=meta_context,
+        llm=agent_llm,
+        parsing_llm=parsing_llm,
     )
 
     reexpanded: list[str] = []

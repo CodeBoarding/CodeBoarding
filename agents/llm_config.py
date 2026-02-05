@@ -236,3 +236,113 @@ LLM_PROVIDERS = {
         },
     ),
 }
+
+
+def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatModel, str]:
+    """
+    Initialize the agent LLM and set up the prompt factory.
+
+    Args:
+        model_override: Optional model name to override the default agent model
+
+    Returns:
+        Tuple of (llm_instance, model_name)
+    """
+    from agents.prompts.prompt_factory import initialize_global_factory
+
+    # Import MONITORING_CALLBACK here to avoid circular import
+    from agents.agent import MONITORING_CALLBACK
+
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+
+        # Determine final model name (override takes precedence over env var, env var over default)
+        model_name = model_override or config.agent_model
+
+        # Initialize global prompt factory based on ACTUAL model
+        detected_llm_type = detect_llm_type_from_model(model_name)
+        initialize_global_factory(detected_llm_type)
+        logger.info(
+            f"Initialized prompt factory for {name} provider with model '{model_name}' "
+            f"-> {detected_llm_type.value} prompt factory"
+        )
+
+        logger.info(f"Using {name.title()} LLM with model: {model_name}")
+
+        kwargs = {
+            "model": model_name,
+            "temperature": config.agent_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
+
+        if name not in ["aws", "ollama"]:
+            api_key = config.get_api_key()
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+
+        # Update global monitoring callback
+        MONITORING_CALLBACK.model_name = model_name
+        return model, model_name
+
+    # Dynamically build error message with all possible env vars
+    required_vars = []
+    for config in LLM_PROVIDERS.values():
+        required_vars.append(config.api_key_env)
+        required_vars.extend(config.alt_env_vars)
+
+    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+
+
+def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
+    """
+    Initialize the parsing LLM (does not affect prompt factory).
+
+    Args:
+        model_override: Optional model name to override the default parsing model
+
+    Returns:
+        LLM instance for parsing tasks
+    """
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+
+        # Determine final model name (override takes precedence over env var, env var over default)
+        model_name = model_override or config.parsing_model
+
+        logger.info(f"Using {name.title()} Extractor LLM with model: {model_name}")
+
+        kwargs = {
+            "model": model_name,
+            "temperature": config.parsing_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
+
+        if name not in ["aws", "ollama"]:
+            api_key = config.get_api_key()
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        return model
+
+    # Dynamically build error message with all possible env vars
+    required_vars = []
+    for config in LLM_PROVIDERS.values():
+        required_vars.append(config.api_key_env)
+        required_vars.extend(config.alt_env_vars)
+
+    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+
+
+def initialize_llms() -> tuple[BaseChatModel, BaseChatModel, str]:
+    """
+    Initialize both agent and parsing LLMs.
+
+    Returns:
+        Tuple of (agent_llm, parsing_llm, model_name)
+    """
+    agent_llm, model_name = initialize_agent_llm(os.getenv("AGENT_MODEL"))
+    parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
+    return agent_llm, parsing_llm, model_name

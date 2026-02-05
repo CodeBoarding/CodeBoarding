@@ -59,15 +59,17 @@ class TestDetailsAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_init(self, mock_static_init):
+    def test_init(self):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -75,15 +77,17 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_create_strict_component_subgraph(self, mock_static_init):
+    def test_create_strict_component_subgraph(self):
         # Test creating subgraph from component assigned files
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
         # Mock StaticAnalysis and CFG behavior
         abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
@@ -113,16 +117,18 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg.filter_by_files.assert_called_with(abs_assigned)
         mock_subgraph.cluster.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
-    def test_step_cluster_grouping(self, mock_validation_invoke, mock_static_init):
+    def test_step_cluster_grouping(self, mock_validation_invoke):
         # Test step_cluster_grouping
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
         mock_response = ClusterAnalysis(cluster_components=[])
         mock_validation_invoke.return_value = mock_response
@@ -132,16 +138,18 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
-    def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
+    def test_step_final_analysis(self, mock_validation_invoke):
         # Test step_final_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
         mock_response = AnalysisInsights(
             description="Structure analysis",
@@ -157,18 +165,20 @@ class TestDetailsAgent(unittest.TestCase):
         mock_validation_invoke.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
-    def test_run(self, mock_fix_ref, mock_parse_invoke, mock_static_init, mock_classify_unassigned):
+    def test_run(self, mock_fix_ref, mock_parse_invoke, mock_classify_unassigned):
         # Test run method with subgraph + grouping + final analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
         mock_classify_unassigned.return_value = []  # Mock LLM classification
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
         # Mock StaticAnalysis and CFG behavior for run
         abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
@@ -208,23 +218,23 @@ class TestDetailsAgent(unittest.TestCase):
         mock_fix_ref.assert_called_once()
 
     @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(
-        self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init, mock_classify_unassigned
-    ):
+    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_classify_unassigned):
         # Test classify_files (assigns files from clusters + key_entities)
-        mock_static_init.return_value = (MagicMock(), "test-model")
         mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
         mock_classify_unassigned.return_value = []  # Mock LLM classification to return empty list
 
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         key_entity = SourceCodeReference(

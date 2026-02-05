@@ -52,15 +52,17 @@ class TestAbstractionAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
-    def test_init(self, mock_static_init):
+    def test_init(self):
         # Test initialization
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -68,16 +70,18 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
-    def test_step_clusters_grouping_single_language(self, mock_validation_invoke, mock_static_init):
+    def test_step_clusters_grouping_single_language(self, mock_validation_invoke):
         # Test step_clusters_grouping with single language
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         mock_response = ClusterAnalysis(
@@ -93,18 +97,20 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
-    def test_step_clusters_grouping_multiple_languages(self, mock_validation_invoke, mock_static_init):
+    def test_step_clusters_grouping_multiple_languages(self, mock_validation_invoke):
         # Test step_clusters_grouping with multiple languages
-        mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         mock_response = ClusterAnalysis(
@@ -123,18 +129,20 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
-    def test_step_clusters_grouping_no_languages(self, mock_validation_invoke, mock_static_init):
+    def test_step_clusters_grouping_no_languages(self, mock_validation_invoke):
         # Test step_clusters_grouping with no languages detected
-        mock_static_init.return_value = (MagicMock(), "test-model")
         self.mock_static_analysis.get_languages.return_value = []
 
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         mock_response = ClusterAnalysis(
@@ -149,16 +157,18 @@ class TestAbstractionAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
 
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.abstraction_agent.AbstractionAgent._validation_invoke")
-    def test_step_final_analysis(self, mock_validation_invoke, mock_static_init):
+    def test_step_final_analysis(self, mock_validation_invoke):
         # Test step_final_analysis
-        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -183,23 +193,23 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
 
     @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
-    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
     @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
     @patch("os.path.exists")
     @patch("os.path.relpath")
-    def test_classify_files(
-        self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_static_init, mock_classify_unassigned
-    ):
+    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_classify_unassigned):
         # Test classify_files (assigns files from clusters + key_entities)
-        mock_static_init.return_value = (MagicMock(), "test-model")
         mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
         mock_classify_unassigned.return_value = []  # Mock LLM classification to return empty list
 
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
         agent = AbstractionAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
+            llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         key_entity = SourceCodeReference(
