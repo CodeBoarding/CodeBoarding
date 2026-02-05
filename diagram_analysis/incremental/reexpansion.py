@@ -129,7 +129,7 @@ def reexpand_components(
         logger.error("No static analysis available for re-expansion")
         return []
 
-    agent_llm, parsing_llm, _ = initialize_llms()
+    agent_llm, parsing_llm, model_name = initialize_llms()
 
     # Initialize agents using existing static analysis
     meta_agent = MetaAgent(
@@ -139,6 +139,8 @@ def reexpand_components(
         llm=agent_llm,
         parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    meta_agent.agent_monitoring_callback.model_name = model_name
     meta_context = meta_agent.analyze_project_metadata()
 
     details_agent = DetailsAgent(
@@ -149,6 +151,8 @@ def reexpand_components(
         llm=agent_llm,
         parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    details_agent.agent_monitoring_callback.model_name = model_name
 
     reexpanded: list[str] = []
     max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max

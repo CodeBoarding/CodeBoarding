@@ -147,6 +147,8 @@ class DiagramGenerator:
             llm=agent_llm,
             parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.meta_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["MetaAgent"] = self.meta_agent
         meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(
@@ -157,6 +159,8 @@ class DiagramGenerator:
             llm=agent_llm,
             parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.details_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
@@ -166,6 +170,8 @@ class DiagramGenerator:
             llm=agent_llm,
             parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.abstraction_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")

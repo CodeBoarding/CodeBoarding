@@ -123,7 +123,7 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
         return False
 
-    agent_llm, parsing_llm, _ = initialize_llms()
+    agent_llm, parsing_llm, model_name = initialize_llms()
 
     agent = CodeBoardingAgent(
         repo_dir=repo_dir,
@@ -132,6 +132,8 @@ def classify_new_files_in_component(
         llm=agent_llm,
         parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    agent.agent_monitoring_callback.model_name = model_name
 
     try:
         # Add new files to the sub-analysis as unassigned (they'll be classified)

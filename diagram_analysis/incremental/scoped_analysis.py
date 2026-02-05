@@ -142,7 +142,7 @@ def handle_scoped_component_update(
             logger.info("No static analysis available for scoped re-expansion; skipping.")
             return
 
-        agent_llm, parsing_llm, _ = initialize_llms()
+        agent_llm, parsing_llm, model_name = initialize_llms()
 
         meta_agent = MetaAgent(
             repo_dir=repo_dir,
@@ -151,6 +151,8 @@ def handle_scoped_component_update(
             llm=agent_llm,
             parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        meta_agent.agent_monitoring_callback.model_name = model_name
         meta_context = meta_agent.analyze_project_metadata()
 
         details_agent = DetailsAgent(
@@ -161,6 +163,8 @@ def handle_scoped_component_update(
             llm=agent_llm,
             parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        details_agent.agent_monitoring_callback.model_name = model_name
 
         # Find the component object in the main analysis to preserve metadata
         component_obj = next((c for c in analysis.components if c.name == component_name), None)

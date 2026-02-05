@@ -209,32 +209,34 @@ class TestDetectLLMTypeFromModel:
 class TestEnvironmentVariables:
     """Test that AGENT_MODEL and PARSING_MODEL environment variables are respected."""
 
-    @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
-    def test_agent_model_env_var_respected(self, mock_init_factory, mock_providers):
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_agent_model_env_var_respected(self, mock_monitoring_callback, mock_init_factory):
         """Test that AGENT_MODEL environment variable is used when set."""
-        # Setup mock provider
-        mock_config = MagicMock()
-        mock_config.is_active.return_value = True
-        mock_config.agent_model = "gpt-4o"  # Default model
-        mock_config.agent_temperature = 0.1
-        mock_config.get_api_key.return_value = "test-key"
-        mock_config.get_resolved_extra_args.return_value = {}
-        mock_config.chat_class = MagicMock(return_value=MagicMock())
-        mock_providers.__getitem__.return_value = mock_config
-        mock_providers.items.return_value = [("openai", mock_config)]
+        from agents.llm_config import LLM_PROVIDERS
 
         # Test with AGENT_MODEL env var set
-        with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo"}, clear=False):
-            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
-                llm, model_name = initialize_agent_llm()
+        with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo", "OPENAI_API_KEY": "test-key"}):
+            # Debug: check environment
+            print(f"\nDEBUG: os.getenv('AGENT_MODEL') = {os.getenv('AGENT_MODEL')}")
+            print(f"DEBUG: LLM_PROVIDERS['openai'].agent_model = {LLM_PROVIDERS['openai'].agent_model}")
 
-                # Verify the env var model was used, not the default
-                assert model_name == "gpt-4-turbo"
-                # Verify the chat class was called with the env var model
-                mock_config.chat_class.assert_called_once()
-                call_kwargs = mock_config.chat_class.call_args[1]
-                assert call_kwargs["model"] == "gpt-4-turbo"
+            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
+                # Mock just the chat class creation
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
+
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    llm, model_name = initialize_agent_llm()
+
+                    print(f"DEBUG: Returned model_name = {model_name}")
+
+                    # Verify the env var model was used, not the default
+                    assert model_name == "gpt-4-turbo"
+                    # Verify the chat class was called with the env var model
+                    mock_chat_class.assert_called_once()
+                    call_kwargs = mock_chat_class.call_args[1]
+                    assert call_kwargs["model"] == "gpt-4-turbo"
 
     @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
@@ -356,3 +358,60 @@ class TestEnvironmentVariables:
             # Verify the default was used
             call_kwargs = mock_config.chat_class.call_args[1]
             assert call_kwargs["model"] == "gpt-4o-mini"
+
+
+class TestMonitoringIntegration:
+    """Test that model names are properly passed to monitoring callbacks."""
+
+    @patch("agents.llm_config.LLM_PROVIDERS")
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    def test_agent_monitoring_callback_gets_model_name(self, mock_init_factory, mock_providers):
+        """Test that agent's monitoring callback gets the correct model name."""
+        from agents.agent import CodeBoardingAgent
+        from unittest.mock import MagicMock
+        from pathlib import Path
+        import tempfile
+
+        # Setup mock provider
+        mock_config = MagicMock()
+        mock_config.is_active.return_value = True
+        mock_config.agent_model = "gpt-4o"
+        mock_config.agent_temperature = 0.1
+        mock_config.get_api_key.return_value = "test-key"
+        mock_config.get_resolved_extra_args.return_value = {}
+        mock_llm_instance = MagicMock()
+        mock_config.chat_class = MagicMock(return_value=mock_llm_instance)
+        mock_providers.__getitem__.return_value = mock_config
+        mock_providers.items.return_value = [("openai", mock_config)]
+
+        with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo"}, clear=False):
+            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
+                from agents.llm_config import initialize_llms
+
+                agent_llm, parsing_llm, model_name = initialize_llms()
+
+                # Create an agent
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    from static_analyzer.analysis_result import StaticAnalysisResults
+
+                    mock_static_analysis = MagicMock(spec=StaticAnalysisResults)
+                    mock_static_analysis.call_graph = MagicMock()
+                    mock_static_analysis.class_hierarchies = {}
+                    mock_static_analysis.package_relations = {}
+                    mock_static_analysis.references = []
+
+                    with patch("agents.agent.create_react_agent"):
+                        agent = CodeBoardingAgent(
+                            repo_dir=Path(tmpdir),
+                            static_analysis=mock_static_analysis,
+                            system_message="Test",
+                            llm=agent_llm,
+                            parsing_llm=parsing_llm,
+                        )
+
+                        # Simulate what DiagramGenerator does: set model name on agent's callback
+                        agent.agent_monitoring_callback.model_name = model_name
+
+                        # Verify the agent's monitoring callback has the correct model name
+                        results = agent.get_monitoring_results()
+                        assert results["model_name"] == "gpt-4-turbo"

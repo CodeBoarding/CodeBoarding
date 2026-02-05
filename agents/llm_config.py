@@ -258,7 +258,7 @@ def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatMod
             continue
 
         # Determine final model name (override takes precedence over env var, env var over default)
-        model_name = model_override or config.agent_model
+        model_name = model_override or os.getenv("AGENT_MODEL") or config.agent_model
 
         # Initialize global prompt factory based on ACTUAL model
         detected_llm_type = detect_llm_type_from_model(model_name)
