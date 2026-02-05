@@ -1,0 +1,17 @@
+"""Constants for the agents module."""
+
+
+class LLMDefaults:
+    DEFAULT_AGENT_TEMPERATURE = 0.1
+    DEFAULT_PARSING_TEMPERATURE = 0
+    DEFAULT_MAX_RETRIES = 0
+    DEFAULT_TIMEOUT = None
+    DEFAULT_MAX_TOKENS = None
+    ANTHROPIC_MAX_TOKENS = 8192
+    AWS_MAX_TOKENS = 4096
+
+
+class FileStructureConfig:
+    MAX_LINES = 500
+    DEFAULT_MAX_DEPTH = 10
+    FALLBACK_MAX_LINES = 50000

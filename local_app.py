@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from constants import AppConfig
 from duckdb_crud import fetch_job, init_db, insert_job, update_job, fetch_all_jobs
 from github_action import generate_analysis
 from repo_utils import RepoDontExistError
@@ -61,8 +62,7 @@ app.add_middleware(
 )
 
 # Job concurrency limit
-MAX_CONCURRENT_JOBS = 5
-job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
+job_semaphore = asyncio.Semaphore(AppConfig.MAX_CONCURRENT_JOBS)
 
 app.add_event_handler("startup", init_db)
 

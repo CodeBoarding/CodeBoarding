@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
+
+from agents.constants import FileStructureConfig
 from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
@@ -26,7 +28,6 @@ class FileStructureTool(BaseRepoTool):
         "Most effective for understanding overall project organization. "
         "Avoid recursive calls - use once for high-level structure understanding."
     )
-    MAX_LINES: int = 500
     args_schema: ArgsSchema | None = DirInput
     return_direct: bool = False
 
@@ -46,7 +47,7 @@ class FileStructureTool(BaseRepoTool):
             tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth, ignore_manager=self.ignore_manager)
 
             # If we hit the line limit, try again with progressively lower depths
-            while len(tree_lines) >= self.MAX_LINES and max_depth > 1:
+            while len(tree_lines) >= FileStructureConfig.MAX_LINES and max_depth > 1:
                 max_depth -= 1
                 tree_lines = get_tree_string(self.repo_dir, max_depth=max_depth, ignore_manager=self.ignore_manager)
 
@@ -91,7 +92,7 @@ class FileStructureTool(BaseRepoTool):
         while len(tree_lines) >= 50000 and max_depth > 1:
             max_depth -= 1
             tree_lines = get_tree_string(
-                searching_dir, max_depth=max_depth, max_lines=self.MAX_LINES, ignore_manager=self.ignore_manager
+                searching_dir, max_depth=max_depth, max_lines=FileStructureConfig.MAX_LINES, ignore_manager=self.ignore_manager
             )
 
         tree_structure = "\n".join(tree_lines)
