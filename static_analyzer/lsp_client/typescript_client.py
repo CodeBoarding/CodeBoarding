@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from pathlib import Path
 
 from .client import LSPClient
 
@@ -12,6 +13,10 @@ class TypeScriptClient(LSPClient):
     TypeScript/JavaScript-specific Language Server Protocol client.
     Extends the base LSPClient with TypeScript-specific functionality.
     """
+
+    def __init__(self, project_path: Path, language, ignore_manager=None):
+        super().__init__(project_path=project_path, language=language, ignore_manager=ignore_manager)
+        self._bootstrap_file_path: Path | None = None
 
     def handle_notification(self, method: str, params: dict):
         """
@@ -167,6 +172,8 @@ class TypeScriptClient(LSPClient):
         logger.info("Opening sample files to bootstrap TypeScript project...")
         # Files are already filtered in _find_typescript_files
         sample_files = ts_files[:3]
+        if sample_files and self._bootstrap_file_path is None:
+            self._bootstrap_file_path = sample_files[0]
 
         # Open bootstrap files
         for file_path in sample_files:
@@ -192,7 +199,7 @@ class TypeScriptClient(LSPClient):
         else:
             logger.warning("TypeScript project still not loaded, but continuing...")
 
-        self._close_bootstrap_files(sample_files)
+        self._close_bootstrap_files(sample_files[1:])
 
     def _close_bootstrap_files(self, sample_files: list):
         """Close bootstrap files that were opened for project initialization."""
@@ -201,6 +208,19 @@ class TypeScriptClient(LSPClient):
                 self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_path.as_uri()}})
             except Exception:
                 pass
+
+    def close(self):
+        """Close any kept-open bootstrap file before shutting down."""
+        if self._bootstrap_file_path:
+            try:
+                self._send_notification(
+                    "textDocument/didClose",
+                    {"textDocument": {"uri": self._bootstrap_file_path.as_uri()}},
+                )
+            except Exception:
+                pass
+            self._bootstrap_file_path = None
+        super().close()
 
     def _prepare_for_analysis(self):
         """TypeScript-specific preparation before analysis."""
