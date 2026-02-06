@@ -257,8 +257,8 @@ def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatMod
         if not config.is_active():
             continue
 
-        # Determine final model name (override takes precedence over env var, env var over default)
-        model_name = model_override or os.getenv("AGENT_MODEL") or config.agent_model
+        # Determine final model name (override takes precedence over default)
+        model_name = model_override or config.agent_model
 
         # Initialize global prompt factory based on ACTUAL model
         detected_llm_type = detect_llm_type_from_model(model_name)
@@ -309,7 +309,7 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
         if not config.is_active():
             continue
 
-        # Determine final model name (override takes precedence over env var, env var over default)
+        # Determine final model name (override takes precedence over default)
         model_name = model_override or config.parsing_model
 
         logger.info(f"Using {name.title()} Extractor LLM with model: {model_name}")

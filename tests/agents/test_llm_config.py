@@ -212,36 +212,32 @@ class TestEnvironmentVariables:
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
     def test_agent_model_env_var_respected(self, mock_monitoring_callback, mock_init_factory):
-        """Test that AGENT_MODEL environment variable is used when set."""
-        from agents.llm_config import LLM_PROVIDERS
+        """Test that AGENT_MODEL environment variable is used by initialize_llms()."""
+        from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
         # Test with AGENT_MODEL env var set
         with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo", "OPENAI_API_KEY": "test-key"}):
-            # Debug: check environment
-            print(f"\nDEBUG: os.getenv('AGENT_MODEL') = {os.getenv('AGENT_MODEL')}")
-            print(f"DEBUG: LLM_PROVIDERS['openai'].agent_model = {LLM_PROVIDERS['openai'].agent_model}")
-
             with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
                 # Mock just the chat class creation
                 original_openai_config = LLM_PROVIDERS["openai"]
                 mock_llm = MagicMock()
 
                 with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                    llm, model_name = initialize_agent_llm()
-
-                    print(f"DEBUG: Returned model_name = {model_name}")
+                    agent_llm, parsing_llm, model_name = initialize_llms()
 
                     # Verify the env var model was used, not the default
                     assert model_name == "gpt-4-turbo"
-                    # Verify the chat class was called with the env var model
-                    mock_chat_class.assert_called_once()
-                    call_kwargs = mock_chat_class.call_args[1]
-                    assert call_kwargs["model"] == "gpt-4-turbo"
+                    # Verify initialize_llms passed env var to initialize_agent_llm
+                    # The chat class should be called twice (once for agent, once for parsing)
+                    assert mock_chat_class.call_count == 2
+                    # First call is for agent LLM with env var model
+                    agent_call_kwargs = mock_chat_class.call_args_list[0][1]
+                    assert agent_call_kwargs["model"] == "gpt-4-turbo"
 
     @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     def test_agent_model_override_takes_precedence(self, mock_init_factory, mock_providers):
-        """Test that model_override parameter takes precedence over AGENT_MODEL env var."""
+        """Test that model_override parameter takes precedence over default in initialize_agent_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
         mock_config.is_active.return_value = True
@@ -253,69 +249,62 @@ class TestEnvironmentVariables:
         mock_providers.__getitem__.return_value = mock_config
         mock_providers.items.return_value = [("openai", mock_config)]
 
-        # Test with both override and env var set
-        with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo"}, clear=False):
-            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
-                llm, model_name = initialize_agent_llm(model_override="gpt-4o-mini")
+        # Test that override parameter works
+        with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
+            llm, model_name = initialize_agent_llm(model_override="gpt-4o-mini")
 
-                # Verify the override was used, not the env var or default
-                assert model_name == "gpt-4o-mini"
-                call_kwargs = mock_config.chat_class.call_args[1]
-                assert call_kwargs["model"] == "gpt-4o-mini"
+            # Verify the override was used, not the default
+            assert model_name == "gpt-4o-mini"
+            call_kwargs = mock_config.chat_class.call_args[1]
+            assert call_kwargs["model"] == "gpt-4o-mini"
 
-    @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
-    def test_agent_model_defaults_when_no_env_var(self, mock_init_factory, mock_providers):
-        """Test that default model is used when AGENT_MODEL env var is not set."""
-        # Setup mock provider
-        mock_config = MagicMock()
-        mock_config.is_active.return_value = True
-        mock_config.agent_model = "gpt-4o"  # Default model
-        mock_config.agent_temperature = 0.1
-        mock_config.get_api_key.return_value = "test-key"
-        mock_config.get_resolved_extra_args.return_value = {}
-        mock_config.chat_class = MagicMock(return_value=MagicMock())
-        mock_providers.__getitem__.return_value = mock_config
-        mock_providers.items.return_value = [("openai", mock_config)]
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_agent_model_defaults_when_no_env_var(self, mock_monitoring_callback, mock_init_factory):
+        """Test that default model is used when AGENT_MODEL env var is not set in initialize_llms()."""
+        from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
         # Test without AGENT_MODEL env var
-        with patch.dict(os.environ, {}, clear=False):
-            # Ensure AGENT_MODEL is not set
-            os.environ.pop("AGENT_MODEL", None)
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
-                llm, model_name = initialize_agent_llm()
+                # Mock just the chat class creation
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
 
-                # Verify the default was used
-                assert model_name == "gpt-4o"
-                call_kwargs = mock_config.chat_class.call_args[1]
-                assert call_kwargs["model"] == "gpt-4o"
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    agent_llm, parsing_llm, model_name = initialize_llms()
 
-    @patch("agents.llm_config.LLM_PROVIDERS")
-    def test_parsing_model_env_var_respected(self, mock_providers):
-        """Test that PARSING_MODEL environment variable is used when set."""
-        # Setup mock provider
-        mock_config = MagicMock()
-        mock_config.is_active.return_value = True
-        mock_config.parsing_model = "gpt-4o-mini"  # Default parsing model
-        mock_config.parsing_temperature = 0
-        mock_config.get_api_key.return_value = "test-key"
-        mock_config.get_resolved_extra_args.return_value = {}
-        mock_config.chat_class = MagicMock(return_value=MagicMock())
-        mock_providers.__getitem__.return_value = mock_config
-        mock_providers.items.return_value = [("openai", mock_config)]
+                    # Verify the default was used (gpt-4o is the default for OpenAI)
+                    assert model_name == "gpt-4o"
+                    # First call is for agent LLM
+                    agent_call_kwargs = mock_chat_class.call_args_list[0][1]
+                    assert agent_call_kwargs["model"] == "gpt-4o"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_parsing_model_env_var_respected(self, mock_monitoring_callback, mock_init_factory):
+        """Test that PARSING_MODEL environment variable is used by initialize_llms()."""
+        from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
         # Test with PARSING_MODEL env var set
-        with patch.dict(os.environ, {"PARSING_MODEL": "gpt-3.5-turbo"}, clear=False):
-            llm = initialize_parsing_llm()
+        with patch.dict(os.environ, {"PARSING_MODEL": "gpt-3.5-turbo", "OPENAI_API_KEY": "test-key"}):
+            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
+                # Mock just the chat class creation
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
 
-            # Verify the chat class was called with the env var model
-            mock_config.chat_class.assert_called_once()
-            call_kwargs = mock_config.chat_class.call_args[1]
-            assert call_kwargs["model"] == "gpt-3.5-turbo"
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    agent_llm, parsing_llm, model_name = initialize_llms()
+
+                    # Verify the chat class was called twice (agent + parsing)
+                    assert mock_chat_class.call_count == 2
+                    # Second call is for parsing LLM with env var model
+                    parsing_call_kwargs = mock_chat_class.call_args_list[1][1]
+                    assert parsing_call_kwargs["model"] == "gpt-3.5-turbo"
 
     @patch("agents.llm_config.LLM_PROVIDERS")
     def test_parsing_model_override_takes_precedence(self, mock_providers):
-        """Test that model_override parameter takes precedence over PARSING_MODEL env var."""
+        """Test that model_override parameter takes precedence over default in initialize_parsing_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
         mock_config.is_active.return_value = True
@@ -327,37 +316,33 @@ class TestEnvironmentVariables:
         mock_providers.__getitem__.return_value = mock_config
         mock_providers.items.return_value = [("openai", mock_config)]
 
-        # Test with both override and env var set
-        with patch.dict(os.environ, {"PARSING_MODEL": "gpt-3.5-turbo"}, clear=False):
-            llm = initialize_parsing_llm(model_override="gpt-4o")
+        # Test that override parameter works
+        llm = initialize_parsing_llm(model_override="gpt-4o")
 
-            # Verify the override was used, not the env var or default
-            call_kwargs = mock_config.chat_class.call_args[1]
-            assert call_kwargs["model"] == "gpt-4o"
+        # Verify the override was used, not the default
+        call_kwargs = mock_config.chat_class.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o"
 
-    @patch("agents.llm_config.LLM_PROVIDERS")
-    def test_parsing_model_defaults_when_no_env_var(self, mock_providers):
-        """Test that default parsing model is used when PARSING_MODEL env var is not set."""
-        # Setup mock provider
-        mock_config = MagicMock()
-        mock_config.is_active.return_value = True
-        mock_config.parsing_model = "gpt-4o-mini"  # Default parsing model
-        mock_config.parsing_temperature = 0
-        mock_config.get_api_key.return_value = "test-key"
-        mock_config.get_resolved_extra_args.return_value = {}
-        mock_config.chat_class = MagicMock(return_value=MagicMock())
-        mock_providers.__getitem__.return_value = mock_config
-        mock_providers.items.return_value = [("openai", mock_config)]
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_parsing_model_defaults_when_no_env_var(self, mock_monitoring_callback, mock_init_factory):
+        """Test that default parsing model is used when PARSING_MODEL env var is not set in initialize_llms()."""
+        from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
         # Test without PARSING_MODEL env var
-        with patch.dict(os.environ, {}, clear=False):
-            # Ensure PARSING_MODEL is not set
-            os.environ.pop("PARSING_MODEL", None)
-            llm = initialize_parsing_llm()
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
+            with patch("agents.llm_config.detect_llm_type_from_model", return_value=LLMType.GPT4):
+                # Mock just the chat class creation
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
 
-            # Verify the default was used
-            call_kwargs = mock_config.chat_class.call_args[1]
-            assert call_kwargs["model"] == "gpt-4o-mini"
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    agent_llm, parsing_llm, model_name = initialize_llms()
+
+                    # Verify the default was used (gpt-4o-mini is the default for parsing)
+                    # Second call is for parsing LLM
+                    parsing_call_kwargs = mock_chat_class.call_args_list[1][1]
+                    assert parsing_call_kwargs["model"] == "gpt-4o-mini"
 
 
 class TestMonitoringIntegration:
