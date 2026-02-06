@@ -113,6 +113,7 @@ class StaticAnalyzer:
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
+        self.collected_diagnostics: dict[str, dict[str, list[dict]]] = {}
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """
@@ -169,12 +170,14 @@ class StaticAnalyzer:
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
 
                 # Collect diagnostics for health checks (collected during analysis)
+                # Stored on the instance (not in StaticAnalysisResults) since diagnostics
+                # are ephemeral LSP data only consumed by health checks.
                 diagnostics = client.get_collected_diagnostics()
                 if diagnostics:
                     logger.info(f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}")
                     total_diags = sum(len(d) for d in diagnostics.values())
                     logger.info(f"Total diagnostic items: {total_diags}")
-                    results.add_diagnostics(client.language.language, diagnostics)
+                    self.collected_diagnostics[client.language.language] = diagnostics
                 else:
                     logger.warning(f"No diagnostics collected for {client.language.language}")
             except Exception as e:
@@ -300,7 +303,11 @@ def get_static_analysis(
     """
     if skip_cache:
         # Force full analysis without any caching
-        return StaticAnalyzer(repo_path).analyze(cache_dir=None)
+        analyzer = StaticAnalyzer(repo_path)
+        results = analyzer.analyze(cache_dir=None)
+        # Attach diagnostics to results for convenient access
+        results.diagnostics = analyzer.collected_diagnostics
+        return results
 
     # Determine actual cache directory to use
     if cache_dir is None:
@@ -310,4 +317,8 @@ def get_static_analysis(
         actual_cache_dir = cache_dir
 
     # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
-    return StaticAnalyzer(repo_path).analyze(cache_dir=actual_cache_dir)
+    analyzer = StaticAnalyzer(repo_path)
+    results = analyzer.analyze(cache_dir=actual_cache_dir)
+    # Attach diagnostics to results for convenient access
+    results.diagnostics = analyzer.collected_diagnostics
+    return results

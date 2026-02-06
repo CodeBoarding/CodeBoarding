@@ -67,10 +67,10 @@ def _collect_checks_for_language(
     summaries.append(check_component_cohesion(call_graph, config))
 
     # Run LSP-based unused code detection (replaces the old orphan_code check)
-    diagnostics = static_analysis.get_diagnostics(language)
     collector = LSPDiagnosticsCollector()
-    if diagnostics:
-        for file_path, file_diagnostics in diagnostics.items():
+    language_diagnostics = static_analysis.diagnostics.get(language, {})
+    if language_diagnostics:
+        for file_path, file_diagnostics in language_diagnostics.items():
             for diagnostic in file_diagnostics:
                 collector.add_diagnostic(file_path, diagnostic)
     else:

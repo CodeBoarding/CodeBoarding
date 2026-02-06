@@ -51,6 +51,7 @@ class AnalysisCache:
 class StaticAnalysisResults:
     def __init__(self):
         self.results: dict[str, dict] = {}
+        self.diagnostics: dict[str, dict[str, list[dict]]] = {}  # Language -> file_path -> diagnostics
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """
@@ -264,26 +265,3 @@ class StaticAnalysisResults:
         for language in self.results:
             all_source_files.extend(self.get_source_files(language))
         return all_source_files
-
-    def add_diagnostics(self, language: str, diagnostics: dict[str, list[dict]]):
-        """
-        Adds LSP diagnostics to the analysis results.
-
-        :param language: The programming language.
-        :param diagnostics: Dictionary mapping file paths to lists of diagnostic objects.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        self.results[language]["diagnostics"] = diagnostics
-        logger.info(f"Added diagnostics for {language}: {len(diagnostics)} files")
-
-    def get_diagnostics(self, language: str) -> dict[str, list[dict]]:
-        """
-        Retrieves LSP diagnostics for a given language.
-
-        :param language: The programming language.
-        :return: Dictionary mapping file paths to lists of diagnostic objects.
-        """
-        if language not in self.results:
-            return {}
-        return self.results[language].get("diagnostics", {})
