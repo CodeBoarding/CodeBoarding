@@ -122,8 +122,8 @@ LLM_PROVIDERS = {
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
-        agent_model="gemini-2.5-flash",
-        parsing_model="gpt-5-mini",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
+        agent_model="google/gemini-2.5-flash",
+        parsing_model="openai/gpt-oss-120b",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
         llm_type=LLMType.GEMINI_FLASH,
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
