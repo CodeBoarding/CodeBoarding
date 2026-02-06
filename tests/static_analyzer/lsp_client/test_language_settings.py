@@ -1,7 +1,5 @@
 """Tests for language_settings module."""
 
-import pytest
-
 from static_analyzer.constants import Language
 from static_analyzer.lsp_client.language_settings import get_language_settings
 

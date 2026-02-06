@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional, Set
 
 from pydantic import BaseModel, Field
 
@@ -89,7 +88,7 @@ class ProgrammingLanguageBuilder:
                 normalized_ext = ext if ext.startswith(".") else f".{ext}"
                 self._extension_to_lsp[normalized_ext] = lsp_server_key
 
-    def _find_lsp_server_key(self, tokei_language: str, file_suffixes: Set[str]) -> Optional[str]:
+    def _find_lsp_server_key(self, tokei_language: str, file_suffixes: set[str]) -> str | None:
         """
         Find the LSP config key for a tokei language by matching file extensions.
 
@@ -119,12 +118,12 @@ class ProgrammingLanguageBuilder:
         tokei_language: str,
         code_count: int,
         percentage: float,
-        file_suffixes: Set[str],
+        file_suffixes: set[str],
     ) -> ProgrammingLanguage:
         lsp_server_key = self._find_lsp_server_key(tokei_language, file_suffixes)
 
         server_commands: list | None = None
-        config_suffixes: Set[str] = set()
+        config_suffixes: set[str] = set()
         language_specific_config: LanguageConfig | None = None
 
         if lsp_server_key and lsp_server_key in self.lsp_configs:
@@ -149,5 +148,5 @@ class ProgrammingLanguageBuilder:
             language_specific_config=language_specific_config,
         )
 
-    def get_supported_extensions(self) -> Set[str]:
+    def get_supported_extensions(self) -> set[str]:
         return set(self._extension_to_lsp.keys())

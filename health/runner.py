@@ -169,11 +169,10 @@ def run_health_checks(
     repo_root = str(repo_path) if repo_path is not None else None
 
     check_summaries: CheckSummaryList = []
-    multiple_languages = len(languages) > 1
 
     for language in languages:
         lang_summaries = _collect_checks_for_language(static_analysis, language, config)
-        if multiple_languages:
+        if len(languages) > 1:
             for summary in lang_summaries:
                 summary.language = language
         check_summaries.extend(lang_summaries)
