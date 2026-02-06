@@ -51,6 +51,7 @@ class AnalysisCache:
 class StaticAnalysisResults:
     def __init__(self):
         self.results: dict[str, dict] = {}
+        self.diagnostics: dict[str, dict[str, list[dict]]] = {}  # Language -> file_path -> diagnostics
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """

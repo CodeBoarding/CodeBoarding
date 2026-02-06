@@ -10,7 +10,10 @@ from health.checks.function_size import check_function_size
 from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
-from health.checks.orphan_code import check_orphan_code
+from health.checks.unused_code_diagnostics import (
+    LSPDiagnosticsCollector,
+    check_unused_code_diagnostics,
+)
 from health.models import (
     CircularDependencyCheck,
     FileHealthSummary,
@@ -63,11 +66,17 @@ def _collect_checks_for_language(
 
     summaries.append(check_component_cohesion(call_graph, config))
 
-    try:
-        src_files = static_analysis.get_source_files(language)
-    except (ValueError, KeyError):
-        src_files = []
-    summaries.append(check_orphan_code(call_graph, config, source_files=src_files))
+    # Run LSP-based unused code detection (replaces the old orphan_code check)
+    collector = LSPDiagnosticsCollector()
+    language_diagnostics = static_analysis.diagnostics.get(language, {})
+    if language_diagnostics:
+        for file_path, file_diagnostics in language_diagnostics.items():
+            for diagnostic in file_diagnostics:
+                collector.add_diagnostic(file_path, diagnostic)
+    else:
+        logger.debug(f"No LSP diagnostics available for {language}")
+    # Always add the check summary, even if empty
+    summaries.append(check_unused_code_diagnostics(collector, config))
 
     return summaries
 
@@ -83,7 +92,9 @@ def _compute_overall_score(check_summaries: CheckSummaryList) -> float:
     )
 
 
-def _aggregate_file_summaries(check_summaries: CheckSummaryList) -> list[FileHealthSummary]:
+def _aggregate_file_summaries(
+    check_summaries: CheckSummaryList,
+) -> list[FileHealthSummary]:
     """Aggregate findings per file and compute composite risk scores.
 
     Returns the top 20 highest-risk files sorted by composite score.
@@ -158,11 +169,10 @@ def run_health_checks(
     repo_root = str(repo_path) if repo_path is not None else None
 
     check_summaries: CheckSummaryList = []
-    multiple_languages = len(languages) > 1
 
     for language in languages:
         lang_summaries = _collect_checks_for_language(static_analysis, language, config)
-        if multiple_languages:
+        if len(languages) > 1:
             for summary in lang_summaries:
                 summary.language = language
         check_summaries.extend(lang_summaries)

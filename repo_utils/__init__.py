@@ -108,7 +108,10 @@ def clone_repository(repo_url: str, target_dir: Path = Path("./repos")) -> str:
             logger.info(f"Repository {repo_name} has uncommitted changes, skipping pull.")
         else:
             logger.info(f"Repository {repo_name} already exists at {dest}, pulling latest.")
-            repo.remotes.origin.pull()
+            try:
+                repo.remotes.origin.pull()
+            except GitCommandError as e:
+                logger.warning(f"Failed to pull latest changes for {repo_name}: {e}. Continuing with existing code.")
     else:
         logger.info(f"Cloning {repo_url} into {dest}")
         Repo.clone_from(repo_url, dest)
@@ -159,7 +162,10 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
 
     for filename in os.listdir(output_dir):
         if filename.endswith(".md"):
-            shutil.copy(os.path.join(output_dir, filename), os.path.join(onboarding_repo_location, filename))
+            shutil.copy(
+                os.path.join(output_dir, filename),
+                os.path.join(onboarding_repo_location, filename),
+            )
     # Now commit the changes
     # Equivalent to `git add onboarding_repo_location .`.git.add(A=True)  # Equivalent to `git add .`
     repo.git.add(onboarding_repo_location, A=True)
