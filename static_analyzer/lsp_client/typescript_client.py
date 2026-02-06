@@ -170,8 +170,11 @@ class TypeScriptClient(LSPClient):
     def _bootstrap_project(self, ts_files: list, config_found: bool):
         """Bootstrap TypeScript project by opening files."""
         logger.info("Opening sample files to bootstrap TypeScript project...")
-        # Files are already filtered in _find_typescript_files
-        sample_files = ts_files[:3]
+        priority_by_suffix = {".ts": 0, ".tsx": 1, ".js": 2, ".jsx": 3}
+        sample_files = sorted(
+            ts_files,
+            key=lambda path: (priority_by_suffix.get(path.suffix.lower(), 99), str(path)),
+        )[:3]
         if sample_files and self._bootstrap_file_path is None:
             self._bootstrap_file_path = sample_files[0]
 
