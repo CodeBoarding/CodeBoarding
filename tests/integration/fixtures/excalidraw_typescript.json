@@ -13,7 +13,7 @@
     "call_graph_nodes": 15508,
     "call_graph_edges": 10843,
     "source_files_count": 2996,
-    "execution_time_seconds": 206.27472666598624
+    "execution_time_seconds": 362.91644385100005
   },
   "sample_references": [
     "dev-docs.src.components.homepage.index..map() callback",

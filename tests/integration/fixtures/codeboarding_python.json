@@ -13,7 +13,7 @@
     "call_graph_nodes": 2563,
     "call_graph_edges": 903,
     "source_files_count": 80,
-    "execution_time_seconds": 63.496312167000724
+    "execution_time_seconds": 133.546434904
   },
   "sample_references": [
     "agents.abstraction_agent.__init__",

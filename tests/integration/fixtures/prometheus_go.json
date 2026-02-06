@@ -13,7 +13,7 @@
     "call_graph_nodes": 11080,
     "call_graph_edges": 5959,
     "source_files_count": 350,
-    "execution_time_seconds": 246.35209883301286
+    "execution_time_seconds": 500.4918313710001
   },
   "sample_references": [
     "cmd.prometheus.main.(*flagconfig).setfeaturelistoptions",
