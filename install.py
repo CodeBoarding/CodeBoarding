@@ -3,6 +3,9 @@ import platform
 import shutil
 import subprocess
 import sys
+import requests
+import tarfile
+import yaml
 from pathlib import Path
 
 
@@ -118,168 +121,147 @@ def install_node_servers():
         os.chdir(original_cwd)
 
 
-def download_file_from_gdrive(file_id, destination):
-    """Download a file from Google Drive with proper handling of large files."""
-    import requests
+GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
-    session = requests.Session()
 
-    # Try the new download URL format with confirmation
-    url = "https://drive.usercontent.google.com/download"
-    params = {"id": file_id, "export": "download", "confirm": "t"}
+def get_latest_release_tag() -> str:
+    """Get the latest release tag from GitHub using gh CLI or the API."""
+    response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=30)
+    response.raise_for_status()
+    return response.json()["tag_name"]
 
-    response = session.get(url, params=params, stream=True)
 
-    # If that didn't work, try the old method
-    if response.status_code != 200:
-        url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        response = session.get(url, stream=True)
+def download_github_release_asset(tag: str, asset_name: str, destination: Path) -> bool:
+    """Download a release asset from GitHub.
 
-        # Check if we need to handle the download confirmation
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith("download_warning"):
-                token = value
-                break
+    Tries gh CLI first (handles authentication automatically), falls back to requests.
 
-        if token:
-            # Handle large file download confirmation
-            params = {"id": file_id, "confirm": token}
-            response = session.get(url, params=params, stream=True)
+    Args:
+        tag: The release tag (e.g., "v0.7.1")
+        asset_name: Name of the asset file (e.g., "tokei-macos")
+        destination: Local path to save the file
 
-    # Save the file
+    Returns:
+        True if download was successful
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
+    response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
+    response.raise_for_status()
+
     with open(destination, "wb") as f:
         for chunk in response.iter_content(chunk_size=32768):
             if chunk:
                 f.write(chunk)
 
-    return response.status_code == 200
+    return destination.exists() and destination.stat().st_size > 0
+
+
+def download_binaries():
+    """Download tokei and gopls binaries from the latest GitHub release."""
+    print("Step: Binary download started")
+
+    system = platform.system()
+    platform_suffix_map = {
+        "Darwin": "macos",
+        "Windows": "windows.exe",
+        "Linux": "linux",
+    }
+
+    if system not in platform_suffix_map:
+        print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
+        return
+
+    suffix = platform_suffix_map[system]
+    binaries = {
+        "tokei": f"tokei-{suffix}",
+        "gopls": f"gopls-{suffix}",
+    }
+
+    servers_dir = Path("static_analyzer/servers")
+    servers_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        tag = get_latest_release_tag()
+        print(f"  Using release: {tag}")
+    except Exception as e:
+        print(f"Step: Binary download finished: failure - Could not determine latest release: {e}")
+        return
+
+    success_count = 0
+    for local_name, asset_name in binaries.items():
+        ext = ".exe" if system == "Windows" else ""
+        binary_path = servers_dir / (local_name + ext)
+
+        try:
+            if binary_path.exists():
+                binary_path.unlink()
+
+            success = download_github_release_asset(tag, asset_name, binary_path)
+
+            if success:
+                if system != "Windows":
+                    os.chmod(binary_path, 0o755)
+                success_count += 1
+                print(f"  {local_name}: downloaded successfully")
+            else:
+                print(f"  {local_name}: download failed (empty file)")
+                binary_path.unlink(missing_ok=True)
+
+        except Exception as e:
+            print(f"  {local_name}: download failed - {e}")
+            binary_path.unlink(missing_ok=True)
+
+    if success_count == len(binaries):
+        print("Step: Binary download finished: success")
+    elif success_count > 0:
+        print(f"Step: Binary download finished: partial success ({success_count}/{len(binaries)} binaries)")
+    else:
+        print("Step: Binary download finished: failure - No binaries downloaded")
 
 
 def download_jdtls():
-    """Download and extract JDTLS from Eclipse."""
+    """Download and extract JDTLS from the latest GitHub release."""
     print("Step: JDTLS download started")
-
-    import requests
-    import tarfile
 
     servers_dir = Path("static_analyzer/servers")
     jdtls_dir = servers_dir / "bin" / "jdtls"
 
-    # Use a stable milestone version of JDTLS
-    # This URL points to a recent stable release
-    jdtls_url = "https://download.eclipse.org/jdtls/milestones/1.54.0/jdt-language-server-1.54.0-202511261751.tar.gz"
+    if jdtls_dir.exists() and (jdtls_dir / "plugins").exists():
+        print("Step: JDTLS download finished: already exists")
+        return True
+
+    jdtls_dir.mkdir(parents=True, exist_ok=True)
     jdtls_archive = servers_dir / "bin" / "jdtls.tar.gz"
 
     try:
-        # Download JDTLS if not already present
-        if not jdtls_dir.exists():
-            print("  Downloading JDTLS from Eclipse...")
-            response = requests.get(jdtls_url, stream=True, timeout=300)
-            response.raise_for_status()
+        tag = get_latest_release_tag()
+        print(f"  Downloading JDTLS from GitHub release {tag}...")
 
-            with open(jdtls_archive, "wb") as f:
-                for chunk in response.iter_content(chunk_size=32768):
-                    if chunk:
-                        f.write(chunk)
+        success = download_github_release_asset(tag, "jdtls.tar.gz", jdtls_archive)
+        if not success:
+            print("Step: JDTLS download finished: failure - Download returned empty file")
+            return False
 
-            print("  Extracting JDTLS...")
-            jdtls_dir.mkdir(parents=True, exist_ok=True)
+        print("  Extracting JDTLS...")
+        with tarfile.open(jdtls_archive, "r:gz") as tar:
+            tar.extractall(path=jdtls_dir)
 
-            with tarfile.open(jdtls_archive, "r:gz") as tar:
-                tar.extractall(path=jdtls_dir)
+        jdtls_archive.unlink()
 
-            # Clean up archive
-            jdtls_archive.unlink()
-
-            print("Step: JDTLS download finished: success")
-        else:
-            print("Step: JDTLS download finished: already exists")
-
+        print("Step: JDTLS download finished: success")
         return True
 
     except Exception as e:
         print(f"Step: JDTLS download finished: failure - {e}")
-        print("  You can manually download JDTLS from:")
-        print("  https://download.eclipse.org/jdtls/milestones/")
-        print("  and extract to static_analyzer/servers/bin/jdtls/")
+        jdtls_archive.unlink(missing_ok=True)
         return False
-
-
-def download_binary_from_gdrive():
-    """Download binaries from Google Drive."""
-    print("Step: Binary download started")
-
-    # File IDs extracted from your share links
-    mac_files = {
-        "tokei": "1IKJSB7DHXAFZZQfwGOt6LypVUDlCQTLc",
-        "gopls": "1gROk7g88qNDg7eGWqtzOVqitktUXA65c",
-    }
-    win_files = {
-        "tokei": "15dKUK0bSZ1dUexbJpnx5WSv_Lqj1kyWK",
-        "gopls": "162AdxaSb58IPNv_vvqTWUTtZJIo8Xrf_",
-    }
-    linux_files = {
-        "tokei": "1Wbx3bK0j-5c-hTJCfPcd86jqfQY0JsvF",
-        "gopls": "1MYlJiT2fOb9aIQnlB7jRCE6cxQ5_71U2",
-    }
-
-    system = platform.system()
-    match system:
-        case "Darwin":
-            file_ids = mac_files
-        case "Windows":
-            file_ids = win_files
-        case "Linux":
-            file_ids = linux_files
-        case _:
-            print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
-            return
-
-    # Create servers directory
-    servers_dir = Path("static_analyzer/servers")
-    servers_dir.mkdir(parents=True, exist_ok=True)
-
-    # Download each binary
-    success_count = 0
-    for binary_name, file_id in file_ids.items():
-        binary_path = servers_dir / binary_name
-
-        try:
-            # Remove existing file if it exists
-            if binary_path.exists():
-                binary_path.unlink()
-
-            # Download the file
-            success = download_file_from_gdrive(file_id, binary_path)
-
-            if success and binary_path.exists():
-                # Make the binary executable on Unix-like systems
-                if platform.system() != "Windows":
-                    os.chmod(binary_path, 0o755)
-
-                # Verify the file is not empty
-                if binary_path.stat().st_size > 0:
-                    success_count += 1
-                else:
-                    binary_path.unlink()  # Remove empty file
-
-        except Exception as e:
-            pass  # Continue with other downloads
-
-    if success_count == len(file_ids):
-        print("Step: Binary download finished: success")
-    elif success_count > 0:
-        print(f"Step: Binary download finished: partial success ({success_count}/{len(file_ids)} binaries)")
-    else:
-        print("Step: Binary download finished: failure - No binaries downloaded")
 
 
 def update_static_analysis_config():
     """Update static_analysis_config.yml with correct paths to binaries."""
     print("Step: Configuration update started")
-
-    import yaml
 
     config_path = Path("static_analysis_config.yml")
     if not config_path.exists():
@@ -487,10 +469,10 @@ if __name__ == "__main__":
     if npm_available:
         install_node_servers()
 
-    # Step 3: Download binary from Google Drive
-    download_binary_from_gdrive()
+    # Step 3: Download binaries from GitHub release
+    download_binaries()
 
-    # Step 4: Download JDTLS for Java support
+    # Step 4: Download JDTLS from GitHub release
     download_jdtls()
 
     # Step 5: Update configuration file with absolute paths

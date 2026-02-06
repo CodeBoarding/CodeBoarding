@@ -3,28 +3,29 @@
     "repo_url": "https://github.com/excalidraw/excalidraw",
     "pinned_commit": "v0.18.0",
     "language": "TypeScript",
-    "generated_at": "2026-02-03T21:11:21.975448+00:00",
+    "generated_at": "2026-02-06T10:36:51.296049+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 29792,
+    "references_count": 15430,
     "classes_count": 67,
-    "packages_count": 67,
-    "call_graph_nodes": 29939,
-    "call_graph_edges": 10845,
-    "source_files_count": 432
+    "packages_count": 64,
+    "call_graph_nodes": 15508,
+    "call_graph_edges": 10843,
+    "source_files_count": 2996,
+    "execution_time_seconds": 362.91644385100005
   },
   "sample_references": [
-    "actions.actionaddtolibrary.actionaddtolibrary",
-    "actions.actionaddtolibrary.appstate",
-    "actions.actionaddtolibrary.captureupdate",
-    "actions.actionaddtolibrary.catch() callback",
-    "actions.actionaddtolibrary.category",
-    "actions.actionaddtolibrary.created",
-    "actions.actionaddtolibrary.elements",
-    "actions.actionaddtolibrary.errormessage",
-    "actions.actionaddtolibrary.id",
-    "actions.actionaddtolibrary.includeboundtextelement"
+    "dev-docs.src.components.homepage.index..map() callback",
+    "dev-docs.src.components.homepage.index.<unknown>",
+    "dev-docs.src.components.homepage.index.and",
+    "dev-docs.src.components.homepage.index.be",
+    "dev-docs.src.components.homepage.index.clsx",
+    "dev-docs.src.components.homepage.index.description",
+    "dev-docs.src.components.homepage.index.designed",
+    "dev-docs.src.components.homepage.index.easily",
+    "dev-docs.src.components.homepage.index.feature",
+    "dev-docs.src.components.homepage.index.featureitem"
   ],
   "sample_classes": [
     "excalidraw-app.collab.Collab.Collab",

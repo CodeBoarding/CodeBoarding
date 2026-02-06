@@ -3,7 +3,7 @@
     "repo_url": "https://github.com/WordPress/WordPress",
     "pinned_commit": "6.7",
     "language": "PHP",
-    "generated_at": "2026-02-03T15:34:44.495530+00:00",
+    "generated_at": "2026-02-06T10:43:55.176515+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
@@ -12,7 +12,8 @@
     "packages_count": 114,
     "call_graph_nodes": 32156,
     "call_graph_edges": 28217,
-    "source_files_count": 1644
+    "source_files_count": 1644,
+    "execution_time_seconds": 1089.153841357
   },
   "sample_references": [
     "index.wp_use_themes",

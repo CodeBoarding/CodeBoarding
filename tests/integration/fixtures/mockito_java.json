@@ -3,7 +3,7 @@
     "repo_url": "https://github.com/mockito/mockito",
     "pinned_commit": "v5.14.2",
     "language": "Java",
-    "generated_at": "2026-02-03T15:21:34.634968+00:00",
+    "generated_at": "2026-02-06T10:28:59.202622+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
@@ -12,7 +12,8 @@
     "packages_count": 78,
     "call_graph_nodes": 4205,
     "call_graph_edges": 2155,
-    "source_files_count": 499
+    "source_files_count": 499,
+    "execution_time_seconds": 1450.309518349
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.additionalanswers.additionalanswers",

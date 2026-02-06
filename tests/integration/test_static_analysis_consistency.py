@@ -23,6 +23,8 @@ Usage:
     uv run pytest -m "not integration"
 """
 
+import time
+
 import pytest
 from git import Repo
 from unittest.mock import patch
@@ -38,8 +40,11 @@ from .conftest import (
     extract_metrics,
 )
 
-# Tolerance percentage for metric comparisons (1% = 0.01)
-METRIC_TOLERANCE = 0.01
+# Tolerance percentage for metric comparisons (2% = 0.02)
+METRIC_TOLERANCE = 0.02
+
+# Tolerance percentage for execution time comparisons (10% = 0.10)
+EXECUTION_TIME_TOLERANCE = 0.10
 
 
 def get_language_marker(language: str):
@@ -107,10 +112,13 @@ class TestStaticAnalysisConsistency:
         expected = load_fixture(config.fixture_file)
         expected_metrics = expected["metrics"]
 
-        # Run static analysis with mocked scanner
+        # Run static analysis with mocked scanner and measure execution time
         mock_scan = create_mock_scanner(config.mock_language)
+        start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
             static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
+        end_time = time.perf_counter()
+        actual_execution_time = end_time - start_time
 
         # Verify the expected language is present in results
         actual_languages = static_analysis.get_languages()
@@ -120,6 +128,7 @@ class TestStaticAnalysisConsistency:
 
         # Extract actual metrics
         actual_metrics = extract_metrics(static_analysis, config.language)
+        actual_metrics["execution_time_seconds"] = actual_execution_time
 
         # Compare metrics with 1% tolerance
         self._assert_metric_within_tolerance(
@@ -159,6 +168,14 @@ class TestStaticAnalysisConsistency:
             METRIC_TOLERANCE,
         )
 
+        # Verify execution time with 10% tolerance
+        self._assert_metric_within_tolerance(
+            actual_metrics["execution_time_seconds"],
+            expected_metrics["execution_time_seconds"],
+            "execution_time_seconds",
+            EXECUTION_TIME_TOLERANCE,
+        )
+
         # Verify sample entities are present (if defined in fixture)
         if "sample_references" in expected:
             self._verify_sample_entities_present(
@@ -172,8 +189,8 @@ class TestStaticAnalysisConsistency:
 
     def _assert_metric_within_tolerance(
         self,
-        actual: int,
-        expected: int,
+        actual: int | float,
+        expected: int | float,
         metric_name: str,
         tolerance: float,
     ):

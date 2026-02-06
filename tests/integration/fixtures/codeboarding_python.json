@@ -3,7 +3,7 @@
     "repo_url": "https://github.com/CodeBoarding/CodeBoarding",
     "pinned_commit": "03b25afe8d37ce733e5f70c3cbcdfb52f4883dcd",
     "language": "Python",
-    "generated_at": "2026-02-03T14:49:38.335767+00:00",
+    "generated_at": "2026-02-06T10:21:57.347581+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
@@ -11,8 +11,9 @@
     "classes_count": 111,
     "packages_count": 20,
     "call_graph_nodes": 2563,
-    "call_graph_edges": 901,
-    "source_files_count": 80
+    "call_graph_edges": 903,
+    "source_files_count": 80,
+    "execution_time_seconds": 133.546434904
   },
   "sample_references": [
     "agents.abstraction_agent.__init__",

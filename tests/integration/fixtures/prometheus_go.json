@@ -3,7 +3,7 @@
     "repo_url": "https://github.com/prometheus/prometheus",
     "pinned_commit": "v3.0.1",
     "language": "Go",
-    "generated_at": "2026-02-03T16:40:12.541401+00:00",
+    "generated_at": "2026-02-06T10:33:18.331136+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
@@ -12,7 +12,8 @@
     "packages_count": 107,
     "call_graph_nodes": 11080,
     "call_graph_edges": 5959,
-    "source_files_count": 350
+    "source_files_count": 350,
+    "execution_time_seconds": 500.4918313710001
   },
   "sample_references": [
     "cmd.prometheus.main.(*flagconfig).setfeaturelistoptions",
