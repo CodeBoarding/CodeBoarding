@@ -72,8 +72,6 @@ class ClusteringConfig:
         Language.TYPESCRIPT: ".",
         Language.JAVASCRIPT: ".",
         Language.JAVA: ".",
-        Language.RUST: "::",  # Rust uses double colon
-        Language.CPP: "::",  # C++ uses double colon for namespace
     }
 
 
@@ -190,12 +188,8 @@ class CallGraph:
         self._edge_set: set[tuple[str, str]] = set()
         self.language = language.lower()
         # Set delimiter based on language for qualified name parsing
-        # Convert string language to Language enum for lookup
-        lang_key: Language | None = None
-        for lang in Language:
-            if lang.value == self.language:
-                lang_key = lang
-                break
+        # Convert string language to Language enum for lookup using list comprehension
+        lang_key: Language | None = next((lang for lang in Language if lang.value == self.language), None)
         if lang_key and lang_key in ClusteringConfig.DELIMITER_MAP:
             self.delimiter = ClusteringConfig.DELIMITER_MAP[lang_key]
         else:

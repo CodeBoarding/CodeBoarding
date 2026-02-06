@@ -82,12 +82,7 @@ def create_clients(
                         )
                 else:
                     logger.info("No Java projects detected")
-            elif lang_lower in (
-                Language.PYTHON,
-                Language.GO,
-                Language.PHP,
-                Language.RUST,
-            ):
+            elif lang_lower in (Language.PYTHON, Language.GO, Language.PHP):
                 # Languages that use the standard LSPClient
                 clients.append(
                     LSPClient(

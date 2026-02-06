@@ -17,6 +17,7 @@ from tqdm import tqdm
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, Node
+from static_analyzer.lsp_client.language_settings import get_language_settings
 from static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
@@ -413,7 +414,7 @@ class LSPClient(ABC):
         }
 
         # Add language-specific settings to enable unused code diagnostics
-        settings = self._get_language_settings()
+        settings = get_language_settings(self.language_id)
         if settings:
             params["initializationOptions"] = settings
         init_id = self._send_request("initialize", params)
@@ -426,86 +427,6 @@ class LSPClient(ABC):
         logger.info("Initialization successful.")
         self._send_notification("initialized", {})
 
-    def _get_language_settings(self) -> dict | None:
-        """Get language-specific settings to enable unused code diagnostics.
-
-        Returns:
-            Settings dictionary for the language server, or None if not applicable.
-        """
-        lang_id = self.language_id.lower()
-
-        if lang_id == Language.PYTHON:
-            # Pyright/Pylance settings to enable unused code detection
-            return {
-                "python": {
-                    "analysis": {
-                        "typeCheckingMode": "basic",
-                        "diagnosticSeverityOverrides": {
-                            "reportUnusedImport": "warning",
-                            "reportUnusedVariable": "warning",
-                            "reportUnusedFunction": "warning",
-                            "reportUnusedClass": "warning",
-                            "reportUnusedParameter": "warning",
-                            "reportUnreachable": "warning",
-                        },
-                    }
-                }
-            }
-        elif lang_id in (Language.TYPESCRIPT, Language.JAVASCRIPT):
-            # TypeScript/JavaScript settings
-            return {
-                "typescript": {
-                    "preferences": {
-                        "includePackageJsonAutoImports": "on",
-                    }
-                },
-                "javascript": {
-                    "preferences": {
-                        "includePackageJsonAutoImports": "on",
-                    }
-                },
-            }
-        elif lang_id == Language.GO:
-            # gopls settings
-            return {
-                "gopls": {
-                    "ui.diagnostic.annotations": {
-                        "bounds": True,
-                        "escape": True,
-                        "inline": True,
-                        "nil": True,
-                        "unusedParams": True,
-                    },
-                    "ui.diagnostic.staticcheck": True,
-                }
-            }
-        elif lang_id == Language.JAVA:
-            # Eclipse JDT Language Server settings
-            return {
-                "java": {
-                    "settings": {
-                        "org.eclipse.jdt.core.compiler.problem.unusedImport": "warning",
-                        "org.eclipse.jdt.core.compiler.problem.unusedLocal": "warning",
-                        "org.eclipse.jdt.core.compiler.problem.unusedPrivateMember": "warning",
-                        "org.eclipse.jdt.core.compiler.problem.unusedTypeParameter": "warning",
-                        "org.eclipse.jdt.core.compiler.problem.deadCode": "warning",
-                        "org.eclipse.jdt.core.compiler.problem.redundantSuperinterface": "warning",
-                    }
-                }
-            }
-        elif lang_id == Language.PHP:
-            # Intelephense settings
-            return {
-                "intelephense": {
-                    "diagnostics": {
-                        "unusedSymbols": True,
-                        "unusedUseStatements": True,
-                    }
-                }
-            }
-
-        return None
-
     def _send_workspace_configuration(self):
         """Send workspace configuration to enable unused code detection.
 
@@ -513,7 +434,7 @@ class LSPClient(ABC):
         workspace/didChangeConfiguration after initialization to enable
         features like unused code detection.
         """
-        settings = self._get_language_settings()
+        settings = get_language_settings(self.language_id)
         if not settings:
             return
 
@@ -1048,60 +969,6 @@ class LSPClient(ABC):
             if self._reader_thread:
                 self._reader_thread.join(timeout=2)
             logger.info("Shutdown complete.")
-
-    def open_all_files_for_diagnostics(self):
-        """Open all source files to trigger LSP diagnostic publishing.
-
-        LSP servers like Pyright only publish diagnostics for open files.
-        This method opens all files in the workspace so that we can collect
-        diagnostics for unused code detection.
-        """
-        src_files = self._get_source_files()
-        src_files = self.filter_src_files(src_files)
-        total = len(src_files)
-
-        logger.info(f"Opening {total} files for diagnostic collection...")
-        opened_count = 0
-
-        for file_path in src_files:
-            try:
-                file_uri = file_path.as_uri()
-                content = file_path.read_text(encoding="utf-8")
-
-                self._send_notification(
-                    "textDocument/didOpen",
-                    {
-                        "textDocument": {
-                            "uri": file_uri,
-                            "languageId": self.language_id,
-                            "version": 1,
-                            "text": content,
-                        }
-                    },
-                )
-                opened_count += 1
-            except Exception as e:
-                logger.debug(f"Failed to open {file_path} for diagnostics: {e}")
-
-        logger.info(f"Opened {opened_count}/{total} files for diagnostic collection")
-
-    def close_all_files_for_diagnostics(self):
-        """Close all source files that were opened for diagnostics."""
-        src_files = self._get_source_files()
-        src_files = self.filter_src_files(src_files)
-
-        logger.info(f"Closing {len(src_files)} files...")
-        closed_count = 0
-
-        for file_path in src_files:
-            try:
-                file_uri = file_path.as_uri()
-                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
-                closed_count += 1
-            except Exception as e:
-                logger.debug(f"Failed to close {file_path}: {e}")
-
-        logger.info(f"Closed {closed_count} files")
 
     def _prepare_for_analysis(self):
         """Override in subclasses to perform language-specific preparation before analysis."""
