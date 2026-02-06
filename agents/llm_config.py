@@ -1,8 +1,9 @@
 import os
 import logging
 from dataclasses import dataclass, field
-from typing import Type, Dict, Any, Optional, Callable
+from typing import Type, Any
 
+from agents.prompts.prompt_factory import initialize_global_factory
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -38,10 +39,10 @@ class LLMConfig:
     llm_type: LLMType
     agent_temperature: float = 0.1
     parsing_temperature: float = 0
-    extra_args: Dict[str, Any] = field(default_factory=dict)
+    extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
 
     def is_active(self) -> bool:
@@ -50,7 +51,7 @@ class LLMConfig:
             return True
         return any(os.getenv(var) for var in self.alt_env_vars)
 
-    def get_resolved_extra_args(self) -> Dict[str, Any]:
+    def get_resolved_extra_args(self) -> dict[str, Any]:
         resolved = {}
         for k, v in self.extra_args.items():
             value = v() if callable(v) else v
@@ -239,17 +240,6 @@ LLM_PROVIDERS = {
 
 
 def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatModel, str]:
-    """
-    Initialize the agent LLM and set up the prompt factory.
-
-    Args:
-        model_override: Optional model name to override the default agent model
-
-    Returns:
-        Tuple of (llm_instance, model_name)
-    """
-    from agents.prompts.prompt_factory import initialize_global_factory
-
     # Import MONITORING_CALLBACK here to avoid circular import
     from agents.agent import MONITORING_CALLBACK
 
@@ -296,20 +286,10 @@ def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatMod
 
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
-    """
-    Initialize the parsing LLM (does not affect prompt factory).
-
-    Args:
-        model_override: Optional model name to override the default parsing model
-
-    Returns:
-        LLM instance for parsing tasks
-    """
     for name, config in LLM_PROVIDERS.items():
         if not config.is_active():
             continue
 
-        # Determine final model name (override takes precedence over default)
         model_name = model_override or config.parsing_model
 
         logger.info(f"Using {name.title()} Extractor LLM with model: {model_name}")
@@ -337,12 +317,6 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
 
 
 def initialize_llms() -> tuple[BaseChatModel, BaseChatModel, str]:
-    """
-    Initialize both agent and parsing LLMs.
-
-    Returns:
-        Tuple of (agent_llm, parsing_llm, model_name)
-    """
     agent_llm, model_name = initialize_agent_llm(os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm, model_name
