@@ -3,7 +3,7 @@
     "repo_url": "https://github.com/lodash/lodash",
     "pinned_commit": "4.17.21",
     "language": "JavaScript",
-    "generated_at": "2026-02-03T15:42:24.872084+00:00",
+    "generated_at": "2026-02-06T10:51:14.357173+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
@@ -12,7 +12,8 @@
     "packages_count": 15,
     "call_graph_nodes": 7340,
     "call_graph_edges": 12225,
-    "source_files_count": 40
+    "source_files_count": 40,
+    "execution_time_seconds": 430.35453437498654
   },
   "sample_references": [
     "fp._baseconvert.'ary'",

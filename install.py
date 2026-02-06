@@ -3,6 +3,9 @@ import platform
 import shutil
 import subprocess
 import sys
+import requests
+import tarfile
+import yaml
 from pathlib import Path
 
 
@@ -123,25 +126,6 @@ GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
 def get_latest_release_tag() -> str:
     """Get the latest release tag from GitHub using gh CLI or the API."""
-    # Try gh CLI first (works in CI with GITHUB_TOKEN)
-    gh_path = shutil.which("gh")
-    if gh_path:
-        try:
-            result = subprocess.run(
-                [gh_path, "release", "view", "--repo", GITHUB_REPO, "--json", "tagName", "--jq", ".tagName"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            tag = result.stdout.strip()
-            if tag:
-                return tag
-        except Exception:
-            pass
-
-    # Fallback to GitHub API
-    import requests
-
     response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=30)
     response.raise_for_status()
     return response.json()["tag_name"]
@@ -161,38 +145,6 @@ def download_github_release_asset(tag: str, asset_name: str, destination: Path) 
         True if download was successful
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
-
-    # Try gh CLI first
-    gh_path = shutil.which("gh")
-    if gh_path:
-        try:
-            subprocess.run(
-                [
-                    gh_path,
-                    "release",
-                    "download",
-                    tag,
-                    "--repo",
-                    GITHUB_REPO,
-                    "--pattern",
-                    asset_name,
-                    "--dir",
-                    str(destination.parent),
-                    "--clobber",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            downloaded = destination.parent / asset_name
-            if downloaded != destination:
-                downloaded.rename(destination)
-            return destination.exists() and destination.stat().st_size > 0
-        except Exception:
-            pass
-
-    # Fallback to direct HTTP download
-    import requests
 
     url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
     response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
@@ -273,8 +225,6 @@ def download_jdtls():
     """Download and extract JDTLS from the latest GitHub release."""
     print("Step: JDTLS download started")
 
-    import tarfile
-
     servers_dir = Path("static_analyzer/servers")
     jdtls_dir = servers_dir / "bin" / "jdtls"
 
@@ -312,8 +262,6 @@ def download_jdtls():
 def update_static_analysis_config():
     """Update static_analysis_config.yml with correct paths to binaries."""
     print("Step: Configuration update started")
-
-    import yaml
 
     config_path = Path("static_analysis_config.yml")
     if not config_path.exists():

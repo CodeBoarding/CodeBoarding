@@ -3,39 +3,40 @@
     "repo_url": "https://github.com/excalidraw/excalidraw",
     "pinned_commit": "v0.18.0",
     "language": "TypeScript",
-    "generated_at": "2026-02-04T14:31:01.552543+00:00",
+    "generated_at": "2026-02-06T10:36:51.296049+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 29792,
-    "classes_count": 123,
-    "packages_count": 178,
-    "call_graph_nodes": 29939,
-    "call_graph_edges": 20808,
-    "source_files_count": 820
+    "references_count": 15430,
+    "classes_count": 67,
+    "packages_count": 64,
+    "call_graph_nodes": 15508,
+    "call_graph_edges": 10843,
+    "source_files_count": 2996,
+    "execution_time_seconds": 206.27472666598624
   },
   "sample_references": [
-    "actions.actionaddtolibrary.actionaddtolibrary",
-    "actions.actionaddtolibrary.appstate",
-    "actions.actionaddtolibrary.captureupdate",
-    "actions.actionaddtolibrary.catch() callback",
-    "actions.actionaddtolibrary.category",
-    "actions.actionaddtolibrary.created",
-    "actions.actionaddtolibrary.elements",
-    "actions.actionaddtolibrary.errormessage",
-    "actions.actionaddtolibrary.id",
-    "actions.actionaddtolibrary.includeboundtextelement"
+    "dev-docs.src.components.homepage.index..map() callback",
+    "dev-docs.src.components.homepage.index.<unknown>",
+    "dev-docs.src.components.homepage.index.and",
+    "dev-docs.src.components.homepage.index.be",
+    "dev-docs.src.components.homepage.index.clsx",
+    "dev-docs.src.components.homepage.index.description",
+    "dev-docs.src.components.homepage.index.designed",
+    "dev-docs.src.components.homepage.index.easily",
+    "dev-docs.src.components.homepage.index.feature",
+    "dev-docs.src.components.homepage.index.featureitem"
   ],
   "sample_classes": [
-    "actions.manager.ActionManager",
-    "animated-trail.AnimatedTrail",
-    "animation-frame-handler.AnimationFrameHandler",
-    "binaryheap.BinaryHeap",
-    "change.AppStateChange",
-    "change.Delta",
-    "change.ElementsChange",
-    "components.App.App",
-    "data.EditorLocalStorage.EditorLocalStorage",
-    "data.library.AdapterTransaction"
+    "excalidraw-app.collab.Collab.Collab",
+    "excalidraw-app.collab.Portal.Portal",
+    "excalidraw-app.components.TopErrorBoundary.TopErrorBoundary",
+    "excalidraw-app.data.FileManager.FileManager",
+    "excalidraw-app.data.LocalData.LibraryIndexedDBAdapter",
+    "excalidraw-app.data.LocalData.LibraryLocalStorageMigrationAdapter",
+    "excalidraw-app.data.LocalData.LocalData",
+    "excalidraw-app.data.LocalData.LocalFileManager",
+    "excalidraw-app.data.Locker.Locker",
+    "excalidraw-app.data.firebase.FirebaseSceneVersionCache"
   ]
 }

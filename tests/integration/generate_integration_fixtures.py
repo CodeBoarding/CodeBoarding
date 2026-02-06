@@ -20,6 +20,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -79,16 +80,21 @@ def generate_fixture(config: RepositoryTestConfig, verbose: bool = True) -> dict
         if verbose:
             print(f"  Running static analysis for {config.language}...")
 
-        # Run analysis
+        # Run analysis with timing
         mock_scan = create_mock_scanner(config.mock_language)
+        start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
             static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
 
         # Extract metrics
         metrics = extract_metrics(static_analysis, config.language)
+        metrics["execution_time_seconds"] = execution_time
 
         if verbose:
             print(f"  Metrics: {metrics}")
+            print(f"  Execution time: {execution_time:.2f} seconds")
 
         # Extract sample entities (first 10 of each type)
         references = static_analysis.results.get(config.language, {}).get("references", {})
