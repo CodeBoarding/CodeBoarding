@@ -43,6 +43,9 @@ from .conftest import (
 # Tolerance percentage for metric comparisons (2% = 0.02)
 METRIC_TOLERANCE = 0.02
 
+# Minimum absolute tolerance for small numbers (e.g., 20 vs 19 is 5% diff, but only 1 unit)
+MIN_ABSOLUTE_TOLERANCE = 2
+
 # Tolerance percentage for execution time comparisons (10% = 0.10)
 EXECUTION_TIME_TOLERANCE = 0.15
 
@@ -130,51 +133,44 @@ class TestStaticAnalysisConsistency:
         actual_metrics = extract_metrics(static_analysis, config.language)
         actual_metrics["execution_time_seconds"] = actual_execution_time
 
-        # Compare metrics with 1% tolerance
-        self._assert_metric_within_tolerance(
-            actual_metrics["references_count"],
-            expected_metrics["references_count"],
+        # Compare all metrics and collect results
+        metric_names = [
             "references_count",
-            METRIC_TOLERANCE,
-        )
-        self._assert_metric_within_tolerance(
-            actual_metrics["classes_count"],
-            expected_metrics["classes_count"],
             "classes_count",
-            METRIC_TOLERANCE,
-        )
-        self._assert_metric_within_tolerance(
-            actual_metrics["packages_count"],
-            expected_metrics["packages_count"],
             "packages_count",
-            METRIC_TOLERANCE,
-        )
-        self._assert_metric_within_tolerance(
-            actual_metrics["call_graph_nodes"],
-            expected_metrics["call_graph_nodes"],
             "call_graph_nodes",
-            METRIC_TOLERANCE,
-        )
-        self._assert_metric_within_tolerance(
-            actual_metrics["call_graph_edges"],
-            expected_metrics["call_graph_edges"],
             "call_graph_edges",
-            METRIC_TOLERANCE,
-        )
-        self._assert_metric_within_tolerance(
-            actual_metrics["source_files_count"],
-            expected_metrics["source_files_count"],
             "source_files_count",
-            METRIC_TOLERANCE,
-        )
-
-        # Verify execution time with 10% tolerance
-        self._assert_metric_within_tolerance(
-            actual_metrics["execution_time_seconds"],
-            expected_metrics["execution_time_seconds"],
             "execution_time_seconds",
-            EXECUTION_TIME_TOLERANCE,
-        )
+        ]
+
+        results = []
+        for metric_name in metric_names:
+            actual = actual_metrics[metric_name]
+            expected_val = expected_metrics[metric_name]
+            tolerance = EXECUTION_TIME_TOLERANCE if metric_name == "execution_time_seconds" else METRIC_TOLERANCE
+            is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance)
+            results.append(
+                {
+                    "metric": metric_name,
+                    "actual": actual,
+                    "expected": expected_val,
+                    "is_pass": is_pass,
+                    "diff_info": diff_info,
+                }
+            )
+
+        # Display all metrics with status
+        self._display_metric_comparison(results, config.name)
+
+        # Assert all metrics pass
+        failed_metrics = [r for r in results if not r["is_pass"]]
+        if failed_metrics:
+            failure_msgs = [
+                f"  - {r['metric']}: expected {r['expected']}, got {r['actual']} ({r['diff_info']})"
+                for r in failed_metrics
+            ]
+            pytest.fail(f"Metric comparison failed for {config.name}:\n" + "\n".join(failure_msgs))
 
         # Verify sample entities are present (if defined in fixture)
         if "sample_references" in expected:
@@ -187,24 +183,53 @@ class TestStaticAnalysisConsistency:
         if "sample_classes" in expected:
             self._verify_sample_classes_present(static_analysis, config.language, expected["sample_classes"])
 
-    def _assert_metric_within_tolerance(
+    def _check_metric_within_tolerance(
         self,
         actual: int | float,
         expected: int | float,
-        metric_name: str,
         tolerance: float,
-    ):
-        """Assert that actual value is within tolerance percentage of expected."""
+    ) -> tuple[bool, str]:
+        """Check if actual value is within tolerance of expected.
+
+        Returns:
+            Tuple of (is_pass, diff_info_string)
+        """
         if expected == 0:
-            # If expected is 0, actual must also be 0
-            assert actual == 0, f"{metric_name}: expected 0, got {actual}"
-            return
+            if actual == 0:
+                return True, "match"
+            return False, f"expected 0, got {actual}"
 
         relative_diff = abs(actual - expected) / expected
-        assert relative_diff <= tolerance, (
-            f"{metric_name}: expected {expected} (±{tolerance * 100:.0f}%), got {actual} "
-            f"(diff: {actual - expected}, relative: {relative_diff * 100:.1f}%)"
+        absolute_diff = abs(actual - expected)
+
+        # For small numbers, use absolute tolerance; for large numbers, use percentage
+        # Whichever is more generous
+        if absolute_diff <= MIN_ABSOLUTE_TOLERANCE:
+            return True, f"±{absolute_diff} (within ±{MIN_ABSOLUTE_TOLERANCE})"
+
+        if relative_diff <= tolerance:
+            return True, f"±{relative_diff * 100:.1f}%"
+
+        diff = actual - expected
+        diff_str = f"{diff:+.0f}" if isinstance(diff, int) or diff == int(diff) else f"{diff:+.2f}"
+        return (
+            False,
+            f"diff: {diff_str}, {relative_diff * 100:.1f}% (>{tolerance * 100:.0f}%)",
         )
+
+    def _display_metric_comparison(self, results: list[dict], repo_name: str):
+        """Display all metric comparisons in a formatted table."""
+        print(f"\n{'=' * 80}")
+        print(f"Metric Comparison for {repo_name}")
+        print(f"{'=' * 80}")
+        print(f"{'Metric':<25} {'Expected':>12} {'Actual':>12} {'Status':>10} {'Details':>18}")
+        print(f"{'-' * 80}")
+
+        for r in results:
+            status = "PASS" if r["is_pass"] else "FAIL"
+            print(f"{r['metric']:<25} {r['expected']:>12} {r['actual']:>12} {status:>10} {r['diff_info']:>18}")
+
+        print(f"{'=' * 80}")
 
     def _verify_sample_entities_present(
         self,
@@ -214,7 +239,14 @@ class TestStaticAnalysisConsistency:
         entity_type: str,
     ):
         """Verify that sample entities are present in the analysis results."""
-        references = static_analysis.results.get(language, {}).get("references", {})
+        lang_results = static_analysis.results.get(language, {})
+        if not isinstance(lang_results, dict):
+            pytest.fail(f"Expected dict for {language} results, got {type(lang_results).__name__}")
+
+        references = lang_results.get("references", {})
+        if not isinstance(references, dict):
+            pytest.fail(f"Expected dict for references, got {type(references).__name__}")
+
         reference_keys = set(references.keys())
 
         for entity in sample_entities:

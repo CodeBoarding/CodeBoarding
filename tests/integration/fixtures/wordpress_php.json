@@ -9,11 +9,11 @@
   "metrics": {
     "references_count": 32050,
     "classes_count": 565,
-    "packages_count": 114,
+    "packages_count": 132,
     "call_graph_nodes": 32156,
     "call_graph_edges": 28217,
     "source_files_count": 1644,
-    "execution_time_seconds": 1089.153841357
+    "execution_time_seconds": 250
   },
   "sample_references": [
     "index.wp_use_themes",

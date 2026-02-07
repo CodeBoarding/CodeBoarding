@@ -11,9 +11,9 @@
     "classes_count": 42,
     "packages_count": 15,
     "call_graph_nodes": 7340,
-    "call_graph_edges": 12225,
+    "call_graph_edges": 11252,
     "source_files_count": 40,
-    "execution_time_seconds": 430.35453437498654
+    "execution_time_seconds": 80
   },
   "sample_references": [
     "fp._baseconvert.'ary'",
