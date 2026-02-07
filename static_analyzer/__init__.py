@@ -104,7 +104,7 @@ class StaticAnalyzer:
 
                 # Java-specific: wait for JDTLS to import the project
                 if isinstance(client, JavaClient):
-                    client.wait_for_import(timeout=300)  # 5 minute timeout
+                    client.wait_for_import()  # timeout auto-computed based on project size
 
                 # Determine cache path for this client if caching is enabled
                 cache_path = None
@@ -176,7 +176,7 @@ class StaticAnalyzer:
 
             # Java-specific: wait for JDTLS to import the project
             if isinstance(client, JavaClient):
-                client.wait_for_import(timeout=300)
+                client.wait_for_import()  # timeout auto-computed based on project size
 
             # Determine cache path
             cache_path = None

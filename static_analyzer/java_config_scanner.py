@@ -57,13 +57,33 @@ class JavaConfigScanner:
                 if config:
                     projects.append(config)
 
-        # Process Gradle projects (exclude if already covered by Maven)
+        # Process Gradle projects
         for root in gradle_roots:
             if not self.ignore_manager.should_ignore(root):
-                if not any(self._is_subpath(root, p.root) for p in projects):
+                # Check if a Maven project already exists at the same root
+                same_root_maven = [p for p in projects if p.root == root and p.build_system == "maven"]
+                if same_root_maven and self._has_gradle_wrapper(root):
+                    # Gradle wrapper exists: prefer Gradle over Maven at same root
+                    config = self._analyze_gradle_project(root)
+                    if config:
+                        projects = [p for p in projects if p not in same_root_maven]
+                        projects.append(config)
+                        logger.info(f"Replaced Maven with Gradle project at {root} (Gradle wrapper found)")
+                elif not any(self._is_subpath(root, p.root) for p in projects):
                     config = self._analyze_gradle_project(root)
                     if config:
                         projects.append(config)
+                        # Remove Maven sub-projects that are within this Gradle root.
+                        # JDTLS handles module discovery natively for Gradle projects.
+                        before_count = len(projects)
+                        projects = [
+                            p
+                            for p in projects
+                            if not (p.build_system == "maven" and p.root != root and self._is_subpath(p.root, root))
+                        ]
+                        removed = before_count - len(projects)
+                        if removed > 0:
+                            logger.info(f"Removed {removed} Maven sub-project(s) covered by Gradle root at {root}")
 
         # Process Eclipse projects (only if no Maven/Gradle)
         for root in eclipse_roots:
@@ -87,12 +107,19 @@ class JavaConfigScanner:
         return [p.parent for p in self.repo_path.rglob("pom.xml") if p.is_file()]
 
     def _find_gradle_projects(self) -> list[Path]:
-        """Find all directories containing settings.gradle."""
+        """Find all directories containing settings.gradle.
+
+        Excludes buildSrc directories, which are Gradle's convention for
+        build logic and should not be treated as separate projects.
+        """
         gradle_roots: list[Path] = []
 
         # settings.gradle indicates a project root
         gradle_roots.extend(p.parent for p in self.repo_path.rglob("settings.gradle") if p.is_file())
         gradle_roots.extend(p.parent for p in self.repo_path.rglob("settings.gradle.kts") if p.is_file())
+
+        # Filter out buildSrc directories (Gradle build logic, not a real project)
+        gradle_roots = [r for r in gradle_roots if r.name != "buildSrc"]
 
         return gradle_roots
 
@@ -169,6 +196,10 @@ class JavaConfigScanner:
         except Exception as e:
             logger.warning(f"Failed to parse {settings_file}: {e}")
             return JavaProjectConfig(gradle_dir, "gradle", False)
+
+    def _has_gradle_wrapper(self, directory: Path) -> bool:
+        """Check if a Gradle wrapper exists in the directory."""
+        return (directory / "gradlew").exists() or (directory / "gradlew.bat").exists()
 
     def _has_java_files(self, directory: Path) -> bool:
         """Check if directory contains any .java files."""

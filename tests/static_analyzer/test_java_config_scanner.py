@@ -273,18 +273,32 @@ class TestJavaConfigScanner(unittest.TestCase):
         self.assertEqual(len(projects), 1)
         self.assertEqual(projects[0].build_system, "none")
 
-    def test_scan_maven_takes_precedence_over_gradle(self):
-        """Test that Maven projects are preferred when both exist."""
-        # Create both Maven and Gradle files
+    def test_scan_maven_takes_precedence_over_gradle_without_wrapper(self):
+        """Test that Maven projects are preferred when both exist but no Gradle wrapper."""
+        # Create both Maven and Gradle files, but no gradlew
         (self.repo_path / "pom.xml").write_text("<project/>")
         (self.repo_path / "settings.gradle").write_text("rootProject.name = 'test'")
 
         scanner = JavaConfigScanner(self.repo_path)
         projects = scanner.scan()
 
-        # Should only detect Maven project
+        # Should only detect Maven project (no gradlew means Maven wins)
         self.assertEqual(len(projects), 1)
         self.assertEqual(projects[0].build_system, "maven")
+
+    def test_scan_gradle_takes_precedence_with_wrapper(self):
+        """Test that Gradle projects are preferred when gradlew exists."""
+        # Create both Maven and Gradle files, with gradlew
+        (self.repo_path / "pom.xml").write_text("<project/>")
+        (self.repo_path / "settings.gradle").write_text("rootProject.name = 'test'")
+        (self.repo_path / "gradlew").write_text("#!/bin/sh")
+
+        scanner = JavaConfigScanner(self.repo_path)
+        projects = scanner.scan()
+
+        # Should prefer Gradle when wrapper exists
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0].build_system, "gradle")
 
     def test_scan_maven_takes_precedence_over_eclipse(self):
         """Test that Maven projects are preferred over Eclipse."""
@@ -417,6 +431,111 @@ class TestJavaConfigScanner(unittest.TestCase):
         scanner = JavaConfigScanner(self.repo_path)
 
         self.assertTrue(scanner._has_java_files(self.repo_path))
+
+    def test_scan_buildSrc_excluded(self):
+        """Test that buildSrc/settings.gradle is excluded from Gradle detection."""
+        # Create root settings.gradle
+        (self.repo_path / "settings.gradle").write_text(
+            """
+            rootProject.name = 'parent'
+            include 'app'
+        """
+        )
+        (self.repo_path / "app").mkdir()
+
+        # Create buildSrc with its own settings.gradle (Gradle convention)
+        build_src = self.repo_path / "buildSrc"
+        build_src.mkdir()
+        (build_src / "settings.gradle").write_text("")
+        (build_src / "build.gradle").write_text("plugins { id 'java' }")
+
+        scanner = JavaConfigScanner(self.repo_path)
+        projects = scanner.scan()
+
+        # Should only detect the root Gradle project, not buildSrc
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0].root, self.repo_path)
+        self.assertEqual(projects[0].build_system, "gradle")
+
+    def test_scan_gradle_removes_maven_subprojects(self):
+        """Test that Maven sub-projects within a Gradle root are removed."""
+        # Create Gradle root
+        (self.repo_path / "settings.gradle.kts").write_text(
+            """
+            include("module-a")
+            include("module-b")
+        """
+        )
+
+        # Create Maven pom.xml files in submodules
+        module_a = self.repo_path / "module-a"
+        module_a.mkdir()
+        (module_a / "pom.xml").write_text("<project/>")
+
+        module_b = self.repo_path / "module-b"
+        module_b.mkdir()
+        (module_b / "pom.xml").write_text("<project/>")
+
+        scanner = JavaConfigScanner(self.repo_path)
+        projects = scanner.scan()
+
+        # Should only detect the Gradle root, Maven sub-projects removed
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0].root, self.repo_path)
+        self.assertEqual(projects[0].build_system, "gradle")
+
+    def test_scan_spring_framework_like_project(self):
+        """Test scanning a project structure similar to spring-framework."""
+        # Root: settings.gradle with includes, gradlew, no pom.xml at root
+        (self.repo_path / "settings.gradle").write_text(
+            """
+            rootProject.name = 'spring-framework'
+            include 'spring-core'
+            include 'spring-beans'
+            include 'spring-context'
+        """
+        )
+        (self.repo_path / "gradlew").write_text("#!/bin/sh")
+
+        # Create submodules
+        for module in ["spring-core", "spring-beans", "spring-context"]:
+            module_dir = self.repo_path / module
+            module_dir.mkdir()
+            src_dir = module_dir / "src" / "main" / "java"
+            src_dir.mkdir(parents=True)
+            (src_dir / "Test.java").write_text("public class Test {}")
+
+        # Create buildSrc (should be ignored)
+        build_src = self.repo_path / "buildSrc"
+        build_src.mkdir()
+        (build_src / "settings.gradle").write_text("")
+
+        scanner = JavaConfigScanner(self.repo_path)
+        projects = scanner.scan()
+
+        # Should detect exactly 1 Gradle project at root
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0].root, self.repo_path)
+        self.assertEqual(projects[0].build_system, "gradle")
+        self.assertTrue(projects[0].is_multi_module)
+
+    def test_has_gradle_wrapper(self):
+        """Test _has_gradle_wrapper detection."""
+        scanner = JavaConfigScanner(self.repo_path)
+
+        # No wrapper
+        self.assertFalse(scanner._has_gradle_wrapper(self.repo_path))
+
+        # With gradlew
+        (self.repo_path / "gradlew").write_text("#!/bin/sh")
+        self.assertTrue(scanner._has_gradle_wrapper(self.repo_path))
+
+    def test_has_gradle_wrapper_bat(self):
+        """Test _has_gradle_wrapper detection with .bat file."""
+        scanner = JavaConfigScanner(self.repo_path)
+
+        (self.repo_path / "gradlew.bat").write_text("@echo off")
+        self.assertTrue(scanner._has_gradle_wrapper(self.repo_path))
 
 
 class TestScanJavaProjects(unittest.TestCase):

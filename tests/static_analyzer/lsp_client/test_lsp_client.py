@@ -40,7 +40,6 @@ class TestFileAnalysisResult(unittest.TestCase):
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
-            external_references=[],
         )
         self.assertEqual(result.file_path, file_path)
         self.assertEqual(result.package_name, "test.package")
@@ -57,7 +56,6 @@ class TestFileAnalysisResult(unittest.TestCase):
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
-            external_references=[],
             error="Test error message",
         )
         self.assertEqual(result.error, "Test error message")
@@ -937,23 +935,6 @@ class DerivedClass(MyClass):
         self.assertEqual(result, test_refs)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_extract_package_from_reference(self, mock_popen):
-        # Test extracting package from reference
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-
-        test_file = self.project_path / "pkg" / "module.py"
-        test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.touch()
-
-        reference = {"uri": test_file.as_uri()}
-        result = client._extract_package_from_reference(reference)
-
-        self.assertEqual(result, "pkg")
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_extract_imports_from_symbols(self, mock_popen):
         # Test extracting imports from symbols and content
         mock_process = Mock()
@@ -1115,30 +1096,6 @@ class DerivedClass(BaseClass):
         self.assertIsInstance(result, list)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_find_external_references(self, mock_popen):
-        # Test finding external references
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        symbols = [
-            {
-                "name": "my_function",
-                "kind": 12,
-                "selectionRange": {"start": {"line": 5, "character": 4}},
-            }
-        ]
-
-        test_refs = [{"uri": "file:///other.py", "range": {"start": {"line": 10}}}]
-        client._get_references = Mock(return_value=test_refs)  # type: ignore[method-assign]
-
-        result = client._find_external_references("file:///test.py", symbols)
-
-        self.assertEqual(result, test_refs)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_build_static_analysis_no_files(self, mock_popen):
         # Test build_static_analysis with no source files
         mock_process = Mock()
@@ -1223,7 +1180,6 @@ class DerivedClass(BaseClass):
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
-            external_references=[],
         )
 
         result2 = FileAnalysisResult(
@@ -1235,7 +1191,6 @@ class DerivedClass(BaseClass):
             class_symbols=[],
             call_relationships=[("root.func2", "root.func1")],
             class_hierarchies={},
-            external_references=[],
         )
 
         # Mock executor
@@ -1294,7 +1249,6 @@ class DerivedClass(BaseClass):
             class_symbols=[],
             call_relationships=[],
             class_hierarchies={},
-            external_references=[],
             error="Test error",
         )
 
@@ -1402,7 +1356,6 @@ def helper_function():
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=["os"])  # type: ignore[method-assign]
         client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
@@ -1502,13 +1455,33 @@ def callee():
         client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
-        client._get_outgoing_calls = Mock(return_value=outgoing_calls)  # type: ignore[method-assign]
-        client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
-        client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
+
+        # The batched approach uses _send_request / _wait_for_response directly.
+        # Track request IDs to return appropriate responses.
+        request_counter = {"id": 0}
+
+        def mock_send_request(method, params):
+            request_counter["id"] += 1
+            return request_counter["id"]
+
+        def mock_wait_for_response(req_id, timeout=60):
+            # First 2 requests are prepareCallHierarchy (one per symbol)
+            if req_id <= 2:
+                if req_id == 1:
+                    return {"result": hierarchy_items}
+                return {"result": []}
+            # Request 3 = outgoingCalls, request 4 = incomingCalls (for the one hierarchy item)
+            if req_id == 3:
+                return {"result": outgoing_calls}
+            if req_id == 4:
+                return {"result": []}
+            # Any remaining requests (body definitions) return empty
+            return {"result": []}
+
+        client._send_request = Mock(side_effect=mock_send_request)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(side_effect=mock_wait_for_response)  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1556,7 +1529,6 @@ class DerivedClass(BaseClass):
         client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=["root.BaseClass"])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
@@ -1588,7 +1560,6 @@ class DerivedClass(BaseClass):
         client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
         client._prepare_call_hierarchy = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value="root.helper1")  # type: ignore[method-assign]
@@ -1620,8 +1591,10 @@ class DerivedClass(BaseClass):
             self.assertIsNone(result2.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_analyze_single_file_incoming_calls(self, mock_popen):
-        # Test analysis capturing incoming calls
+    def test_analyze_single_file_incoming_calls_removed(self, mock_popen):
+        # Test that incoming calls are NO LONGER captured (optimization: removed as redundant)
+        # When analyzing ALL files, every edge A->B is discovered as an outgoing call
+        # when file A is processed. Incoming calls for B discover the same edges.
         mock_process = Mock()
         mock_popen.return_value = mock_process
 
@@ -1650,12 +1623,12 @@ class DerivedClass(BaseClass):
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         client._get_outgoing_calls = Mock(return_value=[])  # type: ignore[method-assign]
         client._get_incoming_calls = Mock(return_value=incoming_calls)  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
-        # Verify incoming calls were captured
-        self.assertGreater(len(result.call_relationships), 0)
+        # Verify incoming calls are NOT captured (intentionally removed for performance)
+        # _get_incoming_calls should NOT be called anymore
+        client._get_incoming_calls.assert_not_called()
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_analyze_single_file_call_hierarchy_exception(self, mock_popen):
@@ -1683,7 +1656,6 @@ class DerivedClass(BaseClass):
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
         client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
-        client._find_external_references = Mock(return_value=[])  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
         self.assertIsNone(result.error)
