@@ -2,7 +2,7 @@
 
 **Purpose:** This document serves as a comprehensive checklist for AI agents to evaluate code changes before considering work complete. Follow these guidelines rigorously to ensure all changes meet production-quality standards.
 
-**When to Use:** After completing any code changes, run through this checklist before marking tasks as complete.
+**When to Use:** Use this checklist when reviewing code changes on your current branch against the `main` branch. Run through this checklist before marking tasks as complete or creating pull requests.
 
 ---
 
