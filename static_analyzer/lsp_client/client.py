@@ -855,6 +855,7 @@ class LSPClient(ABC):
             outgoing_time = time.monotonic() - outgoing_t0
 
             # Collect all incoming responses
+            # required for edge completeness
             incoming_t0 = time.monotonic()
             for req_id, current_qualified_name in incoming_requests:
                 try:
@@ -880,6 +881,7 @@ class LSPClient(ABC):
             incoming_time = time.monotonic() - incoming_t0
 
             # Body-level calls by finding call positions
+            # required for edge completeness
             body_t0 = time.monotonic()
             try:
                 # Phase 1: Collect all call positions from all functions (with filtering)

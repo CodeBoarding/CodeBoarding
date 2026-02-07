@@ -210,7 +210,7 @@ def create_jdtls_command(
         "-Declipse.product=org.eclipse.jdt.ls.core.product",
         "-Dlog.level=WARNING",
         f"-Xmx{heap_size}",
-        "-Xms1G",
+        f"-Xms{heap_size}",  # Match Xms to Xmx to avoid heap resizing pauses
         "-jar",
         str(launcher_jar),
         "-configuration",

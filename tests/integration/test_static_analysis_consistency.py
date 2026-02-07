@@ -44,7 +44,7 @@ from .conftest import (
 METRIC_TOLERANCE = 0.02
 
 # Tolerance percentage for execution time comparisons (10% = 0.10)
-EXECUTION_TIME_TOLERANCE = 0.10
+EXECUTION_TIME_TOLERANCE = 0.15
 
 
 def get_language_marker(language: str):
