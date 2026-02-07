@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
@@ -16,11 +15,9 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights, ComponentFiles, FileClassification
-from agents.llm_config import LLM_PROVIDERS
 from agents.prompts import (
     get_unassigned_files_classification_message,
     get_validation_feedback_message,
-    initialize_global_factory,
 )
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
@@ -45,12 +42,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         repo_dir: Path,
         static_analysis: StaticAnalysisResults,
         system_message: str,
-        llm: BaseChatModel,
+        agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
-        self.llm = llm
         self.parsing_llm = parsing_llm
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
@@ -60,7 +56,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.toolkit = CodeBoardingToolkit(context=context)
 
         self.agent = create_react_agent(
-            model=self.llm,
+            model=agent_llm,
             tools=self.toolkit.get_agent_tools(),
         )
         self.static_analysis = static_analysis

@@ -14,11 +14,11 @@ from agents.agent_responses import Component
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
+from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
-    load_manifest,
     manifest_exists,
 )
 from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
@@ -135,8 +135,6 @@ class DiagramGenerator:
             logger.warning("Health checks skipped: no languages found in static analysis results")
 
         # Initialize LLMs ONCE before creating any agents
-        from agents.llm_config import initialize_llms
-
         agent_llm, parsing_llm, model_name = initialize_llms()
         logger.info(f"Initialized LLMs for agents with model: {model_name}")
 
@@ -144,7 +142,7 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
-            llm=agent_llm,
+            agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         # Set model name for agent's monitoring callback
@@ -156,7 +154,7 @@ class DiagramGenerator:
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
-            llm=agent_llm,
+            agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         # Set model name for agent's monitoring callback
@@ -167,7 +165,7 @@ class DiagramGenerator:
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
-            llm=agent_llm,
+            agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         # Set model name for agent's monitoring callback

@@ -61,7 +61,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -80,7 +80,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -109,7 +109,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -141,7 +141,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -167,7 +167,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -208,7 +208,7 @@ class TestAbstractionAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 

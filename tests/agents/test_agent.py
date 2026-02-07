@@ -68,7 +68,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test system message",
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -91,7 +91,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
         self.assertIsNotNone(agent)
@@ -113,7 +113,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -137,7 +137,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -166,7 +166,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -192,7 +192,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -216,7 +216,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -251,7 +251,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -271,7 +271,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -293,7 +293,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -334,7 +334,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -354,7 +354,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -379,7 +379,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 

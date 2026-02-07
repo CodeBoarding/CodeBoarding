@@ -228,7 +228,7 @@ LLM_PROVIDERS = {
         agent_model="kimi-k2.5",
         parsing_model="kimi-k2.5",
         llm_type=LLMType.KIMI,
-        alt_env_vars=["KIMI_BASE_URL", "MOONSHOT_API_KEY"],
+        alt_env_vars=["KIMI_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
             "max_tokens": None,

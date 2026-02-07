@@ -21,10 +21,10 @@ class MetaAgent(CodeBoardingAgent):
         repo_dir: Path,
         static_analysis: StaticAnalysisResults,
         project_name: str,
-        llm: BaseChatModel,
+        agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), llm, parsing_llm)
+        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), agent_llm, parsing_llm)
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(
@@ -32,7 +32,7 @@ class MetaAgent(CodeBoardingAgent):
         )
 
         self.agent = create_react_agent(
-            model=self.llm,
+            model=self.agent_llm,
             tools=[self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure],
         )
 

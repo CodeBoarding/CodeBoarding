@@ -148,7 +148,7 @@ def handle_scoped_component_update(
             repo_dir=repo_dir,
             project_name=repo_dir.name,
             static_analysis=static_analysis,
-            llm=agent_llm,
+            agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         # Set model name for agent's monitoring callback
@@ -160,7 +160,7 @@ def handle_scoped_component_update(
             project_name=repo_dir.name,
             static_analysis=static_analysis,
             meta_context=meta_context,
-            llm=agent_llm,
+            agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
         # Set model name for agent's monitoring callback
