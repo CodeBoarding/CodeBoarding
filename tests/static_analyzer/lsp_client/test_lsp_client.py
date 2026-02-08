@@ -1359,6 +1359,7 @@ def helper_function():
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1530,6 +1531,7 @@ class DerivedClass(BaseClass):
         client._find_superclasses = Mock(return_value=["root.BaseClass"])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value=None)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1563,6 +1565,7 @@ class DerivedClass(BaseClass):
         client._find_superclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._find_subclasses = Mock(return_value=[])  # type: ignore[method-assign]
         client._resolve_call_position = Mock(return_value="root.helper1")  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
         self.assertIsNone(result.error)
@@ -1623,6 +1626,7 @@ class DerivedClass(BaseClass):
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         client._get_outgoing_calls = Mock(return_value=[])  # type: ignore[method-assign]
         client._get_incoming_calls = Mock(return_value=incoming_calls)  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1656,6 +1660,7 @@ class DerivedClass(BaseClass):
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
         client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
+        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
         self.assertIsNone(result.error)

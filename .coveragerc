@@ -1,0 +1,27 @@
+[run]
+omit = 
+    tests/*
+    .venv/*
+    repos/*
+    build/*
+    dist/*
+    temp/*
+    static_analyzer/servers/*
+    # CLI entry points - tested via integration tests
+    install.py
+    health_main.py
+    local_app.py
+    main.py
+    github_action.py
+    # Debug/demo scripts
+    diagram_analysis/diagram_generator.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    pass
