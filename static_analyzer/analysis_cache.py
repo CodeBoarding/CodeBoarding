@@ -8,6 +8,7 @@ unchanged files.
 
 import json
 import logging
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,20 @@ from typing import Any
 from static_analyzer.graph import CallGraph, ClusterResult, Node, Edge
 
 logger = logging.getLogger(__name__)
+
+
+def flush_repository_cache(repo_path: Path) -> None:
+    """Remove the repository static analysis cache at .codeboarding/cache."""
+    cache_dir = repo_path / ".codeboarding" / "cache"
+    if not cache_dir.exists():
+        logger.info(f"No cache directory found at {cache_dir}. Nothing to flush.")
+        return
+
+    try:
+        shutil.rmtree(cache_dir)
+        logger.info(f"Flushed cache directory: {cache_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to flush cache directory {cache_dir}: {e}")
 
 
 @dataclass

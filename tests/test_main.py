@@ -15,6 +15,7 @@ from main import (
     validate_arguments,
     validate_env_vars,
 )
+from static_analyzer.analysis_cache import flush_repository_cache
 
 
 class TestValidateEnvVars(unittest.TestCase):
@@ -391,6 +392,29 @@ class TestCopyFiles(unittest.TestCase):
             self.assertTrue((output_dir / "test.md").exists())
             self.assertTrue((output_dir / "data.json").exists())
             self.assertFalse((output_dir / "ignore.txt").exists())
+
+
+class TestFlushRepositoryCache(unittest.TestCase):
+    def test_flush_repository_cache_removes_cache_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            cache_dir = repo_path / ".codeboarding" / "cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            (cache_dir / "incremental_cache_python.json").write_text("{}")
+
+            flush_repository_cache(repo_path)
+
+            self.assertFalse(cache_dir.exists())
+
+    def test_flush_repository_cache_noop_when_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir(parents=True, exist_ok=True)
+
+            # Should not raise when cache folder does not exist
+            flush_repository_cache(repo_path)
+
+            self.assertFalse((repo_path / ".codeboarding" / "cache").exists())
 
 
 class TestValidateArguments(unittest.TestCase):

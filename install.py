@@ -57,6 +57,27 @@ def check_npm():
         return False
 
 
+def install_pyright_from_active_env() -> bool:
+    """Install pyright using the currently active Python environment."""
+    print("Step: Pyright fallback installation started")
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "pyright"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        print("Step: Pyright fallback installation finished: success")
+        return True
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        print(f"Step: Pyright fallback installation finished: failure - {stderr if stderr else e}")
+        return False
+    except Exception as e:
+        print(f"Step: Pyright fallback installation finished: failure - {e}")
+        return False
+
+
 def install_node_servers():
     """Install Node.js based servers (TypeScript, Pyright) using npm in the servers directory."""
     print("Step: Node.js servers installation started")
@@ -311,6 +332,15 @@ def update_static_analysis_config():
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
 
+    # Minimal fallback: if pyright wasn't installed under node_modules, use active env binary if available
+    node_ext = ".cmd" if is_win else ""
+    node_pyright = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    if not node_pyright.exists():
+        env_pyright = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
+        if env_pyright and "lsp_servers" in config and "python" in config["lsp_servers"]:
+            config["lsp_servers"]["python"]["command"][0] = env_pyright
+            updates += 1
+
     # Update JDTLS configuration
     jdtls_dir = servers_dir / "bin" / "jdtls"
     if jdtls_dir.exists() and "lsp_servers" in config and "java" in config["lsp_servers"]:
@@ -468,6 +498,9 @@ if __name__ == "__main__":
     npm_available = check_npm()
     if npm_available:
         install_node_servers()
+    else:
+        print("Step: Node.js servers installation skipped: npm unavailable")
+        install_pyright_from_active_env()
 
     # Step 3: Download binaries from GitHub release
     download_binaries()
