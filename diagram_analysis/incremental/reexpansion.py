@@ -114,6 +114,7 @@ def reexpand_components(
     component_names: set[str],
     repo_dir: Path,
     context: ReexpansionContext,
+    project_name: str,
 ) -> list[str]:
     """Re-run DetailsAgent for components needing sub-analysis regeneration.
 
@@ -131,14 +132,14 @@ def reexpand_components(
     # Initialize agents using existing static analysis
     meta_agent = MetaAgent(
         repo_dir=repo_dir,
-        project_name=repo_dir.name,
-        static_analysis=context.static_analysis,
+        project_name=project_name,
+        static_analysis=None,
     )
     meta_context = meta_agent.analyze_project_metadata()
 
     details_agent = DetailsAgent(
         repo_dir=repo_dir,
-        project_name=repo_dir.name,
+        project_name=project_name,
         static_analysis=context.static_analysis,
         meta_context=meta_context,
     )

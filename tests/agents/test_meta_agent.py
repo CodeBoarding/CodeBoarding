@@ -99,6 +99,70 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(len(result.expected_components), 3)
         mock_parse_invoke.assert_called_once()
 
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.meta_agent.MetaAgent._parse_invoke")
+    def test_analyze_project_metadata_uses_cache(self, mock_parse_invoke, mock_static_init):
+        mock_static_init.return_value = (MagicMock(), "test-model")
+
+        readme = self.repo_dir / "README.md"
+        readme.write_text("# Test project\n", encoding="utf-8")
+        deps = self.repo_dir / "requirements.txt"
+        deps.write_text("pytest==8.0.0\n", encoding="utf-8")
+
+        mock_meta_insights = MetaAnalysisInsights(
+            project_type="library",
+            domain="software development",
+            architectural_patterns=["modular architecture"],
+            expected_components=["core", "testing"],
+            technology_stack=["Python", "pytest"],
+            architectural_bias="Focus on modularity and testability",
+        )
+        mock_parse_invoke.return_value = mock_meta_insights
+
+        agent_first = MetaAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+        )
+        first_result = agent_first.analyze_project_metadata()
+        self.assertEqual(first_result, mock_meta_insights)
+
+        agent_second = MetaAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+        )
+        second_result = agent_second.analyze_project_metadata()
+        self.assertEqual(second_result, mock_meta_insights)
+
+        cache_path = self.repo_dir / ".codeboarding" / "cache" / "meta_analysis_cache.json"
+        self.assertTrue(cache_path.exists())
+        mock_parse_invoke.assert_called_once()
+
+    @patch("agents.agent.CodeBoardingAgent._static_initialize_llm")
+    @patch("agents.meta_agent.MetaAgent._parse_invoke")
+    def test_analyze_project_metadata_without_static_analysis(self, mock_parse_invoke, mock_static_init):
+        mock_static_init.return_value = (MagicMock(), "test-model")
+        mock_meta_insights = MetaAnalysisInsights(
+            project_type="library",
+            domain="software development",
+            architectural_patterns=["modular architecture"],
+            expected_components=["core", "testing"],
+            technology_stack=["Python", "pytest"],
+            architectural_bias="Focus on modularity and testability",
+        )
+        mock_parse_invoke.return_value = mock_meta_insights
+
+        agent = MetaAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=None,
+            project_name=self.project_name,
+        )
+        result = agent.analyze_project_metadata()
+
+        self.assertEqual(result, mock_meta_insights)
+        mock_parse_invoke.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
