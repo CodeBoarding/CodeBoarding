@@ -290,6 +290,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.ProjectScanner")
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
+    @patch("agents.llm_config.initialize_llms")
     @patch("diagram_analysis.diagram_generator.MetaAgent")
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
@@ -300,6 +301,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_abstraction,
         mock_details,
         mock_meta,
+        mock_initialize_llms,
         mock_get_static_analysis,
         mock_scanner,
     ):
@@ -309,9 +311,23 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_analysis_results = StaticAnalysisResults()
         mock_get_static_analysis.return_value = mock_analysis_results
 
+        # Mock LLM initialization
+        mock_agent_llm = Mock()
+        mock_parsing_llm = Mock()
+        mock_initialize_llms.return_value = (mock_agent_llm, mock_parsing_llm, "gpt-4o")
+
         mock_meta_instance = Mock()
         mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
+        mock_meta_instance.agent_monitoring_callback = Mock(model_name=None)
         mock_meta.return_value = mock_meta_instance
+
+        mock_details_instance = Mock()
+        mock_details_instance.agent_monitoring_callback = Mock(model_name=None)
+        mock_details.return_value = mock_details_instance
+
+        mock_abstraction_instance = Mock()
+        mock_abstraction_instance.agent_monitoring_callback = Mock(model_name=None)
+        mock_abstraction.return_value = mock_abstraction_instance
 
         # Mock ProjectScanner to avoid tokei dependency
         mock_scanner_instance = Mock()

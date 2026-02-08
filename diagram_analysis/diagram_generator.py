@@ -14,11 +14,11 @@ from agents.agent_responses import Component
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
+from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
-    load_manifest,
     manifest_exists,
 )
 from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
@@ -134,9 +134,19 @@ class DiagramGenerator:
         else:
             logger.warning("Health checks skipped: no languages found in static analysis results")
 
+        # Initialize LLMs ONCE before creating any agents
+        agent_llm, parsing_llm, model_name = initialize_llms()
+        logger.info(f"Initialized LLMs for agents with model: {model_name}")
+
         self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.meta_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["MetaAgent"] = self.meta_agent
         meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(
@@ -144,14 +154,22 @@ class DiagramGenerator:
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.details_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
             meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        self.abstraction_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")

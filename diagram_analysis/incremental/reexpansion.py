@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from agents.llm_config import initialize_llms
 from agents.agent_responses import AnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
@@ -128,12 +129,18 @@ def reexpand_components(
         logger.error("No static analysis available for re-expansion")
         return []
 
+    agent_llm, parsing_llm, model_name = initialize_llms()
+
     # Initialize agents using existing static analysis
     meta_agent = MetaAgent(
         repo_dir=repo_dir,
         project_name=repo_dir.name,
         static_analysis=context.static_analysis,
+        agent_llm=agent_llm,
+        parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    meta_agent.agent_monitoring_callback.model_name = model_name
     meta_context = meta_agent.analyze_project_metadata()
 
     details_agent = DetailsAgent(
@@ -141,7 +148,11 @@ def reexpand_components(
         project_name=repo_dir.name,
         static_analysis=context.static_analysis,
         meta_context=meta_context,
+        agent_llm=agent_llm,
+        parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    details_agent.agent_monitoring_callback.model_name = model_name
 
     reexpanded: list[str] = []
     max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max

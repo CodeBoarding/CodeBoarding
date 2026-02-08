@@ -4,9 +4,9 @@ import logging
 import os
 from pathlib import Path
 
-from agents.agent import LargeModelAgent
+from agents.llm_config import initialize_llms
+from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights
-from agents.meta_agent import MetaAgent
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_sub_analysis,
@@ -123,11 +123,17 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
         return False
 
-    agent = LargeModelAgent(
+    agent_llm, parsing_llm, model_name = initialize_llms()
+
+    agent = CodeBoardingAgent(
         repo_dir=repo_dir,
         static_analysis=static_analysis,
         system_message="Classification agent for incremental updates",
+        llm=agent_llm,
+        parsing_llm=parsing_llm,
     )
+    # Set model name for agent's monitoring callback
+    agent.agent_monitoring_callback.model_name = model_name
 
     try:
         # Add new files to the sub-analysis as unassigned (they'll be classified)

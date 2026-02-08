@@ -7,7 +7,8 @@ component scopes and handling scoped component updates.
 
 import logging
 from pathlib import Path
-from typing import cast
+
+from agents.llm_config import initialize_llms
 
 from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
@@ -141,11 +142,17 @@ def handle_scoped_component_update(
             logger.info("No static analysis available for scoped re-expansion; skipping.")
             return
 
+        agent_llm, parsing_llm, model_name = initialize_llms()
+
         meta_agent = MetaAgent(
             repo_dir=repo_dir,
             project_name=repo_dir.name,
             static_analysis=static_analysis,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        meta_agent.agent_monitoring_callback.model_name = model_name
         meta_context = meta_agent.analyze_project_metadata()
 
         details_agent = DetailsAgent(
@@ -153,7 +160,11 @@ def handle_scoped_component_update(
             project_name=repo_dir.name,
             static_analysis=static_analysis,
             meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        # Set model name for agent's monitoring callback
+        details_agent.agent_monitoring_callback.model_name = model_name
 
         # Find the component object in the main analysis to preserve metadata
         component_obj = next((c for c in analysis.components if c.name == component_name), None)

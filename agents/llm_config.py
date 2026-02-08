@@ -1,7 +1,9 @@
 import os
+import logging
 from dataclasses import dataclass, field
-from typing import Type, Dict, Any, Optional, Callable
+from typing import Type, Any
 
+from agents.prompts.prompt_factory import initialize_global_factory
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -11,6 +13,8 @@ from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
 
 from agents.prompts.prompt_factory import LLMType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -35,10 +39,10 @@ class LLMConfig:
     llm_type: LLMType
     agent_temperature: float = 0.1
     parsing_temperature: float = 0
-    extra_args: Dict[str, Any] = field(default_factory=dict)
+    extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
 
     def is_active(self) -> bool:
@@ -47,13 +51,57 @@ class LLMConfig:
             return True
         return any(os.getenv(var) for var in self.alt_env_vars)
 
-    def get_resolved_extra_args(self) -> Dict[str, Any]:
+    def get_resolved_extra_args(self) -> dict[str, Any]:
         resolved = {}
         for k, v in self.extra_args.items():
             value = v() if callable(v) else v
             if value is not None:
                 resolved[k] = value
         return resolved
+
+
+def detect_llm_type_from_model(model_name: str) -> LLMType:
+    """
+    Detect the LLM type/family from the model name.
+    This determines which prompt factory to use.
+
+    Args:
+        model_name: The model name (e.g., "gpt-4o", "claude-3-7-sonnet", "gemini-2.5-flash")
+
+    Returns:
+        The detected LLMType enum value
+    """
+    model_lower = model_name.lower()
+
+    # DeepSeek family
+    if "deepseek" in model_lower:
+        return LLMType.DEEPSEEK
+
+    # GLM family (Zhipu AI)
+    if "glm" in model_lower:
+        return LLMType.GLM
+
+    # Kimi family (Moonshot AI)
+    if "kimi" in model_lower or "moonshot" in model_lower:
+        return LLMType.KIMI
+
+    # GPT family (OpenAI, O1, O3, etc.)
+    if any(pattern in model_lower for pattern in ["gpt-", "gpt4", "gpt5", "o1-", "o3-"]):
+        return LLMType.GPT4
+
+    # Claude family (Anthropic) - matches claude, opus, sonnet, haiku
+    if any(pattern in model_lower for pattern in ["claude", "opus", "sonnet", "haiku"]):
+        return LLMType.CLAUDE
+
+    # Gemini family (Google)
+    if "gemini" in model_lower:
+        return LLMType.GEMINI_FLASH
+
+    # Default fallback to Gemini (most permissive prompts)
+    logger.warning(
+        f"Could not detect LLM type from model name '{model_name}', " f"defaulting to GEMINI_FLASH prompt factory"
+    )
+    return LLMType.GEMINI_FLASH
 
 
 # Define supported providers in priority order
@@ -75,9 +123,9 @@ LLM_PROVIDERS = {
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
-        agent_model="gemini-2.5-flash",
-        parsing_model="gpt-5-mini",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
-        llm_type=LLMType.VERCEL,
+        agent_model="google/gemini-2.5-flash",
+        parsing_model="openai/gpt-oss-120b",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
+        llm_type=LLMType.GEMINI_FLASH,
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
@@ -146,4 +194,129 @@ LLM_PROVIDERS = {
             "base_url": lambda: os.getenv("OLLAMA_BASE_URL"),
         },
     ),
+    "deepseek": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="DEEPSEEK_API_KEY",
+        agent_model="deepseek-chat",
+        parsing_model="deepseek-chat",
+        llm_type=LLMType.DEEPSEEK,
+        alt_env_vars=["DEEPSEEK_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
+    "glm": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="GLM_API_KEY",
+        agent_model="glm-4-flash",
+        parsing_model="glm-4-flash",
+        llm_type=LLMType.GLM,
+        alt_env_vars=["GLM_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
+    "kimi": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="KIMI_API_KEY",
+        agent_model="kimi-k2.5",
+        parsing_model="kimi-k2.5",
+        llm_type=LLMType.KIMI,
+        alt_env_vars=["KIMI_BASE_URL"],
+        extra_args={
+            "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
 }
+
+
+def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatModel, str]:
+    # Import MONITORING_CALLBACK here to avoid circular import
+    from agents.agent import MONITORING_CALLBACK
+
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+
+        # Determine final model name (override takes precedence over default)
+        model_name = model_override or config.agent_model
+
+        # Initialize global prompt factory based on ACTUAL model
+        detected_llm_type = detect_llm_type_from_model(model_name)
+        initialize_global_factory(detected_llm_type)
+        logger.info(
+            f"Initialized prompt factory for {name} provider with model '{model_name}' "
+            f"-> {detected_llm_type.value} prompt factory"
+        )
+
+        logger.info(f"Using {name.title()} LLM with model: {model_name}")
+
+        kwargs = {
+            "model": model_name,
+            "temperature": config.agent_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
+
+        if name not in ["aws", "ollama"]:
+            api_key = config.get_api_key()
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+
+        # Update global monitoring callback
+        MONITORING_CALLBACK.model_name = model_name
+        return model, model_name
+
+    # Dynamically build error message with all possible env vars
+    required_vars = []
+    for config in LLM_PROVIDERS.values():
+        required_vars.append(config.api_key_env)
+        required_vars.extend(config.alt_env_vars)
+
+    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+
+
+def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+
+        model_name = model_override or config.parsing_model
+
+        logger.info(f"Using {name.title()} Extractor LLM with model: {model_name}")
+
+        kwargs = {
+            "model": model_name,
+            "temperature": config.parsing_temperature,
+        }
+        kwargs.update(config.get_resolved_extra_args())
+
+        if name not in ["aws", "ollama"]:
+            api_key = config.get_api_key()
+            kwargs["api_key"] = api_key or "no-key-required"
+
+        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        return model
+
+    # Dynamically build error message with all possible env vars
+    required_vars = []
+    for config in LLM_PROVIDERS.values():
+        required_vars.append(config.api_key_env)
+        required_vars.extend(config.alt_env_vars)
+
+    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+
+
+def initialize_llms() -> tuple[BaseChatModel, BaseChatModel, str]:
+    agent_llm, model_name = initialize_agent_llm(os.getenv("AGENT_MODEL"))
+    parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
+    return agent_llm, parsing_llm, model_name
