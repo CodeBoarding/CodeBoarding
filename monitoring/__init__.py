@@ -8,5 +8,5 @@ Usage:
 
 from .stats import RunStats
 from .callbacks import MonitoringCallback
-from .writers import StreamingStatsWriter, save_static_stats
+from .writers import StreamingStatsWriter
 from .context import monitor_execution, trace, current_step

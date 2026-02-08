@@ -24,7 +24,7 @@ from diagram_analysis.manifest import (
 from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
-from output_generators.markdown import sanitize
+from utils import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash, get_repo_state_hash
