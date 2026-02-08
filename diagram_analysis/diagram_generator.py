@@ -92,6 +92,23 @@ class DiagramGenerator:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, []
 
+    def _run_health_report(self, static_analysis: StaticAnalysisResults) -> None:
+        """Run health checks and write the report to the output directory."""
+        health_config_dir = Path(self.output_dir) / "health"
+        initialize_health_dir(health_config_dir)
+        health_config = load_health_config(health_config_dir)
+
+        health_report = run_health_checks(
+            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+        )
+        if health_report is not None:
+            health_path = os.path.join(self.output_dir, "health", "health_report.json")
+            with open(health_path, "w") as f:
+                f.write(health_report.model_dump_json(indent=2, exclude_none=True))
+            logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
+        else:
+            logger.warning("Health checks skipped: no languages found in static analysis results")
+
     def pre_analysis(self):
         analysis_start_time = time.time()
 
@@ -118,21 +135,7 @@ class DiagramGenerator:
                 "lines_of_code": loc_by_language.get(language, 0),
             }
 
-        # Load health check configuration and initialize health config dir
-        health_config_dir = Path(self.output_dir) / "health"
-        initialize_health_dir(health_config_dir)
-        health_config = load_health_config(health_config_dir)
-
-        health_report = run_health_checks(
-            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
-        )
-        if health_report is not None:
-            health_path = os.path.join(self.output_dir, "health", "health_report.json")
-            with open(health_path, "w") as f:
-                f.write(health_report.model_dump_json(indent=2, exclude_none=True))
-            logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
-        else:
-            logger.warning("Health checks skipped: no languages found in static analysis results")
+        self._run_health_report(static_analysis)
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
@@ -312,6 +315,10 @@ class DiagramGenerator:
             logger.info("Loaded static analysis for incremental update")
         except Exception as e:
             logger.warning(f"Could not load static analysis: {e}")
+
+        # Always regenerate the health report when static analysis is available
+        if static_analysis:
+            self._run_health_report(static_analysis)
 
         updater = IncrementalUpdater(
             repo_dir=self.repo_location,
