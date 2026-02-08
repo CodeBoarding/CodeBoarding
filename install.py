@@ -1,3 +1,4 @@
+import argparse
 import os
 import platform
 import shutil
@@ -53,8 +54,87 @@ def check_npm():
             return False
     else:
         print("Step: npm check finished: failure - npm not found")
-        print("   Install Node.js from: https://nodejs.org/")
         return False
+
+
+def install_npm_with_nodeenv() -> bool:
+    """Install npm locally in the active Python virtual environment using nodeenv."""
+    command = [sys.executable, "-m", "nodeenv", "--python-virtualenv"]
+    print("Step: npm remediation started")
+    print(f"   command: {' '.join(command)}")
+    print("   impact: installs Node.js + npm into the active Python virtual environment")
+
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Step: npm remediation finished: failure - {e}")
+        print("   You can install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    npm_available = check_npm()
+    if not npm_available:
+        print("Step: npm remediation finished: failure - npm still not found after nodeenv install")
+        print("   You can install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    print("Step: npm remediation finished: success")
+    return True
+
+
+def is_non_interactive_mode() -> bool:
+    """Captures github actions ("CI) and non-interactive session (no terminal keyboard)"""
+    return bool(os.getenv("CI")) or not sys.stdin.isatty()
+
+
+def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
+    """Offer actionable paths when npm is missing."""
+    print("Step: npm required for TypeScript/JavaScript/PHP language servers")
+
+    if auto_install_npm:
+        return install_npm_with_nodeenv()
+
+    if is_non_interactive_mode():
+        print("Step: Non-interactive mode detected - skipping npm prompt")
+        print("   Re-run with --auto-install-npm to install npm in this virtual environment")
+        print("   Or install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    choice = input("npm is missing. Install it now using nodeenv in this virtual environment? [y/N]: ").strip().lower()
+    if choice in {"y", "yes"}:
+        return install_npm_with_nodeenv()
+
+    print("Step: npm remediation skipped by user")
+    print("   Install Node.js manually from: https://nodejs.org/en/download")
+    print("   Then verify with: npm --version")
+    return False
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse install script arguments."""
+    parser = argparse.ArgumentParser(description="CodeBoarding installation script")
+    parser.add_argument(
+        "--auto-install-npm",
+        action="store_true",
+        help="Automatically install npm via nodeenv when npm is missing",
+    )
+    return parser.parse_args()
+
+
+def get_platform_bin_subdir() -> str:
+    """Return OS-specific binary folder name used by the extension."""
+    subdirs = {"windows": "win", "darwin": "macos", "linux": "linux"}
+    system = platform.system().lower()
+    if system not in subdirs:
+        raise RuntimeError(f"Unsupported platform: {system}")
+    return subdirs[system]
+
+
+def get_platform_bin_dir(servers_dir: Path) -> Path:
+    """Return static_analyzer/servers/bin/<os> directory."""
+    return servers_dir / "bin" / get_platform_bin_subdir()
 
 
 def install_node_servers():
@@ -181,6 +261,8 @@ def download_binaries():
 
     servers_dir = Path("static_analyzer/servers")
     servers_dir.mkdir(parents=True, exist_ok=True)
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
+    platform_bin_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         tag = get_latest_release_tag()
@@ -192,7 +274,7 @@ def download_binaries():
     success_count = 0
     for local_name, asset_name in binaries.items():
         ext = ".exe" if system == "Windows" else ""
-        binary_path = servers_dir / (local_name + ext)
+        binary_path = platform_bin_dir / (local_name + ext)
 
         try:
             if binary_path.exists():
@@ -275,13 +357,14 @@ def update_static_analysis_config():
     # Get the absolute path to the project root
     project_root = Path.cwd().resolve()
     servers_dir = project_root / "static_analyzer" / "servers"
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
 
     updates = 0
     is_win = platform.system() == "Windows"
 
     # The Plan: (Binary Name, Is_Node_App, List of Config Targets)
     # "True" means it lives in node_modules/.bin and needs .cmd on Windows
-    # "False" means it lives in the root and needs .exe on Windows
+    # "False" means it lives under bin/<os> and needs .exe on Windows
     server_definitions = [
         ("pyright-langserver", True, [("lsp_servers", "python")]),
         ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
@@ -294,7 +377,7 @@ def update_static_analysis_config():
     for binary, is_node, targets in server_definitions:
         # 1. Determine the extension and folder based on the type
         ext = (".cmd" if is_node else ".exe") if is_win else ""
-        folder = (servers_dir / "node_modules" / ".bin") if is_node else servers_dir
+        folder = (servers_dir / "node_modules" / ".bin") if is_node else platform_bin_dir
 
         # 2. Build the full path once
         full_path = folder / (binary + ext)
@@ -471,6 +554,7 @@ def print_language_support_summary(npm_available: bool):
     print("Step: Language support summary")
 
     servers_dir = Path("static_analyzer/servers").resolve()
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
     is_win = platform.system() == "Windows"
     node_ext = ".cmd" if is_win else ""
 
@@ -478,51 +562,73 @@ def print_language_support_summary(npm_available: bool):
     php_path = servers_dir / "node_modules" / ".bin" / f"intelephense{node_ext}"
     py_node_path = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
     py_env_path = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
-    go_path = servers_dir / ("gopls.exe" if is_win else "gopls")
+    go_path = platform_bin_dir / ("gopls.exe" if is_win else "gopls")
     java_path = servers_dir / "bin" / "jdtls"
 
-    python_ok = py_node_path.exists() or bool(py_env_path)
-    typescript_ok = npm_available and ts_path.exists()
-    javascript_ok = typescript_ok
-    php_ok = npm_available and php_path.exists()
-    go_ok = go_path.exists()
-    java_ok = java_path.exists()
+    language_checks = [
+        (
+            "Python",
+            [py_node_path],
+            True,
+            bool(py_env_path),
+            "pyright-langserver not found in node_modules or active environment",
+            "pyright-langserver not found in node_modules or active environment",
+        ),
+        (
+            "TypeScript",
+            [ts_path],
+            npm_available,
+            False,
+            "npm not available",
+            "typescript-language-server binary not found",
+        ),
+        (
+            "JavaScript",
+            [ts_path],
+            npm_available,
+            False,
+            "npm not available",
+            "typescript-language-server binary not found",
+        ),
+        (
+            "PHP",
+            [php_path],
+            npm_available,
+            False,
+            "npm not available",
+            "intelephense binary not found",
+        ),
+        (
+            "Go",
+            [go_path],
+            True,
+            False,
+            "gopls binary not found",
+            "gopls binary not found",
+        ),
+        (
+            "Java",
+            [java_path],
+            True,
+            False,
+            "jdtls installation not found",
+            "jdtls installation not found",
+        ),
+    ]
 
-    print(f"  - Python: {'yes' if python_ok else 'no'}")
-    if not python_ok:
-        print("    reason: pyright-langserver not found in node_modules or active environment")
+    for language, paths, extra_check_ok, fallback_ok, extra_fail_reason, path_fail_reason in language_checks:
+        path_exists = any(path.exists() for path in paths)
+        is_available = (path_exists and extra_check_ok) or fallback_ok
 
-    print(f"  - TypeScript: {'yes' if typescript_ok else 'no'}")
-    if not typescript_ok:
-        if not npm_available:
-            print("    reason: npm not available")
-        else:
-            print("    reason: typescript-language-server binary not found")
-
-    print(f"  - JavaScript: {'yes' if javascript_ok else 'no'}")
-    if not javascript_ok:
-        if not npm_available:
-            print("    reason: npm not available")
-        else:
-            print("    reason: typescript-language-server binary not found")
-
-    print(f"  - PHP: {'yes' if php_ok else 'no'}")
-    if not php_ok:
-        if not npm_available:
-            print("    reason: npm not available")
-        else:
-            print("    reason: intelephense binary not found")
-
-    print(f"  - Go: {'yes' if go_ok else 'no'}")
-    if not go_ok:
-        print("    reason: gopls binary not found")
-
-    print(f"  - Java: {'yes' if java_ok else 'no'}")
-    if not java_ok:
-        print("    reason: jdtls installation not found")
+        print(f"  - {language}: {'yes' if is_available else 'no'}")
+        if not is_available:
+            reason = extra_fail_reason if not extra_check_ok else path_fail_reason
+            print(f"    reason: {reason}")
 
 
 if __name__ == "__main__":
+    args = parse_args()
+
     print("🚀 CodeBoarding Installation Script")
     print("=" * 40)
 
@@ -531,6 +637,8 @@ if __name__ == "__main__":
 
     # Step 2: Check for npm and install Node.js based servers if available
     npm_available = check_npm()
+    if not npm_available:
+        npm_available = resolve_missing_npm(auto_install_npm=args.auto_install_npm)
     if npm_available:
         install_node_servers()
 
