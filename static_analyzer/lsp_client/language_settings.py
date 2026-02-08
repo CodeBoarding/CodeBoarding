@@ -5,7 +5,11 @@ features like unused code detection, diagnostics, and other language-specific
 capabilities.
 """
 
+import logging
+
 from static_analyzer.constants import Language
+
+logger = logging.getLogger(__name__)
 
 
 def get_language_settings(language_id: str) -> dict | None:
@@ -89,4 +93,5 @@ def get_language_settings(language_id: str) -> dict | None:
             }
         }
 
+    logger.warning(f"Unknown language ID: {language_id}. No LSP settings available.")
     return None

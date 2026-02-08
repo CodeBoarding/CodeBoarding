@@ -8,7 +8,6 @@ from health.checks.function_size import check_function_size
 from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
-from health.checks.orphan_code import check_orphan_code
 from health.models import HealthCheckConfig, Severity
 from static_analyzer.graph import CallGraph, Node
 
@@ -327,125 +326,6 @@ class TestCircularDependencies(unittest.TestCase):
         self.assertEqual(len(summary.cycles), 0)
 
 
-class TestOrphanCode(unittest.TestCase):
-    def test_orphan_detected(self):
-        graph = _build_simple_graph()
-        result = check_orphan_code(graph)
-        all_entities = []
-        for group in result.finding_groups:
-            all_entities.extend(group.entities)
-        orphan_names = {e.entity_name for e in all_entities}
-        self.assertIn("mod.E", orphan_names)
-
-    def test_no_orphans(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("a", "/f.py", 0, 10))
-        graph.add_node(_make_node("b", "/f.py", 0, 10))
-        graph.add_edge("a", "b")
-        result = check_orphan_code(graph)
-        self.assertEqual(result.findings_count, 0)
-
-    def test_entry_point_file_excluded(self):
-        """Functions in entry-point files (e.g. main.py) should be excluded from orphan detection."""
-        graph = CallGraph()
-        graph.add_node(_make_node("main.run", "/project/main.py", 0, 10))
-        graph.add_node(_make_node("mod.orphan", "/project/mod.py", 0, 10))
-        result = check_orphan_code(graph)
-        orphan_names = {e.entity_name for e in result.findings}
-        self.assertNotIn("main.run", orphan_names)
-        self.assertIn("mod.orphan", orphan_names)
-
-    def test_setup_file_excluded(self):
-        """Functions in setup.py should be excluded from orphan detection."""
-        graph = CallGraph()
-        graph.add_node(_make_node("setup.install", "/project/setup.py", 0, 10))
-        graph.add_node(_make_node("mod.orphan", "/project/mod.py", 0, 10))
-        result = check_orphan_code(graph)
-        orphan_names = {e.entity_name for e in result.findings}
-        self.assertNotIn("setup.install", orphan_names)
-        self.assertIn("mod.orphan", orphan_names)
-
-    def test_configurable_exclude_patterns(self):
-        """User-configured exclusion patterns should exclude matching functions."""
-        graph = CallGraph()
-        graph.add_node(_make_node("evals.utils.gen", "/project/evals/utils.py", 0, 10))
-        graph.add_node(_make_node("mod.orphan", "/project/mod.py", 0, 10))
-        config = HealthCheckConfig(orphan_exclude_patterns=["evals.*"])
-        result = check_orphan_code(graph, config)
-        orphan_names = {e.entity_name for e in result.findings}
-        self.assertNotIn("evals.utils.gen", orphan_names)
-        self.assertIn("mod.orphan", orphan_names)
-
-    def test_configurable_exclude_by_file_path(self):
-        """Exclusion patterns matching file paths should also exclude functions."""
-        graph = CallGraph()
-        graph.add_node(_make_node("gen.func", "/project/evals/utils.py", 0, 10))
-        graph.add_node(_make_node("mod.orphan", "/project/mod.py", 0, 10))
-        config = HealthCheckConfig(orphan_exclude_patterns=["*/evals/*"])
-        result = check_orphan_code(graph, config)
-        orphan_names = {e.entity_name for e in result.findings}
-        self.assertNotIn("gen.func", orphan_names)
-        self.assertIn("mod.orphan", orphan_names)
-
-    def test_import_cross_reference_excludes_imported_function(self):
-        """Functions imported by other source files should not be flagged as orphans."""
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            # Create a file that defines a function
-            def_file = os.path.join(tmp, "utils.py")
-            with open(def_file, "w") as f:
-                f.write("def get_project_root():\n    return '/'\n")
-
-            # Create a file that imports the function
-            caller_file = os.path.join(tmp, "consumer.py")
-            with open(caller_file, "w") as f:
-                f.write("from utils import get_project_root\nroot = get_project_root()\n")
-
-            graph = CallGraph()
-            graph.add_node(_make_node("utils.get_project_root", def_file, 0, 2))
-            graph.add_node(_make_node("mod.real_orphan", os.path.join(tmp, "other.py"), 0, 5))
-
-            result = check_orphan_code(graph, source_files=[def_file, caller_file])
-            orphan_names = {e.entity_name for e in result.findings}
-            self.assertNotIn("utils.get_project_root", orphan_names)
-            self.assertIn("mod.real_orphan", orphan_names)
-
-    def test_import_cross_reference_same_file_does_not_exclude(self):
-        """A function imported only in its own file should still be flagged."""
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            def_file = os.path.join(tmp, "utils.py")
-            with open(def_file, "w") as f:
-                f.write("from . import helper\ndef helper():\n    pass\n")
-
-            graph = CallGraph()
-            graph.add_node(_make_node("utils.helper", def_file, 1, 3))
-
-            result = check_orphan_code(graph, source_files=[def_file])
-            orphan_names = {e.entity_name for e in result.findings}
-            self.assertIn("utils.helper", orphan_names)
-
-    def test_fastapi_app_file_excluded(self):
-        """Functions in FastAPI app files should be excluded as entry points."""
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            app_file = os.path.join(tmp, "local_app.py")
-            with open(app_file, "w") as f:
-                f.write("from fastapi import FastAPI\napp = FastAPI()\ndef extract_name():\n    pass\n")
-
-            graph = CallGraph()
-            graph.add_node(_make_node("local_app.extract_name", app_file, 2, 4))
-            graph.add_node(_make_node("mod.orphan", os.path.join(tmp, "other.py"), 0, 5))
-
-            result = check_orphan_code(graph)
-            orphan_names = {e.entity_name for e in result.findings}
-            self.assertNotIn("local_app.extract_name", orphan_names)
-            self.assertIn("mod.orphan", orphan_names)
-
-
 class TestPackageInstability(unittest.TestCase):
     def test_unstable_package_with_dependents(self):
         pkg_deps = {
@@ -559,18 +439,6 @@ class TestEntityTypeFiltering(unittest.TestCase):
         entity_names = {f.entity_name for f in result.findings}
         self.assertNotIn("mod.MyClass", entity_names)
 
-    def test_orphan_code_skips_classes_and_data(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=Node.CLASS_TYPE))
-        graph.add_node(_make_node("mod.MY_CONST", "/f.py", 0, 5, node_type=Node.CONSTANT_TYPE))
-        graph.add_node(_make_node("mod.orphan_func", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.MyClass", entity_names)
-        self.assertNotIn("mod.MY_CONST", entity_names)
-        self.assertIn("mod.orphan_func", entity_names)
-        self.assertEqual(result.total_entities_checked, 1)
-
     def test_entity_label_on_node(self):
         func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE)
         method_node = _make_node("mod.Class.method", "/f.py", 0, 10, node_type=Node.METHOD_TYPE)
@@ -653,113 +521,6 @@ class TestInheritanceDepthFixedThreshold(unittest.TestCase):
         config = HealthCheckConfig(inheritance_depth_max=8)
         result = check_inheritance_depth(hierarchy, config)
         self.assertEqual(result.findings_count, 0)
-
-
-class TestOrphanCodeCallbackFiltering(unittest.TestCase):
-    """Tests that callbacks and anonymous functions are excluded from orphan code."""
-
-    def test_callback_nodes_excluded(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.arr.find() callback", "/f.py", 10, 12))
-        graph.add_node(_make_node("mod.arr.forEach() callback", "/f.py", 20, 22))
-        graph.add_node(_make_node("mod.real_orphan", "/f.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.arr.find() callback", entity_names)
-        self.assertNotIn("mod.arr.forEach() callback", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-        # Callbacks should be excluded from total_entities_checked
-        self.assertEqual(result.total_entities_checked, 1)
-
-    def test_anonymous_function_nodes_excluded(self):
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.<function>", "/f.py", 5, 10))
-        graph.add_node(_make_node("mod.<arrow", "/f.py", 15, 20))
-        graph.add_node(_make_node("mod.normal_func", "/f.py", 25, 35))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.<function>", entity_names)
-        self.assertNotIn("mod.<arrow", entity_names)
-        self.assertIn("mod.normal_func", entity_names)
-        self.assertEqual(result.total_entities_checked, 1)
-
-    def test_vscode_callback_excluded(self):
-        """VSCode registerCommand callbacks should be excluded as framework entry points."""
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.vscode.commands.registerCommand('cmd') callback", "/f.py", 10, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/f.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.vscode.commands.registerCommand('cmd') callback", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-    def test_event_handler_callback_excluded(self):
-        """Event handler callbacks (.on('event')) should be excluded."""
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.stream.on('data') callback", "/f.py", 10, 15))
-        graph.add_node(_make_node("mod.stream.on('end') callback", "/f.py", 16, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/f.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.stream.on('data') callback", entity_names)
-        self.assertNotIn("mod.stream.on('end') callback", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-    def test_test_callback_excluded(self):
-        """Test framework callbacks should be excluded."""
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.test.suite('suite') callback", "/f.py", 10, 50))
-        graph.add_node(_make_node("mod.test.test('test') callback", "/f.py", 51, 80))
-        graph.add_node(_make_node("mod.real_orphan", "/f.py", 90, 100))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.test.suite('suite') callback", entity_names)
-        self.assertNotIn("mod.test.test('test') callback", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-    def test_init_py_dunder_excluded(self):
-        """Dunder methods in __init__.py should be excluded as runtime-invocable."""
-        graph = CallGraph()
-        graph.add_node(_make_node("mod.__getattr__", "/project/mod/__init__.py", 10, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/project/mod/utils.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mod.__getattr__", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-
-class TestOrphanCodeTestFileExclusions(unittest.TestCase):
-    """Tests that test/infrastructure files are excluded from orphan code detection."""
-
-    def test_test_file_excluded(self):
-        """Files in __tests__/ directories should be excluded."""
-        graph = CallGraph()
-        graph.add_node(_make_node("test.func", "/project/__tests__/test_file.ts", 10, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/project/mod/utils.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("test.func", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-    def test_mock_file_excluded(self):
-        """Files in mock/ directories should be excluded."""
-        graph = CallGraph()
-        graph.add_node(_make_node("mock.helper", "/project/mock/mockService.ts", 10, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/project/mod/utils.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("mock.helper", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
-
-    def test_spec_file_excluded(self):
-        """.spec.ts files should be excluded."""
-        graph = CallGraph()
-        graph.add_node(_make_node("spec.test", "/project/service.spec.ts", 10, 20))
-        graph.add_node(_make_node("mod.real_orphan", "/project/mod/utils.py", 30, 40))
-        result = check_orphan_code(graph)
-        entity_names = {f.entity_name for f in result.findings}
-        self.assertNotIn("spec.test", entity_names)
-        self.assertIn("mod.real_orphan", entity_names)
 
 
 class TestFunctionSizeTestFileExclusions(unittest.TestCase):

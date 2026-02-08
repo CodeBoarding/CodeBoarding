@@ -7,7 +7,8 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.constants import Language
-from static_analyzer.lsp_client.client import LSPClient, FileDiagnosticsMap
+from static_analyzer.lsp_client.client import LSPClient
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
 from static_analyzer.programming_language import ProgrammingLanguage

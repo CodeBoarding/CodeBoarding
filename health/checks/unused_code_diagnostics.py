@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from static_analyzer.lsp_client.client import LSPDiagnostic
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from health.models import (
     FindingEntity,
     FindingGroup,
@@ -128,12 +128,6 @@ class LSPDiagnosticsCollector:
         self.issues: list[DiagnosticIssue] = []
 
     def add_diagnostic(self, file_path: str, diagnostic: LSPDiagnostic) -> None:
-        """Add an LSP diagnostic.
-
-        Args:
-            file_path: Path to the file where the diagnostic was reported
-            diagnostic: LSPDiagnostic object
-        """
         self.diagnostics.append(FileDiagnostic(file_path=file_path, diagnostic=diagnostic))
 
     def process_diagnostics(self) -> list[DiagnosticIssue]:

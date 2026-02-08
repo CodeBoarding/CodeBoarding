@@ -4,10 +4,10 @@ This module contains all language and configuration constants used throughout
 the static analyzer to avoid hardcoded strings and ensure consistency.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Language(str, Enum):
+class Language(StrEnum):
     """Enumeration of supported programming languages.
 
     Using Enum ensures type safety and prevents typos in language names.

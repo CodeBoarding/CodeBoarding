@@ -10,7 +10,7 @@ from health.checks.unused_code_diagnostics import (
     get_category_description,
 )
 from health.models import Severity
-from static_analyzer.lsp_client.client import LSPDiagnostic
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 
 
 def _make_diagnostic(
@@ -29,7 +29,10 @@ def _make_diagnostic(
             "message": message,
             "range": {
                 "start": {"line": line, "character": character},
-                "end": {"line": end_line if end_line is not None else line, "character": 10},
+                "end": {
+                    "line": end_line if end_line is not None else line,
+                    "character": 10,
+                },
             },
             "severity": severity,
             "tags": tags if tags is not None else [1],
@@ -85,7 +88,11 @@ class TestLSPDiagnosticsCollector:
         """Test processing diagnostics for unused variable."""
         collector = LSPDiagnosticsCollector()
         diagnostic = _make_diagnostic(
-            "reportUnusedVariable", "Variable is not accessed", line=10, character=4, end_line=10
+            "reportUnusedVariable",
+            "Variable is not accessed",
+            line=10,
+            character=4,
+            end_line=10,
         )
         collector.add_diagnostic("/path/to/file.py", diagnostic)
         issues = collector.process_diagnostics()
