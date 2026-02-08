@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 class ReferenceResolverMixin:
     _parse_invoke: Any  # Provided by Agent base class
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults | None):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
+
+    def _require_static_analysis(self) -> StaticAnalysisResults:
+        if self.static_analysis is None:
+            raise RuntimeError("Static analysis is required for reference resolution but is not available.")
+        return self.static_analysis
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
@@ -35,14 +40,15 @@ class ReferenceResolverMixin:
     def _resolve_single_reference(self, reference, file_candidates: list[str] | None = None):
         """Orchestrates different resolution strategies for a single reference."""
         qname = reference.qualified_name.replace(os.sep, ".")
+        static_analysis = self._require_static_analysis()
 
-        for lang in self.static_analysis.get_languages():
+        for lang in static_analysis.get_languages():
             # Try exact match first
-            if self._try_exact_match(reference, qname, lang):
+            if self._try_exact_match(reference, qname, lang, static_analysis):
                 return
 
             # Try loose matching
-            if self._try_loose_match(reference, qname, lang):
+            if self._try_loose_match(reference, qname, lang, static_analysis):
                 return
 
             # Try file path resolution
@@ -52,10 +58,10 @@ class ReferenceResolverMixin:
         # No resolution found - will be cleaned up later
         logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
 
-    def _try_exact_match(self, reference, qname, lang):
+    def _try_exact_match(self, reference, qname, lang, static_analysis: StaticAnalysisResults):
         """Attempts exact reference matching."""
         try:
-            node = self.static_analysis.get_reference(lang, qname)
+            node = static_analysis.get_reference(lang, qname)
             reference.reference_file = node.file_path
             reference.reference_start_line = node.line_start + 1  # match 1 based indexing
             reference.reference_end_line = node.line_end + 1  # match 1 based indexing
@@ -68,10 +74,10 @@ class ReferenceResolverMixin:
             logger.warning(f"[Reference Resolution] Exact match failed for {reference.qualified_name} in {lang}: {e}")
             return False
 
-    def _try_loose_match(self, reference, qname, lang):
+    def _try_loose_match(self, reference, qname, lang, static_analysis: StaticAnalysisResults):
         """Attempts loose reference matching."""
         try:
-            _, node = self.static_analysis.get_loose_reference(lang, qname)
+            _, node = static_analysis.get_loose_reference(lang, qname)
             if node is not None:
                 reference.reference_file = node.file_path
                 reference.reference_start_line = node.line_start + 1

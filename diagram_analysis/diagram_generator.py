@@ -68,6 +68,40 @@ class DiagramGenerator:
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
+    def _start_meta_analysis_background(self) -> tuple[MetaAgent, Any, ThreadPoolExecutor]:
+        """
+        Start metadata analysis in a background thread while static analysis runs.
+        """
+        meta_agent = MetaAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=None,
+        )
+        self._monitoring_agents["MetaAgent"] = meta_agent
+
+        logger.info("Starting MetaAgent metadata analysis in background")
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="meta-analysis")
+        future = executor.submit(meta_agent.analyze_project_metadata)
+        return meta_agent, future, executor
+
+    @staticmethod
+    def _shutdown_background_executor(executor: ThreadPoolExecutor) -> None:
+        try:
+            executor.shutdown(wait=False)
+        except Exception:
+            logger.warning("Failed to shut down background executor cleanly", exc_info=True)
+
+    @staticmethod
+    def _await_meta_analysis_result(meta_future: Any) -> Any:
+        logger.info("Waiting for MetaAgent metadata analysis result")
+        try:
+            result = meta_future.result()
+            logger.info("MetaAgent metadata analysis completed")
+            return result
+        except Exception:
+            logger.exception("MetaAgent metadata analysis failed")
+            raise
+
     def process_component(self, component: Component):
         """Process a single component and return its output path and any new components to analyze"""
         try:
@@ -95,50 +129,52 @@ class DiagramGenerator:
     def pre_analysis(self):
         analysis_start_time = time.time()
 
-        # When force_full is True, skip the cache to perform a full static analysis
-        if self.force_full_analysis:
-            logger.info("Force full analysis: skipping static analysis cache")
-            self.static_analysis = get_static_analysis(self.repo_location, skip_cache=True)
-        else:
-            self.static_analysis = get_static_analysis(self.repo_location)
-        static_analysis = self.static_analysis
+        self.meta_agent, meta_future, meta_executor = self._start_meta_analysis_background()
 
-        # --- Capture Static Analysis Stats ---
-        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
+        try:
+            # When force_full is True, skip the cache to perform a full static analysis
+            if self.force_full_analysis:
+                logger.info("Force full analysis: skipping static analysis cache")
+                self.static_analysis = get_static_analysis(self.repo_location, skip_cache=True)
+            else:
+                self.static_analysis = get_static_analysis(self.repo_location)
+            static_analysis = self.static_analysis
 
-        # Use ProjectScanner to get accurate LOC counts via tokei
-        scanner = ProjectScanner(self.repo_location)
-        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+            # --- Capture Static Analysis Stats ---
+            static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
 
-        for language in static_analysis.get_languages():
-            files = static_analysis.get_source_files(language)
+            # Use ProjectScanner to get accurate LOC counts via tokei
+            scanner = ProjectScanner(self.repo_location)
+            loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
 
-            static_stats["languages"][language] = {
-                "file_count": len(files),
-                "lines_of_code": loc_by_language.get(language, 0),
-            }
+            for language in static_analysis.get_languages():
+                files = static_analysis.get_source_files(language)
 
-        # Load health check configuration and initialize health config dir
-        health_config_dir = Path(self.output_dir) / "health"
-        initialize_health_dir(health_config_dir)
-        health_config = load_health_config(health_config_dir)
+                static_stats["languages"][language] = {
+                    "file_count": len(files),
+                    "lines_of_code": loc_by_language.get(language, 0),
+                }
 
-        health_report = run_health_checks(
-            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
-        )
-        if health_report is not None:
-            health_path = os.path.join(self.output_dir, "health", "health_report.json")
-            with open(health_path, "w") as f:
-                f.write(health_report.model_dump_json(indent=2, exclude_none=True))
-            logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
-        else:
-            logger.warning("Health checks skipped: no languages found in static analysis results")
+            # Load health check configuration and initialize health config dir
+            health_config_dir = Path(self.output_dir) / "health"
+            initialize_health_dir(health_config_dir)
+            health_config = load_health_config(health_config_dir)
 
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location, project_name=self.repo_name, static_analysis=static_analysis
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
-        meta_context = self.meta_agent.analyze_project_metadata()
+            health_report = run_health_checks(
+                static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+            )
+            if health_report is not None:
+                health_path = os.path.join(self.output_dir, "health", "health_report.json")
+                with open(health_path, "w") as f:
+                    f.write(health_report.model_dump_json(indent=2, exclude_none=True))
+                logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
+            else:
+                logger.warning("Health checks skipped: no languages found in static analysis results")
+
+            meta_context = self._await_meta_analysis_result(meta_future)
+        finally:
+            self._shutdown_background_executor(meta_executor)
+
         self.details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
@@ -318,6 +354,7 @@ class DiagramGenerator:
             output_dir=self.output_dir,
             static_analysis=static_analysis,
             force_full=self.force_full_analysis,
+            project_name=self.repo_name,
         )
 
         if not updater.can_run_incremental():

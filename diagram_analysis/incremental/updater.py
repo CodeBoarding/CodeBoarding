@@ -60,11 +60,13 @@ class IncrementalUpdater:
         output_dir: Path,
         static_analysis: StaticAnalysisResults | None = None,
         force_full: bool = False,
+        project_name: str | None = None,
     ):
         self.repo_dir = repo_dir
         self.output_dir = output_dir
         self.static_analysis = static_analysis
         self.force_full = force_full
+        self.project_name = project_name or repo_dir.name
 
         self.manifest: AnalysisManifest | None = None
         self.analysis: AnalysisInsights | None = None
@@ -330,7 +332,12 @@ class IncrementalUpdater:
                 impact=self.impact,
                 static_analysis=self.static_analysis,
             )
-            reexpanded_components = reexpand_components(components_to_reexpand, self.repo_dir, context)
+            reexpanded_components = reexpand_components(
+                components_to_reexpand,
+                self.repo_dir,
+                context,
+                self.project_name,
+            )
 
         # Step 5a: Sanity check
         for comp_name in reexpanded_components:
@@ -347,6 +354,7 @@ class IncrementalUpdater:
             self.output_dir,
             self.static_analysis,
             self.repo_dir,
+            self.project_name,
         )
 
         # Step 6: Patch components that don't need full re-expansion

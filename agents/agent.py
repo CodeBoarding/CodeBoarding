@@ -42,7 +42,9 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     _parsing_llm: Optional[BaseChatModel] = None
 
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
+    def __init__(
+        self, repo_dir: Path, static_analysis: StaticAnalysisResults | None, system_message: str, llm: BaseChatModel
+    ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.llm = llm
@@ -526,7 +528,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
 
 class LargeModelAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults | None, system_message: str):
         agent_model = os.getenv("AGENT_MODEL")
         llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
         super().__init__(repo_dir, static_analysis, system_message, llm)
