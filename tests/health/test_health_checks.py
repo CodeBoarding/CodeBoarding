@@ -300,13 +300,11 @@ class TestCircularDependencies(unittest.TestCase):
             "pkg_a": {
                 "imports": ["pkg_b"],
                 "import_deps": [],  # No import-based dep on pkg_b
-                "reference_deps": ["pkg_b"],
                 "imported_by": [],
             },
             "pkg_b": {
                 "imports": ["pkg_a"],
                 "import_deps": ["pkg_a"],  # Only pkg_b imports pkg_a
-                "reference_deps": [],
                 "imported_by": [],
             },
         }
