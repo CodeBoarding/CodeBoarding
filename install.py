@@ -311,6 +311,15 @@ def update_static_analysis_config():
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
 
+    # Minimal fallback: if pyright wasn't installed under node_modules, use active env binary if available
+    node_ext = ".cmd" if is_win else ""
+    node_pyright = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    if not node_pyright.exists():
+        env_pyright = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
+        if env_pyright and "lsp_servers" in config and "python" in config["lsp_servers"]:
+            config["lsp_servers"]["python"]["command"][0] = env_pyright
+            updates += 1
+
     # Update JDTLS configuration
     jdtls_dir = servers_dir / "bin" / "jdtls"
     if jdtls_dir.exists() and "lsp_servers" in config and "java" in config["lsp_servers"]:
@@ -457,6 +466,62 @@ def install_pre_commit_hooks():
         pass
 
 
+def print_language_support_summary(npm_available: bool):
+    """Print which language analyses are currently available based on installed tools."""
+    print("Step: Language support summary")
+
+    servers_dir = Path("static_analyzer/servers").resolve()
+    is_win = platform.system() == "Windows"
+    node_ext = ".cmd" if is_win else ""
+
+    ts_path = servers_dir / "node_modules" / ".bin" / f"typescript-language-server{node_ext}"
+    php_path = servers_dir / "node_modules" / ".bin" / f"intelephense{node_ext}"
+    py_node_path = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    py_env_path = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
+    go_path = servers_dir / ("gopls.exe" if is_win else "gopls")
+    java_path = servers_dir / "bin" / "jdtls"
+
+    python_ok = py_node_path.exists() or bool(py_env_path)
+    typescript_ok = npm_available and ts_path.exists()
+    javascript_ok = typescript_ok
+    php_ok = npm_available and php_path.exists()
+    go_ok = go_path.exists()
+    java_ok = java_path.exists()
+
+    print(f"  - Python: {'yes' if python_ok else 'no'}")
+    if not python_ok:
+        print("    reason: pyright-langserver not found in node_modules or active environment")
+
+    print(f"  - TypeScript: {'yes' if typescript_ok else 'no'}")
+    if not typescript_ok:
+        if not npm_available:
+            print("    reason: npm not available")
+        else:
+            print("    reason: typescript-language-server binary not found")
+
+    print(f"  - JavaScript: {'yes' if javascript_ok else 'no'}")
+    if not javascript_ok:
+        if not npm_available:
+            print("    reason: npm not available")
+        else:
+            print("    reason: typescript-language-server binary not found")
+
+    print(f"  - PHP: {'yes' if php_ok else 'no'}")
+    if not php_ok:
+        if not npm_available:
+            print("    reason: npm not available")
+        else:
+            print("    reason: intelephense binary not found")
+
+    print(f"  - Go: {'yes' if go_ok else 'no'}")
+    if not go_ok:
+        print("    reason: gopls binary not found")
+
+    print(f"  - Java: {'yes' if java_ok else 'no'}")
+    if not java_ok:
+        print("    reason: jdtls installation not found")
+
+
 if __name__ == "__main__":
     print("🚀 CodeBoarding Installation Script")
     print("=" * 40)
@@ -483,6 +548,9 @@ if __name__ == "__main__":
 
     # Step 6: Install pre-commit hooks
     install_pre_commit_hooks()
+
+    # Step 7: Print language analysis availability
+    print_language_support_summary(npm_available)
 
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")
