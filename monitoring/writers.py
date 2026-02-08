@@ -170,14 +170,3 @@ class StreamingStatsWriter:
 
         except Exception as e:
             self._logger.error(f"Failed to write run metadata: {e}")
-
-
-def save_static_stats(monitoring_dir: Path, stats_dict: dict):
-    """Save static analysis stats to code_stats.json."""
-    try:
-        monitoring_dir.mkdir(parents=True, exist_ok=True)
-        stats_file = monitoring_dir / "code_stats.json"
-        with open(stats_file, "w") as f:
-            json.dump(stats_dict, f, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to save static stats: {e}")

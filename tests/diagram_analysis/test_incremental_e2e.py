@@ -347,7 +347,9 @@ class TestIncrementalAIAgentsReanalysis:
                 print("[TestIncrementalAIAgentsReanalysis] Running incremental analysis...")
 
                 # Load static analysis (needed for component updates)
-                static_analysis = get_static_analysis(work_repo_dir)
+                with patch("static_analyzer.ProjectScanner.scan") as mock_scan:
+                    mock_scan.return_value = []
+                    static_analysis = get_static_analysis(work_repo_dir)
 
                 updater = IncrementalUpdater(
                     repo_dir=work_repo_dir,
@@ -419,7 +421,9 @@ class TestIncrementalFullReanalysis:
                 print("[TestIncrementalFullReanalysis] Running incremental analysis...")
 
                 # Load static analysis
-                static_analysis = get_static_analysis(work_repo_dir)
+                with patch("static_analyzer.ProjectScanner.scan") as mock_scan:
+                    mock_scan.return_value = []
+                    static_analysis = get_static_analysis(work_repo_dir)
 
                 updater = IncrementalUpdater(
                     repo_dir=work_repo_dir,

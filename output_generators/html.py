@@ -4,9 +4,8 @@ from typing import List, Dict, Any
 import json
 
 from agents.agent_responses import AnalysisInsights
-from output_generators import sanitize
+from utils import sanitize, contains_json
 from output_generators.html_template import populate_html_template
-from utils import contains_json
 
 
 def generate_cytoscape_data(

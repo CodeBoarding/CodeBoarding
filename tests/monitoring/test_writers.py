@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from monitoring.writers import StreamingStatsWriter, save_static_stats
+from monitoring.writers import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 
 
@@ -300,73 +300,3 @@ class TestStreamingStatsWriter:
 
         # Should not raise
         writer.stop()
-
-
-class TestSaveStaticStats:
-    """Tests for save_static_stats function."""
-
-    def test_saves_stats_file(self, temp_monitoring_dir: Path):
-        """Test that function saves stats to file."""
-        stats = {
-            "total_files": 100,
-            "total_lines": 5000,
-            "languages": ["Python", "TypeScript"],
-        }
-
-        save_static_stats(temp_monitoring_dir, stats)
-
-        stats_file = temp_monitoring_dir / "code_stats.json"
-        assert stats_file.exists()
-
-        with open(stats_file) as f:
-            saved_stats = json.load(f)
-
-        assert saved_stats == stats
-
-    def test_creates_directory(self, tmp_path: Path):
-        """Test that function creates directory if it doesn't exist."""
-        monitoring_dir = tmp_path / "new_monitoring"
-        assert not monitoring_dir.exists()
-
-        save_static_stats(monitoring_dir, {"test": "data"})
-
-        assert monitoring_dir.exists()
-        assert (monitoring_dir / "code_stats.json").exists()
-
-    def test_handles_empty_dict(self, temp_monitoring_dir: Path):
-        """Test that function handles empty stats dict."""
-        save_static_stats(temp_monitoring_dir, {})
-
-        stats_file = temp_monitoring_dir / "code_stats.json"
-        with open(stats_file) as f:
-            saved_stats = json.load(f)
-
-        assert saved_stats == {}
-
-    def test_overwrites_existing_file(self, temp_monitoring_dir: Path):
-        """Test that function overwrites existing stats file."""
-        stats_file = temp_monitoring_dir / "code_stats.json"
-        temp_monitoring_dir.mkdir(parents=True)
-        stats_file.write_text('{"old": "data"}')
-
-        save_static_stats(temp_monitoring_dir, {"new": "data"})
-
-        with open(stats_file) as f:
-            saved_stats = json.load(f)
-
-        assert saved_stats == {"new": "data"}
-
-    @patch("monitoring.writers.logger")
-    def test_logs_error_on_failure(self, mock_logger, temp_monitoring_dir: Path):
-        """Test that function logs error when writing fails."""
-        # Make the directory read-only to cause write failure
-        temp_monitoring_dir.mkdir(parents=True)
-        temp_monitoring_dir.chmod(0o555)
-
-        try:
-            save_static_stats(temp_monitoring_dir, {"test": "data"})
-        finally:
-            temp_monitoring_dir.chmod(0o755)
-
-        mock_logger.error.assert_called_once()
-        assert "Failed to save static stats" in mock_logger.error.call_args[0][0]
