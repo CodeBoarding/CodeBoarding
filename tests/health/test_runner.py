@@ -80,12 +80,10 @@ class TestHealthRunner(unittest.TestCase):
         # caller calls 2 functions (threshold is high by default)
         self.assertEqual(fan_out_summary.findings_count, 0)
 
-        # Find orphan_code check
-        orphan_summary = next(s for s in report.check_summaries if s.check_name == "orphan_code")
-        self.assertIsNotNone(orphan_summary)
-        assert isinstance(orphan_summary, StandardCheckSummary)
-        # orphan has no incoming or outgoing calls
-        self.assertEqual(orphan_summary.findings_count, 1)
+        # Find unused_code_diagnostics check
+        unused_code_summary = next(s for s in report.check_summaries if s.check_name == "unused_code_diagnostics")
+        self.assertIsNotNone(unused_code_summary)
+        assert isinstance(unused_code_summary, StandardCheckSummary)
 
         # Check that report can be serialized to JSON
         import json

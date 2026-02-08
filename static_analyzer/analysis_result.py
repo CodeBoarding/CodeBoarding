@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from static_analyzer.graph import Node, CallGraph
+from static_analyzer.lsp_client.client import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class AnalysisCache:
 class StaticAnalysisResults:
     def __init__(self):
         self.results: dict[str, dict] = {}
+        self.diagnostics: dict[str, FileDiagnosticsMap] = {}  # Language -> file_path -> diagnostics
 
     def add_class_hierarchy(self, language: str, hierarchy):
         """

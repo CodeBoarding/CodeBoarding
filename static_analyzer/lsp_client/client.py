@@ -15,7 +15,9 @@ import pathspec
 from tqdm import tqdm
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, Node
+from static_analyzer.lsp_client.language_settings import get_language_settings
 from static_analyzer.scanner import ProgrammingLanguage
 
 # Configure logging
@@ -38,6 +40,56 @@ def uri_to_path(file_uri: str) -> Path:
     parsed = urlparse(file_uri)
     path_str = url2pathname(unquote(parsed.path))
     return Path(path_str)
+
+
+@dataclass
+class DiagnosticPosition:
+    """A position in a text document (LSP Position)."""
+
+    line: int = 0
+    character: int = 0
+
+
+@dataclass
+class DiagnosticRange:
+    """A range in a text document (LSP Range)."""
+
+    start: DiagnosticPosition = field(default_factory=DiagnosticPosition)
+    end: DiagnosticPosition = field(default_factory=DiagnosticPosition)
+
+
+@dataclass
+class LSPDiagnostic:
+    """A structured representation of an LSP diagnostic notification."""
+
+    code: str = ""
+    message: str = ""
+    severity: int = 1  # LSP severity: 1=Error, 2=Warning, 3=Info, 4=Hint
+    tags: list[int] = field(default_factory=list)
+    range: DiagnosticRange = field(default_factory=DiagnosticRange)
+
+    @classmethod
+    def from_lsp_dict(cls, data: dict) -> "LSPDiagnostic":
+        range_info = data.get("range", {})
+        start = range_info.get("start", {})
+        end = range_info.get("end", {})
+        return cls(
+            code=str(data.get("code", "")),
+            message=data.get("message", ""),
+            severity=data.get("severity", 1),
+            tags=data.get("tags", []),
+            range=DiagnosticRange(
+                start=DiagnosticPosition(line=start.get("line", 0), character=start.get("character", 0)),
+                end=DiagnosticPosition(line=end.get("line", 0), character=end.get("character", 0)),
+            ),
+        )
+
+    def dedup_key(self) -> tuple[str, str, int, int]:
+        return (self.code, self.message, self.range.start.line, self.range.start.character)
+
+
+# file_path -> list of diagnostics for that file
+FileDiagnosticsMap = dict[str, list[LSPDiagnostic]]
 
 
 @dataclass
@@ -110,6 +162,9 @@ class LSPClient(ABC):
         self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
+        # Initialize diagnostics collection for health checks
+        self.diagnostics: FileDiagnosticsMap = {}
+
     def start(self):
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
@@ -124,6 +179,7 @@ class LSPClient(ABC):
         self._reader_thread.daemon = True
         self._reader_thread.start()
         self._initialize()
+        self._send_workspace_configuration()
 
     def _send_request(self, method: str, params: dict):
         """Sends a JSON-RPC request to the server."""
@@ -221,7 +277,8 @@ class LSPClient(ABC):
         Process a notification from the LSP server.
 
         This method extracts the method and params from the notification and calls
-        the subclass's handle_notification() method.
+        the subclass's handle_notification() method. It also captures diagnostics
+        for health checks.
 
         Args:
             notification: The notification dictionary from the LSP server
@@ -229,11 +286,59 @@ class LSPClient(ABC):
         method = notification.get("method", "")
         params = notification.get("params", {})
 
+        # Capture diagnostics for health checks
+        if method == "textDocument/publishDiagnostics":
+            self._handle_diagnostics_notification(params)
+
         # Call subclass handler
         try:
             self.handle_notification(method, params)
         except Exception as e:
             logger.debug(f"Error in notification handler for {method}: {e}")
+
+    def _handle_diagnostics_notification(self, params: dict):
+        """Handle textDocument/publishDiagnostics notifications.
+
+        Stores diagnostics for later use in health checks.
+
+        Args:
+            params: The notification parameters containing uri and diagnostics
+        """
+        try:
+            uri = params.get("uri", "")
+            raw_diagnostics = params.get("diagnostics", [])
+
+            if not uri or not raw_diagnostics:
+                return
+
+            # Convert URI to file path
+            file_path = str(uri_to_path(uri))
+            new_diags = [LSPDiagnostic.from_lsp_dict(d) for d in raw_diagnostics]
+
+            with self._lock:
+                existing_diags = self.diagnostics.get(file_path, [])
+                all_diags = existing_diags + new_diags
+
+                seen: set[tuple[str, str, int, int]] = set()
+                unique_diags: list[LSPDiagnostic] = []
+                for diag in all_diags:
+                    key = diag.dedup_key()
+                    if key not in seen:
+                        seen.add(key)
+                        unique_diags.append(diag)
+
+                self.diagnostics[file_path] = unique_diags
+        except Exception as e:
+            logger.debug(f"Error handling diagnostics notification: {e}")
+
+    def get_collected_diagnostics(self) -> FileDiagnosticsMap:
+        """Get all collected diagnostics.
+
+        Returns:
+            Dictionary mapping file paths to lists of LSPDiagnostic objects
+        """
+        with self._lock:
+            return self.diagnostics.copy()
 
     def handle_notification(self, method: str, params: dict):
         """
@@ -342,6 +447,11 @@ class LSPClient(ABC):
                     "typeHierarchy": {"dynamicRegistration": True},
                     "references": {"dynamicRegistration": True},
                     "semanticTokens": {"dynamicRegistration": True},
+                    "publishDiagnostics": {
+                        "relatedInformation": True,
+                        "versionSupport": True,
+                        "tagSupport": {"valueSet": [1, 2]},  # 1=Unnecessary, 2=Deprecated
+                    },
                 }
             },
             "workspace": {
@@ -349,6 +459,11 @@ class LSPClient(ABC):
                 "workspaceEdit": {"documentChanges": True},
             },
         }
+
+        # Add language-specific settings to enable unused code diagnostics
+        settings = get_language_settings(self.language_id)
+        if settings:
+            params["initializationOptions"] = settings
         init_id = self._send_request("initialize", params)
         # Use longer timeout for initialization as it may involve full workspace indexing
         response = self._wait_for_response(init_id, timeout=360)
@@ -358,6 +473,27 @@ class LSPClient(ABC):
 
         logger.info("Initialization successful.")
         self._send_notification("initialized", {})
+
+    def _send_workspace_configuration(self):
+        """Send workspace configuration to enable unused code detection.
+
+        Some LSP servers (like Pyright) require configuration to be sent via
+        workspace/didChangeConfiguration after initialization to enable
+        features like unused code detection.
+        """
+        settings = get_language_settings(self.language_id)
+        if not settings:
+            return
+
+        logger.info(f"Sending workspace configuration for {self.language_id}...")
+
+        # Send configuration using workspace/didChangeConfiguration
+        self._send_notification(
+            "workspace/didChangeConfiguration",
+            {"settings": settings},
+        )
+
+        logger.info(f"Workspace configuration sent for {self.language_id}")
 
     def _get_document_symbols(self, file_uri: str) -> list:
         """Fetches all document symbols (functions, classes, etc.) for a file."""
@@ -374,19 +510,19 @@ class LSPClient(ABC):
             "position": {"line": line, "character": character},
         }
         req_id = self._send_request("textDocument/prepareCallHierarchy", params)
-        response = self._wait_for_response(req_id, timeout=20)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _get_incoming_calls(self, item: dict) -> list:
         """Gets incoming calls for a call hierarchy item."""
         req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-        response = self._wait_for_response(req_id, timeout=20)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _get_outgoing_calls(self, item: dict) -> list:
         """Gets outgoing calls for a call hierarchy item."""
         req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
-        response = self._wait_for_response(req_id, timeout=20)
+        response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
     def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> list[dict]:
@@ -626,11 +762,25 @@ class LSPClient(ABC):
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
+        # Allow time for final diagnostics to arrive from the LSP server
+        # before closing files. Files were kept open during analysis to
+        # give the server time to produce diagnostics.
+        time.sleep(2)
+
+        # Close all files that were opened during analysis
+        for file_path in src_files:
+            try:
+                file_uri = file_path.as_uri()
+                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
+            except Exception as e:
+                logger.debug(f"Error closing file {file_path}: {e}")
+
         # Sort results by file path for deterministic graph construction.
         # as_completed() returns results in non-deterministic order which causes
         # downstream metrics to fluctuate between runs.
         successful_results.sort(key=lambda r: str(r.file_path))
 
+        # First pass: add all nodes, package relations, and class hierarchies
         for result in successful_results:
             # 1. PACKAGE RELATIONS
             if result.package_name not in package_relations:
@@ -653,6 +803,11 @@ class LSPClient(ABC):
                 call_graph.add_node(symbol_node)
                 reference_nodes.append(symbol_node)
 
+            # 4. CLASS HIERARCHIES
+            class_hierarchies.update(result.class_hierarchies)
+
+        # Second pass: add all edges (all nodes are now in the graph)
+        for result in successful_results:
             # 3. CALL GRAPH (sorted for deterministic edge insertion order)
             for caller_name, callee_name in sorted(result.call_relationships):
                 try:
@@ -757,7 +912,6 @@ class LSPClient(ABC):
             # Get all symbols in this file once
             symbols = self._get_document_symbols(file_uri)
             if not symbols:
-                self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
                 return result
 
             # 1. PACKAGE RELATIONS - Process imports and package structure
@@ -1373,7 +1527,7 @@ class LSPClient(ABC):
                 "position": {"line": line, "character": character},
             }
             req_id = self._send_request("textDocument/definition", params)
-            response = self._wait_for_response(req_id)
+            response = self._wait_for_response(req_id, timeout=15)
             return response.get("result", [])
         except Exception as e:
             logger.debug(f"Could not get definition: {e}")
