@@ -1,4 +1,18 @@
-"""Prompt factory implementation for GPT-4 models."""
+"""
+Prompt templates for OpenAI GPT-4 family models.
+
+GPT-4 Prompt Design Principles:
+    - Uses bold markdown headings and structured sections (**Role:**, **Responsibilities:**, **Approach:**)
+      because GPT-4 responds well to explicit role definition and clearly labeled instruction blocks.
+    - Employs detailed checklists (- [ ] items) for validation tasks. GPT-4 tends to be thorough when
+      given an explicit checklist to work through, reducing the chance of skipped criteria.
+    - Prompts are more verbose and descriptive than other models require. GPT-4 benefits from explicit
+      context and detailed instructions; overly terse prompts can lead to GPT-4 making assumptions or
+      filling gaps with generic responses rather than sticking to the task.
+    - Expansion and planning prompts include explicit tool lists (readFile, getClassHierarchy, etc.)
+      because GPT-4 is less likely to proactively discover and use tools unless explicitly told which
+      ones are available and when to use them.
+"""
 
 from .abstract_prompt_factory import AbstractPromptFactory
 

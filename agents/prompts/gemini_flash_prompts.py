@@ -1,3 +1,18 @@
+"""
+Prompt templates for Google Gemini Flash models.
+
+Gemini Flash Prompt Design Principles:
+    - Prompts are kept short and direct. Gemini Flash is optimized for speed and performs best with
+      concise instructions rather than elaborate context; excessive verbosity increases latency
+      without improving output quality.
+    - Minimal formatting overhead: no XML tags, no heavy markdown structure, no checklists. Gemini Flash
+      handles plain, direct instructions effectively and doesn't need structural cues to follow them.
+    - Tool usage guidance is brief ("Use tools when necessary") rather than prescriptive. Gemini Flash
+      is reasonably proactive with tool use and doesn't need exhaustive tool-by-tool instructions.
+    - These prompts serve as the default/fallback template for unrecognized model types, so they are
+      designed to be model-agnostic enough to work reasonably well across providers.
+"""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 SYSTEM_MESSAGE = """You are a software architecture expert. Your task is to analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level data flow overview optimized for diagram generation.

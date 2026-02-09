@@ -1,3 +1,19 @@
+"""
+Prompt templates for Moonshot Kimi models.
+
+Kimi Prompt Design Principles:
+    - Every prompt begins with "You are Kimi, an AI assistant created by Moonshot AI." This identity
+      anchor is required because Kimi performs significantly better when its own identity is reinforced
+      at the start of each message, not just in the system prompt.
+    - Emphasizes explicit chain-of-thought cues ("Reason step-by-step", "Think aloud first",
+      "Decompose tasks into parallel subtasks"). Kimi benefits from being told to reason before
+      acting; without these cues it tends to jump to conclusions or produce shallow analysis.
+    - Includes "Use tools proactively to verify facts" directives because Kimi's default behavior
+      is conservative with tool usage; it needs encouragement to call tools rather than guess.
+    - Prompt structure is conversational but directive, matching Kimi's training style. Overly formal
+      or rigid formatting (like strict markdown headers) is less effective than natural task framing.
+"""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 SYSTEM_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.

@@ -1,3 +1,20 @@
+"""
+Prompt templates for Zhipu GLM models.
+
+GLM Prompt Design Principles:
+    - Uses heavy directive language ("STRICTLY follow these rules", "MANDATORY", "MUST", "REQUIRED")
+      throughout every prompt. GLM models tend to drift from instructions or take creative liberties
+      unless constraints are stated emphatically and repeatedly.
+    - Each prompt assigns a specific role identity ("You are a software architecture expert",
+      "You are a file reference resolver") to anchor the model's behavior. GLM produces more
+      consistent output when given a strong persona framing at the start of each prompt.
+    - Steps are explicitly labeled with ordering ("REQUIRED STEPS (execute in order)") and output
+      sections are marked with "(complete all)" or "(complete ALL)". Without these markers, GLM
+      may produce partial outputs or skip required sections.
+    - Constraints are stated both positively and negatively ("MUST analyze", "STRICTLY avoid") because
+      GLM responds better to explicit boundary-setting than to implied expectations.
+"""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 SYSTEM_MESSAGE = """You are a software architecture expert. STRICTLY follow these rules:

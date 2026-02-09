@@ -1,3 +1,18 @@
+"""
+Prompt templates for DeepSeek models.
+
+DeepSeek Prompt Design Principles:
+    - Uses markdown headers (# Task, # Instructions, # Required outputs) for clear hierarchical
+      structure. DeepSeek models are trained heavily on code and technical documentation, so they
+      parse and follow markdown-structured prompts more reliably than prose-style instructions.
+    - Instructions are labeled with explicit ordering ("execute in order") because DeepSeek can
+      otherwise reorder or skip steps when given unordered lists.
+    - Prompts are concise and technically direct, avoiding role-playing preambles. DeepSeek performs
+      best with matter-of-fact instructions focused on what to do, not who it is.
+    - Avoids XML tags and heavy formatting. DeepSeek doesn't benefit from these structural cues the
+      way Claude does; plain markdown hierarchy is sufficient and produces cleaner outputs.
+"""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 SYSTEM_MESSAGE = """You are a software architecture expert.
