@@ -60,50 +60,6 @@ class LLMConfig:
         return resolved
 
 
-def detect_llm_type_from_model(model_name: str) -> LLMType:
-    """
-    Detect the LLM type/family from the model name.
-    This determines which prompt factory to use.
-
-    Args:
-        model_name: The model name (e.g., "gpt-4o", "claude-3-7-sonnet", "gemini-2.5-flash")
-
-    Returns:
-        The detected LLMType enum value
-    """
-    model_lower = model_name.lower()
-
-    # DeepSeek family
-    if "deepseek" in model_lower:
-        return LLMType.DEEPSEEK
-
-    # GLM family (Zhipu AI)
-    if "glm" in model_lower:
-        return LLMType.GLM
-
-    # Kimi family (Moonshot AI)
-    if "kimi" in model_lower or "moonshot" in model_lower:
-        return LLMType.KIMI
-
-    # GPT family (OpenAI, O1, O3, etc.)
-    if any(pattern in model_lower for pattern in ["gpt-", "gpt4", "gpt5", "o1-", "o3-"]):
-        return LLMType.GPT4
-
-    # Claude family (Anthropic) - matches claude, opus, sonnet, haiku
-    if any(pattern in model_lower for pattern in ["claude", "opus", "sonnet", "haiku"]):
-        return LLMType.CLAUDE
-
-    # Gemini family (Google)
-    if "gemini" in model_lower:
-        return LLMType.GEMINI_FLASH
-
-    # Default fallback to Gemini (most permissive prompts)
-    logger.warning(
-        f"Could not detect LLM type from model name '{model_name}', " f"defaulting to GEMINI_FLASH prompt factory"
-    )
-    return LLMType.GEMINI_FLASH
-
-
 # Define supported providers in priority order
 LLM_PROVIDERS = {
     "openai": LLMConfig(
@@ -251,7 +207,7 @@ def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
         model_name = model_override or config.agent_model
 
         # Initialize global prompt factory based on ACTUAL model
-        detected_llm_type = detect_llm_type_from_model(model_name)
+        detected_llm_type = LLMType.from_model_name(model_name)
         initialize_global_factory(detected_llm_type)
         logger.info(
             f"Initialized prompt factory for {name} provider with model '{model_name}' "

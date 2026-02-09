@@ -5,7 +5,7 @@ This module provides a factory for dynamically selecting prompts based on LLM ty
 """
 
 import logging
-from enum import Enum
+from enum import StrEnum
 from .abstract_prompt_factory import AbstractPromptFactory
 from .gemini_flash_prompts import GeminiFlashPromptFactory
 from .gpt_prompts import GPTPromptFactory
@@ -17,16 +17,33 @@ from .kimi_prompts import KimiPromptFactory
 logger = logging.getLogger(__name__)
 
 
-class LLMType(Enum):
-    """Enum for different LLM types."""
-
+class LLMType(StrEnum):
     GEMINI_FLASH = "gemini_flash"
-    CLAUDE_SONNET = "claude_sonnet"
     CLAUDE = "claude"
-    GPT4 = "gpt4"  # GPT-4 family optimized prompts
-    DEEPSEEK = "deepseek"  # DeepSeek family optimized prompts
-    GLM = "glm"  # GLM family optimized prompts
-    KIMI = "kimi"  # Kimi family optimized prompts
+    CLAUDE_SONNET = "claude_sonnet"
+    GPT4 = "gpt4"
+    DEEPSEEK = "deepseek"
+    GLM = "glm"
+    KIMI = "kimi"
+
+    @classmethod
+    def from_model_name(cls, model_name: str) -> "LLMType":
+        model_lower = model_name.lower().strip()
+
+        if "deepseek" in model_lower:
+            return cls.DEEPSEEK
+        if "glm" in model_lower:
+            return cls.GLM
+        if "kimi" in model_lower or "moonshot" in model_lower:
+            return cls.KIMI
+        if any(pattern in model_lower for pattern in ["gpt-", "gpt4", "gpt5", "o1-", "o3-"]):
+            return cls.GPT4
+        if any(pattern in model_lower for pattern in ["claude", "opus", "sonnet", "haiku"]):
+            return cls.CLAUDE
+        if "gemini" in model_lower:
+            return cls.GEMINI_FLASH
+
+        return cls.GEMINI_FLASH
 
 
 class PromptFactory:
@@ -70,39 +87,16 @@ class PromptFactory:
             raise AttributeError(f"Prompt method '{method_name}' not found in factory")
 
     def get_all_prompts(self) -> dict[str, str]:
-        """Get all prompts from the current factory."""
         prompts = {}
-        # Get all methods that start with 'get_' and don't start with '_'
         for method_name in dir(self._prompt_factory):
             if method_name.startswith("get_") and not method_name.startswith("_"):
                 try:
                     prompt_value = getattr(self._prompt_factory, method_name)()
-                    # Convert method name to constant name (get_system_message -> SYSTEM_MESSAGE)
-                    constant_name = method_name[4:].upper()  # Remove 'get_' and uppercase
+                    constant_name = method_name[4:].upper()
                     prompts[constant_name] = prompt_value
                 except Exception:
-                    continue  # Skip methods that can't be called without parameters
+                    continue
         return prompts
-
-    @classmethod
-    def create_for_llm(cls, llm_name: str, **kwargs) -> "PromptFactory":
-        """Create a prompt factory for a specific LLM."""
-        # Map LLM names to types
-        llm_mapping = {
-            "gemini": LLMType.GEMINI_FLASH,
-            "gemini_flash": LLMType.GEMINI_FLASH,
-            "claude": LLMType.CLAUDE,
-            "claude_sonnet": LLMType.CLAUDE_SONNET,
-            "gpt4": LLMType.GPT4,
-            "gpt-4": LLMType.GPT4,
-            "openai": LLMType.GPT4,  # Default OpenAI to GPT4
-            "deepseek": LLMType.DEEPSEEK,
-            "glm": LLMType.GLM,
-            "kimi": LLMType.KIMI,
-        }
-
-        llm_type = llm_mapping.get(llm_name.lower(), LLMType.GEMINI_FLASH)
-        return cls(llm_type)
 
 
 # Global factory instance - will be initialized by configuration
