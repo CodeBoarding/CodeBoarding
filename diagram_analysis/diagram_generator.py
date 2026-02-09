@@ -135,8 +135,7 @@ class DiagramGenerator:
             logger.warning("Health checks skipped: no languages found in static analysis results")
 
         # Initialize LLMs ONCE before creating any agents
-        agent_llm, parsing_llm, model_name = initialize_llms()
-        logger.info(f"Initialized LLMs for agents with model: {model_name}")
+        agent_llm, parsing_llm = initialize_llms()
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location,
@@ -145,8 +144,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        # Set model name for agent's monitoring callback
-        self.meta_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["MetaAgent"] = self.meta_agent
         meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(
@@ -157,8 +154,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        # Set model name for agent's monitoring callback
-        self.details_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
@@ -168,8 +163,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        # Set model name for agent's monitoring callback
-        self.abstraction_agent.agent_monitoring_callback.model_name = model_name
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")

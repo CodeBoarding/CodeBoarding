@@ -139,8 +139,6 @@ def reexpand_components(
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
-    # Set model name for agent's monitoring callback
-    meta_agent.agent_monitoring_callback.model_name = model_name
     meta_context = meta_agent.analyze_project_metadata()
 
     details_agent = DetailsAgent(
@@ -151,8 +149,6 @@ def reexpand_components(
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
-    # Set model name for agent's monitoring callback
-    details_agent.agent_monitoring_callback.model_name = model_name
 
     reexpanded: list[str] = []
     max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max

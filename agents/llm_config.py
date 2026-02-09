@@ -239,7 +239,7 @@ LLM_PROVIDERS = {
 }
 
 
-def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatModel, str]:
+def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
     # Import MONITORING_CALLBACK here to avoid circular import
     from agents.agent import MONITORING_CALLBACK
 
@@ -274,7 +274,7 @@ def initialize_agent_llm(model_override: str | None = None) -> tuple[BaseChatMod
 
         # Update global monitoring callback
         MONITORING_CALLBACK.model_name = model_name
-        return model, model_name
+        return model
 
     # Dynamically build error message with all possible env vars
     required_vars = []
@@ -316,7 +316,7 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
 
 
-def initialize_llms() -> tuple[BaseChatModel, BaseChatModel, str]:
-    agent_llm, model_name = initialize_agent_llm(os.getenv("AGENT_MODEL"))
+def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
+    agent_llm = initialize_agent_llm(os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
-    return agent_llm, parsing_llm, model_name
+    return agent_llm, parsing_llm

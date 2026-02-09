@@ -151,8 +151,6 @@ def handle_scoped_component_update(
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        # Set model name for agent's monitoring callback
-        meta_agent.agent_monitoring_callback.model_name = model_name
         meta_context = meta_agent.analyze_project_metadata()
 
         details_agent = DetailsAgent(
@@ -163,8 +161,6 @@ def handle_scoped_component_update(
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        # Set model name for agent's monitoring callback
-        details_agent.agent_monitoring_callback.model_name = model_name
 
         # Find the component object in the main analysis to preserve metadata
         component_obj = next((c for c in analysis.components if c.name == component_name), None)

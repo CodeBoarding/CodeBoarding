@@ -132,8 +132,6 @@ def classify_new_files_in_component(
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
-    # Set model name for agent's monitoring callback
-    agent.agent_monitoring_callback.model_name = model_name
 
     try:
         # Add new files to the sub-analysis as unassigned (they'll be classified)
