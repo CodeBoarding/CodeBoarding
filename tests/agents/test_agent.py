@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent import CodeBoardingAgent, LargeModelAgent
+from agents.agent import CodeBoardingAgent
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -55,98 +55,46 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Reset monitoring context
         current_stats.reset(self.token)
 
+    @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.agent.create_react_agent")
-    def test_init_with_openai(self, mock_create_agent):
+    def test_init_with_openai(self, mock_create_agent, mock_providers):
         # Test initialization with OpenAI
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
+        mock_llm = Mock(spec=BaseChatModel)
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         mock_agent_executor = Mock()
         mock_create_agent.return_value = mock_agent_executor
 
-        with patch.object(LLM_PROVIDERS["openai"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(
-                repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test system message"
-            )
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test system message",
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
 
-            # Verify agent was created
-            mock_create_agent.assert_called_once()
-            # Verify attributes
-            self.assertEqual(agent.repo_dir, self.repo_dir)
-            self.assertEqual(agent.static_analysis, self.mock_analysis)
+        # Verify agent was created
+        mock_create_agent.assert_called_once()
+        # Verify attributes
+        self.assertEqual(agent.repo_dir, self.repo_dir)
+        self.assertEqual(agent.static_analysis, self.mock_analysis)
+        self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
-    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True)
     @patch("agents.agent.create_react_agent")
-    def test_init_with_anthropic(self, mock_create_agent):
-        # Test initialization with Anthropic
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
+    def test_init_direct(self, mock_create_agent):
+        # Test direct initialization with mocked LLMs
+        mock_llm = Mock(spec=BaseChatModel)
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         mock_create_agent.return_value = Mock()
 
-        with patch.object(LLM_PROVIDERS["anthropic"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-            self.assertIsNotNone(agent)
-
-    @patch.dict(os.environ, {"GOOGLE_API_KEY": "test_key"}, clear=True)
-    @patch("agents.agent.create_react_agent")
-    def test_init_with_google(self, mock_create_agent):
-        # Test initialization with Google
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
-        mock_create_agent.return_value = Mock()
-
-        with patch.object(LLM_PROVIDERS["google"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-            self.assertIsNotNone(agent)
-
-    @patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "test_token"}, clear=True)
-    @patch("agents.agent.create_react_agent")
-    def test_init_with_aws(self, mock_create_agent):
-        # Test initialization with AWS Bedrock
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
-        mock_create_agent.return_value = Mock()
-
-        with patch.object(LLM_PROVIDERS["aws"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-            self.assertIsNotNone(agent)
-
-    @patch.dict(os.environ, {"CEREBRAS_API_KEY": "test_key"}, clear=True)
-    @patch("agents.agent.create_react_agent")
-    def test_init_with_cerebras(self, mock_create_agent):
-        # Test initialization with Cerebras
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
-        mock_create_agent.return_value = Mock()
-
-        with patch.object(LLM_PROVIDERS["cerebras"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-            self.assertIsNotNone(agent)
-
-    @patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://localhost:11434"}, clear=True)
-    @patch("agents.agent.create_react_agent")
-    def test_init_with_ollama(self, mock_create_agent):
-        # Test initialization with Ollama
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
-        mock_create_agent.return_value = Mock()
-
-        with patch.object(LLM_PROVIDERS["ollama"], "chat_class", return_value=mock_llm):
-            agent = LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-            self.assertIsNotNone(agent)
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_init_no_api_key(self):
-        # Test initialization without any API key
-        with self.assertRaises(ValueError) as context:
-            LargeModelAgent(repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test")
-
-        self.assertIn("No valid LLM configuration found", str(context.exception))
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+        self.assertIsNotNone(agent)
+        self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
     @patch("agents.agent.create_react_agent")
     def test_invoke_success(self, mock_create_agent):
@@ -158,11 +106,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_response_message = AIMessage(content="Test response")
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._invoke("Test prompt")
@@ -180,11 +130,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_response_message = AIMessage(content=["Part 1", "Part 2"])
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._invoke("Test prompt")
@@ -207,11 +159,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
             {"messages": [mock_response_message]},
         ]
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._invoke("Test prompt")
@@ -231,11 +185,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Always raise exception
         mock_agent_executor.invoke.side_effect = Exception("Always fails")
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._invoke("Test prompt")
@@ -253,11 +209,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_response_message = AIMessage(content="Test response")
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._invoke("Test prompt")
@@ -286,11 +244,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         mock_extractor.return_value = mock_extractor_instance
         mock_extractor_instance.invoke.return_value = {"responses": [{"value": "test_value"}]}
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._parse_invoke("Test prompt", TestResponse)
@@ -304,11 +264,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Test getting monitoring results when no callback exists
         mock_create_agent.return_value = Mock()
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         results = agent.get_monitoring_results()
@@ -324,11 +286,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Test getting monitoring results with callback
         mock_create_agent.return_value = Mock()
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         # Manually set stats on the agent's stats container
@@ -349,25 +313,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(results["tool_usage"]["counts"]["tool1"], 5)
 
     @patch("agents.agent.create_react_agent")
-    def test_initialize_llm_custom_model(self, mock_create_agent):
-        # Test LLM initialization with custom model
-        from agents.agent import LLM_PROVIDERS
-
-        mock_llm = Mock()
-        mock_create_agent.return_value = Mock()
-        mock_chat_openai = Mock(return_value=mock_llm)
-
-        with patch.object(LLM_PROVIDERS["openai"], "chat_class", mock_chat_openai):
-            with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key", "AGENT_MODEL": "gpt-4-turbo"}, clear=True):
-                agent = LargeModelAgent(
-                    repo_dir=self.repo_dir, static_analysis=self.mock_analysis, system_message="Test"
-                )
-
-                # Check that custom model was used
-                call_args = mock_chat_openai.call_args
-                self.assertEqual(call_args[1]["model"], "gpt-4-turbo")
-
-    @patch("agents.agent.create_react_agent")
     @patch("agents.agent.create_extractor")
     @patch("time.sleep")
     def test_parse_response_with_retry(self, mock_sleep, mock_extractor, mock_create_agent):
@@ -382,11 +327,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
             {"responses": [{"value": "success"}]},
         ]
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         result = agent._parse_response("Test prompt", '{"value": "success"}', TestResponse, max_retries=5)
@@ -400,11 +347,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Test that all required tools are initialized
         mock_create_agent.return_value = Mock()
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         # Check tools are initialized
@@ -423,11 +372,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Test that agent is created with correct tools
         mock_create_agent.return_value = Mock()
 
+        mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_analysis,
             system_message="Test",
-            llm=self.mock_llm,
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
         )
 
         # Verify create_react_agent was called with tools

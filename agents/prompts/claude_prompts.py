@@ -1,3 +1,18 @@
+"""
+Prompt templates for Anthropic Claude models.
+
+Claude Prompt Design Principles:
+    - Uses XML-like tags (<context>, <instructions>, <thinking>) to delineate prompt sections.
+      Claude is specifically trained to recognize and respect these structural markers, leading to
+      more precise instruction following and reduced hallucination.
+    - Embeds a <thinking> block to guide Claude's internal reasoning focus before it generates output.
+      This steers attention toward architectural concerns without requiring verbose explanations.
+    - Prompts are moderately concise: Claude infers intent well from structured context, so lengthy
+      elaboration is unnecessary and can actually degrade output quality.
+    - Tool usage instructions use imperative "you MUST use" phrasing within <instructions> tags,
+      which Claude reliably respects without needing repetition or capitalized directives.
+"""
+
 from .abstract_prompt_factory import AbstractPromptFactory
 
 # Highly optimized prompts for Claude performance

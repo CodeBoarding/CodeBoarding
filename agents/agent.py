@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
@@ -16,36 +15,34 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights, ComponentFiles, FileClassification
-from agents.llm_config import LLM_PROVIDERS
 from agents.prompts import (
     get_unassigned_files_classification_message,
     get_validation_feedback_message,
-    initialize_global_factory,
 )
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationContext, validate_file_classifications
-from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
+from agents.llm_config import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
 
-# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
-from monitoring.stats import RunStats
-
-MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
-
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
-    _parsing_llm: Optional[BaseChatModel] = None
-
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str, llm: BaseChatModel):
+    def __init__(
+        self,
+        repo_dir: Path,
+        static_analysis: StaticAnalysisResults,
+        system_message: str,
+        agent_llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
+    ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
-        self.llm = llm
+        self.parsing_llm = parsing_llm
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
@@ -54,7 +51,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         self.toolkit = CodeBoardingToolkit(context=context)
 
         self.agent = create_react_agent(
-            model=self.llm,
+            model=agent_llm,
             tools=self.toolkit.get_agent_tools(),
         )
         self.static_analysis = static_analysis
@@ -95,60 +92,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     @property
     def external_deps_tool(self):
         return self.toolkit.external_deps
-
-    @classmethod
-    def get_parsing_llm(cls) -> BaseChatModel:
-        """Shared access to the small model for parsing tasks."""
-        if cls._parsing_llm is None:
-            parsing_model = os.getenv("PARSING_MODEL", None)
-            cls._parsing_llm, _ = cls._static_initialize_llm(model_override=parsing_model, is_parsing=True)
-        return cls._parsing_llm
-
-    @staticmethod
-    def _static_initialize_llm(
-        model_override: Optional[str] = None, is_parsing: bool = False
-    ) -> tuple[BaseChatModel, str]:
-        """Initialize LLM based on available API keys with priority order."""
-        for name, config in LLM_PROVIDERS.items():
-            if not config.is_active():
-                continue
-
-            # Initialize global prompt factory based on provider (only once, for agent model)
-            if not is_parsing:
-                initialize_global_factory(config.llm_type)
-                logger.info(f"Initialized prompt factory for {name} with {config.llm_type.value}")
-
-            # Determine model name
-            default_model = config.parsing_model if is_parsing else config.agent_model
-            model_name = model_override if model_override else default_model
-
-            logger.info(f"Using {name.title()} {'Extractor ' if is_parsing else ''}LLM with model: {model_name}")
-
-            kwargs = {
-                "model": model_name,
-                "temperature": config.parsing_temperature if is_parsing else config.agent_temperature,
-            }
-            kwargs.update(config.get_resolved_extra_args())
-
-            if name not in ["aws", "ollama"]:
-                api_key = config.get_api_key()
-                kwargs["api_key"] = api_key or "no-key-required"
-
-            model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-
-            # Update global monitoring callback
-            MONITORING_CALLBACK.model_name = model_name
-            return model, model_name
-
-        # Dynamically build error message with all possible env vars
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
-
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
 
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
@@ -324,8 +267,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        parsing_llm = self.get_parsing_llm()
-        extractor = create_extractor(parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
+        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
@@ -380,8 +322,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 input_variables=["adjective"],
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
-            parsing_llm = self.get_parsing_llm()
-            chain = prompt | parsing_llm | parser
+            chain = prompt | self.parsing_llm | parser
             return chain.invoke(
                 {"adjective": message_content},
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
@@ -523,11 +464,3 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             prompt, ComponentFiles, validators=[validate_file_classifications], context=context
         )
         return file_classifications.file_paths
-
-
-class LargeModelAgent(CodeBoardingAgent):
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults, system_message: str):
-        agent_model = os.getenv("AGENT_MODEL")
-        llm, model_name = self._static_initialize_llm(model_override=agent_model, is_parsing=False)
-        super().__init__(repo_dir, static_analysis, system_message, llm)
-        self.agent_monitoring_callback.model_name = model_name

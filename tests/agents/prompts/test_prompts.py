@@ -87,7 +87,6 @@ class TestPromptFactory(unittest.TestCase):
             factory.get_prompt("nonexistent_prompt")
 
     def test_get_all_prompts(self):
-        # Test getting all prompts from factory
         factory = PromptFactory(LLMType.GEMINI_FLASH)
         prompts = factory.get_all_prompts()
 
@@ -95,45 +94,39 @@ class TestPromptFactory(unittest.TestCase):
         self.assertGreater(len(prompts), 0)
         self.assertIn("SYSTEM_MESSAGE", prompts)
 
-    def test_create_for_llm_gemini(self):
-        # Test creating factory for Gemini
-        factory = PromptFactory.create_for_llm("gemini")
-        self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
 
-    def test_create_for_llm_gemini_flash(self):
-        # Test creating factory for Gemini Flash
-        factory = PromptFactory.create_for_llm("gemini_flash")
-        self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
+class TestLLMTypeFromModelName(unittest.TestCase):
+    def test_from_model_name_gemini(self):
+        self.assertEqual(LLMType.from_model_name("gemini-1.5-pro"), LLMType.GEMINI_FLASH)
+        self.assertEqual(LLMType.from_model_name("gemini-2.5-flash"), LLMType.GEMINI_FLASH)
+        self.assertEqual(LLMType.from_model_name("gemini"), LLMType.GEMINI_FLASH)
 
-    def test_create_for_llm_claude(self):
-        # Test creating factory for Claude
-        factory = PromptFactory.create_for_llm("claude")
-        self.assertEqual(factory.llm_type, LLMType.CLAUDE)
+    def test_from_model_name_gpt(self):
+        self.assertEqual(LLMType.from_model_name("gpt-4"), LLMType.GPT4)
+        self.assertEqual(LLMType.from_model_name("gpt-4o"), LLMType.GPT4)
+        self.assertEqual(LLMType.from_model_name("gpt4"), LLMType.GPT4)
+        self.assertEqual(LLMType.from_model_name("o1-preview"), LLMType.GPT4)
 
-    def test_create_for_llm_claude_sonnet(self):
-        # Test creating factory for Claude Sonnet
-        factory = PromptFactory.create_for_llm("claude_sonnet")
-        self.assertEqual(factory.llm_type, LLMType.CLAUDE_SONNET)
+    def test_from_model_name_claude(self):
+        self.assertEqual(LLMType.from_model_name("claude"), LLMType.CLAUDE)
+        self.assertEqual(LLMType.from_model_name("claude-3-opus"), LLMType.CLAUDE)
+        self.assertEqual(LLMType.from_model_name("sonnet"), LLMType.CLAUDE)
 
-    def test_create_for_llm_gpt4(self):
-        # Test creating factory for GPT-4
-        factory = PromptFactory.create_for_llm("gpt4")
-        self.assertEqual(factory.llm_type, LLMType.GPT4)
+    def test_from_model_name_deepseek(self):
+        self.assertEqual(LLMType.from_model_name("deepseek-chat"), LLMType.DEEPSEEK)
+        self.assertEqual(LLMType.from_model_name("deepseek-v3"), LLMType.DEEPSEEK)
 
-    def test_create_for_llm_gpt4_dash(self):
-        # Test creating factory for GPT-4 with dash
-        factory = PromptFactory.create_for_llm("gpt-4")
-        self.assertEqual(factory.llm_type, LLMType.GPT4)
+    def test_from_model_name_glm(self):
+        self.assertEqual(LLMType.from_model_name("glm-4"), LLMType.GLM)
+        self.assertEqual(LLMType.from_model_name("glm-4-flash"), LLMType.GLM)
 
-    def test_create_for_llm_openai(self):
-        # Test creating factory for OpenAI (defaults to GPT4)
-        factory = PromptFactory.create_for_llm("openai")
-        self.assertEqual(factory.llm_type, LLMType.GPT4)
+    def test_from_model_name_kimi(self):
+        self.assertEqual(LLMType.from_model_name("kimi-k2.5"), LLMType.KIMI)
+        self.assertEqual(LLMType.from_model_name("moonshot-v1"), LLMType.KIMI)
 
-    def test_create_for_llm_unknown_defaults_to_gemini(self):
-        # Test that unknown LLM defaults to Gemini Flash
-        factory = PromptFactory.create_for_llm("unknown_llm")
-        self.assertEqual(factory.llm_type, LLMType.GEMINI_FLASH)
+    def test_from_model_name_unknown_defaults_to_gemini(self):
+        self.assertEqual(LLMType.from_model_name("unknown-model"), LLMType.GEMINI_FLASH)
+        self.assertEqual(LLMType.from_model_name("llama-70b"), LLMType.GEMINI_FLASH)
 
 
 class TestGlobalFactory(unittest.TestCase):

@@ -4,21 +4,46 @@ Prompt Factory Module
 This module provides a factory for dynamically selecting prompts based on LLM type.
 """
 
-from enum import Enum
+import logging
+from enum import StrEnum
 from .abstract_prompt_factory import AbstractPromptFactory
 from .gemini_flash_prompts import GeminiFlashPromptFactory
 from .gpt_prompts import GPTPromptFactory
 from .claude_prompts import ClaudePromptFactory
+from .deepseek_prompts import DeepSeekPromptFactory
+from .glm_prompts import GLMPromptFactory
+from .kimi_prompts import KimiPromptFactory
+
+logger = logging.getLogger(__name__)
 
 
-class LLMType(Enum):
-    """Enum for different LLM types."""
-
+class LLMType(StrEnum):
     GEMINI_FLASH = "gemini_flash"
-    CLAUDE_SONNET = "claude_sonnet"
     CLAUDE = "claude"
-    GPT4 = "gpt4"  # GPT-4 family optimized prompts
-    VERCEL = "vercel"
+    CLAUDE_SONNET = "claude_sonnet"
+    GPT4 = "gpt4"
+    DEEPSEEK = "deepseek"
+    GLM = "glm"
+    KIMI = "kimi"
+
+    @classmethod
+    def from_model_name(cls, model_name: str) -> "LLMType":
+        model_lower = model_name.lower().strip()
+
+        if "deepseek" in model_lower:
+            return cls.DEEPSEEK
+        if "glm" in model_lower:
+            return cls.GLM
+        if "kimi" in model_lower or "moonshot" in model_lower:
+            return cls.KIMI
+        if any(pattern in model_lower for pattern in ["gpt-", "gpt4", "gpt5", "o1-", "o3-"]):
+            return cls.GPT4
+        if any(pattern in model_lower for pattern in ["claude", "opus", "sonnet", "haiku"]):
+            return cls.CLAUDE
+        if "gemini" in model_lower:
+            return cls.GEMINI_FLASH
+
+        return cls.GEMINI_FLASH
 
 
 class PromptFactory:
@@ -37,8 +62,17 @@ class PromptFactory:
             case LLMType.CLAUDE | LLMType.CLAUDE_SONNET:
                 return ClaudePromptFactory()
 
-            case LLMType.GPT4 | LLMType.VERCEL:
-                return GeminiFlashPromptFactory()
+            case LLMType.GPT4:
+                return GPTPromptFactory()
+
+            case LLMType.DEEPSEEK:
+                return DeepSeekPromptFactory()
+
+            case LLMType.GLM:
+                return GLMPromptFactory()
+
+            case LLMType.KIMI:
+                return KimiPromptFactory()
 
             case _:
                 # Default fallback
@@ -53,37 +87,16 @@ class PromptFactory:
             raise AttributeError(f"Prompt method '{method_name}' not found in factory")
 
     def get_all_prompts(self) -> dict[str, str]:
-        """Get all prompts from the current factory."""
         prompts = {}
-        # Get all methods that start with 'get_' and don't start with '_'
         for method_name in dir(self._prompt_factory):
             if method_name.startswith("get_") and not method_name.startswith("_"):
                 try:
                     prompt_value = getattr(self._prompt_factory, method_name)()
-                    # Convert method name to constant name (get_system_message -> SYSTEM_MESSAGE)
-                    constant_name = method_name[4:].upper()  # Remove 'get_' and uppercase
+                    constant_name = method_name[4:].upper()
                     prompts[constant_name] = prompt_value
                 except Exception:
-                    continue  # Skip methods that can't be called without parameters
+                    continue
         return prompts
-
-    @classmethod
-    def create_for_llm(cls, llm_name: str, **kwargs) -> "PromptFactory":
-        """Create a prompt factory for a specific LLM."""
-        # Map LLM names to types
-        llm_mapping = {
-            "gemini": LLMType.GEMINI_FLASH,
-            "gemini_flash": LLMType.GEMINI_FLASH,
-            "claude": LLMType.CLAUDE,
-            "claude_sonnet": LLMType.CLAUDE_SONNET,
-            "gpt4": LLMType.GPT4,
-            "gpt-4": LLMType.GPT4,
-            "openai": LLMType.GPT4,  # Default OpenAI to GPT4
-            "vercel": LLMType.VERCEL,
-        }
-
-        llm_type = llm_mapping.get(llm_name.lower(), LLMType.GEMINI_FLASH)
-        return cls(llm_type)
 
 
 # Global factory instance - will be initialized by configuration
@@ -94,6 +107,8 @@ def initialize_global_factory(llm_type: LLMType = LLMType.GEMINI_FLASH):
     """Initialize the global prompt factory."""
     global _global_factory
     _global_factory = PromptFactory(llm_type)
+    factory_class_name = _global_factory._prompt_factory.__class__.__name__
+    logger.info(f"Initialized global prompt factory: {factory_class_name} (LLM type: {llm_type.value})")
 
 
 def get_global_factory() -> PromptFactory:
