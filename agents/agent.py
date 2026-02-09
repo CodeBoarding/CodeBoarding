@@ -24,7 +24,7 @@ from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationContext, validate_file_classifications
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
-from repos.CodeBoarding.agents.agent import MONITORING_CALLBACK
+from agents.llm_config import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
