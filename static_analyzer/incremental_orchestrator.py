@@ -181,6 +181,11 @@ class IncrementalAnalysisOrchestrator:
         # Perform full analysis
         analysis_result = lsp_client.build_static_analysis()
 
+        # Attach diagnostics to the result for caching
+        diagnostics = lsp_client.get_collected_diagnostics()
+        if diagnostics:
+            analysis_result["diagnostics"] = diagnostics
+
         # Log analysis statistics
         call_graph = analysis_result.get("call_graph", CallGraph())
         references = analysis_result.get("references", [])
@@ -381,6 +386,11 @@ class IncrementalAnalysisOrchestrator:
             # Reanalyze changed files
             logger.info(f"Reanalyzing {len(existing_files)} existing changed files")
             new_analysis = lsp_client._analyze_specific_files(existing_files)
+
+            # Attach fresh diagnostics for the changed files
+            fresh_diagnostics = lsp_client.get_collected_diagnostics()
+            if fresh_diagnostics:
+                new_analysis["diagnostics"] = fresh_diagnostics
 
             # Merge results
             logger.info("Merging new analysis with cached results")

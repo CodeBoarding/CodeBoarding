@@ -11,8 +11,7 @@ reliable than custom call graph analysis for detecting:
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
+from enum import StrEnum
 
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from health.models import (
@@ -26,7 +25,10 @@ from health.models import (
 logger = logging.getLogger(__name__)
 
 
-class DeadCodeCategory(str, Enum):
+ENTITY_NAME_LINE_BREAK = 150
+
+
+class DeadCodeCategory(StrEnum):
     """Categories of dead/unused code detected by LSP diagnostics."""
 
     UNUSED_IMPORT = "unused_import"
@@ -273,8 +275,8 @@ def check_unused_code_diagnostics(
         entities: list[FindingEntity] = []
         for issue in category_issues:
             # Create a descriptive entity name from the message
-            entity_name = f"[{category.value}] {issue.message[:50]}"
-            if len(issue.message) > 50:
+            entity_name = f"[{category.value}] {issue.message[:ENTITY_NAME_LINE_BREAK]}"
+            if len(issue.message) > ENTITY_NAME_LINE_BREAK:
                 entity_name += "..."
 
             entity = FindingEntity(

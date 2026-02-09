@@ -170,17 +170,26 @@ class StaticAnalyzer:
                 results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
 
-                # Collect diagnostics for health checks (collected during analysis)
-                # Stored on the instance (not in StaticAnalysisResults) since diagnostics
-                # are ephemeral LSP data only consumed by health checks.
-                diagnostics = client.get_collected_diagnostics()
-                if diagnostics:
-                    logger.info(f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}")
-                    total_diags = sum(len(d) for d in diagnostics.values())
-                    logger.info(f"Total diagnostic items: {total_diags}")
-                    self.collected_diagnostics[client.language.language] = diagnostics
+                # Collect diagnostics for health checks.
+                # Prefer diagnostics from the analysis result (populated by incremental cache),
+                # fall back to freshly collected ones from the LSP client.
+                if "diagnostics" in analysis and analysis["diagnostics"]:
+                    cached_diags = analysis["diagnostics"]
+                    logger.info(
+                        f"Using {len(cached_diags)} files with diagnostics from cache for {client.language.language}"
+                    )
+                    self.collected_diagnostics[client.language.language] = cached_diags
                 else:
-                    logger.warning(f"No diagnostics collected for {client.language.language}")
+                    diagnostics = client.get_collected_diagnostics()
+                    if diagnostics:
+                        logger.info(
+                            f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}"
+                        )
+                        total_diags = sum(len(d) for d in diagnostics.values())
+                        logger.info(f"Total diagnostic items: {total_diags}")
+                        self.collected_diagnostics[client.language.language] = diagnostics
+                    else:
+                        logger.warning(f"No diagnostics collected for {client.language.language}")
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
         print(f"Static analysis complete: {results}")

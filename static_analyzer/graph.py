@@ -140,7 +140,7 @@ class Node:
         LSP servers often report inline callbacks (e.g. `.forEach() callback`,
         `.find() callback`) and anonymous functions (e.g. `<function>`, `<arrow`)
         as separate symbols. These are typically not independently callable and
-        should be excluded from certain health checks like orphan code detection.
+        should be excluded from certain health checks like unused code detection.
         """
         name = self.fully_qualified_name
         return any(pattern in name for pattern in self._CALLBACK_PATTERNS)
