@@ -1,6 +1,5 @@
 import logging
-from typing import List, Optional, cast, Any
-from pathlib import Path
+from typing import List, cast
 
 from .base import RepoContext, BaseRepoTool
 from .read_source import CodeReferenceReader

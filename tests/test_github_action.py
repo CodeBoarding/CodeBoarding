@@ -121,7 +121,6 @@ class TestGenerateHtml(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
             )
 
             mock_generate_file.assert_called_once()
@@ -142,7 +141,6 @@ class TestGenerateHtml(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
             )
 
             mock_generate_file.assert_not_called()

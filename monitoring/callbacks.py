@@ -40,7 +40,7 @@ class MonitoringCallback(BaseCallbackHandler):
             return self._stats_container
         return current_stats.get()
 
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
+    def on_llm_end(self, response: LLMResult, **_kwargs: Any) -> None:
         step_name = current_step.get()
 
         # Extract usage
@@ -145,12 +145,8 @@ class MonitoringCallback(BaseCallbackHandler):
         if not usage_mapping and response.generations:
             first_gen = response.generations[0][0]
             message = getattr(first_gen, "message", None) or getattr(first_gen, "text", None)
-            meta: Mapping[str, Any] = {}
-            usage_meta: Mapping[str, Any] = {}
-
-            if message is not None:
-                meta = getattr(message, "response_metadata", {}) or {}
-                usage_meta = getattr(message, "usage_metadata", {}) or {}
+            meta: Mapping[str, Any] = getattr(message, "response_metadata", {}) or {}
+            usage_meta: Mapping[str, Any] = getattr(message, "usage_metadata", {}) or {}
 
             if "token_usage" in meta:
                 raw = cast(Mapping[str, Any], meta.get("token_usage") or {})

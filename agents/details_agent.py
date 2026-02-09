@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
