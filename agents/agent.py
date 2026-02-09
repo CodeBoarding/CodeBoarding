@@ -22,18 +22,13 @@ from agents.prompts import (
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationContext, validate_file_classifications
-from monitoring.callbacks import MonitoringCallback
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
+from repos.CodeBoarding.agents.agent import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
-
-# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
-from monitoring.stats import RunStats
-
-MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):

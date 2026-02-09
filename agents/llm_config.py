@@ -13,6 +13,12 @@ from langchain_cerebras import ChatCerebras
 from langchain_ollama import ChatOllama
 
 from agents.prompts.prompt_factory import LLMType
+from monitoring.callbacks import MonitoringCallback
+
+# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
+from monitoring.stats import RunStats
+
+MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 logger = logging.getLogger(__name__)
 
@@ -240,8 +246,6 @@ def _initialize_llm(
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
-    from agents.agent import MONITORING_CALLBACK
-
     model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
     MONITORING_CALLBACK.model_name = model_name
     return model
