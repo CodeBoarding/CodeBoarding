@@ -68,7 +68,7 @@ class TestDetailsAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -86,7 +86,7 @@ class TestDetailsAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
         # Mock StaticAnalysis and CFG behavior
@@ -127,7 +127,7 @@ class TestDetailsAgent(unittest.TestCase):
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             meta_context=self.mock_meta_context,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
         mock_response = ClusterAnalysis(cluster_components=[])

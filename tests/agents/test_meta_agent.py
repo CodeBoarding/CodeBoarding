@@ -34,7 +34,7 @@ class TestMetaAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -51,7 +51,7 @@ class TestMetaAgent(unittest.TestCase):
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
-            llm=mock_llm,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 
@@ -82,8 +82,8 @@ class TestMetaAgent(unittest.TestCase):
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             static_analysis=self.mock_static_analysis,
-            project_name="web_app",
-            llm=mock_llm,
+            project_name=self.project_name,
+            agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
         )
 

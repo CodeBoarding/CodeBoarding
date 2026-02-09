@@ -129,7 +129,7 @@ def classify_new_files_in_component(
         repo_dir=repo_dir,
         static_analysis=static_analysis,
         system_message="Classification agent for incremental updates",
-        llm=agent_llm,
+        agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
     # Set model name for agent's monitoring callback

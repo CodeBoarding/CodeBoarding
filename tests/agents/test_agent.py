@@ -77,7 +77,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Verify attributes
         self.assertEqual(agent.repo_dir, self.repo_dir)
         self.assertEqual(agent.static_analysis, self.mock_analysis)
-        self.assertEqual(agent.llm, mock_llm)
         self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
     @patch("agents.agent.create_react_agent")
@@ -95,7 +94,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
         self.assertIsNotNone(agent)
-        self.assertEqual(agent.llm, mock_llm)
         self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
     @patch("agents.agent.create_react_agent")

@@ -390,7 +390,7 @@ class TestMonitoringIntegration:
                             repo_dir=Path(tmpdir),
                             static_analysis=mock_static_analysis,
                             system_message="Test",
-                            llm=agent_llm,
+                            agent_llm=agent_llm,
                             parsing_llm=parsing_llm,
                         )
 
