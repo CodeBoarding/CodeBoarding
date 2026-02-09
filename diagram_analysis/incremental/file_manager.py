@@ -123,7 +123,7 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
         return False
 
-    agent_llm, parsing_llm, model_name = initialize_llms()
+    agent_llm, parsing_llm = initialize_llms()
 
     agent = CodeBoardingAgent(
         repo_dir=repo_dir,

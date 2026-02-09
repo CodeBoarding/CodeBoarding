@@ -129,7 +129,7 @@ def reexpand_components(
         logger.error("No static analysis available for re-expansion")
         return []
 
-    agent_llm, parsing_llm, model_name = initialize_llms()
+    agent_llm, parsing_llm = initialize_llms()
 
     # Initialize agents using existing static analysis
     meta_agent = MetaAgent(

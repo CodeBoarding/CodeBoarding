@@ -142,7 +142,7 @@ def handle_scoped_component_update(
             logger.info("No static analysis available for scoped re-expansion; skipping.")
             return
 
-        agent_llm, parsing_llm, model_name = initialize_llms()
+        agent_llm, parsing_llm = initialize_llms()
 
         meta_agent = MetaAgent(
             repo_dir=repo_dir,
