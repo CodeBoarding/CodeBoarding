@@ -67,6 +67,7 @@ class ClusteringConfig:
     }
 
 
+
 class NodeType:
     # LSP SymbolKind constants
     CLASS_TYPE = 5
