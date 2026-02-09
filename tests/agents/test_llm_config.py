@@ -223,10 +223,10 @@ class TestEnvironmentVariables:
                 mock_llm = MagicMock()
 
                 with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                    agent_llm, parsing_llm, model_name = initialize_llms()
+                    agent_llm, parsing_llm = initialize_llms()
 
-                    # Verify the env var model was used, not the default
-                    assert model_name == "gpt-4-turbo"
+                    # Verify initialize_llms passed env var to initialize_agent_llm
+                    # First call should be for agent LLM with env var model
                     # Verify initialize_llms passed env var to initialize_agent_llm
                     # The chat class should be called twice (once for agent, once for parsing)
                     assert mock_chat_class.call_count == 2
@@ -251,10 +251,9 @@ class TestEnvironmentVariables:
 
         # Test that override parameter works
         with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
-            llm, model_name = initialize_agent_llm(model_override="gpt-4o-mini")
+            llm = initialize_agent_llm(model_override="gpt-4o-mini")
 
-            # Verify the override was used, not the default
-            assert model_name == "gpt-4o-mini"
+            # Verify the override was used
             call_kwargs = mock_config.chat_class.call_args[1]
             assert call_kwargs["model"] == "gpt-4o-mini"
 
@@ -272,10 +271,9 @@ class TestEnvironmentVariables:
                 mock_llm = MagicMock()
 
                 with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                    agent_llm, parsing_llm, model_name = initialize_llms()
+                    agent_llm, parsing_llm = initialize_llms()
 
                     # Verify the default was used (gpt-4o is the default for OpenAI)
-                    assert model_name == "gpt-4o"
                     # First call is for agent LLM
                     agent_call_kwargs = mock_chat_class.call_args_list[0][1]
                     assert agent_call_kwargs["model"] == "gpt-4o"
@@ -294,7 +292,7 @@ class TestEnvironmentVariables:
                 mock_llm = MagicMock()
 
                 with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                    agent_llm, parsing_llm, model_name = initialize_llms()
+                    agent_llm, parsing_llm = initialize_llms()
 
                     # Verify the chat class was called twice (agent + parsing)
                     assert mock_chat_class.call_count == 2
@@ -337,7 +335,7 @@ class TestEnvironmentVariables:
                 mock_llm = MagicMock()
 
                 with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
-                    agent_llm, parsing_llm, model_name = initialize_llms()
+                    agent_llm, parsing_llm = initialize_llms()
 
                     # Verify the default was used (gpt-4o-mini is the default for parsing)
                     # Second call is for parsing LLM
@@ -373,7 +371,7 @@ class TestMonitoringIntegration:
             with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
                 from agents.llm_config import initialize_llms
 
-                agent_llm, parsing_llm, model_name = initialize_llms()
+                agent_llm, parsing_llm = initialize_llms()
 
                 # Create an agent
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -395,7 +393,7 @@ class TestMonitoringIntegration:
                         )
 
                         # Simulate what DiagramGenerator does: set model name on agent's callback
-                        agent.agent_monitoring_callback.model_name = model_name
+                        agent.agent_monitoring_callback.model_name = "gpt-4-turbo"
 
                         # Verify the agent's monitoring callback has the correct model name
                         results = agent.get_monitoring_results()

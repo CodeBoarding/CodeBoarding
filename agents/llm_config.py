@@ -195,30 +195,32 @@ LLM_PROVIDERS = {
 }
 
 
-def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
-    # Import MONITORING_CALLBACK here to avoid circular import
-    from agents.agent import MONITORING_CALLBACK
-
+def _initialize_llm(
+    model_override: str | None,
+    model_attr: str,
+    temperature_attr: str,
+    log_prefix: str,
+    init_factory: bool = False,
+) -> tuple[BaseChatModel, str]:
     for name, config in LLM_PROVIDERS.items():
         if not config.is_active():
             continue
 
-        # Determine final model name (override takes precedence over default)
-        model_name = model_override or config.agent_model
+        model_name = model_override or getattr(config, model_attr)
 
-        # Initialize global prompt factory based on ACTUAL model
-        detected_llm_type = LLMType.from_model_name(model_name)
-        initialize_global_factory(detected_llm_type)
-        logger.info(
-            f"Initialized prompt factory for {name} provider with model '{model_name}' "
-            f"-> {detected_llm_type.value} prompt factory"
-        )
+        if init_factory:
+            detected_llm_type = LLMType.from_model_name(model_name)
+            initialize_global_factory(detected_llm_type)
+            logger.info(
+                f"Initialized prompt factory for {name} provider with model '{model_name}' "
+                f"-> {detected_llm_type.value} prompt factory"
+            )
 
-        logger.info(f"Using {name.title()} LLM with model: {model_name}")
+        logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
 
         kwargs = {
             "model": model_name,
-            "temperature": config.agent_temperature,
+            "temperature": getattr(config, temperature_attr),
         }
         kwargs.update(config.get_resolved_extra_args())
 
@@ -227,49 +229,27 @@ def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
             kwargs["api_key"] = api_key or "no-key-required"
 
         model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        return model, model_name
 
-        # Update global monitoring callback
-        MONITORING_CALLBACK.model_name = model_name
-        return model
-
-    # Dynamically build error message with all possible env vars
     required_vars = []
     for config in LLM_PROVIDERS.values():
         required_vars.append(config.api_key_env)
         required_vars.extend(config.alt_env_vars)
 
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+
+
+def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
+    from agents.agent import MONITORING_CALLBACK
+
+    model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
+    MONITORING_CALLBACK.model_name = model_name
+    return model
 
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
-    for name, config in LLM_PROVIDERS.items():
-        if not config.is_active():
-            continue
-
-        model_name = model_override or config.parsing_model
-
-        logger.info(f"Using {name.title()} Extractor LLM with model: {model_name}")
-
-        kwargs = {
-            "model": model_name,
-            "temperature": config.parsing_temperature,
-        }
-        kwargs.update(config.get_resolved_extra_args())
-
-        if name not in ["aws", "ollama"]:
-            api_key = config.get_api_key()
-            kwargs["api_key"] = api_key or "no-key-required"
-
-        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-        return model
-
-    # Dynamically build error message with all possible env vars
-    required_vars = []
-    for config in LLM_PROVIDERS.values():
-        required_vars.append(config.api_key_env)
-        required_vars.extend(config.alt_env_vars)
-
-    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+    model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
+    return model
 
 
 def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
