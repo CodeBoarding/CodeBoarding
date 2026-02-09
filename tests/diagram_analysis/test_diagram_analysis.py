@@ -290,7 +290,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.ProjectScanner")
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
-    @patch("agents.llm_config.initialize_llms")
+    @patch("diagram_analysis.diagram_generator.initialize_llms")
     @patch("diagram_analysis.diagram_generator.MetaAgent")
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
@@ -314,7 +314,7 @@ class TestDiagramGenerator(unittest.TestCase):
         # Mock LLM initialization
         mock_agent_llm = Mock()
         mock_parsing_llm = Mock()
-        mock_initialize_llms.return_value = (mock_agent_llm, mock_parsing_llm, "gpt-4o")
+        mock_initialize_llms.return_value = (mock_agent_llm, mock_parsing_llm)
 
         mock_meta_instance = Mock()
         mock_meta_instance.analyze_project_metadata.return_value = {"meta": "context"}
