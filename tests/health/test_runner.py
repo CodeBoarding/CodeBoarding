@@ -80,12 +80,10 @@ class TestHealthRunner(unittest.TestCase):
         # caller calls 2 functions (threshold is high by default)
         self.assertEqual(fan_out_summary.findings_count, 0)
 
-        # Find orphan_code check
-        orphan_summary = next(s for s in report.check_summaries if s.check_name == "orphan_code")
-        self.assertIsNotNone(orphan_summary)
-        assert isinstance(orphan_summary, StandardCheckSummary)
-        # orphan has no incoming or outgoing calls
-        self.assertEqual(orphan_summary.findings_count, 1)
+        # Find unused_code_diagnostics check
+        unused_code_summary = next(s for s in report.check_summaries if s.check_name == "unused_code_diagnostics")
+        self.assertIsNotNone(unused_code_summary)
+        assert isinstance(unused_code_summary, StandardCheckSummary)
 
         # Check that report can be serialized to JSON
         import json
@@ -242,6 +240,87 @@ class TestHealthRunner(unittest.TestCase):
                                 entity.file_path.startswith("/"),
                                 f"Expected absolute path, got: {entity.file_path}",
                             )
+
+    def test_healthignore_excludes_by_entity_name(self):
+        """Test that .healthignore patterns exclude findings by entity name."""
+        graph = CallGraph(language="python")
+        graph.add_node(_make_node("evals.utils.gen", "/src/evals/utils.py", 0, 200))
+        graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 200))
+
+        results = StaticAnalysisResults()
+        results.add_cfg("python", graph)
+        results.add_references("python", list(graph.nodes.values()))
+        results.add_source_files("python", ["/src/evals/utils.py", "/src/mod.py"])
+
+        config = HealthCheckConfig(
+            function_size_max=100,
+            health_exclude_patterns=["evals.*"],
+        )
+        report = run_health_checks(results, "test", config=config)
+        assert report is not None
+
+        size_summary = next(s for s in report.check_summaries if s.check_name == "function_size")
+        assert isinstance(size_summary, StandardCheckSummary)
+        entity_names = {e.entity_name for g in size_summary.finding_groups for e in g.entities}
+        self.assertNotIn("evals.utils.gen", entity_names)
+        self.assertIn("mod.func", entity_names)
+
+    def test_healthignore_excludes_by_file_path(self):
+        """Test that .healthignore patterns exclude findings by file path."""
+        graph = CallGraph(language="python")
+        graph.add_node(_make_node("evals.gen", "/src/evals/gen.py", 0, 200))
+        graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 200))
+
+        results = StaticAnalysisResults()
+        results.add_cfg("python", graph)
+        results.add_references("python", list(graph.nodes.values()))
+        results.add_source_files("python", ["/src/evals/gen.py", "/src/mod.py"])
+
+        config = HealthCheckConfig(
+            function_size_max=100,
+            health_exclude_patterns=["*/evals/*"],
+        )
+        report = run_health_checks(results, "test", config=config)
+        assert report is not None
+
+        size_summary = next(s for s in report.check_summaries if s.check_name == "function_size")
+        assert isinstance(size_summary, StandardCheckSummary)
+        entity_names = {e.entity_name for g in size_summary.finding_groups for e in g.entities}
+        self.assertNotIn("evals.gen", entity_names)
+        self.assertIn("mod.func", entity_names)
+
+    def test_healthignore_excludes_diagnostics_by_file(self):
+        """Test that .healthignore patterns exclude LSP diagnostics by file path."""
+        from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
+
+        graph = CallGraph(language="python")
+        graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 10))
+
+        results = StaticAnalysisResults()
+        results.add_cfg("python", graph)
+        results.add_references("python", list(graph.nodes.values()))
+        results.add_source_files("python", ["/src/mod.py", "/src/evals/utils.py"])
+
+        # Add diagnostics for both files
+        results.diagnostics = {
+            "python": {
+                "/src/mod.py": [
+                    LSPDiagnostic(code="reportUnusedImport", message="'os' is not accessed", severity=2, tags=[1]),
+                ],
+                "/src/evals/utils.py": [
+                    LSPDiagnostic(code="reportUnusedImport", message="'sys' is not accessed", severity=2, tags=[1]),
+                ],
+            }
+        }
+
+        config = HealthCheckConfig(health_exclude_patterns=["*/evals/*"])
+        report = run_health_checks(results, "test", config=config)
+        assert report is not None
+
+        diag_summary = next(s for s in report.check_summaries if s.check_name == "unused_code_diagnostics")
+        assert isinstance(diag_summary, StandardCheckSummary)
+        # Only the mod.py diagnostic should remain
+        self.assertEqual(diag_summary.findings_count, 1)
 
 
 if __name__ == "__main__":

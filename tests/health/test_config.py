@@ -134,7 +134,7 @@ class TestLoadHealthConfig(unittest.TestCase):
 
             config = load_health_config(health_dir)
             self.assertEqual(config.function_size_max, 300)
-            self.assertEqual(config.orphan_exclude_patterns, ["evals.*", "utils.*"])
+            self.assertEqual(config.health_exclude_patterns, ["evals.*", "utils.*"])
 
     def test_healthignore_patterns_without_config_json(self):
         """Test that .healthignore patterns load even without health_config.json."""
@@ -146,7 +146,7 @@ class TestLoadHealthConfig(unittest.TestCase):
 
             config = load_health_config(health_dir)
             self.assertEqual(config.function_size_max, 150)  # default
-            self.assertEqual(config.orphan_exclude_patterns, ["evals.*", "*.test"])
+            self.assertEqual(config.health_exclude_patterns, ["evals.*", "*.test"])
 
     def test_with_template_file(self):
         """Test that the generated template file loads correctly."""

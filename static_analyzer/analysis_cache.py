@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from static_analyzer.graph import CallGraph, ClusterResult, Node, Edge
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,10 @@ class AnalysisCacheManager:
                 "source_files": [str(path) for path in analysis_result["source_files"]],
             }
 
+            # Save diagnostics if present in the analysis result
+            if "diagnostics" in analysis_result and analysis_result["diagnostics"]:
+                cache_data["diagnostics"] = self._serialize_diagnostics(analysis_result["diagnostics"])
+
             # Write to cache file atomically
             temp_path = cache_path.with_suffix(".tmp")
             with open(temp_path, "w", encoding="utf-8") as f:
@@ -151,6 +156,10 @@ class AnalysisCacheManager:
                 "source_files": [Path(path) for path in cache_data["source_files"]],
             }
 
+            # Load diagnostics if present in cache
+            if "diagnostics" in cache_data:
+                analysis_result["diagnostics"] = self._deserialize_diagnostics(cache_data["diagnostics"])
+
             logger.info(f"Loaded analysis cache from {cache_path} (commit: {commit_hash}, iteration: {iteration_id})")
             return analysis_result, commit_hash, iteration_id
 
@@ -200,6 +209,12 @@ class AnalysisCacheManager:
             "references": [],
             "source_files": [],
         }
+
+        # Carry over diagnostics for unchanged files
+        if "diagnostics" in analysis_result:
+            updated_result["diagnostics"] = {
+                fp: diags for fp, diags in analysis_result["diagnostics"].items() if fp not in changed_file_strs
+            }
 
         # Step 1: Remove nodes from changed files
         call_graph: CallGraph = analysis_result["call_graph"]
@@ -443,6 +458,16 @@ class AnalysisCacheManager:
         # Add all source files from new result (changed files that were reanalyzed)
         merged_result["source_files"].extend(new_source_files)
 
+        # Merge diagnostics: keep cached diagnostics for unchanged files, use fresh for changed files
+        cached_diagnostics: FileDiagnosticsMap = cached_result.get("diagnostics", {})
+        new_diagnostics: FileDiagnosticsMap = new_result.get("diagnostics", {})
+        merged_diagnostics: FileDiagnosticsMap = {
+            fp: diags for fp, diags in cached_diagnostics.items() if fp not in new_file_paths
+        }
+        merged_diagnostics.update(new_diagnostics)
+        if merged_diagnostics:
+            merged_result["diagnostics"] = merged_diagnostics
+
         logger.info("Merged cached and new analysis results")
         return merged_result
 
@@ -514,6 +539,32 @@ class AnalysisCacheManager:
             )
             for ref_data in references_data
         ]
+
+    def _serialize_diagnostics(self, diagnostics: FileDiagnosticsMap) -> dict[str, list[dict[str, Any]]]:
+        """Serialize FileDiagnosticsMap to JSON-compatible format."""
+        result: dict[str, list[dict[str, Any]]] = {}
+        for file_path, diag_list in diagnostics.items():
+            result[file_path] = [
+                {
+                    "code": d.code,
+                    "message": d.message,
+                    "severity": d.severity,
+                    "tags": d.tags,
+                    "range": {
+                        "start": {"line": d.range.start.line, "character": d.range.start.character},
+                        "end": {"line": d.range.end.line, "character": d.range.end.character},
+                    },
+                }
+                for d in diag_list
+            ]
+        return result
+
+    def _deserialize_diagnostics(self, data: dict[str, list[dict[str, Any]]]) -> FileDiagnosticsMap:
+        """Deserialize FileDiagnosticsMap from JSON format."""
+        result: FileDiagnosticsMap = {}
+        for file_path, diag_list in data.items():
+            result[file_path] = [LSPDiagnostic.from_lsp_dict(d) for d in diag_list]
+        return result
 
     def _validate_cache_structure(self, cache_data: dict) -> bool:
         """Validate that cache data has the expected structure."""

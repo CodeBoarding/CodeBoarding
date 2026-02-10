@@ -98,7 +98,7 @@ def initialize_health_dir(health_config_dir: Path) -> None:
 
 
 def _load_health_exclude_patterns(health_config_dir: Path) -> list[str]:
-    """Load orphan code exclusion patterns from .healthignore file.
+    """Load health check exclusion patterns from .healthignore file.
 
     Args:
         health_config_dir: Path to the health config directory.
@@ -151,7 +151,7 @@ def load_health_config(health_config_dir: Path | None = None) -> HealthCheckConf
 
     if not config_path.exists():
         logger.debug(f"No health_config.json found at {config_path}, using defaults")
-        return HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+        return HealthCheckConfig(health_exclude_patterns=exclude_patterns)
 
     try:
         raw = config_path.read_text(encoding="utf-8")
@@ -164,9 +164,9 @@ def load_health_config(health_config_dir: Path | None = None) -> HealthCheckConf
             else:
                 flat[key] = entry
         config = HealthCheckConfig.model_validate(flat)
-        config.orphan_exclude_patterns = exclude_patterns
+        config.health_exclude_patterns = exclude_patterns
         logger.debug(f"Loaded health config from {config_path}")
         return config
     except Exception as e:
         logger.warning(f"Failed to parse health_config.json at {config_path}: {e}. Using default configuration.")
-        return HealthCheckConfig(orphan_exclude_patterns=exclude_patterns)
+        return HealthCheckConfig(health_exclude_patterns=exclude_patterns)

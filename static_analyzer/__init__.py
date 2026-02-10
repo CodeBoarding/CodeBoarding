@@ -6,7 +6,9 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
+from static_analyzer.constants import Language
 from static_analyzer.lsp_client.client import LSPClient
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
 from static_analyzer.programming_language import ProgrammingLanguage
@@ -18,16 +20,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_clients(
-    programming_languages: list[ProgrammingLanguage], repository_path: Path, ignore_manager: RepoIgnoreManager
+    programming_languages: list[ProgrammingLanguage],
+    repository_path: Path,
+    ignore_manager: RepoIgnoreManager,
 ) -> list[LSPClient]:
     clients: list[LSPClient] = []
     for pl in programming_languages:
         if not pl.is_supported_lang():
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
             continue
+
+        lang_lower = pl.language.lower()
+
         try:
-            if pl.language.lower() in ["typescript"]:
-                # For TypeScript, scan for multiple project configurations (mono-repo support)
+            if lang_lower in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+                # For TypeScript/JS, scan for multiple project configurations (mono-repo support)
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
@@ -38,15 +45,23 @@ def create_clients(
                             f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}"
                         )
                         clients.append(
-                            TypeScriptClient(language=pl, project_path=project_path, ignore_manager=ignore_manager)
+                            TypeScriptClient(
+                                language=pl,
+                                project_path=project_path,
+                                ignore_manager=ignore_manager,
+                            )
                         )
                 else:
                     # Fallback: No config files found, use repository root
                     logger.info("No TypeScript config files found, using repository root")
                     clients.append(
-                        TypeScriptClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager)
+                        TypeScriptClient(
+                            language=pl,
+                            project_path=repository_path,
+                            ignore_manager=ignore_manager,
+                        )
                     )
-            elif pl.language.lower() == "java":
+            elif lang_lower == Language.JAVA:
                 # For Java, scan for multiple project configurations (Maven, Gradle, etc.)
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
                 java_projects = java_config_scanner.scan()
@@ -68,8 +83,24 @@ def create_clients(
                         )
                 else:
                     logger.info("No Java projects detected")
+            elif lang_lower in (Language.PYTHON, Language.GO, Language.PHP):
+                # Languages that use the standard LSPClient
+                clients.append(
+                    LSPClient(
+                        language=pl,
+                        project_path=repository_path,
+                        ignore_manager=ignore_manager,
+                    )
+                )
             else:
-                clients.append(LSPClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager))
+                # Fallback for any other supported languages
+                clients.append(
+                    LSPClient(
+                        language=pl,
+                        project_path=repository_path,
+                        ignore_manager=ignore_manager,
+                    )
+                )
         except RuntimeError as e:
             logger.error(f"Failed to create LSP client for {pl.language}: {e}")
     return clients
@@ -83,6 +114,7 @@ class StaticAnalyzer:
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
+        self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """
@@ -137,6 +169,27 @@ class StaticAnalyzer:
                 results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", {}))
                 results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
+
+                # Collect diagnostics for health checks.
+                # Prefer diagnostics from the analysis result (populated by incremental cache),
+                # fall back to freshly collected ones from the LSP client.
+                if "diagnostics" in analysis and analysis["diagnostics"]:
+                    cached_diags = analysis["diagnostics"]
+                    logger.info(
+                        f"Using {len(cached_diags)} files with diagnostics from cache for {client.language.language}"
+                    )
+                    self.collected_diagnostics[client.language.language] = cached_diags
+                else:
+                    diagnostics = client.get_collected_diagnostics()
+                    if diagnostics:
+                        logger.info(
+                            f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}"
+                        )
+                        total_diags = sum(len(d) for d in diagnostics.values())
+                        logger.info(f"Total diagnostic items: {total_diags}")
+                        self.collected_diagnostics[client.language.language] = diagnostics
+                    else:
+                        logger.warning(f"No diagnostics collected for {client.language.language}")
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
         print(f"Static analysis complete: {results}")
@@ -260,7 +313,11 @@ def get_static_analysis(
     """
     if skip_cache:
         # Force full analysis without any caching
-        return StaticAnalyzer(repo_path).analyze(cache_dir=None)
+        analyzer = StaticAnalyzer(repo_path)
+        results = analyzer.analyze(cache_dir=None)
+        # Attach diagnostics to results for convenient access
+        results.diagnostics = analyzer.collected_diagnostics
+        return results
 
     # Determine actual cache directory to use
     if cache_dir is None:
@@ -270,4 +327,8 @@ def get_static_analysis(
         actual_cache_dir = cache_dir
 
     # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
-    return StaticAnalyzer(repo_path).analyze(cache_dir=actual_cache_dir)
+    analyzer = StaticAnalyzer(repo_path)
+    results = analyzer.analyze(cache_dir=actual_cache_dir)
+    # Attach diagnostics to results for convenient access
+    results.diagnostics = analyzer.collected_diagnostics
+    return results

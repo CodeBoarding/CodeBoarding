@@ -309,6 +309,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_git_hash.return_value = "abc123"
         # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
+        mock_analysis_results.diagnostics = {}
         mock_get_static_analysis.return_value = mock_analysis_results
 
         # Mock LLM initialization

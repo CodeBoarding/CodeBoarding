@@ -1,3 +1,4 @@
+import fnmatch
 import logging
 import os
 from datetime import datetime, timezone
@@ -10,7 +11,10 @@ from health.checks.function_size import check_function_size
 from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
-from health.checks.orphan_code import check_orphan_code
+from health.checks.unused_code_diagnostics import (
+    LSPDiagnosticsCollector,
+    check_unused_code_diagnostics,
+)
 from health.models import (
     CircularDependencyCheck,
     FileHealthSummary,
@@ -24,6 +28,38 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 CheckSummaryList = list[StandardCheckSummary | CircularDependencyCheck]
+
+
+def _matches_exclude_pattern(entity_name: str, file_path: str | None, patterns: list[str]) -> bool:
+    """Check if an entity or file path matches any of the exclusion patterns."""
+    for pattern in patterns:
+        if fnmatch.fnmatch(entity_name, pattern):
+            return True
+        if file_path and fnmatch.fnmatch(file_path, pattern):
+            return True
+    return False
+
+
+def _apply_exclude_patterns(summaries: CheckSummaryList, patterns: list[str]) -> None:
+    """Remove findings that match any exclusion pattern from all check summaries."""
+    if not patterns:
+        return
+    for summary in summaries:
+        if not isinstance(summary, StandardCheckSummary):
+            continue
+        excluded = 0
+        for group in summary.finding_groups:
+            original_count = len(group.entities)
+            group.entities = [
+                entity
+                for entity in group.entities
+                if not _matches_exclude_pattern(entity.entity_name, entity.file_path, patterns)
+            ]
+            excluded += original_count - len(group.entities)
+        summary.finding_groups = [g for g in summary.finding_groups if g.entities]
+        if excluded:
+            summary.findings_count = max(0, summary.findings_count - excluded)
+            logger.debug(f"Excluded {excluded} findings from {summary.check_name} via .healthignore patterns")
 
 
 def _relativize_path(file_path: str, repo_root: str) -> str:
@@ -63,11 +99,24 @@ def _collect_checks_for_language(
 
     summaries.append(check_component_cohesion(call_graph, config))
 
-    try:
-        src_files = static_analysis.get_source_files(language)
-    except (ValueError, KeyError):
-        src_files = []
-    summaries.append(check_orphan_code(call_graph, config, source_files=src_files))
+    # Run LSP-based unused code detection
+    exclude_patterns = config.health_exclude_patterns
+    collector = LSPDiagnosticsCollector()
+    language_diagnostics = static_analysis.diagnostics.get(language, {})
+    if language_diagnostics:
+        for file_path, file_diagnostics in language_diagnostics.items():
+            if exclude_patterns and _matches_exclude_pattern("", file_path, exclude_patterns):
+                logger.debug(f"Excluding diagnostics for {file_path} via .healthignore patterns")
+                continue
+            for diagnostic in file_diagnostics:
+                collector.add_diagnostic(file_path, diagnostic)
+    else:
+        logger.debug(f"No LSP diagnostics available for {language}")
+    # Always add the check summary, even if empty
+    summaries.append(check_unused_code_diagnostics(collector, config))
+
+    # Apply .healthignore exclusion patterns across all check findings
+    _apply_exclude_patterns(summaries, exclude_patterns)
 
     return summaries
 
@@ -83,7 +132,9 @@ def _compute_overall_score(check_summaries: CheckSummaryList) -> float:
     )
 
 
-def _aggregate_file_summaries(check_summaries: CheckSummaryList) -> list[FileHealthSummary]:
+def _aggregate_file_summaries(
+    check_summaries: CheckSummaryList,
+) -> list[FileHealthSummary]:
     """Aggregate findings per file and compute composite risk scores.
 
     Returns the top 20 highest-risk files sorted by composite score.
@@ -158,11 +209,10 @@ def run_health_checks(
     repo_root = str(repo_path) if repo_path is not None else None
 
     check_summaries: CheckSummaryList = []
-    multiple_languages = len(languages) > 1
 
     for language in languages:
         lang_summaries = _collect_checks_for_language(static_analysis, language, config)
-        if multiple_languages:
+        if len(languages) > 1:
             for summary in lang_summaries:
                 summary.language = language
         check_summaries.extend(lang_summaries)

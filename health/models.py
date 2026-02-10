@@ -172,9 +172,9 @@ class HealthCheckConfig(BaseModel):
         default=50,
         description="Maximum number of circular dependency cycles to include in the report. Range: 10-200. Default: 50.",
     )
-    orphan_exclude_patterns: list[str] = Field(
+    health_exclude_patterns: list[str] = Field(
         default_factory=list,
-        description="Glob patterns for entities excluded from orphan code detection. Managed via .healthignore file.",
+        description="Glob patterns for entities excluded from health checks. Managed via .healthignore file.",
     )
     instability_high: float = Field(
         default=0.8,

@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
+from static_analyzer.constants import Language
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,11 +66,12 @@ class ClusteringConfig:
     # Language-specific delimiters for qualified names
     DEFAULT_DELIMITER = "."  # Works for Python, Java, C#
     DELIMITER_MAP = {
-        "python": ".",
-        "go": ".",
-        "php": "\\",  # PHP uses backslash for namespaces
-        "typescript": ".",
-        "javascript": ".",
+        Language.PYTHON: ".",
+        Language.GO: ".",
+        Language.PHP: "\\",  # PHP uses backslash for namespaces
+        Language.TYPESCRIPT: ".",
+        Language.JAVASCRIPT: ".",
+        Language.JAVA: ".",
     }
 
 
@@ -98,7 +101,12 @@ class Node:
     }
 
     def __init__(
-        self, fully_qualified_name: str, node_type: int, file_path: str, line_start: int, line_end: int
+        self,
+        fully_qualified_name: str,
+        node_type: int,
+        file_path: str,
+        line_start: int,
+        line_end: int,
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path
@@ -132,7 +140,7 @@ class Node:
         LSP servers often report inline callbacks (e.g. `.forEach() callback`,
         `.find() callback`) and anonymous functions (e.g. `<function>`, `<arrow`)
         as separate symbols. These are typically not independently callable and
-        should be excluded from certain health checks like orphan code detection.
+        should be excluded from certain health checks like unused code detection.
         """
         name = self.fully_qualified_name
         return any(pattern in name for pattern in self._CALLBACK_PATTERNS)
@@ -170,14 +178,22 @@ class CallGraph:
     CLUSTERING_SEED = 42
 
     def __init__(
-        self, nodes: dict[str, Node] | None = None, edges: list[Edge] | None = None, language: str = "python"
+        self,
+        nodes: dict[str, Node] | None = None,
+        edges: list[Edge] | None = None,
+        language: str = "python",
     ) -> None:
         self.nodes = nodes if nodes is not None else {}
         self.edges = edges if edges is not None else []
         self._edge_set: set[tuple[str, str]] = set()
         self.language = language.lower()
         # Set delimiter based on language for qualified name parsing
-        self.delimiter = ClusteringConfig.DELIMITER_MAP.get(self.language, ClusteringConfig.DEFAULT_DELIMITER)
+        # Convert string language to Language enum for lookup using list comprehension
+        lang_key: Language | None = next((lang for lang in Language if lang.value == self.language), None)
+        if lang_key and lang_key in ClusteringConfig.DELIMITER_MAP:
+            self.delimiter = ClusteringConfig.DELIMITER_MAP[lang_key]
+        else:
+            self.delimiter = ClusteringConfig.DEFAULT_DELIMITER
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
 
@@ -308,7 +324,9 @@ class CallGraph:
         return sub_graph
 
     def to_cluster_string(
-        self, cluster_ids: set[int] | None = None, cluster_result: ClusterResult | None = None
+        self,
+        cluster_ids: set[int] | None = None,
+        cluster_result: ClusterResult | None = None,
     ) -> str:
         """
         Generate a human-readable string representation of clusters.
@@ -486,7 +504,10 @@ class CallGraph:
             return node_name
 
     def _map_abstract_to_original(
-        self, abstract_communities: list[set[str]], original_graph: nx.DiGraph, level: str
+        self,
+        abstract_communities: list[set[str]],
+        original_graph: nx.DiGraph,
+        level: str,
     ) -> list[set[str]]:
         """
         Map abstract communities back to original nodes efficiently using lookup table.
@@ -532,7 +553,11 @@ class CallGraph:
             return list(nx.community.greedy_modularity_communities(graph))
 
     def _balance_clusters(
-        self, graph: nx.DiGraph, initial_communities: list[set[str]], target_clusters: int, min_cluster_size: int
+        self,
+        graph: nx.DiGraph,
+        initial_communities: list[set[str]],
+        target_clusters: int,
+        min_cluster_size: int,
     ) -> list[set[str]]:
         sorted_communities = sorted(initial_communities, key=len, reverse=True)
 
@@ -650,7 +675,11 @@ class CallGraph:
         return merged_clusters
 
     def _is_good_clustering(
-        self, communities: list[set[str]], target_clusters: int, min_cluster_size: int, total_nodes: int
+        self,
+        communities: list[set[str]],
+        target_clusters: int,
+        min_cluster_size: int,
+        total_nodes: int,
     ) -> bool:
         """
         Determine if a clustering result meets quality criteria.
