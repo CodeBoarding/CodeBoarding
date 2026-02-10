@@ -34,6 +34,7 @@ class ReferenceResolverMixin:
 
     def _resolve_single_reference(self, reference, file_candidates: list[str] | None = None):
         """Orchestrates different resolution strategies for a single reference."""
+        assert self.static_analysis is not None, "static_analysis required for reference resolution"
         qname = reference.qualified_name.replace(os.sep, ".")
 
         for lang in self.static_analysis.get_languages():

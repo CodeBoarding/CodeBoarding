@@ -147,7 +147,6 @@ def handle_scoped_component_update(
         meta_agent = MetaAgent(
             repo_dir=repo_dir,
             project_name=repo_dir.name,
-            static_analysis=static_analysis,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )

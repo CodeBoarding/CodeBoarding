@@ -135,7 +135,6 @@ def reexpand_components(
     meta_agent = MetaAgent(
         repo_dir=repo_dir,
         project_name=repo_dir.name,
-        static_analysis=context.static_analysis,
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )

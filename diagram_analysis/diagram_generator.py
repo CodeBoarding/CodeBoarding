@@ -112,24 +112,36 @@ class DiagramGenerator:
     def pre_analysis(self):
         analysis_start_time = time.time()
 
-        # When force_full is True, skip the cache to perform a full static analysis
-        if self.force_full_analysis:
-            logger.info("Force full analysis: skipping static analysis cache")
-            self.static_analysis = get_static_analysis(self.repo_location, skip_cache=True)
-        else:
-            self.static_analysis = get_static_analysis(self.repo_location)
-        static_analysis = self.static_analysis
+        # Initialize LLMs before spawning threads so both share the same instances
+        agent_llm, parsing_llm = initialize_llms()
+
+        self.meta_agent = MetaAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+        )
+        self._monitoring_agents["MetaAgent"] = self.meta_agent
+
+        # Run static analysis and meta analysis in parallel
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            skip_cache = self.force_full_analysis
+            if skip_cache:
+                logger.info("Force full analysis: skipping static analysis cache")
+            static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
+            meta_future = executor.submit(self.meta_agent.analyze_project_metadata)
+
+            static_analysis = static_future.result()
+            meta_context = meta_future.result()
+
+        self.static_analysis = static_analysis
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-
-        # Use ProjectScanner to get accurate LOC counts via tokei
         scanner = ProjectScanner(self.repo_location)
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
-
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)
-
             static_stats["languages"][language] = {
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),
@@ -137,18 +149,6 @@ class DiagramGenerator:
 
         self._run_health_report(static_analysis)
 
-        # Initialize LLMs ONCE before creating any agents
-        agent_llm, parsing_llm = initialize_llms()
-
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
-        meta_context = self.meta_agent.analyze_project_metadata()
         self.details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
