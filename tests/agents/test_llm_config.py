@@ -3,8 +3,37 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+
 from agents.llm_config import initialize_agent_llm, initialize_parsing_llm
 from agents.prompts.prompt_factory import LLMType
+
+
+class DummyChatModel(BaseChatModel):
+    """Minimal chat model used to validate round-robin behavior in tests."""
+
+    key_id: str
+
+    @property
+    def _llm_type(self) -> str:
+        return "dummy"
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager=None,
+        **kwargs,
+    ) -> ChatResult:
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=self.key_id))])
+
+    def bind_tools(self, tools, *, tool_choice: str | None = None, **kwargs):
+        return self
+
+    def with_structured_output(self, schema, *, include_raw: bool = False, **kwargs):
+        return self
 
 
 class TestDetectLLMTypeFromModel:
@@ -383,7 +412,7 @@ class TestMonitoringIntegration:
                     mock_static_analysis.package_relations = {}
                     mock_static_analysis.references = []
 
-                    with patch("agents.agent.create_react_agent"):
+                    with patch("agents.agent.create_agent"):
                         agent = CodeBoardingAgent(
                             repo_dir=Path(tmpdir),
                             static_analysis=mock_static_analysis,
@@ -398,3 +427,47 @@ class TestMonitoringIntegration:
                         # Verify the agent's monitoring callback has the correct model name
                         results = agent.get_monitoring_results()
                         assert results["model_name"] == "gpt-4-turbo"
+
+
+class TestRoundRobinLLMKeys:
+    def _create_dummy_model(self, **kwargs):
+        return DummyChatModel(key_id=kwargs["api_key"])
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    def test_comma_separated_keys_create_model_pool(self, mock_init_factory):
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "key-a, key-b"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                openai_config = LLM_PROVIDERS["openai"]
+                with patch.object(openai_config, "chat_class", side_effect=self._create_dummy_model):
+                    llm = initialize_agent_llm()
+
+                    assert isinstance(llm, list)
+                    assert [model.invoke("ping").content for model in llm] == ["key-a", "key-b"]
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    def test_indexed_keys_without_base_env_create_model_pool(self, mock_init_factory):
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY_2": "key-b", "OPENAI_API_KEY_1": "key-a"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                openai_config = LLM_PROVIDERS["openai"]
+                with patch.object(openai_config, "chat_class", side_effect=self._create_dummy_model):
+                    llm = initialize_agent_llm()
+
+                    assert isinstance(llm, list)
+                    assert [model.invoke("ping").content for model in llm] == ["key-a", "key-b"]
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    def test_single_key_keeps_single_model_behavior(self, mock_init_factory):
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "only-key"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                openai_config = LLM_PROVIDERS["openai"]
+                with patch.object(openai_config, "chat_class", side_effect=self._create_dummy_model):
+                    llm = initialize_agent_llm()
+
+                    assert not isinstance(llm, list)
+                    assert llm.invoke("ping").content == "only-key"

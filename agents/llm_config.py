@@ -23,6 +23,15 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 logger = logging.getLogger(__name__)
 
 
+def _split_key_values(raw_value: str | None) -> list[str]:
+    """Split comma/newline separated key values and drop blanks."""
+    if not raw_value:
+        return []
+
+    normalized = raw_value.replace(";", ",").replace("\n", ",")
+    return [segment.strip() for segment in normalized.split(",") if segment.strip()]
+
+
 @dataclass
 class LLMConfig:
     """
@@ -48,12 +57,41 @@ class LLMConfig:
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
+    def get_api_keys(self) -> list[str]:
+        keys: list[str] = []
+        keys.extend(_split_key_values(os.getenv(self.api_key_env)))
+
+        indexed_prefix = f"{self.api_key_env}_"
+        indexed_entries: list[tuple[int, str, str]] = []
+        for env_name, env_value in os.environ.items():
+            if not env_name.startswith(indexed_prefix):
+                continue
+
+            suffix = env_name[len(indexed_prefix) :]
+            order = int(suffix) if suffix.isdigit() else 10_000
+            for key in _split_key_values(env_value):
+                indexed_entries.append((order, env_name, key))
+
+        indexed_entries.sort(key=lambda item: (item[0], item[1]))
+        keys.extend([key for _, _, key in indexed_entries])
+
+        unique_keys: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_keys.append(key)
+
+        return unique_keys
+
     def get_api_key(self) -> str | None:
-        return os.getenv(self.api_key_env)
+        keys = self.get_api_keys()
+        return keys[0] if keys else None
 
     def is_active(self) -> bool:
         """Check if any of the environment variables (primary or alternate) are set."""
-        if os.getenv(self.api_key_env):
+        if self.get_api_keys():
             return True
         return any(os.getenv(var) for var in self.alt_env_vars)
 
@@ -201,13 +239,53 @@ LLM_PROVIDERS = {
 }
 
 
+def _resolve_api_keys(config: LLMConfig) -> list[str]:
+    getter = getattr(config, "get_api_keys", None)
+    if callable(getter):
+        api_keys = getter()
+        if isinstance(api_keys, list):
+            return [key for key in api_keys if key]
+
+    legacy_getter = getattr(config, "get_api_key", None)
+    if callable(legacy_getter):
+        key = legacy_getter()
+        if key:
+            return [key]
+    return []
+
+
+def _build_chat_model(
+    provider_name: str, config: LLMConfig, kwargs: dict[str, Any]
+) -> BaseChatModel | list[BaseChatModel]:
+    if provider_name in {"aws", "ollama"}:
+        return config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+
+    api_keys = _resolve_api_keys(config)
+    if not api_keys:
+        no_key_kwargs = {**kwargs, "api_key": "no-key-required"}
+        return config.chat_class(**no_key_kwargs)  # type: ignore[call-arg, arg-type]
+
+    if len(api_keys) == 1:
+        single_key_kwargs = {**kwargs, "api_key": api_keys[0]}
+        return config.chat_class(**single_key_kwargs)  # type: ignore[call-arg, arg-type]
+
+    models = [config.chat_class(**(kwargs | {"api_key": api_key})) for api_key in api_keys]  # type: ignore[call-arg, arg-type]
+
+    logger.info(
+        "Using %s-key model pool for %s LLM clients",
+        len(models),
+        provider_name.title(),
+    )
+    return models
+
+
 def _initialize_llm(
     model_override: str | None,
     model_attr: str,
     temperature_attr: str,
     log_prefix: str,
     init_factory: bool = False,
-) -> tuple[BaseChatModel, str]:
+) -> tuple[BaseChatModel | list[BaseChatModel], str]:
     for name, config in LLM_PROVIDERS.items():
         if not config.is_active():
             continue
@@ -230,11 +308,7 @@ def _initialize_llm(
         }
         kwargs.update(config.get_resolved_extra_args())
 
-        if name not in ["aws", "ollama"]:
-            api_key = config.get_api_key()
-            kwargs["api_key"] = api_key or "no-key-required"
-
-        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+        model = _build_chat_model(name, config, kwargs)
         return model, model_name
 
     required_vars = []
@@ -245,18 +319,18 @@ def _initialize_llm(
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
 
 
-def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
+def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel | list[BaseChatModel]:
     model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
     MONITORING_CALLBACK.model_name = model_name
     return model
 
 
-def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
+def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel | list[BaseChatModel]:
     model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
     return model
 
 
-def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
+def initialize_llms() -> tuple[BaseChatModel | list[BaseChatModel], BaseChatModel | list[BaseChatModel]]:
     agent_llm = initialize_agent_llm(os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm

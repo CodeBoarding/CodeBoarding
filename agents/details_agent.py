@@ -34,8 +34,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         static_analysis: StaticAnalysisResults,
         project_name: str,
         meta_context: MetaAnalysisInsights,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
+        agent_llm: BaseChatModel | list[BaseChatModel],
+        parsing_llm: BaseChatModel | list[BaseChatModel],
     ):
         super().__init__(repo_dir, static_analysis, get_system_details_message(), agent_llm, parsing_llm)
         self.project_name = project_name

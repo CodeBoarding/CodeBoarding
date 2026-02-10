@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import ValidationError
 from trustcall import create_extractor
 
@@ -37,12 +38,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         repo_dir: Path,
         static_analysis: StaticAnalysisResults,
         system_message: str,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
+        agent_llm: BaseChatModel | list[BaseChatModel],
+        parsing_llm: BaseChatModel | list[BaseChatModel],
     ):
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
-        self.parsing_llm = parsing_llm
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
@@ -50,12 +50,38 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
         self.toolkit = CodeBoardingToolkit(context=context)
 
-        self.agent = create_react_agent(
-            model=agent_llm,
-            tools=self.toolkit.get_agent_tools(),
-        )
+        self._pool_lock = threading.Lock()
+        self._agent_index = 0
+        self._parsing_index = 0
+        self.agent_llm_pool = agent_llm if isinstance(agent_llm, list) else [agent_llm]
+        self.parsing_llm_pool = parsing_llm if isinstance(parsing_llm, list) else [parsing_llm]
+        self.parsing_llm = self.parsing_llm_pool[0]
+        self.agent_pool = [self._build_agent(llm) for llm in self.agent_llm_pool]
+        self.agent = self.agent_pool[0]
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
+
+    def _build_agent(self, llm: BaseChatModel):
+        return create_agent(
+            model=llm,
+            tools=self.toolkit.get_agent_tools(),
+        )
+
+    def _next_agent(self):
+        if len(self.agent_pool) == 1:
+            return self.agent_pool[0]
+        with self._pool_lock:
+            selected = self.agent_pool[self._agent_index]
+            self._agent_index = (self._agent_index + 1) % len(self.agent_pool)
+        return selected
+
+    def _next_parsing_llm(self) -> BaseChatModel:
+        if len(self.parsing_llm_pool) == 1:
+            return self.parsing_llm_pool[0]
+        with self._pool_lock:
+            selected = self.parsing_llm_pool[self._parsing_index]
+            self._parsing_index = (self._parsing_index + 1) % len(self.parsing_llm_pool)
+        return selected
 
     @property
     def read_source_reference(self):
@@ -174,15 +200,15 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
 
     def _invoke_with_timeout(self, timeout_seconds: int, callback_list: list, prompt: str):
         """Invoke agent with a timeout using threading."""
-        import threading
         from queue import Queue, Empty
 
         result_queue: Queue = Queue()
         exception_queue: Queue = Queue()
+        selected_agent = self._next_agent()
 
         def invoke_target():
             try:
-                response = self.agent.invoke(
+                response = selected_agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]},
                     config={"callbacks": callback_list, "recursion_limit": 40},
                 )
@@ -267,7 +293,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
             raise Exception(f"Max retries reached for parsing response: {response}")
 
-        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
+        extractor = create_extractor(self._next_parsing_llm(), tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
         try:
@@ -322,7 +348,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 input_variables=["adjective"],
                 partial_variables={"format_instructions": parser.get_format_instructions()},
             )
-            chain = prompt | self.parsing_llm | parser
+            chain = prompt | self._next_parsing_llm() | parser
             return chain.invoke(
                 {"adjective": message_content},
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
