@@ -1,13 +1,12 @@
 import os
 from pathlib import Path
-from typing import List
 
 from agents.agent_responses import AnalysisInsights
-from utils import sanitize, contains_json
+from utils import sanitize
 
 
 def generated_mermaid_str(
-    analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str, demo=False
+    analysis: AnalysisInsights, expanded_components: set[str], repo_ref: str, project: str, demo=False
 ) -> str:
     lines = ["```mermaid", "graph LR"]
 
@@ -27,7 +26,7 @@ def generated_mermaid_str(
     # Linking to other files.
     for comp in analysis.components:
         node_id = sanitize(comp.name)
-        if contains_json(node_id, linked_files):
+        if comp.name in expanded_components:
             # Create a link to the component's details file
             if not demo:
                 lines.append(f'    click {node_id} href "{repo_ref}/{node_id}.md" "Details"')
@@ -40,13 +39,16 @@ def generated_mermaid_str(
     return "\n".join(lines)
 
 
-def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref="", linked_files=None, demo=False) -> str:
+def generate_markdown(
+    insights: AnalysisInsights, project: str = "", repo_ref="", expanded_components: set[str] | None = None, demo=False
+) -> str:
     """
     Generate a Mermaid 'graph LR' diagram from an AnalysisInsights object.
     """
+    expanded_components = expanded_components or set()
 
     mermaid_str = generated_mermaid_str(
-        insights, repo_ref=repo_ref, linked_files=linked_files, project=project, demo=demo
+        insights, repo_ref=repo_ref, expanded_components=expanded_components, project=project, demo=demo
     )
 
     lines = [
@@ -60,7 +62,7 @@ def generate_markdown(insights: AnalysisInsights, project: str = "", repo_ref=""
     root_dir = os.path.join(repo_root, project) if repo_root else project
 
     for comp in insights.components:
-        detail_lines.append(component_header(comp.name, linked_files))
+        detail_lines.append(component_header(comp.name, expanded_components))
         detail_lines.append(f"{comp.description}")
         if comp.key_entities:
             qn_list = []
@@ -105,23 +107,25 @@ def generate_markdown_file(
     insights: AnalysisInsights,
     project: str,
     repo_ref: str,
-    linked_files,
+    expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
 ) -> Path:
-    content = generate_markdown(insights, project=project, repo_ref=repo_ref, linked_files=linked_files, demo=demo)
+    content = generate_markdown(
+        insights, project=project, repo_ref=repo_ref, expanded_components=expanded_components, demo=demo
+    )
     markdown_file = temp_dir / f"{file_name}.md"
     with open(markdown_file, "w") as f:
         f.write(content)
     return markdown_file
 
 
-def component_header(component_name: str, link_files: List[Path]) -> str:
+def component_header(component_name: str, expanded_components: set[str]) -> str:
     """
     Generate a header for a component with its name and a link to its details.
     """
     sanitized_name = sanitize(component_name)
-    if contains_json(sanitized_name, link_files):
+    if component_name in expanded_components:
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"

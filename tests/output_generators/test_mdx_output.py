@@ -60,7 +60,7 @@ class TestMDXOutput(unittest.TestCase):
             components_relations=[self.relation],
         )
 
-        self.linked_files = [Path("Component1.json"), Path("Component2.json")]
+        self.expanded_components = {"Component1", "Component2"}
         self.repo_ref = "https://github.com/user/repo/blob/main"
         self.project = "test_project"
 
@@ -90,7 +90,7 @@ class TestMDXOutput(unittest.TestCase):
         # Test Mermaid diagram generation
         result = generated_mermaid_str(
             self.analysis,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             repo_ref=self.repo_ref,
             project=self.project,
             demo=False,
@@ -107,7 +107,7 @@ class TestMDXOutput(unittest.TestCase):
         # Test Mermaid diagram with links
         result = generated_mermaid_str(
             self.analysis,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             repo_ref=self.repo_ref,
             project=self.project,
             demo=False,
@@ -118,7 +118,7 @@ class TestMDXOutput(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        result = component_header("Component1", self.linked_files, demo=True)
+        result = component_header("Component1", self.expanded_components, demo=True)
 
         self.assertIn("Component1", result)
         self.assertIn("Expand", result)
@@ -126,14 +126,14 @@ class TestMDXOutput(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("Component1", self.linked_files, demo=False)
+        result = component_header("Component1", self.expanded_components, demo=False)
 
         self.assertIn("Component1", result)
         self.assertNotIn("Expand", result)
 
     def test_component_header_no_linked_files(self):
-        # Test component header when component not in linked files
-        result = component_header("UnlinkedComponent", self.linked_files, demo=True)
+        # Test component header when component not in expanded components
+        result = component_header("UnlinkedComponent", self.expanded_components, demo=True)
 
         self.assertIn("UnlinkedComponent", result)
         self.assertNotIn("Expand", result)
@@ -145,7 +145,7 @@ class TestMDXOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="on_boarding",
         )
@@ -164,7 +164,7 @@ class TestMDXOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="on_boarding",
         )
@@ -180,7 +180,7 @@ class TestMDXOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="component_name",
         )
@@ -199,7 +199,7 @@ class TestMDXOutput(unittest.TestCase):
                 insights=self.analysis,
                 project=self.project,
                 repo_ref=self.repo_ref,
-                linked_files=self.linked_files,
+                expanded_components=self.expanded_components,
                 temp_dir=temp_path,
                 demo=False,
             )
@@ -229,7 +229,7 @@ class TestMDXOutput(unittest.TestCase):
             analysis_no_ref,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )
@@ -244,7 +244,7 @@ class TestMDXOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="test",
         )
@@ -278,7 +278,7 @@ class TestMDXOutput(unittest.TestCase):
             analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )

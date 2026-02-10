@@ -1,18 +1,18 @@
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 import json
 
 from agents.agent_responses import AnalysisInsights
-from utils import sanitize, contains_json
+from utils import sanitize
 from output_generators.html_template import populate_html_template
 
 
 def generate_cytoscape_data(
-    analysis: AnalysisInsights, linked_files: List[Path], project: str, demo=False
+    analysis: AnalysisInsights, expanded_components: set[str], project: str, demo=False
 ) -> Dict[str, Any]:
     """Generate Cytoscape.js compatible data structure"""
-    elements: List[Dict] = []
+    elements: list[Dict] = []
 
     # Add nodes (components)
     component_ids = set()
@@ -21,7 +21,7 @@ def generate_cytoscape_data(
         component_ids.add(node_id)
 
         # Determine if component has linked file for styling
-        has_link = contains_json(node_id, linked_files)
+        has_link = comp.name in expanded_components
 
         node_data = {"data": {"id": node_id, "label": comp.name, "description": comp.description, "hasLink": has_link}}
 
@@ -58,13 +58,18 @@ def generate_cytoscape_data(
 
 
 def generate_html(
-    insights: AnalysisInsights, project: str = "", repo_ref: str = "", linked_files=None, demo=False
+    insights: AnalysisInsights,
+    project: str = "",
+    repo_ref: str = "",
+    expanded_components: set[str] | None = None,
+    demo=False,
 ) -> str:
     """
     Generate an HTML document with a Cytoscape.js diagram from an AnalysisInsights object.
     """
+    expanded_components = expanded_components or set()
 
-    cytoscape_data = generate_cytoscape_data(insights, linked_files, project, demo)
+    cytoscape_data = generate_cytoscape_data(insights, expanded_components, project, demo)
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
     repo_root = os.getenv("REPO_ROOT")
@@ -105,7 +110,7 @@ def generate_html(
 
         # Check if there's a linked file for this component
         expand_link = ""
-        if contains_json(component_id, linked_files):
+        if comp.name in expanded_components:
             expand_link = f' <a href="./{component_id}.html">[Expand]</a>'
 
         components_html += f"""
@@ -126,26 +131,28 @@ def generate_html_file(
     insights: AnalysisInsights,
     project: str,
     repo_ref: str,
-    linked_files,
+    expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
 ) -> Path:
     """
     Generate an HTML file with the analysis insights.
     """
-    content = generate_html(insights, project=project, repo_ref=repo_ref, linked_files=linked_files, demo=demo)
+    content = generate_html(
+        insights, project=project, repo_ref=repo_ref, expanded_components=expanded_components, demo=demo
+    )
     html_file = temp_dir / f"{file_name}.html"
     with open(html_file, "w", encoding="utf-8") as f:
         f.write(content)
     return html_file
 
 
-def component_header_html(component_name: str, link_files: List[Path]) -> str:
+def component_header_html(component_name: str, expanded_components: set[str]) -> str:
     """
     Generate an HTML header for a component with its name and a link to its details.
     """
     sanitized_name = sanitize(component_name)
-    if contains_json(sanitized_name, link_files):
+    if component_name in expanded_components:
         return f'<h3 id="{sanitized_name}">{component_name} <a href="./{sanitized_name}.html">[Expand]</a></h3>'
     else:
         return f'<h3 id="{sanitized_name}">{component_name}</h3>'

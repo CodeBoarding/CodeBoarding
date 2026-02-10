@@ -1,8 +1,9 @@
 import abc
+import uuid
 from abc import abstractmethod
 from typing import get_origin, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -45,14 +46,17 @@ class SourceCodeReference(LLMBaseModel):
     )
 
     reference_file: str | None = Field(
-        description="File path where the source code is located, e.g., `langchain/tools/tool.py` or `langchain_core/output_parsers/json_output_parser.py`."
+        default=None,
+        description="File path where the source code is located, e.g., `langchain/tools/tool.py` or `langchain_core/output_parsers/json_output_parser.py`.",
     )
 
     reference_start_line: int | None = Field(
-        description="The line number in the source code where the reference starts. Only if you are absolutely sure add this, otherwise None."
+        default=None,
+        description="The line number in the source code where the reference starts. Only if you are absolutely sure add this, otherwise None.",
     )
     reference_end_line: int | None = Field(
-        description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None."
+        default=None,
+        description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None.",
     )
 
     def llm_str(self):
@@ -136,9 +140,14 @@ class Component(LLMBaseModel):
     )
 
     source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from the CFG analysis that this component encompasses.",
+        description="List of cluster IDs from CFG analysis that this component encompasses.",
         default_factory=list,
     )
+
+    @computed_field
+    def component_id(self) -> str:
+        """Unique identifier for this component."""
+        return str(uuid.uuid4())
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
@@ -217,7 +226,8 @@ class ValidationInsights(LLMBaseModel):
 
     is_valid: bool = Field(description="Indicates whether the validation results in valid or not.")
     additional_info: str | None = Field(
-        default=None, description="Any additional information or context related to the validation."
+        default=None,
+        description="Any additional information or context related to the validation.",
     )
 
     def llm_str(self):
@@ -257,9 +267,9 @@ class MetaAnalysisInsights(LLMBaseModel):
         content = f"""
 **Project Type:** {self.project_type}
 **Domain:** {self.domain}
-**Technology Stack:** {', '.join(self.technology_stack)}
-**Architectural Patterns:** {', '.join(self.architectural_patterns)}
-**Expected Components:** {', '.join(self.expected_components)}
+**Technology Stack:** {", ".join(self.technology_stack)}
+**Architectural Patterns:** {", ".join(self.architectural_patterns)}
+**Expected Components:** {", ".join(self.expected_components)}
 **Architectural Bias:** {self.architectural_bias}
 """
         return title + content
@@ -295,10 +305,12 @@ class FilePath(LLMBaseModel):
 
     file_path: str = Field(description="Full file path for the reference")
     start_line: int | None = Field(
-        default=None, description="Starting line number in the file for the reference (if applicable)."
+        default=None,
+        description="Starting line number in the file for the reference (if applicable).",
     )
     end_line: int | None = Field(
-        default=None, description="Ending line number in the file for the reference (if applicable)."
+        default=None,
+        description="Ending line number in the file for the reference (if applicable).",
     )
 
     def llm_str(self):

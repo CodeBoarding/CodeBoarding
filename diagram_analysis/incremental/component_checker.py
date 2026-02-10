@@ -9,29 +9,25 @@ import logging
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from diagram_analysis.analysis_json import from_analysis_to_json
 from diagram_analysis.incremental.io_utils import load_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.manifest import AnalysisManifest
-from output_generators.markdown import sanitize
 
 logger = logging.getLogger(__name__)
 
 
 def is_expanded_component(component_name: str, manifest: AnalysisManifest | None, output_dir: Path) -> bool:
-    """Check if a component has a sub-analysis file (is expanded).
+    """Check if a component has a sub-analysis (is expanded).
 
-    This checks both the manifest AND file existence for backward compatibility
-    with manifests that have incorrect expanded_components data.
+    Checks the manifest first, then falls back to checking the unified analysis.json.
     """
     # Check manifest first
     if manifest and component_name in manifest.expanded_components:
         return True
 
-    # Fallback: check if sub-analysis file exists
-    safe_name = sanitize(component_name)
-    sub_analysis_path = output_dir / f"{safe_name}.json"
-    return sub_analysis_path.exists()
+    # Fallback: check if sub-analysis exists in the unified file
+    sub = load_sub_analysis(output_dir, component_name)
+    return sub is not None
 
 
 def component_has_only_renames(
@@ -124,13 +120,7 @@ def can_patch_sub_analysis(
     if not component:
         return False
 
-    # Check sub-analysis file exists
-    safe_name = sanitize(component_name)
-    sub_analysis_path = output_dir / f"{safe_name}.json"
-    if not sub_analysis_path.exists():
-        return False
-
-    # Load existing sub-analysis
+    # Load existing sub-analysis from the unified file
     sub_analysis = load_sub_analysis(output_dir, component_name)
     if not sub_analysis:
         return False

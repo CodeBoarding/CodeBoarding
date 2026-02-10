@@ -92,10 +92,10 @@ class TestIsExpandedComponent:
         result = is_expanded_component("ComponentB", sample_manifest, temp_output_dir)
         assert result is False
 
-    def test_returns_true_when_file_exists(self, temp_output_dir: Path):
-        """Test that function returns True when sub-analysis file exists (fallback check)."""
-        temp_output_dir.mkdir(parents=True, exist_ok=True)
-        (temp_output_dir / "ComponentA.json").write_text('{"components": []}')
+    @patch("diagram_analysis.incremental.component_checker.load_sub_analysis")
+    def test_returns_true_when_sub_analysis_exists(self, mock_load, temp_output_dir: Path):
+        """Test that function returns True when sub-analysis exists in unified file (fallback check)."""
+        mock_load.return_value = AnalysisInsights(description="Sub", components=[], components_relations=[])
 
         result = is_expanded_component("ComponentA", None, temp_output_dir)
         assert result is True
@@ -105,10 +105,10 @@ class TestIsExpandedComponent:
         result = is_expanded_component("ComponentA", None, temp_output_dir)
         assert result is False
 
-    def test_handles_special_characters_in_name(self, temp_output_dir: Path):
+    @patch("diagram_analysis.incremental.component_checker.load_sub_analysis")
+    def test_handles_special_characters_in_name(self, mock_load, temp_output_dir: Path):
         """Test that function handles component names with special characters."""
-        temp_output_dir.mkdir(parents=True, exist_ok=True)
-        (temp_output_dir / "my_component_test.json").write_text('{"components": []}')
+        mock_load.return_value = AnalysisInsights(description="Sub", components=[], components_relations=[])
 
         result = is_expanded_component("my/component:test", None, temp_output_dir)
         assert result is True

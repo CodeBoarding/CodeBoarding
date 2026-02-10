@@ -1,15 +1,12 @@
 import os
 from pathlib import Path
-from typing import List
-
-from dotenv import load_dotenv
 
 from agents.agent_responses import AnalysisInsights
-from utils import sanitize, contains_json
+from utils import sanitize
 
 
 def generated_mermaid_str(
-    analysis: AnalysisInsights, linked_files: List[Path], repo_ref: str, project: str, demo=False
+    analysis: AnalysisInsights, expanded_components: set[str], repo_ref: str, project: str, demo=False
 ) -> str:
     """
     Generate a Mermaid diagram representation in RST format.
@@ -33,7 +30,7 @@ def generated_mermaid_str(
     # Linking to other files.
     for comp in analysis.components:
         node_id = sanitize(comp.name)
-        if contains_json(node_id, linked_files):
+        if comp.name in expanded_components:
             # Create a link to the component's details file
             if not demo:
                 lines.append(f'      click {node_id} href "{repo_ref}/{node_id}.html" "Details"')
@@ -47,12 +44,17 @@ def generated_mermaid_str(
 
 
 def generate_rst(
-    insights: AnalysisInsights, project: str = "", repo_ref="", linked_files=None, demo=False, file_name: str = ""
+    insights: AnalysisInsights,
+    project: str = "",
+    repo_ref="",
+    expanded_components: set[str] | None = None,
+    demo=False,
+    file_name: str = "",
 ) -> str:
     """
     Generate a RST document from an AnalysisInsights object.
     """
-    linked_files = linked_files or []
+    expanded_components = expanded_components or set()
 
     # Use file_name to create a better title, replacing underscores with spaces
     title = file_name.replace("_", " ").title()
@@ -62,7 +64,7 @@ def generate_rst(
 
     # Add diagram
     diagram_str = generated_mermaid_str(
-        insights, repo_ref=repo_ref, linked_files=linked_files, project=project, demo=demo
+        insights, repo_ref=repo_ref, expanded_components=expanded_components, project=project, demo=demo
     )
     lines.append(diagram_str)
 
@@ -94,7 +96,7 @@ def generate_rst(
     root_dir = os.path.join(repo_root, project) if repo_root else project
 
     for comp in insights.components:
-        lines.append(component_header(comp.name, linked_files))
+        lines.append(component_header(comp.name, expanded_components))
         lines.append("")
         lines.append(comp.description)
         lines.append("")
@@ -137,7 +139,7 @@ def generate_rst_file(
     insights: AnalysisInsights,
     project: str,
     repo_ref: str,
-    linked_files,
+    expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
 ) -> Path:
@@ -145,7 +147,12 @@ def generate_rst_file(
     Generate a RST file with the given insights and save it to the specified directory.
     """
     content = generate_rst(
-        insights, project=project, repo_ref=repo_ref, linked_files=linked_files, demo=demo, file_name=file_name
+        insights,
+        project=project,
+        repo_ref=repo_ref,
+        expanded_components=expanded_components,
+        demo=demo,
+        file_name=file_name,
     )
     rst_file = temp_dir / f"{file_name}.rst"
     with open(rst_file, "w") as f:
@@ -153,7 +160,7 @@ def generate_rst_file(
     return rst_file
 
 
-def component_header(component_name: str, link_files: List[Path]) -> str:
+def component_header(component_name: str, expanded_components: set[str]) -> str:
     """
     Generate a header for a component with its name and a reference to its details.
     """
@@ -161,7 +168,7 @@ def component_header(component_name: str, link_files: List[Path]) -> str:
     header_text = component_name
     header_underline = "^" * len(header_text)
 
-    if contains_json(sanitized_name, link_files):
+    if component_name in expanded_components:
         return f"{header_text}\n{header_underline}\n\n:ref:`Expand <{sanitized_name}>`"
     else:
         return f"{header_text}\n{header_underline}"

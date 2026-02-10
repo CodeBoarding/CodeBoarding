@@ -69,7 +69,9 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_generated_mermaid_str_basic(self):
         # Test basic mermaid string generation
-        result = generated_mermaid_str(self.insights, linked_files=[], repo_ref="", project="test", demo=False)
+        result = generated_mermaid_str(
+            self.insights, expanded_components=set(), repo_ref="", project="test", demo=False
+        )
 
         self.assertIn("```mermaid", result)
         self.assertIn("graph LR", result)
@@ -78,17 +80,17 @@ class TestMarkdownGenerator(unittest.TestCase):
         self.assertIn('Authentication -- "uses" --> Database', result)
 
     def test_generated_mermaid_str_with_links(self):
-        # Test with linked files
-        linked_files = [Path("Authentication.json")]
-        result = generated_mermaid_str(self.insights, linked_files=linked_files, repo_ref="/repo", project="test")
+        # Test with expanded components
+        expanded = {"Authentication"}
+        result = generated_mermaid_str(self.insights, expanded_components=expanded, repo_ref="/repo", project="test")
 
         self.assertIn('click Authentication href "/repo/Authentication.md"', result)
 
     def test_generated_mermaid_str_demo_mode(self):
         # Test demo mode links
-        linked_files = [Path("Authentication.json")]
+        expanded = {"Authentication"}
         result = generated_mermaid_str(
-            self.insights, linked_files=linked_files, repo_ref="", project="myproject", demo=True
+            self.insights, expanded_components=expanded, repo_ref="", project="myproject", demo=True
         )
 
         self.assertIn("https://github.com/CodeBoarding/GeneratedOnBoardings", result)
@@ -96,7 +98,7 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_generate_markdown(self):
         # Test full markdown generation
-        result = generate_markdown(self.insights, project="test", repo_ref="/repo", linked_files=[])
+        result = generate_markdown(self.insights, project="test", repo_ref="/repo", expanded_components=set())
 
         self.assertIn("```mermaid", result)
         self.assertIn("## Details", result)
@@ -118,7 +120,9 @@ class TestMarkdownGenerator(unittest.TestCase):
 
         with patch.dict("os.environ", {"REPO_ROOT": ""}):
             with patch("os.path.exists", return_value=True):
-                result = generate_markdown(insights, project="", repo_ref="https://github.com/test/", linked_files=[])
+                result = generate_markdown(
+                    insights, project="", repo_ref="https://github.com/test/", expanded_components=set()
+                )
 
                 self.assertIn("Related Classes/Methods", result)
                 self.assertIn("AuthService", result)
@@ -133,7 +137,7 @@ class TestMarkdownGenerator(unittest.TestCase):
                 self.insights,
                 project="test",
                 repo_ref="/repo",
-                linked_files=[],
+                expanded_components=set(),
                 temp_dir=temp_path,
             )
 
@@ -145,8 +149,8 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        linked_files = [Path("TestComponent.json")]
-        result = component_header("TestComponent", linked_files)
+        expanded = {"TestComponent"}
+        result = component_header("TestComponent", expanded)
 
         self.assertIn("TestComponent", result)
         self.assertIn("[[Expand]]", result)
@@ -154,7 +158,7 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("TestComponent", [])
+        result = component_header("TestComponent", set())
 
         self.assertIn("TestComponent", result)
         self.assertNotIn("[[Expand]]", result)
@@ -183,7 +187,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_cytoscape_data(self):
         # Test Cytoscape data generation
-        result = generate_cytoscape_data(self.insights, linked_files=[], project="test", demo=False)
+        result = generate_cytoscape_data(self.insights, expanded_components=set(), project="test", demo=False)
 
         self.assertIn("elements", result)
         elements = result["elements"]
@@ -197,9 +201,9 @@ class TestHTMLGenerator(unittest.TestCase):
         self.assertIn("Database", node_ids)
 
     def test_generate_cytoscape_data_with_links(self):
-        # Test with linked files
-        linked_files = [Path("Authentication.json")]
-        result = generate_cytoscape_data(self.insights, linked_files=linked_files, project="test", demo=False)
+        # Test with expanded components
+        expanded = {"Authentication"}
+        result = generate_cytoscape_data(self.insights, expanded_components=expanded, project="test", demo=False)
 
         # Find the Authentication node
         auth_node = next(elem for elem in result["elements"] if elem["data"]["id"] == "Authentication")
@@ -210,8 +214,8 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_cytoscape_data_demo_mode(self):
         # Test demo mode
-        linked_files = [Path("Authentication.json")]
-        result = generate_cytoscape_data(self.insights, linked_files=linked_files, project="myproject", demo=True)
+        expanded = {"Authentication"}
+        result = generate_cytoscape_data(self.insights, expanded_components=expanded, project="myproject", demo=True)
 
         auth_node = next(elem for elem in result["elements"] if elem["data"]["id"] == "Authentication")
 
@@ -219,7 +223,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_cytoscape_data_edges(self):
         # Test edge generation
-        result = generate_cytoscape_data(self.insights, linked_files=[], project="test", demo=False)
+        result = generate_cytoscape_data(self.insights, expanded_components=set(), project="test", demo=False)
 
         edges = [elem for elem in result["elements"] if "source" in elem["data"]]
         self.assertEqual(len(edges), 1)
@@ -234,7 +238,7 @@ class TestHTMLGenerator(unittest.TestCase):
         invalid_rel = Relation(src_name="NonExistent", dst_name="Database", relation="uses")
         insights = AnalysisInsights(description="Test", components=[self.comp2], components_relations=[invalid_rel])
 
-        result = generate_cytoscape_data(insights, linked_files=[], project="test", demo=False)
+        result = generate_cytoscape_data(insights, expanded_components=set(), project="test", demo=False)
 
         # Should have 1 node and 0 edges (invalid edge skipped)
         edges = [elem for elem in result["elements"] if "source" in elem["data"]]
@@ -242,7 +246,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_html(self):
         # Test HTML generation
-        result = generate_html(self.insights, project="test", repo_ref="", linked_files=[])
+        result = generate_html(self.insights, project="test", repo_ref="", expanded_components=set())
 
         self.assertIn("<html", result.lower())
         self.assertIn("Authentication", result)
@@ -261,7 +265,7 @@ class TestHTMLGenerator(unittest.TestCase):
         insights = AnalysisInsights(description="Test", components=[comp_with_ref], components_relations=[])
 
         with patch.dict("os.environ", {"REPO_ROOT": ""}):
-            result = generate_html(insights, project="", repo_ref="https://github.com/test/", linked_files=[])
+            result = generate_html(insights, project="", repo_ref="https://github.com/test/", expanded_components=set())
 
             self.assertIn("Related Classes/Methods", result)
             self.assertIn("AuthService", result)
@@ -275,7 +279,7 @@ class TestHTMLGenerator(unittest.TestCase):
                 self.insights,
                 project="test",
                 repo_ref="",
-                linked_files=[],
+                expanded_components=set(),
                 temp_dir=temp_path,
             )
 
@@ -287,8 +291,8 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_component_header_html_with_link(self):
         # Test HTML component header with link
-        linked_files = [Path("TestComponent.json")]
-        result = component_header_html("TestComponent", linked_files)
+        expanded = {"TestComponent"}
+        result = component_header_html("TestComponent", expanded)
 
         self.assertIn("TestComponent", result)
         self.assertIn("[Expand]", result)
@@ -296,7 +300,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_component_header_html_without_link(self):
         # Test HTML component header without link
-        result = component_header_html("TestComponent", [])
+        result = component_header_html("TestComponent", set())
 
         self.assertIn("TestComponent", result)
         self.assertNotIn("[Expand]", result)

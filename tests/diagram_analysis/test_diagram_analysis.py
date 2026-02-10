@@ -12,8 +12,8 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from diagram_analysis.analysis_json import (
-    AnalysisInsightsJson,
     ComponentJson,
+    UnifiedAnalysisJson,
     from_analysis_to_json,
     from_component_to_json_component,
 )
@@ -86,14 +86,18 @@ class TestComponentJson(unittest.TestCase):
         self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
 
 
-class TestAnalysisInsightsJson(unittest.TestCase):
-    def test_analysis_insights_json_creation(self):
-        # Test creating an AnalysisInsightsJson instance
+class TestUnifiedAnalysisJson(unittest.TestCase):
+    def test_unified_analysis_json_creation(self):
+        # Test creating a UnifiedAnalysisJson instance
+        from diagram_analysis.analysis_json import AnalysisMetadata
+
         comp1 = ComponentJson(name="Comp1", description="Description 1", key_entities=[])
         comp2 = ComponentJson(name="Comp2", description="Description 2", key_entities=[])
         rel = Relation(src_name="Comp1", dst_name="Comp2", relation="uses")
 
-        analysis = AnalysisInsightsJson(
+        analysis = UnifiedAnalysisJson(
+            version=2,
+            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test analysis",
             components=[comp1, comp2],
             components_relations=[rel],
@@ -102,15 +106,26 @@ class TestAnalysisInsightsJson(unittest.TestCase):
         self.assertEqual(analysis.description, "Test analysis")
         self.assertEqual(len(analysis.components), 2)
         self.assertEqual(len(analysis.components_relations), 1)
+        self.assertEqual(analysis.version, 2)
+        self.assertEqual(analysis.metadata.repo_name, "test")
 
-    def test_analysis_insights_json_model_dump(self):
+    def test_unified_analysis_json_model_dump(self):
         # Test serialization
+        from diagram_analysis.analysis_json import AnalysisMetadata
+
         comp = ComponentJson(name="Comp", description="Description", key_entities=[])
-        analysis = AnalysisInsightsJson(description="Test", components=[comp], components_relations=[])
+        analysis = UnifiedAnalysisJson(
+            version=2,
+            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
+            description="Test",
+            components=[comp],
+            components_relations=[],
+        )
 
         data = analysis.model_dump()
         self.assertEqual(data["description"], "Test")
         self.assertEqual(len(data["components"]), 1)
+        self.assertEqual(data["version"], 2)
 
 
 class TestAnalysisJsonConversion(unittest.TestCase):
@@ -374,10 +389,11 @@ class TestDiagramGenerator(unittest.TestCase):
         # Create test component
         component = Component(name="TestComponent", description="Test", key_entities=[])
 
-        result_path, new_components = gen.process_component(component)
+        result_name, result_analysis, new_components = gen.process_component(component)
 
         # Should return None and empty list on exception
-        self.assertIsNone(result_path)
+        self.assertIsNone(result_name)
+        self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
 
 
