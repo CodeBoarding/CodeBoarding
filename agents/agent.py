@@ -328,7 +328,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
             )
         except (ValidationError, OutputParserException):
-            for k, v in json.loads(message_content).items():
+            for _, v in json.loads(message_content).items():
                 try:
                     return self._try_parse(json.dumps(v), parser)
                 except:

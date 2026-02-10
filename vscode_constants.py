@@ -60,7 +60,7 @@ def update_command_paths(bin_dir):
 
 
 def find_runnable(bin_dir, search_file, part_of_dir):
-    for root, dirs, files in os.walk(bin_dir):
+    for root, _, files in os.walk(bin_dir):
         if search_file in files and part_of_dir in root:
             return os.path.join(root, search_file)
     return None

@@ -3,8 +3,6 @@ import os
 from pathlib import Path
 from typing import List
 
-from dotenv import load_dotenv
-
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
 from output_generators.markdown import generate_markdown_file
@@ -39,9 +37,7 @@ def generate_markdown(
                 )
 
 
-def generate_html(
-    analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir
-):
+def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path):
     for file in analysis_files:
         if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
             print(f"Processing analysis file: {file}")
@@ -133,7 +129,7 @@ def generate_analysis(
         case ".md":
             generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         case ".html":
-            generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+            generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder)
         case ".mdx":
             generate_mdx(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         case ".rst":

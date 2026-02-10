@@ -119,53 +119,49 @@ def _generate_html_body(project: str, insights: AnalysisInsights, components_htm
     """
 
 
-def _generate_cytoscape_script(cytoscape_json: str) -> str:
-    # Note: uses {{ }} for literal JS braces inside the f-string
-    return f"""
-    <script>
-        // Wait for all scripts to load before initializing
-        document.addEventListener('DOMContentLoaded', function() {{
+def _get_library_checks() -> str:
+    return """
             // Check if all required libraries are loaded
-            if (typeof cytoscape === 'undefined') {{
+            if (typeof cytoscape === 'undefined') {
                 console.error('Cytoscape is not loaded');
                 document.getElementById('cy').innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Error loading diagram. Please refresh the page.</div>';
                 return;
-            }}
+            }
 
-            if (typeof dagre === 'undefined') {{
+            if (typeof dagre === 'undefined') {
                 console.error('Dagre is not loaded');
                 document.getElementById('cy').innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Error loading diagram. Please refresh the page.</div>';
                 return;
-            }}
+            }
 
-            if (typeof cytoscapeDagre === 'undefined') {{
+            if (typeof cytoscapeDagre === 'undefined') {
                 console.error('Cytoscape-dagre extension is not loaded');
                 document.getElementById('cy').innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Error loading diagram. Please refresh the page.</div>';
                 return;
-            }}
+            }
+    """
 
+
+def _get_dagre_registration() -> str:
+    return """
             // Register the dagre extension
-            try {{
+            try {
                 cytoscape.use(cytoscapeDagre);
                 console.log('Dagre extension registered successfully');
-            }} catch (e) {{
+            } catch (e) {
                 console.error('Failed to register dagre extension:', e);
                 document.getElementById('cy').innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Error loading diagram. Please refresh the page.</div>';
                 return;
-            }}
+            }
+    """
 
-            const cytoscapeData = {cytoscape_json};
 
-            try {{
-                const cy = cytoscape({{
-                    container: document.getElementById('cy'),
-
-                    elements: cytoscapeData.elements,
-
+def _get_cytoscape_style() -> str:
+    return """
                     style: [
-                        {{
+                        {
                             selector: 'node',
-                            style: {{
+                            style: {
                                 'background-color': '#f8f9fa',
                                 'label': 'data(label)',
                                 'text-valign': 'center',
@@ -180,28 +176,28 @@ def _generate_cytoscape_script(cytoscape_json: str) -> str:
                                 'shape': 'roundrectangle',
                                 'border-width': 2,
                                 'border-color': '#dee2e6'
-                            }}
-                        }},
-                        {{
+                            }
+                        },
+                        {
                             selector: 'node[hasLink = true]',
-                            style: {{
+                            style: {
                                 'background-color': '#e9ecef',
                                 'border-color': '#6c757d',
                                 'cursor': 'pointer',
                                 'border-width': 3
-                            }}
-                        }},
-                        {{
+                            }
+                        },
+                        {
                             selector: 'node:hover',
-                            style: {{
+                            style: {
                                 'background-color': '#dee2e6',
                                 'border-color': '#495057',
                                 'border-width': 3
-                            }}
-                        }},
-                        {{
+                            }
+                        },
+                        {
                             selector: 'edge',
-                            style: {{
+                            style: {
                                 'width': 2,
                                 'line-color': '#adb5bd',
                                 'target-arrow-color': '#adb5bd',
@@ -216,11 +212,15 @@ def _generate_cytoscape_script(cytoscape_json: str) -> str:
                                 'text-background-opacity': 0.8,
                                 'text-background-padding': '2px',
                                 'text-background-shape': 'roundrectangle'
-                            }}
-                        }}
+                            }
+                        }
                     ],
+    """
 
-                    layout: {{
+
+def _get_layout_config() -> str:
+    return """
+                    layout: {
                         name: 'dagre',
                         directed: true,
                         padding: 30,
@@ -228,34 +228,26 @@ def _generate_cytoscape_script(cytoscape_json: str) -> str:
                         nodeSep: 80,
                         edgeSep: 20,
                         rankSep: 150
-                    }}
-                }});
+                    }
+    """
 
-                // Apply dagre layout after cytoscape is initialized
-                cy.layout({{
-                    name: 'dagre',
-                    directed: true,
-                    padding: 30,
-                    rankDir: 'LR',
-                    nodeSep: 80,
-                    edgeSep: 20,
-                    rankSep: 150
-                }}).run();
 
+def _get_event_handlers() -> str:
+    return """
                 // Add click handler for nodes with links
-                cy.on('tap', 'node[hasLink = true]', function(evt) {{
+                cy.on('tap', 'node[hasLink = true]', function(evt) {
                     const node = evt.target;
                     const linkUrl = node.data('linkUrl');
-                    if (linkUrl) {{
+                    if (linkUrl) {
                         window.open(linkUrl, '_blank');
-                    }}
-                }});
+                    }
+                });
 
                 // Add simple tooltip on hover
-                cy.on('mouseover', 'node', function(evt) {{
+                cy.on('mouseover', 'node', function(evt) {
                     const node = evt.target;
                     const description = node.data('description');
-                    if (description) {{
+                    if (description) {
                         // Simple tooltip implementation
                         const tooltip = document.createElement('div');
                         tooltip.innerHTML = description;
@@ -272,25 +264,29 @@ def _generate_cytoscape_script(cytoscape_json: str) -> str:
                         `;
                         document.body.appendChild(tooltip);
 
-                        const updateTooltip = (e) => {{
+                        const updateTooltip = (e) => {
                             tooltip.style.left = (e.clientX + 10) + 'px';
                             tooltip.style.top = (e.clientY + 10) + 'px';
-                        }};
+                        };
 
                         document.addEventListener('mousemove', updateTooltip);
 
-                        node.on('mouseout', () => {{
+                        node.on('mouseout', () => {
                             document.removeEventListener('mousemove', updateTooltip);
-                            if (tooltip.parentNode) {{
+                            if (tooltip.parentNode) {
                                 tooltip.parentNode.removeChild(tooltip);
-                            }}
-                        }});
-                    }}
-                }});
+                            }
+                        });
+                    }
+                });
+    """
 
+
+def _get_control_functions() -> str:
+    return """
                 // Make control functions globally available
-                window.resetLayout = function() {{
-                    cy.layout({{
+                window.resetLayout = function() {
+                    cy.layout({
                         name: 'dagre',
                         directed: true,
                         padding: 30,
@@ -298,21 +294,60 @@ def _generate_cytoscape_script(cytoscape_json: str) -> str:
                         nodeSep: 80,
                         edgeSep: 20,
                         rankSep: 150
-                    }}).run();
-                }};
+                    }).run();
+                };
 
-                window.fitToView = function() {{
+                window.fitToView = function() {
                     cy.fit();
-                }};
+                };
 
-                window.exportImage = function() {{
-                    const png64 = cy.png({{ scale: 2, full: true }});
+                window.exportImage = function() {
+                    const png64 = cy.png({ scale: 2, full: true });
                     const link = document.createElement('a');
                     link.download = 'diagram.png';
                     link.href = png64;
                     link.click();
-                }};
+                };
+    """
 
+
+def _generate_cytoscape_script(cytoscape_json: str) -> str:
+    library_checks = _get_library_checks()
+    dagre_registration = _get_dagre_registration()
+    style = _get_cytoscape_style()
+    layout = _get_layout_config()
+    event_handlers = _get_event_handlers()
+    control_functions = _get_control_functions()
+
+    return f"""
+    <script>
+        // Wait for all scripts to load before initializing
+        document.addEventListener('DOMContentLoaded', function() {{
+{library_checks}
+{dagre_registration}
+            const cytoscapeData = {cytoscape_json};
+
+            try {{
+                const cy = cytoscape({{
+                    container: document.getElementById('cy'),
+                    elements: cytoscapeData.elements,
+{style}
+{layout}
+                }});
+
+                // Apply dagre layout after cytoscape is initialized
+                cy.layout({{
+                    name: 'dagre',
+                    directed: true,
+                    padding: 30,
+                    rankDir: 'LR',
+                    nodeSep: 80,
+                    edgeSep: 20,
+                    rankSep: 150
+                }}).run();
+
+{event_handlers}
+{control_functions}
             }} catch (error) {{
                 console.error('Error initializing Cytoscape:', error);
                 document.getElementById('cy').innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Error loading diagram. Please refresh the page.</div>';

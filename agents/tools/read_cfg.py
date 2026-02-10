@@ -1,6 +1,4 @@
 import logging
-from typing import Optional
-from langchain_core.tools import BaseTool
 from agents.agent_responses import Component
 from agents.tools.base import BaseRepoTool
 

@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool

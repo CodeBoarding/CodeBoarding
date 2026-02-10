@@ -401,7 +401,7 @@ class CallGraph:
         connectivity_algorithms = self._get_algorithm_priority_by_size(total_nodes)
         for algorithm in connectivity_algorithms:
             try:
-                communities = self._cluster_with_algorithm(graph, algorithm, target_clusters)
+                communities = self._cluster_with_algorithm(graph, algorithm)
                 if self._is_good_clustering(communities, target_clusters, min_cluster_size, total_nodes):
                     return communities, f"connectivity_{algorithm}"
             except Exception as e:
@@ -411,7 +411,7 @@ class CallGraph:
         # Phase 2: Try structural-based clustering (use code structure when connectivity fails)
         for level in ["method", "class"]:
             try:
-                communities = self._cluster_at_level(graph, level, target_clusters, min_cluster_size)
+                communities = self._cluster_at_level(graph, level)
                 if self._is_good_clustering(communities, target_clusters, min_cluster_size, total_nodes):
                     return communities, f"structural_{level}"
             except Exception as e:
@@ -446,9 +446,7 @@ class CallGraph:
         else:
             return ["louvain", "greedy_modularity"]  # Skip leiden for very large graphs
 
-    def _cluster_at_level(
-        self, graph: nx.DiGraph, level: str, target_clusters: int, min_cluster_size: int
-    ) -> list[set[str]]:
+    def _cluster_at_level(self, graph: nx.DiGraph, level: str) -> list[set[str]]:
         """
         Cluster at different structural levels (method/class/file/package).
 
@@ -458,13 +456,13 @@ class CallGraph:
         """
         if level == "method":
             # Method level is the same as direct connectivity clustering
-            return self._cluster_with_algorithm(graph, "louvain", target_clusters)
+            return self._cluster_with_algorithm(graph, "louvain")
 
         # For higher levels, create abstracted graph and map back
         abstracted_graph = self._create_abstracted_graph(graph, level)
         if abstracted_graph.number_of_nodes() == 0:
             return []
-        abstract_communities = self._cluster_with_algorithm(abstracted_graph, "louvain", target_clusters)
+        abstract_communities = self._cluster_with_algorithm(abstracted_graph, "louvain")
         return self._map_abstract_to_original(abstract_communities, graph, level)
 
     def _create_abstracted_graph(self, graph: nx.DiGraph, level: str) -> nx.DiGraph:
@@ -534,7 +532,7 @@ class CallGraph:
 
         return original_communities
 
-    def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str, target_clusters: int) -> list[set[str]]:
+    def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
         # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
         if algorithm == "louvain":
             return list(nx_comm.louvain_communities(graph, seed=self.CLUSTERING_SEED))
