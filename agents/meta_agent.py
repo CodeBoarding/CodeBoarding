@@ -19,12 +19,11 @@ class MetaAgent(CodeBoardingAgent):
     def __init__(
         self,
         repo_dir: Path,
-        static_analysis: StaticAnalysisResults,
         project_name: str,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_meta_analysis_message(), agent_llm, parsing_llm)
+        super().__init__(repo_dir, StaticAnalysisResults(), get_system_meta_analysis_message(), agent_llm, parsing_llm)
         self.project_name = project_name
 
         self.meta_analysis_prompt = PromptTemplate(

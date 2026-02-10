@@ -32,7 +32,6 @@ class TestMetaAgent(unittest.TestCase):
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
@@ -49,7 +48,6 @@ class TestMetaAgent(unittest.TestCase):
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
@@ -81,7 +79,6 @@ class TestMetaAgent(unittest.TestCase):
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
-            static_analysis=self.mock_static_analysis,
             project_name=self.project_name,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
