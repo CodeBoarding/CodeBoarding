@@ -1,5 +1,5 @@
 import logging
-from typing import List, cast
+from typing import cast
 
 from .base import RepoContext, BaseRepoTool
 from .read_source import CodeReferenceReader
@@ -80,14 +80,14 @@ class CodeBoardingToolkit:
             self._tools["external_deps"] = ExternalDepsTool(context=self.context)
         return cast(ExternalDepsTool, self._tools["external_deps"])
 
-    def get_read_diff_tool(self, diffs: List[FileChange]) -> ReadDiffTool:
+    def get_read_diff_tool(self, diffs: list[FileChange]) -> ReadDiffTool:
         """
         Creates a ReadDiffTool instance with the provided diffs.
         Since diffs change per run, we don't cache this tool in the toolkit.
         """
         return ReadDiffTool(context=self.context, diffs=diffs)
 
-    def get_agent_tools(self) -> List[BaseRepoTool]:
+    def get_agent_tools(self) -> list[BaseRepoTool]:
         """
         Returns the set of tools traditionally used by the React agent.
         """
@@ -99,7 +99,7 @@ class CodeBoardingToolkit:
             self.read_packages,
         ]
 
-    def get_all_tools(self) -> List[BaseRepoTool]:
+    def get_all_tools(self) -> list[BaseRepoTool]:
         """
         Returns all tools available in the toolkit.
         """
