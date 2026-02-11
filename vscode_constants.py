@@ -55,8 +55,11 @@ def update_command_paths(bin_dir):
                     cmd[0] = os.path.join(bin_path, cmd[0])
 
             # Apply Windows-specific node prefix for specified languages
+            # Use VSCode's bundled Node.js (passed via CODEBOARDING_NODE_PATH) so users
+            # don't need a separate Node.js/npm installation on Windows.
             if is_windows and key in node_languages:
-                cmd.insert(0, "node")
+                node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                cmd.insert(0, node_path)
 
 
 def find_runnable(bin_dir, search_file, part_of_dir):
