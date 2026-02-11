@@ -33,6 +33,17 @@ class ClusterResult:
 
 
 class Node:
+    """Call-graph node with type constants for LSP SymbolKind (also on NodeType in constants)."""
+
+    # Mirror NodeType for code that references Node.CLASS_TYPE etc. (e.g. lsp_client, health tests)
+    CLASS_TYPE = NodeType.CLASS_TYPE
+    METHOD_TYPE = NodeType.METHOD_TYPE
+    PROPERTY_TYPE = NodeType.PROPERTY_TYPE
+    FIELD_TYPE = NodeType.FIELD_TYPE
+    FUNCTION_TYPE = NodeType.FUNCTION_TYPE
+    VARIABLE_TYPE = NodeType.VARIABLE_TYPE
+    CONSTANT_TYPE = NodeType.CONSTANT_TYPE
+
     def __init__(
         self,
         fully_qualified_name: str,
