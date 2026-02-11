@@ -34,7 +34,6 @@ class AnalysisMetadata(BaseModel):
 
 
 class UnifiedAnalysisJson(BaseModel):
-    version: int = Field(default=2, description="Schema version of the unified analysis format.")
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
@@ -117,7 +116,6 @@ def build_unified_analysis_json(
     ]
 
     unified = UnifiedAnalysisJson(
-        version=2,
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             repo_name=repo_name,
@@ -139,12 +137,25 @@ def parse_unified_analysis(
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component name
         to its nested AnalysisInsights.
     """
-    # Extract root-level analysis
-    root_components: list[Component] = []
     sub_analyses: dict[str, AnalysisInsights] = {}
+    root_analysis = _extract_analysis_recursive(data, sub_analyses)
+    return root_analysis, sub_analyses
+
+
+def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsights]) -> AnalysisInsights:
+    """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
+
+    Args:
+        data: The analysis data dict containing components, description, etc.
+        sub_analyses: Dict to populate with component name -> AnalysisInsights mappings.
+
+    Returns:
+        AnalysisInsights for this level (components are non-nested at this level).
+    """
+    components: list[Component] = []
 
     for comp_data in data.get("components", []):
-        # Build the root Component (without nested children)
+        # Create the component for this level (non-nested)
         component = Component(
             name=comp_data["name"],
             description=comp_data["description"],
@@ -152,71 +163,16 @@ def parse_unified_analysis(
             assigned_files=comp_data.get("assigned_files", []),
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )
-        root_components.append(component)
+        components.append(component)
 
-        # If this component has nested sub-analysis, extract it
-        if comp_data.get("components") is not None:
-            sub_components: list[Component] = []
-            nested_sub_analyses: dict[str, AnalysisInsights] = {}
-
-            for sub_comp_data in comp_data["components"]:
-                sub_component = Component(
-                    name=sub_comp_data["name"],
-                    description=sub_comp_data["description"],
-                    key_entities=sub_comp_data.get("key_entities", []),
-                    assigned_files=sub_comp_data.get("assigned_files", []),
-                    source_cluster_ids=sub_comp_data.get("source_cluster_ids", []),
-                )
-                sub_components.append(sub_component)
-
-                # Recursively handle deeper nesting
-                if sub_comp_data.get("components") is not None:
-                    deeper_sub = _extract_sub_analysis(sub_comp_data)
-                    nested_sub_analyses[sub_comp_data["name"]] = deeper_sub
-
-            sub_analysis = AnalysisInsights(
-                description=comp_data.get("description", ""),
-                components=sub_components,
-                components_relations=[Relation(**r) for r in comp_data.get("components_relations", [])],
-            )
-            # Assign assigned_files to sub_components
-            for sub_comp, sub_comp_data in zip(sub_components, comp_data["components"]):
-                sub_comp.assigned_files = sub_comp_data.get("assigned_files", [])
-
+        # Recursively process nested components if they exist
+        nested_components = comp_data.get("components")
+        if nested_components is not None:
+            sub_analysis = _extract_analysis_recursive(comp_data, sub_analyses)
             sub_analyses[comp_data["name"]] = sub_analysis
 
-            # Recurse deeper
-            for name, deeper in nested_sub_analyses.items():
-                sub_analyses[name] = deeper
-
-    root_analysis = AnalysisInsights(
-        description=data.get("description", ""),
-        components=root_components,
-        components_relations=[Relation(**r) for r in data.get("components_relations", [])],
-    )
-
-    # Assign assigned_files to root components
-    for comp, comp_data in zip(root_components, data.get("components", [])):
-        comp.assigned_files = comp_data.get("assigned_files", [])
-
-    return root_analysis, sub_analyses
-
-
-def _extract_sub_analysis(comp_data: dict) -> AnalysisInsights:
-    """Extract a sub-analysis from a nested component data dict."""
-    sub_components: list[Component] = []
-    for sub_comp_data in comp_data.get("components", []):
-        sub_component = Component(
-            name=sub_comp_data["name"],
-            description=sub_comp_data["description"],
-            key_entities=sub_comp_data.get("key_entities", []),
-            assigned_files=sub_comp_data.get("assigned_files", []),
-            source_cluster_ids=sub_comp_data.get("source_cluster_ids", []),
-        )
-        sub_components.append(sub_component)
-
     return AnalysisInsights(
-        description=comp_data.get("description", ""),
-        components=sub_components,
-        components_relations=[Relation(**r) for r in comp_data.get("components_relations", [])],
+        description=data.get("description", ""),
+        components=components,
+        components_relations=[Relation(**r) for r in data.get("components_relations", [])],
     )

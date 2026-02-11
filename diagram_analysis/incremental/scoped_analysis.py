@@ -90,8 +90,6 @@ def handle_scoped_component_update(
 
     Patches paths for renames or re-runs DetailsAgent for component updates.
     """
-
-    # Load sub-analysis from the unified file
     sub_analysis = load_sub_analysis(output_dir, component_name)
     if not sub_analysis:
         return

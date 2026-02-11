@@ -3,11 +3,8 @@
 import logging
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
-from agents.details_agent import DetailsAgent
-from agents.meta_agent import MetaAgent
-from agents.planner_agent import plan_analysis
-from agents.validation import ValidationContext, validate_component_relationships, validate_key_entities
+from agents.agent_responses import AnalysisInsights
+from diagram_analysis.incremental.path_patching import patch_sub_analysis
 from diagram_analysis.incremental.io_utils import (
     load_analysis,
     load_sub_analysis,
@@ -46,7 +43,6 @@ from repo_utils.change_detector import ChangeSet, detect_changes_from_commit, ge
 from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -384,8 +380,6 @@ class IncrementalUpdater:
 
             sub_analysis = load_sub_analysis(self.output_dir, component_name)
             if sub_analysis:
-                from diagram_analysis.incremental.path_patching import patch_sub_analysis
-
                 if patch_sub_analysis(sub_analysis, self.impact.deleted_files, self.impact.renames):
                     save_sub_analysis(sub_analysis, self.output_dir, component_name)
                     logger.info(f"Component '{component_name}' sub-analysis patched")

@@ -96,7 +96,6 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         rel = Relation(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
-            version=2,
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test analysis",
             components=[comp1, comp2],
@@ -106,7 +105,6 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         self.assertEqual(analysis.description, "Test analysis")
         self.assertEqual(len(analysis.components), 2)
         self.assertEqual(len(analysis.components_relations), 1)
-        self.assertEqual(analysis.version, 2)
         self.assertEqual(analysis.metadata.repo_name, "test")
 
     def test_unified_analysis_json_model_dump(self):
@@ -115,7 +113,6 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
 
         comp = ComponentJson(name="Comp", description="Description", key_entities=[])
         analysis = UnifiedAnalysisJson(
-            version=2,
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test",
             components=[comp],
@@ -125,7 +122,6 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         data = analysis.model_dump()
         self.assertEqual(data["description"], "Test")
         self.assertEqual(len(data["components"]), 1)
-        self.assertEqual(data["version"], 2)
 
 
 class TestAnalysisJsonConversion(unittest.TestCase):
