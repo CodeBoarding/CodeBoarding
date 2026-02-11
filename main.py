@@ -18,7 +18,6 @@ from repo_utils.ignore import initialize_codeboardingignore
 from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
 from monitoring import monitor_execution
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
-from static_analyzer.analysis_cache import flush_repository_cache
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -381,11 +380,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         action="store_true",
         help="Use smart incremental updates (tries incremental first, falls back to full)",
     )
-    parser.add_argument(
-        "--flush-cache",
-        action="store_true",
-        help="Delete .codeboarding/cache before running analysis",
-    )
 
 
 def main():
@@ -452,9 +446,6 @@ Examples:
     initialize_codeboardingignore(output_dir)
 
     if is_local:
-        if args.flush_cache:
-            flush_repository_cache(args.local)
-
         process_local_repository(
             repo_path=args.local,
             output_dir=output_dir,
@@ -477,9 +468,6 @@ Examples:
 
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 repo_name = get_repo_name(repo)
-                if args.flush_cache:
-                    repo_root = Path(os.getenv("REPO_ROOT", "repos"))
-                    flush_repository_cache(repo_root / repo_name)
 
                 base_name = args.project_name if args.project_name else repo_name
                 run_id = generate_run_id(base_name)
