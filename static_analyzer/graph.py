@@ -32,10 +32,6 @@ class ClusterResult:
         return self.clusters.get(cluster_id, set())
 
 
-
-
-
-
 class Node:
     def __init__(
         self,

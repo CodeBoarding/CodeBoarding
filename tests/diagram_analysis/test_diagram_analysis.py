@@ -358,7 +358,6 @@ class TestDiagramGenerator(unittest.TestCase):
     def test_process_component_with_exception(self):
         # Test processing a component that raises an exception
 
-
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,

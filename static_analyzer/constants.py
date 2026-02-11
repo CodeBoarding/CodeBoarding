@@ -67,7 +67,6 @@ class ClusteringConfig:
     }
 
 
-
 class NodeType:
     # LSP SymbolKind constants
     CLASS_TYPE = 5
@@ -97,4 +96,3 @@ class NodeType:
 class GraphConfig:
     # Deterministic seed for clustering algorithms
     CLUSTERING_SEED = 42
-

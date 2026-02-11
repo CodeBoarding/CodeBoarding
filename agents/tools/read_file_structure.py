@@ -91,7 +91,10 @@ class FileStructureTool(BaseRepoTool):
         while len(tree_lines) >= 50000 and max_depth > 1:
             max_depth -= 1
             tree_lines = get_tree_string(
-                searching_dir, max_depth=max_depth, max_lines=FileStructureConfig.MAX_LINES, ignore_manager=self.ignore_manager
+                searching_dir,
+                max_depth=max_depth,
+                max_lines=FileStructureConfig.MAX_LINES,
+                ignore_manager=self.ignore_manager,
             )
 
         tree_structure = "\n".join(tree_lines)
