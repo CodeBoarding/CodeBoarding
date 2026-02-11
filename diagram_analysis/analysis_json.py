@@ -27,10 +27,35 @@ class ComponentJson(Component):
     )
 
 
+class NotAnalyzedFile(BaseModel):
+    path: str = Field(description="Relative path of the file.")
+    reason: str | None = Field(default=None, description="Exclusion reason if determinable.")
+
+
+class FileCoverageSummary(BaseModel):
+    total_files: int = Field(description="Total number of text files in the repository.")
+    analyzed: int = Field(description="Number of files included in the analysis.")
+    not_analyzed: int = Field(description="Number of files excluded from the analysis.")
+    not_analyzed_by_reason: dict[str, int] = Field(
+        default_factory=dict, description="Count of excluded files grouped by reason."
+    )
+
+
+class FileCoverageReport(BaseModel):
+    version: int = Field(default=1, description="Schema version of the file coverage report.")
+    generated_at: str = Field(description="ISO timestamp of when the report was generated.")
+    analyzed_files: list[str] = Field(description="List of analyzed file paths.")
+    not_analyzed_files: list[NotAnalyzedFile] = Field(description="List of excluded files with optional reasons.")
+    summary: FileCoverageSummary = Field(description="Aggregated coverage counts.")
+
+
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
+    file_coverage_summary: FileCoverageSummary | None = Field(
+        default=None, description="Lightweight file coverage counts."
+    )
 
 
 class UnifiedAnalysisJson(BaseModel):
@@ -132,6 +157,7 @@ def build_unified_analysis_json(
     expandable_components: list[Component],
     repo_name: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
+    file_coverage_summary: FileCoverageSummary | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -146,6 +172,7 @@ def build_unified_analysis_json(
             generated_at=datetime.now(timezone.utc).isoformat(),
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
+            file_coverage_summary=file_coverage_summary,
         ),
         description=analysis.description,
         components=components_json,

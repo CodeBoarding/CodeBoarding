@@ -13,10 +13,13 @@ logger = logging.getLogger(__name__)
 class ProjectScanner:
     def __init__(self, repo_location: Path):
         self.repo_location = repo_location
+        self.all_text_files: list[str] = []
 
     def scan(self) -> list[ProgrammingLanguage]:
         """
         Scan the repository using Tokei and return parsed results.
+
+        Also populates self.all_text_files with all text file paths found by Tokei.
 
         Returns:
             list[ProgrammingLanguage]: technologies with their sizes, percentages, and suffixes
@@ -38,9 +41,15 @@ class ProjectScanner:
             return []
 
         programming_languages: list[ProgrammingLanguage] = []
+        all_files: list[str] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
+
+            # Collect ALL text file paths from Tokei for file coverage,
+            # including languages with code_count == 0 (e.g. Markdown is 100% comments)
+            for report in stats.get("reports", []):
+                all_files.append(report["name"])
 
             code_count = stats.get("code", 0)
             if code_count == 0:
@@ -48,7 +57,7 @@ class ProjectScanner:
 
             percentage = code_count / total_code * 100
 
-            # Extract suffixes if reports exist
+            # Extract suffixes from reports
             suffixes = set()
             for report in stats.get("reports", []):
                 suffixes |= self._extract_suffixes([report["name"]])
@@ -64,6 +73,7 @@ class ProjectScanner:
             if pl.percentage >= 1:
                 programming_languages.append(pl)
 
+        self.all_text_files = all_files
         return programming_languages
 
     @staticmethod
