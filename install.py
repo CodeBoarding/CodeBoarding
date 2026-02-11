@@ -4,10 +4,32 @@ import platform
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
+
 import requests
 import tarfile
 import yaml
-from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class LanguageSupportCheck:
+    language: str
+    paths: list[Path]
+    requires_npm: bool = False
+    fallback_available: bool = False
+    reason_if_requirement_missing: str = ""
+    reason_if_binary_missing: str = ""
+
+    def evaluate(self, npm_available: bool) -> tuple[bool, str | None]:
+        requirement_ok = (not self.requires_npm) or npm_available
+        path_exists = any(path.exists() for path in self.paths)
+        is_available = (path_exists and requirement_ok) or self.fallback_available
+        if is_available:
+            return True, None
+
+        reason = self.reason_if_requirement_missing if not requirement_ok else self.reason_if_binary_missing
+        return False, reason
 
 
 def check_uv_environment():
@@ -110,6 +132,16 @@ def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
     print("   Install Node.js manually from: https://nodejs.org/en/download")
     print("   Then verify with: npm --version")
     return False
+
+
+def resolve_npm_availability(auto_install_npm: bool = False) -> bool:
+    """Determine npm availability and run remediation when needed."""
+    npm_available = check_npm()
+
+    if not npm_available:
+        npm_available = resolve_missing_npm(auto_install_npm=auto_install_npm)
+
+    return npm_available
 
 
 def parse_args() -> argparse.Namespace:
@@ -565,64 +597,57 @@ def print_language_support_summary(npm_available: bool):
     go_path = platform_bin_dir / ("gopls.exe" if is_win else "gopls")
     java_path = servers_dir / "bin" / "jdtls"
 
-    language_checks = [
-        (
-            "Python",
-            [py_node_path],
-            True,
-            bool(py_env_path),
-            "pyright-langserver not found in node_modules or active environment",
-            "pyright-langserver not found in node_modules or active environment",
+    npm_missing = "npm not available"
+    pyright_missing = "pyright-langserver not found in node_modules or active environment"
+    typescript_missing = "typescript-language-server binary not found"
+
+    language_checks: list[LanguageSupportCheck] = [
+        LanguageSupportCheck(
+            language="Python",
+            paths=[py_node_path],
+            fallback_available=bool(py_env_path),
+            reason_if_requirement_missing=pyright_missing,
+            reason_if_binary_missing=pyright_missing,
         ),
-        (
-            "TypeScript",
-            [ts_path],
-            npm_available,
-            False,
-            "npm not available",
-            "typescript-language-server binary not found",
+        LanguageSupportCheck(
+            language="TypeScript",
+            paths=[ts_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing=typescript_missing,
         ),
-        (
-            "JavaScript",
-            [ts_path],
-            npm_available,
-            False,
-            "npm not available",
-            "typescript-language-server binary not found",
+        LanguageSupportCheck(
+            language="JavaScript",
+            paths=[ts_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing=typescript_missing,
         ),
-        (
-            "PHP",
-            [php_path],
-            npm_available,
-            False,
-            "npm not available",
-            "intelephense binary not found",
+        LanguageSupportCheck(
+            language="PHP",
+            paths=[php_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing="intelephense binary not found",
         ),
-        (
-            "Go",
-            [go_path],
-            True,
-            False,
-            "gopls binary not found",
-            "gopls binary not found",
+        LanguageSupportCheck(
+            language="Go",
+            paths=[go_path],
+            reason_if_requirement_missing="gopls binary not found",
+            reason_if_binary_missing="gopls binary not found",
         ),
-        (
-            "Java",
-            [java_path],
-            True,
-            False,
-            "jdtls installation not found",
-            "jdtls installation not found",
+        LanguageSupportCheck(
+            language="Java",
+            paths=[java_path],
+            reason_if_requirement_missing="jdtls installation not found",
+            reason_if_binary_missing="jdtls installation not found",
         ),
     ]
 
-    for language, paths, extra_check_ok, fallback_ok, extra_fail_reason, path_fail_reason in language_checks:
-        path_exists = any(path.exists() for path in paths)
-        is_available = (path_exists and extra_check_ok) or fallback_ok
-
-        print(f"  - {language}: {'yes' if is_available else 'no'}")
-        if not is_available:
-            reason = extra_fail_reason if not extra_check_ok else path_fail_reason
+    for check in language_checks:
+        is_available, reason = check.evaluate(npm_available)
+        print(f"  - {check.language}: {'yes' if is_available else 'no'}")
+        if reason:
             print(f"    reason: {reason}")
 
 
@@ -636,9 +661,7 @@ if __name__ == "__main__":
     check_uv_environment()
 
     # Step 2: Check for npm and install Node.js based servers if available
-    npm_available = check_npm()
-    if not npm_available:
-        npm_available = resolve_missing_npm(auto_install_npm=args.auto_install_npm)
+    npm_available = resolve_npm_availability(auto_install_npm=args.auto_install_npm)
     if npm_available:
         install_node_servers()
 
