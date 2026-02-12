@@ -12,6 +12,8 @@ import json
 import logging
 from pathlib import Path
 
+from filelock import FileLock
+
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
@@ -31,6 +33,11 @@ def _cache_key(output_dir: Path) -> str:
 def _invalidate_cache(output_dir: Path) -> None:
     key = _cache_key(output_dir)
     _unified_cache.pop(key, None)
+
+
+def analysis_lock_path(output_dir: Path) -> Path:
+    """Return the path to the advisory lock file for analysis.json."""
+    return output_dir / "analysis.json.lock"
 
 
 def _load_unified_data(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
@@ -68,14 +75,14 @@ def load_analysis(output_dir: Path) -> AnalysisInsights | None:
     return result[0]
 
 
-def save_analysis(
+def _save_analysis_unlocked(
     analysis: AnalysisInsights,
     output_dir: Path,
     expandable_components: list[str] | None = None,
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
 ) -> Path:
-    """Save the analysis to a unified analysis.json file.
+    """Save the analysis to a unified analysis.json file. Caller must hold the file lock.
 
     If sub_analyses is not provided, attempts to preserve existing sub-analyses
     from the current file on disk.
@@ -120,6 +127,27 @@ def save_analysis(
     return analysis_path
 
 
+def save_analysis(
+    analysis: AnalysisInsights,
+    output_dir: Path,
+    expandable_components: list[str] | None = None,
+    sub_analyses: dict[str, AnalysisInsights] | None = None,
+    repo_name: str = "",
+    depth_level: int = 1,
+) -> Path:
+    """Save the analysis to a unified analysis.json file with file locking.
+
+    If sub_analyses is not provided, attempts to preserve existing sub-analyses
+    from the current file on disk.
+    """
+    lock = FileLock(analysis_lock_path(output_dir), timeout=120)
+    with lock:
+        _invalidate_cache(output_dir)
+        return _save_analysis_unlocked(
+            analysis, output_dir, expandable_components, sub_analyses, repo_name, depth_level
+        )
+
+
 def load_sub_analysis(output_dir: Path, component_name: str) -> AnalysisInsights | None:
     """Load a sub-analysis for a component from the unified analysis.json."""
     result = _load_unified_data(output_dir)
@@ -141,34 +169,40 @@ def save_sub_analysis(
 ) -> Path:
     """Save/update a sub-analysis for a component in the unified analysis.json.
 
-    Loads the existing unified file, replaces the sub-analysis for the given
-    component, and re-writes the whole file.
+    Acquires a file lock, loads the existing unified file, replaces the sub-analysis
+    for the given component, and re-writes the whole file atomically.
     """
-    existing = _load_unified_data(output_dir)
-    if existing is None:
-        logger.error(f"Cannot save sub-analysis: no existing analysis.json in {output_dir}")
-        return output_dir / "analysis.json"
+    lock = FileLock(analysis_lock_path(output_dir), timeout=120)
+    with lock:
+        _invalidate_cache(output_dir)
 
-    root_analysis, sub_analyses, raw_data = existing
+        existing = _load_unified_data(output_dir)
+        if existing is None:
+            logger.error(f"Cannot save sub-analysis: no existing analysis.json in {output_dir}")
+            return output_dir / "analysis.json"
 
-    # Update the sub-analysis for this component
-    sub_analyses[component_name] = sub_analysis
+        root_analysis, sub_analyses, raw_data = existing
 
-    # Determine repo_name from existing metadata
-    repo_name = ""
-    if "metadata" in raw_data:
-        repo_name = raw_data["metadata"].get("repo_name", "")
+        # Update the sub-analysis for this component
+        sub_analyses[component_name] = sub_analysis
 
-    # Determine which root components are expandable
-    all_expandable = expandable_components or list(sub_analyses.keys())
+        # Determine repo_name and depth_level from existing metadata
+        repo_name = ""
+        depth_level = 1
+        if "metadata" in raw_data:
+            repo_name = raw_data["metadata"].get("repo_name", "")
+            depth_level = raw_data["metadata"].get("depth_level", 1)
 
-    return save_analysis(
-        root_analysis,
-        output_dir,
-        expandable_components=all_expandable,
-        sub_analyses=sub_analyses,
-        repo_name=repo_name,
-    )
+        # Determine which root components are expandable
+        all_expandable = expandable_components or list(sub_analyses.keys())
+
+        return _save_analysis_unlocked(
+            root_analysis,
+            output_dir,
+            expandable_components=all_expandable,
+            sub_analyses=sub_analyses,
+            repo_name=repo_name,
+        )
 
 
 def _detect_expanded_components_for_analysis(analysis: AnalysisInsights, output_dir: Path) -> list[str]:

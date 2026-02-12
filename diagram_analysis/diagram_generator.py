@@ -23,6 +23,10 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
+from filelock import FileLock
+
+from diagram_analysis.analysis_json import build_unified_analysis_json
+from diagram_analysis.incremental.io_utils import analysis_lock_path, save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -313,6 +317,16 @@ class DiagramGenerator:
                 logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
                 current_level_components = next_level_components
 
+                # Save intermediate progress after each completed level so results survive crashes
+                logger.info(f"Saving intermediate analysis after level {level}")
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    expandable_components=[c.name for c in expanded_components],
+                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
+                )
+
             # Build file coverage summary for metadata
             file_coverage_summary = None
             if self.file_coverage_data:
@@ -336,6 +350,21 @@ class DiagramGenerator:
                         file_coverage_summary=file_coverage_summary,
                     )
                 )
+
+            # Final write of unified analysis.json (uses build directly for full expandable fidelity)
+            analysis_path = os.path.join(self.output_dir, "analysis.json")
+            lock = FileLock(analysis_lock_path(Path(self.output_dir)), timeout=120)
+            with lock:
+                with open(analysis_path, "w") as f:
+                    f.write(
+                        build_unified_analysis_json(
+                            analysis=analysis,
+                            expandable_components=expanded_components,
+                            repo_name=self.repo_name,
+                            depth_level=self.depth_level,
+                            sub_analyses=all_sub_analyses,
+                        )
+                    )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             print("Generated analysis file: %s", os.path.abspath(analysis_path))
