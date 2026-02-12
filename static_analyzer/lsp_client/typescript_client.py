@@ -2,6 +2,8 @@ import logging
 import os
 import time
 
+from repo_utils.project_manifests import NODE_PACKAGE_MANIFEST_FILE, TYPESCRIPT_WORKSPACE_CONFIG_FILES
+
 from .client import LSPClient
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class TypeScriptClient(LSPClient):
         logger.warning(f"node_modules not found in {self.project_path}")
 
         # Check if package.json exists
-        package_json = self.project_path / "package.json"
+        package_json = self.project_path / NODE_PACKAGE_MANIFEST_FILE
         if not package_json.exists():
             logger.warning(f"package.json not found in {self.project_path}.")
             return
@@ -144,11 +146,7 @@ class TypeScriptClient(LSPClient):
 
     def _process_config_files(self) -> bool:
         """Process TypeScript configuration files and return True if any found."""
-        config_files = [
-            self.project_path / "tsconfig.json",
-            self.project_path / "jsconfig.json",
-            self.project_path / "package.json",
-        ]
+        config_files = [self.project_path / config_name for config_name in TYPESCRIPT_WORKSPACE_CONFIG_FILES]
 
         config_found = False
         for config_path in config_files:

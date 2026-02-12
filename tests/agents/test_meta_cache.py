@@ -4,15 +4,15 @@ import unittest
 from pathlib import Path
 
 from agents.agent_responses import MetaAnalysisInsights
-from agents.meta_cache import MetaCache, MetaSnapshot
+from agents.meta_cache import MetaAgentCache, MetaSnapshot
 
 
-class TestMetaCache(unittest.TestCase):
+class TestMetaAgentCache(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.repo_dir = Path(self.temp_dir) / "repo"
         self.repo_dir.mkdir(parents=True, exist_ok=True)
-        self.cache = MetaCache.from_repo_dir(self.repo_dir)
+        self.cache = MetaAgentCache.from_repo_dir(self.repo_dir)
 
         self.result = MetaAnalysisInsights(
             project_type="library",

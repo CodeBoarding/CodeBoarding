@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import List
 
+from repo_utils.project_manifests import TYPESCRIPT_CONFIG_FILES
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ class TypeScriptConfigScanner:
     Supports multi-project setups (mono-repos) by finding all tsconfig.json and jsconfig.json files.
     """
 
-    CONFIG_FILES = ["tsconfig.json", "jsconfig.json"]
+    CONFIG_FILES = TYPESCRIPT_CONFIG_FILES
 
     def __init__(self, repo_location: Path, ignore_manager: RepoIgnoreManager | None = None):
         self.repo_location = repo_location

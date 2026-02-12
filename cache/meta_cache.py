@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+from langchain_core.language_models import BaseChatModel
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_meta_information_prompt, get_system_meta_analysis_message
@@ -66,11 +67,12 @@ def _sha256(text: str) -> str:
 def _safe_read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to read text for meta cache snapshot from %s: %s", path, e)
         return ""
 
 
-def _normalize_model_id(agent_llm: object) -> str:
+def _normalize_model_id(agent_llm: BaseChatModel) -> str:
     for attr in ("model_name", "model", "model_id"):
         value = getattr(agent_llm, attr, None)
         if isinstance(value, str) and value:
@@ -147,7 +149,8 @@ def _compute_docs_text(repo_dir: Path, ignore_manager: RepoIgnoreManager, max_to
     return "\n\n".join(chunks)
 
 
-def build_meta_snapshot(repo_dir: Path, agent_llm: object) -> MetaSnapshot:
+def build_meta_snapshot(repo_dir: Path, agent_llm: BaseChatModel) -> MetaSnapshot:
+    """Build cache-validation inputs from repository state, docs, and model settings."""
     repo_root = repo_dir.resolve()
     ignore_manager = RepoIgnoreManager(repo_root)
     return MetaSnapshot(
@@ -161,8 +164,9 @@ def build_meta_snapshot(repo_dir: Path, agent_llm: object) -> MetaSnapshot:
 
 
 def is_cache_valid(
-    current: MetaSnapshot, cached_meta: dict, similarity_threshold: float = README_SIMILARITY_MIN
+    current: MetaSnapshot, cached_meta: dict[str, object], similarity_threshold: float = README_SIMILARITY_MIN
 ) -> bool:
+    """Return True when cached metadata still matches the current repository snapshot."""
     # Hard invalidation: model/prompt/dependency/layout changes alter global meta-context semantics.
     if cached_meta.get("model_id") != current.model_id:
         return False
@@ -205,15 +209,16 @@ def _token_overlap_similarity(left: str, right: str) -> float:
     return overlap / denom if denom else 0.0
 
 
-class MetaCache:
+class MetaAgentCache:
     def __init__(self, db_path: Path):
         self._store = SQLiteCacheStore(db_path, table_name=META_CACHE_TABLE_NAME)
 
     @classmethod
-    def from_repo_dir(cls, repo_dir: Path) -> "MetaCache":
+    def from_repo_dir(cls, repo_dir: Path) -> "MetaAgentCache":
         return cls(get_meta_cache_db_path(repo_dir))
 
     def load_if_valid(self, snapshot: MetaSnapshot) -> MetaAnalysisInsights | None:
+        """Load cached meta insights only when snapshot compatibility checks pass."""
         latest = self._store.load_latest(snapshot.scope)
         if latest is None:
             return None
@@ -226,7 +231,8 @@ class MetaCache:
             logger.warning("Meta cache payload is not valid MetaAnalysisInsights; treating as cache miss")
             return None
 
-    def save(self, snapshot: MetaSnapshot, result: MetaAnalysisInsights | dict) -> None:
+    def save(self, snapshot: MetaSnapshot, result: MetaAnalysisInsights) -> None:
+        """Save meta insights together with snapshot metadata for future cache hits."""
         meta_json = {
             "docs_text": snapshot.docs_text,
             "deps_hash": snapshot.deps_hash,
@@ -234,9 +240,5 @@ class MetaCache:
             "model_id": snapshot.model_id,
             "prompt_version": snapshot.prompt_version,
         }
-        if isinstance(result, MetaAnalysisInsights):
-            payload_json = result.model_dump_json()
-        else:
-            # Keep compatibility with tests/mocks that may return plain dicts.
-            payload_json = json.dumps(result)
+        payload_json = result.model_dump_json()
         self._store.upsert(snapshot.scope, snapshot.fingerprint, payload_json, meta_json)

@@ -44,6 +44,28 @@ class TestExternalDepsTool(unittest.TestCase):
         self.assertIn("package.json", result)
         self.assertIn("package-lock.json", result)
 
+    def test_find_java_deps(self):
+        # Create Java build files
+        (self.temp_dir / "pom.xml").touch()
+        (self.temp_dir / "settings.gradle").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("pom.xml", result)
+        self.assertIn("settings.gradle", result)
+
+    def test_find_pyproject_dep(self):
+        # Create pyproject.toml dependency manifest
+        (self.temp_dir / "pyproject.toml").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 1 dependency file(s)", result)
+        self.assertIn("pyproject.toml", result)
+
     def test_find_in_subdirectories(self):
         # Create subdirectory with requirements
         req_dir = self.temp_dir / "requirements"

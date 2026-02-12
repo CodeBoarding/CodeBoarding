@@ -14,7 +14,6 @@ from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from diagram_analysis.analysis_json import from_analysis_to_json
-from diagram_analysis.meta_context_resolver import resolve_meta_context
 from diagram_analysis.incremental.io_utils import load_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.incremental.path_patching import patch_sub_analysis
@@ -139,7 +138,7 @@ def reexpand_components(
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
-    meta_context = resolve_meta_context(repo_dir, meta_agent, agent_llm)
+    meta_context = meta_agent.get_meta_context()
 
     details_agent = DetailsAgent(
         repo_dir=repo_dir,

@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 import logging
 
 from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.project_manifests import JAVA_GRADLE_SETTINGS_FILES, JAVA_MAVEN_POM_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class JavaConfigScanner:
 
     def _find_maven_projects(self) -> list[Path]:
         """Find all directories containing pom.xml."""
-        return [p.parent for p in self.repo_path.rglob("pom.xml") if p.is_file()]
+        return [p.parent for p in self.repo_path.rglob(JAVA_MAVEN_POM_FILE) if p.is_file()]
 
     def _find_gradle_projects(self) -> list[Path]:
         """Find all directories containing settings.gradle.
@@ -114,9 +115,9 @@ class JavaConfigScanner:
         """
         gradle_roots: list[Path] = []
 
-        # settings.gradle indicates a project root
-        gradle_roots.extend(p.parent for p in self.repo_path.rglob("settings.gradle") if p.is_file())
-        gradle_roots.extend(p.parent for p in self.repo_path.rglob("settings.gradle.kts") if p.is_file())
+        # settings.gradle(.kts) indicates a project root
+        for settings_file in JAVA_GRADLE_SETTINGS_FILES:
+            gradle_roots.extend(p.parent for p in self.repo_path.rglob(settings_file) if p.is_file())
 
         # Filter out buildSrc directories (Gradle build logic, not a real project)
         gradle_roots = [r for r in gradle_roots if r.name != "buildSrc"]
@@ -131,7 +132,7 @@ class JavaConfigScanner:
 
     def _analyze_maven_project(self, pom_dir: Path) -> JavaProjectConfig | None:
         """Analyze a Maven project to determine if it's multi-module."""
-        pom_file = pom_dir / "pom.xml"
+        pom_file = pom_dir / JAVA_MAVEN_POM_FILE
 
         try:
             tree = ET.parse(pom_file)
@@ -173,11 +174,14 @@ class JavaConfigScanner:
         JDTLS will discover all modules during project import via its native Gradle integration,
         which handles complex cases like dynamic includes, Kotlin DSL, and multi-line statements.
         """
-        settings_file = gradle_dir / "settings.gradle"
-        if not settings_file.exists():
-            settings_file = gradle_dir / "settings.gradle.kts"
+        settings_file: Path | None = None
+        for candidate_name in JAVA_GRADLE_SETTINGS_FILES:
+            candidate = gradle_dir / candidate_name
+            if candidate.exists():
+                settings_file = candidate
+                break
 
-        if not settings_file.exists():
+        if settings_file is None:
             return JavaProjectConfig(gradle_dir, "gradle", False)
 
         try:

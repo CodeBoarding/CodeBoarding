@@ -16,7 +16,6 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import from_analysis_to_json
-from diagram_analysis.meta_context_resolver import resolve_meta_context
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -130,7 +129,7 @@ class DiagramGenerator:
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
             static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
-            meta_future = executor.submit(resolve_meta_context, self.repo_location, self.meta_agent, agent_llm)
+            meta_future = executor.submit(self.meta_agent.get_meta_context, agent_llm=agent_llm)
 
             static_analysis = static_future.result()
             meta_context = meta_future.result()

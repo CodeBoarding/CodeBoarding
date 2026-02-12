@@ -3,8 +3,8 @@ from pathlib import Path
 
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
+from cache.static_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cache_resolver import resolve_incremental_cache_path, resolve_static_cache
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.constants import Language
@@ -130,7 +130,9 @@ class StaticAnalyzer:
             StaticAnalysisResults containing all analysis data.
         """
         results = StaticAnalysisResults()
-        static_cache = resolve_static_cache(self.repository_path, Path(cache_dir)) if cache_dir is not None else None
+        static_cache = (
+            StaticAnalysisCache(repo_path=self.repository_path, cache_dir=cache_dir) if cache_dir is not None else None
+        )
         for client in self.clients:
             try:
                 logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
@@ -143,11 +145,7 @@ class StaticAnalyzer:
                 # Determine cache path for this client if caching is enabled
                 cache_path = None
                 if static_cache is not None:
-                    cache_path = resolve_incremental_cache_path(
-                        cache=static_cache,
-                        language=client.language.language,
-                        project_path=client.project_path,
-                    )
+                    cache_path = static_cache.get_client_cache_path(client.language.language, client.project_path)
                     if cache_path.exists():
                         logger.info(f"Using incremental cache: {cache_path}")
                     else:
@@ -225,7 +223,9 @@ class StaticAnalyzer:
         # For now, we only support single client analysis with cluster changes
         # Multi-client support would require aggregating results across languages
         client = self.clients[0]
-        static_cache = resolve_static_cache(self.repository_path, Path(cache_dir)) if cache_dir is not None else None
+        static_cache = (
+            StaticAnalysisCache(repo_path=self.repository_path, cache_dir=cache_dir) if cache_dir is not None else None
+        )
         try:
             logger.info(f"Starting cluster change analysis for {client.language.language} in {self.repository_path}")
             client.start()
@@ -237,11 +237,7 @@ class StaticAnalyzer:
             # Determine cache path
             cache_path = None
             if static_cache is not None:
-                cache_path = resolve_incremental_cache_path(
-                    cache=static_cache,
-                    language=client.language.language,
-                    project_path=client.project_path,
-                )
+                cache_path = static_cache.get_client_cache_path(client.language.language, client.project_path)
                 if cache_path.exists():
                     logger.info(f"Using incremental cache: {cache_path}")
                 else:
@@ -323,7 +319,7 @@ def get_static_analysis(
         results.diagnostics = analyzer.collected_diagnostics
         return results
 
-    static_cache = resolve_static_cache(repo_path=repo_path, cache_dir=cache_dir)
+    static_cache = StaticAnalysisCache(repo_path=repo_path, cache_dir=cache_dir)
 
     # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
     analyzer = StaticAnalyzer(repo_path)
