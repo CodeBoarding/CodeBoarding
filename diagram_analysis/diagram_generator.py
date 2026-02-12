@@ -16,6 +16,7 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import from_analysis_to_json
+from diagram_analysis.meta_context_resolver import resolve_meta_context
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -24,7 +25,7 @@ from diagram_analysis.manifest import (
 from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
-from utils import sanitize
+from utils import sanitize, get_codeboarding_version
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash, get_repo_state_hash
@@ -129,7 +130,7 @@ class DiagramGenerator:
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
             static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
-            meta_future = executor.submit(self.meta_agent.analyze_project_metadata)
+            meta_future = executor.submit(resolve_meta_context, self.repo_location, self.meta_agent, agent_llm)
 
             static_analysis = static_future.result()
             meta_context = meta_future.result()
@@ -172,7 +173,8 @@ class DiagramGenerator:
         with open(version_file, "w") as f:
             f.write(
                 Version(
-                    commit_hash=get_git_commit_hash(self.repo_location), code_boarding_version="0.2.0"
+                    commit_hash=get_git_commit_hash(self.repo_location),
+                    code_boarding_version=get_codeboarding_version(),
                 ).model_dump_json(indent=2)
             )
 

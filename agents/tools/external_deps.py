@@ -3,6 +3,11 @@ from typing import Optional, List
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel
 from agents.tools.base import BaseRepoTool
+from agents.tools.dependency_patterns import (
+    COMMON_DEPENDENCY_FILES,
+    COMMON_DEPENDENCY_SUBDIRS,
+    COMMON_DEPENDENCY_GLOBS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,30 +28,8 @@ class ExternalDepsTool(BaseRepoTool):
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
 
-    # Common dependency file patterns to search for
-    DEPENDENCY_FILES: List[str] = [
-        "requirements.txt",
-        "requirements-dev.txt",
-        "requirements-test.txt",
-        "dev-requirements.txt",
-        "test-requirements.txt",
-        "setup.py",
-        "setup.cfg",
-        "Pipfile",
-        "environment.yml",
-        "environment.yaml",
-        "conda.yml",
-        "conda.yaml",
-        "pixi.toml",
-        "uv.lock",
-        # Node.js / TypeScript specific
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
-        "pnpm-lock.yaml",
-        "bun.lockb",
-        "tsconfig.json",  # TypeScript compiler configuration (not dependencies, but relevant)
-    ]
+    # Shared source of truth for dependency discovery patterns.
+    DEPENDENCY_FILES: List[str] = list(COMMON_DEPENDENCY_FILES)
 
     def _run(self) -> str:
         """
@@ -64,13 +47,13 @@ class ExternalDepsTool(BaseRepoTool):
                     found_files.append(file_path)
 
         # Also search for requirements files in common subdirectories
-        for subdir in ("requirements", "deps", "dependencies", "env"):
+        for subdir in COMMON_DEPENDENCY_SUBDIRS:
             subdir_path = self.repo_dir / subdir
             if subdir_path.exists() and subdir_path.is_dir():
                 if self.ignore_manager.should_ignore(subdir_path):
                     continue
 
-                for pattern in ("*.txt", "*.yml", "*.yaml", "*.toml"):
+                for pattern in COMMON_DEPENDENCY_GLOBS:
                     for file_path in subdir_path.glob(pattern):
                         if file_path.is_file() and not self.ignore_manager.should_ignore(file_path):
                             found_files.append(file_path)

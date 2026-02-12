@@ -15,14 +15,26 @@ from typing import Any
 
 from static_analyzer.graph import CallGraph, ClusterResult, Node, Edge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
+from utils import get_codeboarding_version
 
 logger = logging.getLogger(__name__)
+
+CACHE_SCHEMA_VERSION = 2
+CACHE_SERIALIZER_VERSIONS = {
+    "call_graph": 1,
+    "references": 1,
+    "diagnostics": 1,
+    "cluster_results": 1,
+}
 
 
 @dataclass
 class AnalysisCacheMetadata:
     """Metadata for cached analysis results."""
 
+    schema_version: int
+    codeboarding_version: str
+    serializer_versions: dict[str, int]
     commit_hash: str
     iteration_id: int
     timestamp: float
@@ -79,6 +91,9 @@ class AnalysisCacheManager:
             # Prepare cache data structure
             cache_data = {
                 "metadata": {
+                    "schema_version": CACHE_SCHEMA_VERSION,
+                    "codeboarding_version": get_codeboarding_version(),
+                    "serializer_versions": CACHE_SERIALIZER_VERSIONS,
                     "commit_hash": commit_hash,
                     "iteration_id": iteration_id,
                     "timestamp": time.time(),
@@ -581,9 +596,49 @@ class AnalysisCacheManager:
 
         # Validate metadata structure
         metadata = cache_data.get("metadata", {})
-        required_metadata = {"commit_hash", "iteration_id", "timestamp"}
+        required_metadata = {
+            "schema_version",
+            "codeboarding_version",
+            "serializer_versions",
+            "commit_hash",
+            "iteration_id",
+            "timestamp",
+        }
         if not all(key in metadata for key in required_metadata):
+            logger.warning("Cache metadata missing required fields")
             return False
+
+        if metadata.get("schema_version") != CACHE_SCHEMA_VERSION:
+            logger.info(
+                "Invalidating cache due to schema version mismatch (%s != %s)",
+                metadata.get("schema_version"),
+                CACHE_SCHEMA_VERSION,
+            )
+            return False
+
+        current_codeboarding_version = get_codeboarding_version()
+        if metadata.get("codeboarding_version") != current_codeboarding_version:
+            logger.info(
+                "Invalidating cache due to CodeBoarding version mismatch (%s != %s)",
+                metadata.get("codeboarding_version"),
+                current_codeboarding_version,
+            )
+            return False
+
+        serializer_versions = metadata.get("serializer_versions")
+        if not isinstance(serializer_versions, dict):
+            logger.info("Invalidating cache due to invalid serializer version metadata")
+            return False
+
+        for key, expected_version in CACHE_SERIALIZER_VERSIONS.items():
+            if serializer_versions.get(key) != expected_version:
+                logger.info(
+                    "Invalidating cache due to serializer version mismatch for '%s' (%s != %s)",
+                    key,
+                    serializer_versions.get(key),
+                    expected_version,
+                )
+                return False
 
         # Validate call graph structure
         call_graph = cache_data.get("call_graph", {})

@@ -3,9 +3,11 @@ import os
 import re
 import shutil
 from pathlib import Path
+from importlib.metadata import PackageNotFoundError, version
 
 import uuid
 import yaml
+import tomllib
 
 from vscode_constants import VSCODE_CONFIG
 
@@ -46,6 +48,29 @@ def get_project_root() -> Path:
 def monitoring_enabled():
     print("Monitoring enabled:", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
+
+
+def get_codeboarding_version() -> str:
+    """
+    Resolve the currently running CodeBoarding release version.
+
+    Order:
+    1) Installed package metadata (`codeboarding`)
+    2) Local pyproject.toml fallback (repo/dev mode)
+    """
+    try:
+        return version("codeboarding")
+    except PackageNotFoundError:
+        pyproject_path = get_project_root() / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+            project = data.get("project", {})
+            version_value = project.get("version")
+            if isinstance(version_value, str) and version_value:
+                return version_value
+        logger.warning("Could not resolve CodeBoarding version from package metadata or pyproject.toml")
+        return "unknown"
 
 
 def contains_json(node_id, files):

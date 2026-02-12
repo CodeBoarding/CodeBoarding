@@ -13,6 +13,7 @@ from agents.llm_config import initialize_llms
 from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
+from diagram_analysis.meta_context_resolver import resolve_meta_context
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_analysis,
@@ -150,7 +151,7 @@ def handle_scoped_component_update(
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        meta_context = meta_agent.analyze_project_metadata()
+        meta_context = resolve_meta_context(repo_dir, meta_agent, agent_llm)
 
         details_agent = DetailsAgent(
             repo_dir=repo_dir,
