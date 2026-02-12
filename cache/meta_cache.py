@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 from collections import Counter
 from dataclasses import dataclass
@@ -18,6 +17,7 @@ from agents.tools.dependency_patterns import (
 from cache._paths import get_meta_cache_db_path
 from cache._sqlite_store import SQLiteCacheStore
 from repo_utils.ignore import RepoIgnoreManager
+from utils import sha256_hexdigest
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +54,57 @@ class MetaSnapshot:
                 self.tree_hash,
                 self.model_id,
                 self.prompt_version,
-                hashlib.sha256(self.docs_text.encode("utf-8")).hexdigest(),
+                sha256_hexdigest(self.docs_text),
             ]
         )
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        return sha256_hexdigest(raw)
 
+    @classmethod
+    def from_repo(
+        cls,
+        repo_dir: Path,
+        agent_llm: BaseChatModel,
+        ignore_manager: RepoIgnoreManager,
+    ) -> "MetaSnapshot":
+        """Build snapshot inputs from repository content and model settings."""
+        repo_root = repo_dir.resolve()
+        return cls(
+            scope=str(repo_root),
+            docs_text=_compute_docs_text(repo_root, ignore_manager),
+            deps_hash=_compute_deps_hash(repo_root, ignore_manager),
+            tree_hash=_compute_tree_hash(repo_root, ignore_manager),
+            model_id=_normalize_model_id(agent_llm),
+            prompt_version=_compute_prompt_version(),
+        )
 
-def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    def is_compatible_with_cached_meta(
+        self,
+        cached_meta: dict[str, object],
+        similarity_threshold: float = README_SIMILARITY_MIN,
+    ) -> bool:
+        """Return True when cached metadata remains valid for this snapshot."""
+        if cached_meta.get("model_id") != self.model_id:
+            return False
+        if cached_meta.get("prompt_version") != self.prompt_version:
+            return False
+        if cached_meta.get("deps_hash") != self.deps_hash:
+            return False
+        if cached_meta.get("tree_hash") != self.tree_hash:
+            return False
+
+        old_docs = str(cached_meta.get("docs_text", ""))
+        similarity = _token_overlap_similarity(old_docs, self.docs_text)
+        return similarity >= similarity_threshold
+
+    def to_cache_meta(self) -> dict[str, object]:
+        """Return metadata payload persisted alongside cached analysis output."""
+        return {
+            "docs_text": self.docs_text,
+            "deps_hash": self.deps_hash,
+            "tree_hash": self.tree_hash,
+            "model_id": self.model_id,
+            "prompt_version": self.prompt_version,
+        }
 
 
 def _safe_read_text(path: Path) -> str:
@@ -81,7 +124,7 @@ def _normalize_model_id(agent_llm: BaseChatModel) -> str:
 
 
 def _compute_prompt_version() -> str:
-    return _sha256(get_system_meta_analysis_message() + "\n" + get_meta_information_prompt())
+    return sha256_hexdigest(get_system_meta_analysis_message() + "\n" + get_meta_information_prompt())
 
 
 def _collect_dependency_paths(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
@@ -108,7 +151,7 @@ def _compute_deps_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str
     for dep_path in _collect_dependency_paths(repo_dir, ignore_manager):
         rel = dep_path.relative_to(repo_dir).as_posix()
         payload_parts.append(f"{rel}\n{_safe_read_text(dep_path)}")
-    return _sha256("\n---\n".join(payload_parts))
+    return sha256_hexdigest("\n---\n".join(payload_parts))
 
 
 def _compute_tree_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str:
@@ -119,7 +162,7 @@ def _compute_tree_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str
         if path.is_file():
             rel_paths.append(path.relative_to(repo_dir).as_posix())
     rel_paths.sort()
-    return _sha256("\n".join(rel_paths))
+    return sha256_hexdigest("\n".join(rel_paths))
 
 
 def _compute_docs_text(repo_dir: Path, ignore_manager: RepoIgnoreManager, max_total_chars: int = 400_000) -> str:
@@ -147,40 +190,6 @@ def _compute_docs_text(repo_dir: Path, ignore_manager: RepoIgnoreManager, max_to
         chunks.append(f"## {rel}\n{clipped}")
         used += len(clipped)
     return "\n\n".join(chunks)
-
-
-def build_meta_snapshot(repo_dir: Path, agent_llm: BaseChatModel) -> MetaSnapshot:
-    """Build cache-validation inputs from repository state, docs, and model settings."""
-    repo_root = repo_dir.resolve()
-    ignore_manager = RepoIgnoreManager(repo_root)
-    return MetaSnapshot(
-        scope=str(repo_root),
-        docs_text=_compute_docs_text(repo_root, ignore_manager),
-        deps_hash=_compute_deps_hash(repo_root, ignore_manager),
-        tree_hash=_compute_tree_hash(repo_root, ignore_manager),
-        model_id=_normalize_model_id(agent_llm),
-        prompt_version=_compute_prompt_version(),
-    )
-
-
-def is_cache_valid(
-    current: MetaSnapshot, cached_meta: dict[str, object], similarity_threshold: float = README_SIMILARITY_MIN
-) -> bool:
-    """Return True when cached metadata still matches the current repository snapshot."""
-    # Hard invalidation: model/prompt/dependency/layout changes alter global meta-context semantics.
-    if cached_meta.get("model_id") != current.model_id:
-        return False
-    if cached_meta.get("prompt_version") != current.prompt_version:
-        return False
-    if cached_meta.get("deps_hash") != current.deps_hash:
-        return False
-    if cached_meta.get("tree_hash") != current.tree_hash:
-        return False
-
-    # Soft invalidation: documentation edits are compared by similarity to ignore tiny typo-only changes.
-    old_docs = str(cached_meta.get("docs_text", ""))
-    similarity = _token_overlap_similarity(old_docs, current.docs_text)
-    return similarity >= similarity_threshold
 
 
 def _token_overlap_similarity(left: str, right: str) -> float:
@@ -223,7 +232,7 @@ class MetaAgentCache:
         if latest is None:
             return None
         payload_json, cached_meta = latest
-        if not is_cache_valid(snapshot, cached_meta):
+        if not snapshot.is_compatible_with_cached_meta(cached_meta):
             return None
         try:
             return MetaAnalysisInsights.model_validate_json(payload_json)
@@ -233,12 +242,6 @@ class MetaAgentCache:
 
     def save(self, snapshot: MetaSnapshot, result: MetaAnalysisInsights) -> None:
         """Save meta insights together with snapshot metadata for future cache hits."""
-        meta_json = {
-            "docs_text": snapshot.docs_text,
-            "deps_hash": snapshot.deps_hash,
-            "tree_hash": snapshot.tree_hash,
-            "model_id": snapshot.model_id,
-            "prompt_version": snapshot.prompt_version,
-        }
+        meta_json = snapshot.to_cache_meta()
         payload_json = result.model_dump_json()
         self._store.upsert(snapshot.scope, snapshot.fingerprint, payload_json, meta_json)

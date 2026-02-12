@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import re
@@ -103,3 +104,8 @@ def default_config(item_key: str):
 def sanitize(name: str) -> str:
     """Replace non-alphanumerics with underscores so IDs are valid identifiers."""
     return re.sub(r"\W+", "_", name)
+
+
+def sha256_hexdigest(text: str) -> str:
+    """Return SHA-256 hex digest for a UTF-8 string."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()

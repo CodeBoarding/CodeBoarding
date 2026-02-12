@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-import hashlib
 import subprocess
 from functools import wraps
 from pathlib import Path
@@ -9,6 +8,7 @@ from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 from repo_utils.ignore import RepoIgnoreManager
+from utils import sha256_hexdigest
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,7 @@ def get_repo_state_hash(repo_dir: str | Path) -> str:
 
     # Combine all state components (excluding commit_hash since it's in the prefix)
     state_content = f"{diff_content}\n{untracked_str}"
-    state_hash = hashlib.sha256(state_content.encode("utf-8")).hexdigest()
+    state_hash = sha256_hexdigest(state_content)
 
     return f"{commit_hash[:7]}_{state_hash[:8]}"
 

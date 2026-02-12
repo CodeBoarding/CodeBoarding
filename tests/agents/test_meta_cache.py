@@ -2,6 +2,10 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
+from unittest.mock import Mock, patch
+
+from langchain_core.language_models import BaseChatModel
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.meta_cache import MetaAgentCache, MetaSnapshot
@@ -76,6 +80,38 @@ class TestMetaAgentCache(unittest.TestCase):
         )
         loaded = self.cache.load_if_valid(changed_deps)
         self.assertIsNone(loaded)
+
+    def test_snapshot_from_repo_uses_injected_ignore_manager(self):
+        (self.repo_dir / "README.md").write_text("Sample project", encoding="utf-8")
+        (self.repo_dir / "requirements.txt").write_text("pydantic==2.0.0", encoding="utf-8")
+
+        ignore_manager = Mock()
+        ignore_manager.should_ignore.return_value = False
+        llm = cast(BaseChatModel, object())
+
+        with patch("cache.meta_cache.RepoIgnoreManager") as repo_ignore_manager_ctor:
+            snapshot = MetaSnapshot.from_repo(self.repo_dir, llm, ignore_manager=ignore_manager)
+
+        repo_ignore_manager_ctor.assert_not_called()
+        self.assertEqual(snapshot.scope, str(self.repo_dir.resolve()))
+        self.assertEqual(snapshot.model_id, "object")
+        self.assertTrue(snapshot.prompt_version)
+
+    def test_snapshot_compatibility_and_meta_payload(self):
+        snapshot = MetaSnapshot(
+            scope=str(self.repo_dir.resolve()),
+            docs_text="README",
+            deps_hash="deps_v1",
+            tree_hash="tree_v1",
+            model_id="model_v1",
+            prompt_version="prompt_v1",
+        )
+
+        self.assertTrue(snapshot.is_compatible_with_cached_meta(snapshot.to_cache_meta()))
+
+        changed_meta = dict(snapshot.to_cache_meta())
+        changed_meta["deps_hash"] = "deps_v2"
+        self.assertFalse(snapshot.is_compatible_with_cached_meta(changed_meta))
 
 
 if __name__ == "__main__":
