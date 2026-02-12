@@ -75,7 +75,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["agents", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer"]
+packages = ["agents", "cache", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer"]
 include-package-data = true
 
 [project.scripts]
