@@ -103,14 +103,40 @@ def from_analysis_to_json(
     return json.dumps(data, indent=2)
 
 
+def _compute_depth_level(
+    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None,
+) -> int:
+    """Compute the maximum depth level from the sub_analyses structure.
+
+    Returns 1 if there are no sub-analyses (root only), 2 if there is one level of
+    sub-analyses, etc.
+    """
+    if not sub_analyses:
+        return 1
+
+    max_child_depth = 1
+    for _, (sub_analysis, _) in sub_analyses.items():
+        # Check if any of this sub-analysis's components themselves have sub-analyses
+        child_depth = 1
+        for comp in sub_analysis.components:
+            if comp.name in sub_analyses:
+                child_depth = 2
+                break
+        max_child_depth = max(max_child_depth, child_depth)
+
+    return 1 + max_child_depth
+
+
 def build_unified_analysis_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
     repo_name: str,
-    depth_level: int,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
 ) -> str:
-    """Build the full unified analysis JSON with metadata and nested sub-analyses."""
+    """Build the full unified analysis JSON with metadata and nested sub-analyses.
+
+    The depth_level metadata is computed automatically from the sub_analyses structure.
+    """
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
@@ -119,7 +145,7 @@ def build_unified_analysis_json(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             repo_name=repo_name,
-            depth_level=depth_level,
+            depth_level=_compute_depth_level(sub_analyses),
         ),
         description=analysis.description,
         components=components_json,

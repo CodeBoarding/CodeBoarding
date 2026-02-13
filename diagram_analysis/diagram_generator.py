@@ -271,7 +271,6 @@ class DiagramGenerator:
                         analysis=analysis,
                         expandable_components=expanded_components,
                         repo_name=self.repo_name,
-                        depth_level=self.depth_level,
                         sub_analyses=all_sub_analyses,
                     )
                 )

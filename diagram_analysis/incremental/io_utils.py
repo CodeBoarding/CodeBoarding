@@ -74,7 +74,6 @@ def save_analysis(
     expandable_components: list[str] | None = None,
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
-    depth_level: int = 1,
 ) -> Path:
     """Save the analysis to a unified analysis.json file.
 
@@ -97,8 +96,6 @@ def save_analysis(
             # Preserve metadata from existing file
             if not repo_name and "metadata" in existing_data:
                 repo_name = existing_data["metadata"].get("repo_name", "")
-            if depth_level == 1 and "metadata" in existing_data:
-                depth_level = existing_data["metadata"].get("depth_level", 1)
 
     # Convert sub_analyses dict to the format expected by build_unified_analysis_json
     sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
@@ -115,7 +112,6 @@ def save_analysis(
                 analysis=analysis,
                 expandable_components=expandable,
                 repo_name=repo_name,
-                depth_level=depth_level,
                 sub_analyses=sub_analyses_tuples,
             )
         )
@@ -158,12 +154,10 @@ def save_sub_analysis(
     # Update the sub-analysis for this component
     sub_analyses[component_name] = sub_analysis
 
-    # Determine repo_name and depth_level from existing metadata
+    # Determine repo_name from existing metadata
     repo_name = ""
-    depth_level = 1
     if "metadata" in raw_data:
         repo_name = raw_data["metadata"].get("repo_name", "")
-        depth_level = raw_data["metadata"].get("depth_level", 1)
 
     # Determine which root components are expandable
     all_expandable = expandable_components or list(sub_analyses.keys())
@@ -174,7 +168,6 @@ def save_sub_analysis(
         expandable_components=all_expandable,
         sub_analyses=sub_analyses,
         repo_name=repo_name,
-        depth_level=depth_level,
     )
 
 
