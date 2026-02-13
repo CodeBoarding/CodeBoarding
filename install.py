@@ -610,6 +610,9 @@ def init_dot_env_file():
     print("Step: .env file creation started")
 
     env_file_path = Path(".env")
+    if env_file_path.exists():
+        print("Step: .env file creation finished: skipped - .env already exists")
+        return
 
     # Get the absolute path to the project root
     project_root = Path.cwd().resolve()
