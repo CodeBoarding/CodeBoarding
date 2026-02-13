@@ -23,10 +23,7 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
-from filelock import FileLock
-
-from diagram_analysis.analysis_json import build_unified_analysis_json
-from diagram_analysis.incremental.io_utils import analysis_lock_path, save_analysis
+from diagram_analysis.incremental.io_utils import AnalysisFileStore, save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -338,10 +335,10 @@ class DiagramGenerator:
                     not_analyzed_by_reason=s["not_analyzed_by_reason"],
                 )
 
-            # Write a single unified analysis.json
-            analysis_path = os.path.join(self.output_dir, "analysis.json")
-            with open(analysis_path, "w") as f:
-                f.write(
+            # Final write of unified analysis.json (uses build directly for full expandable fidelity)
+            store = AnalysisFileStore(Path(self.output_dir))
+            analysis_path = str(
+                store.write_raw(
                     build_unified_analysis_json(
                         analysis=analysis,
                         expandable_components=expanded_components,
@@ -350,21 +347,7 @@ class DiagramGenerator:
                         file_coverage_summary=file_coverage_summary,
                     )
                 )
-
-            # Final write of unified analysis.json (uses build directly for full expandable fidelity)
-            analysis_path = os.path.join(self.output_dir, "analysis.json")
-            lock = FileLock(analysis_lock_path(Path(self.output_dir)), timeout=120)
-            with lock:
-                with open(analysis_path, "w") as f:
-                    f.write(
-                        build_unified_analysis_json(
-                            analysis=analysis,
-                            expandable_components=expanded_components,
-                            repo_name=self.repo_name,
-                            depth_level=self.depth_level,
-                            sub_analyses=all_sub_analyses,
-                        )
-                    )
+            )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             print("Generated analysis file: %s", os.path.abspath(analysis_path))

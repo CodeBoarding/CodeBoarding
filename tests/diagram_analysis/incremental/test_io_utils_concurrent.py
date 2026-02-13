@@ -120,7 +120,6 @@ class TestConcurrentSaveSubAnalysis:
             output_dir,
             expandable_components=["ComponentB", "ComponentC", "ComponentD"],
             repo_name="test-repo",
-            depth_level=2,
         )
 
         # Verify initial state: file exists, no sub-analyses
