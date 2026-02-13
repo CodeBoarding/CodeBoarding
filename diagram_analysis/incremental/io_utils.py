@@ -40,7 +40,9 @@ def analysis_lock_path(output_dir: Path) -> Path:
     return output_dir / "analysis.json.lock"
 
 
-def _load_unified_data(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
+def _load_unified_data(
+    output_dir: Path,
+) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
     """Load and cache the unified analysis.json file.
 
     Returns:
@@ -144,7 +146,11 @@ def save_analysis(
     with lock:
         _invalidate_cache(output_dir)
         return _save_analysis_unlocked(
-            analysis, output_dir, expandable_components, sub_analyses, repo_name, depth_level
+            analysis,
+            output_dir,
+            expandable_components,
+            sub_analyses,
+            repo_name,
         )
 
 
