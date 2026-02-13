@@ -1,12 +1,36 @@
+import argparse
+import io
 import os
 import platform
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
+
 import requests
 import tarfile
 import yaml
-from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class LanguageSupportCheck:
+    language: str
+    paths: list[Path]
+    requires_npm: bool = False
+    fallback_available: bool = False
+    reason_if_requirement_missing: str = ""
+    reason_if_binary_missing: str = ""
+
+    def evaluate(self, npm_available: bool) -> tuple[bool, str | None]:
+        requirement_ok = (not self.requires_npm) or npm_available
+        path_exists = any(path.exists() for path in self.paths)
+        is_available = (path_exists and requirement_ok) or self.fallback_available
+        if is_available:
+            return True, None
+
+        reason = self.reason_if_requirement_missing if not requirement_ok else self.reason_if_binary_missing
+        return False, reason
 
 
 def check_uv_environment():
@@ -53,8 +77,104 @@ def check_npm():
             return False
     else:
         print("Step: npm check finished: failure - npm not found")
-        print("   Install Node.js from: https://nodejs.org/")
         return False
+
+
+def install_npm_with_nodeenv() -> bool:
+    """Install npm locally in the active Python virtual environment using nodeenv."""
+    command = [sys.executable, "-m", "nodeenv", "--python-virtualenv"]
+    print("Step: npm remediation started")
+    print(f"   command: {' '.join(command)}")
+    print("   impact: installs Node.js + npm into the active Python virtual environment")
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Step: npm remediation finished: failure - {e}")
+        if e.stderr:
+            print(f"   {e.stderr.strip()}")
+        print("   You can install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    npm_available = check_npm()
+    if not npm_available:
+        print("Step: npm remediation finished: failure - npm still not found after nodeenv install")
+        print("   You can install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    print("Step: npm remediation finished: success")
+    return True
+
+
+def is_non_interactive_mode() -> bool:
+    """Captures github actions ("CI) and non-interactive session (no terminal keyboard)"""
+    return bool(os.getenv("CI")) or not sys.stdin.isatty()
+
+
+def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
+    """Offer actionable paths when npm is missing."""
+    print("Step: npm required for TypeScript/JavaScript/PHP language servers")
+
+    if auto_install_npm:
+        return install_npm_with_nodeenv()
+
+    if is_non_interactive_mode():
+        print("Step: Non-interactive mode detected - skipping npm prompt")
+        print("   Re-run with --auto-install-npm to install npm in this virtual environment")
+        print("   Or install Node.js manually from: https://nodejs.org/en/download")
+        print("   Then verify with: npm --version")
+        return False
+
+    choice = input("npm is missing. Install it now using nodeenv in this virtual environment? [y/N]: ").strip().lower()
+    if choice in {"y", "yes"}:
+        return install_npm_with_nodeenv()
+
+    print("Step: npm remediation skipped by user")
+    print("   Install Node.js manually from: https://nodejs.org/en/download")
+    print("   Then verify with: npm --version")
+    return False
+
+
+def resolve_npm_availability(auto_install_npm: bool = False) -> bool:
+    """Determine npm availability and run remediation when needed."""
+    npm_available = check_npm()
+
+    if not npm_available:
+        npm_available = resolve_missing_npm(auto_install_npm=auto_install_npm)
+
+    return npm_available
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse install script arguments."""
+    parser = argparse.ArgumentParser(description="CodeBoarding installation script")
+    parser.add_argument(
+        "--auto-install-npm",
+        action="store_true",
+        help="Automatically install npm via nodeenv when npm is missing",
+    )
+    parser.add_argument(
+        "--auto-install-vcpp",
+        action="store_true",
+        help="Automatically install Visual C++ Redistributable when binaries need it (Windows only)",
+    )
+    return parser.parse_args()
+
+
+def get_platform_bin_subdir() -> str:
+    """Return OS-specific binary folder name used by the extension."""
+    subdirs = {"windows": "win", "darwin": "macos", "linux": "linux"}
+    system = platform.system().lower()
+    if system not in subdirs:
+        raise RuntimeError(f"Unsupported platform: {system}")
+    return subdirs[system]
+
+
+def get_platform_bin_dir(servers_dir: Path) -> Path:
+    """Return static_analyzer/servers/bin/<os> directory."""
+    return servers_dir / "bin" / get_platform_bin_subdir()
 
 
 def install_node_servers():
@@ -121,6 +241,8 @@ def install_node_servers():
         os.chdir(original_cwd)
 
 
+VCREDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 unsigned
 GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
 
@@ -158,7 +280,131 @@ def download_github_release_asset(tag: str, asset_name: str, destination: Path) 
     return destination.exists() and destination.stat().st_size > 0
 
 
-def download_binaries():
+def verify_binary(binary_path: Path) -> bool:
+    """Run a quick smoke test to verify the binary actually executes.
+
+    Returns True if the binary runs without DLL-not-found or similar loader errors.
+    """
+    try:
+        result = subprocess.run(
+            [str(binary_path), "--version"],
+            capture_output=True,
+            timeout=10,
+        )
+        # Any exit code is fine as long as the process actually loaded.
+        # 0xC0000135 (unsigned 3221225781) means a required DLL is missing.
+        if result.returncode < 0:
+            code = result.returncode & 0xFFFFFFFF
+        else:
+            code = result.returncode
+        if code == STATUS_DLL_NOT_FOUND:
+            return False
+        return True
+    except OSError:
+        # Binary couldn't be started at all
+        return False
+    except subprocess.TimeoutExpired:
+        # If it ran long enough to time out, it loaded fine
+        return True
+
+
+def install_vcpp_redistributable() -> bool:
+    """Download and install the Visual C++ Redistributable on Windows.
+
+    Required when pre-built binaries are dynamically linked against the MSVC runtime
+    (vcruntime140.dll) which is not present on the system.
+    """
+    if platform.system() != "Windows":
+        return False
+
+    print("Step: Visual C++ Redistributable installation started")
+    print("  The downloaded binary requires the Visual C++ runtime (vcruntime140.dll).")
+
+    installer_path = Path("static_analyzer/servers/bin/vc_redist.x64.exe")
+    installer_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        print("  Downloading VC++ Redistributable...")
+        response = requests.get(VCREDIST_URL, stream=True, timeout=120, allow_redirects=True)
+        response.raise_for_status()
+        with open(installer_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+
+        print("  Running installer (this will request administrator privileges)...")
+        # Use PowerShell Start-Process with -Verb RunAs to trigger UAC elevation,
+        # then /install /passive for a non-interactive install with progress bar.
+        ps_command = (
+            f'Start-Process -FilePath "{installer_path.resolve()}" '
+            f'-ArgumentList "/install","/passive","/norestart" '
+            f"-Verb RunAs -Wait"
+        )
+        result = subprocess.run(
+            ["powershell", "-Command", ps_command],
+            check=False,
+            timeout=300,
+        )
+
+        try:
+            installer_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass  # Installer may still be releasing; not critical
+
+        if result.returncode == 0:
+            print("Step: Visual C++ Redistributable installation finished: success")
+            return True
+        elif result.returncode == 1638:
+            # 1638 = newer version already installed
+            print("Step: Visual C++ Redistributable installation finished: success (newer version already present)")
+            return True
+        elif result.returncode == 3010:
+            # 3010 = success, reboot required
+            print("Step: Visual C++ Redistributable installation finished: success (reboot may be needed)")
+            return True
+        else:
+            print(f"Step: Visual C++ Redistributable installation finished: failure (exit code {result.returncode})")
+            print("  You may need to run the installer manually with administrator privileges.")
+            print(f"  Download from: {VCREDIST_URL}")
+            return False
+
+    except Exception as e:
+        try:
+            installer_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+        print(f"Step: Visual C++ Redistributable installation finished: failure - {e}")
+        print(f"  Download and install manually from: {VCREDIST_URL}")
+        return False
+
+
+def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
+    """Offer actionable paths when the Visual C++ Redistributable is missing."""
+    print("Step: Visual C++ Redistributable required for downloaded binaries (vcruntime140.dll)")
+
+    if auto_install_vcpp:
+        return install_vcpp_redistributable()
+
+    if is_non_interactive_mode():
+        print("Step: Non-interactive mode detected - skipping VC++ prompt")
+        print("   Re-run with --auto-install-vcpp to install automatically")
+        print(f"   Or download and install manually from: {VCREDIST_URL}")
+        return False
+
+    choice = (
+        input("Visual C++ Redistributable is missing. Install it now? (requires admin privileges) [y/N]: ")
+        .strip()
+        .lower()
+    )
+    if choice in {"y", "yes"}:
+        return install_vcpp_redistributable()
+
+    print("Step: VC++ Redistributable installation skipped by user")
+    print(f"   Download and install manually from: {VCREDIST_URL}")
+    return False
+
+
+def download_binaries(auto_install_vcpp: bool = False):
     """Download tokei and gopls binaries from the latest GitHub release."""
     print("Step: Binary download started")
 
@@ -181,6 +427,8 @@ def download_binaries():
 
     servers_dir = Path("static_analyzer/servers")
     servers_dir.mkdir(parents=True, exist_ok=True)
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
+    platform_bin_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         tag = get_latest_release_tag()
@@ -192,7 +440,7 @@ def download_binaries():
     success_count = 0
     for local_name, asset_name in binaries.items():
         ext = ".exe" if system == "Windows" else ""
-        binary_path = servers_dir / (local_name + ext)
+        binary_path = platform_bin_dir / (local_name + ext)
 
         try:
             if binary_path.exists():
@@ -220,6 +468,29 @@ def download_binaries():
     else:
         print("Step: Binary download finished: failure - No binaries downloaded")
 
+    # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
+    if system == "Windows" and success_count > 0:
+        vcpp_resolved = False
+        needs_vcpp = False
+        for local_name in binaries:
+            binary_path = platform_bin_dir / f"{local_name}.exe"
+            if not binary_path.exists():
+                continue
+
+            if not verify_binary(binary_path):
+                print(f"  {local_name}: verification failed - missing Visual C++ runtime")
+                needs_vcpp = True
+            else:
+                print(f"  {local_name}: verification passed")
+
+        if needs_vcpp:
+            vcpp_resolved = resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp)
+            if vcpp_resolved:
+                for local_name in binaries:
+                    binary_path = platform_bin_dir / f"{local_name}.exe"
+                    if binary_path.exists() and verify_binary(binary_path):
+                        print(f"  {local_name}: verification passed after VC++ install")
+
 
 def download_jdtls():
     """Download and extract JDTLS from the latest GitHub release."""
@@ -246,7 +517,7 @@ def download_jdtls():
 
         print("  Extracting JDTLS...")
         with tarfile.open(jdtls_archive, "r:gz") as tar:
-            tar.extractall(path=jdtls_dir)
+            tar.extractall(path=jdtls_dir, filter="tar")
 
         jdtls_archive.unlink()
 
@@ -275,13 +546,14 @@ def update_static_analysis_config():
     # Get the absolute path to the project root
     project_root = Path.cwd().resolve()
     servers_dir = project_root / "static_analyzer" / "servers"
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
 
     updates = 0
     is_win = platform.system() == "Windows"
 
     # The Plan: (Binary Name, Is_Node_App, List of Config Targets)
     # "True" means it lives in node_modules/.bin and needs .cmd on Windows
-    # "False" means it lives in the root and needs .exe on Windows
+    # "False" means it lives under bin/<os> and needs .exe on Windows
     server_definitions = [
         ("pyright-langserver", True, [("lsp_servers", "python")]),
         ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
@@ -294,7 +566,7 @@ def update_static_analysis_config():
     for binary, is_node, targets in server_definitions:
         # 1. Determine the extension and folder based on the type
         ext = (".cmd" if is_node else ".exe") if is_win else ""
-        folder = (servers_dir / "node_modules" / ".bin") if is_node else servers_dir
+        folder = (servers_dir / "node_modules" / ".bin") if is_node else platform_bin_dir
 
         # 2. Build the full path once
         full_path = folder / (binary + ext)
@@ -310,6 +582,15 @@ def update_static_analysis_config():
 
                 config[section][key]["command"][0] = str(full_path)
                 updates += 1
+
+    # Minimal fallback: if pyright wasn't installed under node_modules, use active env binary if available
+    node_ext = ".cmd" if is_win else ""
+    node_pyright = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    if not node_pyright.exists():
+        env_pyright = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
+        if env_pyright and "lsp_servers" in config and "python" in config["lsp_servers"]:
+            config["lsp_servers"]["python"]["command"][0] = env_pyright
+            updates += 1
 
     # Update JDTLS configuration
     jdtls_dir = servers_dir / "bin" / "jdtls"
@@ -457,7 +738,83 @@ def install_pre_commit_hooks():
         pass
 
 
+def print_language_support_summary(npm_available: bool):
+    """Print which language analyses are currently available based on installed tools."""
+    print("Step: Language support summary")
+
+    servers_dir = Path("static_analyzer/servers").resolve()
+    platform_bin_dir = get_platform_bin_dir(servers_dir)
+    is_win = platform.system() == "Windows"
+    node_ext = ".cmd" if is_win else ""
+
+    ts_path = servers_dir / "node_modules" / ".bin" / f"typescript-language-server{node_ext}"
+    php_path = servers_dir / "node_modules" / ".bin" / f"intelephense{node_ext}"
+    py_node_path = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    py_env_path = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
+    go_path = platform_bin_dir / ("gopls.exe" if is_win else "gopls")
+    java_path = servers_dir / "bin" / "jdtls"
+
+    npm_missing = "npm not available"
+    pyright_missing = "pyright-langserver not found in node_modules or active environment"
+    typescript_missing = "typescript-language-server binary not found"
+
+    language_checks: list[LanguageSupportCheck] = [
+        LanguageSupportCheck(
+            language="Python",
+            paths=[py_node_path],
+            fallback_available=bool(py_env_path),
+            reason_if_requirement_missing=pyright_missing,
+            reason_if_binary_missing=pyright_missing,
+        ),
+        LanguageSupportCheck(
+            language="TypeScript",
+            paths=[ts_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing=typescript_missing,
+        ),
+        LanguageSupportCheck(
+            language="JavaScript",
+            paths=[ts_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing=typescript_missing,
+        ),
+        LanguageSupportCheck(
+            language="PHP",
+            paths=[php_path],
+            requires_npm=True,
+            reason_if_requirement_missing=npm_missing,
+            reason_if_binary_missing="intelephense binary not found",
+        ),
+        LanguageSupportCheck(
+            language="Go",
+            paths=[go_path],
+            reason_if_requirement_missing="gopls binary not found",
+            reason_if_binary_missing="gopls binary not found",
+        ),
+        LanguageSupportCheck(
+            language="Java",
+            paths=[java_path],
+            reason_if_requirement_missing="jdtls installation not found",
+            reason_if_binary_missing="jdtls installation not found",
+        ),
+    ]
+
+    for check in language_checks:
+        is_available, reason = check.evaluate(npm_available)
+        print(f"  - {check.language}: {'yes' if is_available else 'no'}")
+        if reason:
+            print(f"    reason: {reason}")
+
+
 if __name__ == "__main__":
+    # Windows consoles default to cp1252 which can't encode emojis; force UTF-8.
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+    args = parse_args()
+
     print("🚀 CodeBoarding Installation Script")
     print("=" * 40)
 
@@ -465,12 +822,12 @@ if __name__ == "__main__":
     check_uv_environment()
 
     # Step 2: Check for npm and install Node.js based servers if available
-    npm_available = check_npm()
+    npm_available = resolve_npm_availability(auto_install_npm=args.auto_install_npm)
     if npm_available:
         install_node_servers()
 
     # Step 3: Download binaries from GitHub release
-    download_binaries()
+    download_binaries(auto_install_vcpp=args.auto_install_vcpp)
 
     # Step 4: Download JDTLS from GitHub release
     download_jdtls()
@@ -483,6 +840,9 @@ if __name__ == "__main__":
 
     # Step 6: Install pre-commit hooks
     install_pre_commit_hooks()
+
+    # Step 7: Print language analysis availability
+    print_language_support_summary(npm_available)
 
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")
