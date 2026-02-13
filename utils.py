@@ -106,6 +106,15 @@ def sanitize(name: str) -> str:
     return re.sub(r"\W+", "_", name)
 
 
+def safe_read_text(path: Path) -> str:
+    """Read file text safely, returning empty string on failure."""
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except (OSError, UnicodeDecodeError) as e:
+        logger.debug("Failed to read %s: %s", path, e)
+        return ""
+
+
 def sha256_hexdigest(text: str) -> str:
     """Return SHA-256 hex digest for a UTF-8 string."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()

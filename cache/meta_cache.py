@@ -15,7 +15,7 @@ from repo_utils.project_manifests import (
     COMMON_DEPENDENCY_GLOBS,
     COMMON_DEPENDENCY_SUBDIRS,
 )
-from utils import sha256_hexdigest
+from utils import safe_read_text, sha256_hexdigest
 
 logger = logging.getLogger(__name__)
 
@@ -120,15 +120,6 @@ class MetaCacheIdentity:
         }
 
 
-def _safe_read_text(path: Path) -> str:
-    """Read file text safely and return empty text on failure."""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except (OSError, UnicodeDecodeError) as e:
-        logger.debug("Failed to read text for meta cache snapshot from %s: %s", path, e)
-        return ""
-
-
 def _normalize_model_id(agent_llm: BaseChatModel) -> str:
     """Extract a stable model identifier from the configured LLM."""
     for attr in ("model_name", "model", "model_id"):
@@ -174,7 +165,7 @@ def _hash_dependency_inputs(repo_dir: Path, ignore_manager: RepoIgnoreManager) -
     payload_parts: list[str] = []
     for dep_path in _collect_dependency_paths(repo_dir, ignore_manager):
         rel = dep_path.relative_to(repo_dir).as_posix()
-        payload_parts.append(f"{rel}\n{_safe_read_text(dep_path)}")
+        payload_parts.append(f"{rel}\n{safe_read_text(dep_path)}")
     return sha256_hexdigest("\n---\n".join(payload_parts))
 
 
@@ -205,7 +196,7 @@ def _build_docs_manifest(repo_dir: Path, doc_paths: list[Path]) -> dict[str, obj
     priority_files: list[str] = []
     for doc in doc_paths:
         rel = doc.relative_to(repo_dir).as_posix()
-        text = _safe_read_text(doc)
+        text = safe_read_text(doc)
         file_hashes[rel] = sha256_hexdigest(text)
 
         rel_lower = rel.lower()
