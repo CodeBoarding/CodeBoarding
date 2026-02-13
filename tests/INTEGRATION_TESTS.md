@@ -1,9 +1,10 @@
 # Integration Tests
 
-This directory contains integration tests that verify the system works correctly with real repositories. There are two types:
+This directory contains integration tests that verify the system works correctly with real repositories and curated local projects. There are three types:
 
 1. **Static Analysis Consistency Tests** - Verify static analysis produces consistent metrics across languages
 2. **Health Check Integration Tests** - Verify health checks work on real codebase
+3. **Local Edge-Case Project Tests** - Verify parser behavior and exact metrics on intentionally complex sample projects
 
 ## Quick Start
 
@@ -39,6 +40,11 @@ Integration tests verify that the system works correctly with real repositories.
    - Verifies health checks work correctly on real codebase
    - Runs all health checks and compares output against fixture
    - One comprehensive test covering all health check types
+
+3. **Local Edge-Case Project Tests** (`tests/integration/test_python_edge_cases_project.py`)
+   - Uses a local sample project with mixed Python edge-cases in a single codebase
+   - Runs real `ProjectScanner` + `StaticAnalyzer` (no mocks)
+   - Asserts exact counts for references, classes, nodes, edges, files, and diagnostics
 
 ### Purpose
 
@@ -100,6 +106,9 @@ uv run pytest -m "integration and not health" -v
 
 # Run health checks specifically
 uv run pytest tests/integration/health/ -v
+
+# Run local Python edge-case project integration test
+uv run pytest tests/integration/test_python_edge_cases_project.py -v
 ```
 
 ### Run Tests for a Specific Language

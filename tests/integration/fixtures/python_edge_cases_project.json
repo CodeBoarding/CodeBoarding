@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "project_name": "python_edge_cases_project",
+    "language": "Python",
+    "description": "Single local Python project with multiple parsing edge-cases for integration testing"
+  },
+  "scanner_expected_languages": [
+    "python"
+  ],
+  "metrics": {
+    "references_count": 77,
+    "classes_count": 6,
+    "packages_count": 2,
+    "call_graph_nodes": 78,
+    "call_graph_edges": 58,
+    "source_files_count": 13,
+    "diagnostic_files_count": 2,
+    "diagnostics_count": 4
+  },
+  "sample_references": [
+    "edge_cases_pkg.orchestrator.run_all",
+    "edge_cases_pkg.scenarios.b_nested.outer",
+    "edge_cases_pkg.scenarios.c_methods.invoke_method_variants",
+    "edge_cases_pkg.scenarios.e_decorators.decorated_action",
+    "edge_cases_pkg.scenarios.f_async.async_root",
+    "edge_cases_pkg.scenarios.g_recursion.factorial",
+    "edge_cases_pkg.scenarios.h_lambda_dynamic.run_dynamic",
+    "edge_cases_pkg.scenarios.diagnostics_cases.unused_function"
+  ],
+  "sample_classes": [
+    "edge_cases_pkg.scenarios.b_nested.LocalHelper",
+    "edge_cases_pkg.scenarios.c_methods.MethodPlayground",
+    "edge_cases_pkg.scenarios.d_inheritance.Base",
+    "edge_cases_pkg.scenarios.d_inheritance.Child",
+    "edge_cases_pkg.scenarios.diagnostics_cases.UnusedClass",
+    "edge_cases_pkg.scenarios.h_lambda_dynamic.DynamicTarget"
+  ],
+  "required_edges": [
+    [
+      "edge_cases_pkg.scenarios.a_basics.alpha",
+      "edge_cases_pkg.scenarios.a_basics.beta"
+    ],
+    [
+      "edge_cases_pkg.scenarios.cross_module.external_target",
+      "edge_cases_pkg.scenarios.cross_module.terminal_external"
+    ],
+    [
+      "edge_cases_pkg.scenarios.b_nested.outer",
+      "edge_cases_pkg.scenarios.b_nested.inner_step"
+    ],
+    [
+      "edge_cases_pkg.scenarios.b_nested.inner_step",
+      "edge_cases_pkg.scenarios.b_nested.helper_nested"
+    ],
+    [
+      "edge_cases_pkg.scenarios.c_methods.instance_a",
+      "edge_cases_pkg.scenarios.c_methods.instance_b"
+    ],
+    [
+      "edge_cases_pkg.scenarios.c_methods.instance_b",
+      "edge_cases_pkg.scenarios.c_methods.static_c"
+    ],
+    [
+      "edge_cases_pkg.scenarios.d_inheritance.run_inheritance",
+      "edge_cases_pkg.scenarios.d_inheritance.process"
+    ],
+    [
+      "edge_cases_pkg.scenarios.e_decorators.run_decorator",
+      "edge_cases_pkg.scenarios.e_decorators.decorated_action"
+    ],
+    [
+      "edge_cases_pkg.scenarios.f_async.async_root",
+      "edge_cases_pkg.scenarios.f_async.async_mid"
+    ],
+    [
+      "edge_cases_pkg.scenarios.g_recursion.factorial",
+      "edge_cases_pkg.scenarios.g_recursion.factorial"
+    ],
+    [
+      "edge_cases_pkg.scenarios.h_lambda_dynamic.apply_with_lambda",
+      "edge_cases_pkg.scenarios.h_lambda_dynamic.local_transform"
+    ],
+    [
+      "edge_cases_pkg.scenarios.h_lambda_dynamic.run_dynamic",
+      "edge_cases_pkg.scenarios.h_lambda_dynamic.dynamic_dispatch"
+    ],
+    [
+      "edge_cases_pkg.scenarios.e_decorators.logger_decorator",
+      "edge_cases_pkg.scenarios.e_decorators.wrapper"
+    ],
+    [
+      "edge_cases_pkg.scenarios.g_recursion.is_even",
+      "edge_cases_pkg.scenarios.g_recursion.is_odd"
+    ]
+  ]
+}
