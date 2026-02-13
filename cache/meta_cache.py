@@ -1,32 +1,32 @@
 from __future__ import annotations
 
+import json
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 
-from agents.agent_responses import MetaAnalysisInsights
-from agents.prompts import get_meta_information_prompt, get_system_meta_analysis_message
-from agents.tools.dependency_patterns import (
+from cache._paths import get_meta_cache_db_path
+from cache._sqlite_store import SQLiteCacheStore
+from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.project_manifests import (
     COMMON_DEPENDENCY_FILES,
     COMMON_DEPENDENCY_GLOBS,
     COMMON_DEPENDENCY_SUBDIRS,
 )
-from cache._paths import get_meta_cache_db_path
-from cache._sqlite_store import SQLiteCacheStore
-from repo_utils.ignore import RepoIgnoreManager
 from utils import sha256_hexdigest
 
 logger = logging.getLogger(__name__)
 
-README_SIMILARITY_MIN = 0.995
 META_CACHE_TABLE_NAME = "meta_cache"
+DOCS_MANIFEST_SCHEMA_VERSION = 5
+DOC_EXTENSIONS = {".md", ".rst", ".html"}
+META_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
-class MetaSnapshot:
+class MetaCacheIdentity:
     """
     Snapshot of metadata inputs used to decide whether meta-analysis can be reused.
 
@@ -35,18 +35,22 @@ class MetaSnapshot:
     - model_id: guarantees cache does not cross LLM model changes.
     - prompt_version: guarantees cache does not cross prompt-template changes.
     - deps_hash/tree_hash: strict invalidation for dependency/layout changes.
-    - docs_text: fuzzy invalidation target so tiny README edits (typos) do not recompute.
+    - docs_manifest: strict per-file docs digest.
     """
 
     scope: str
-    docs_text: str
     deps_hash: str
     tree_hash: str
     model_id: str
     prompt_version: str
+    docs_manifest: dict[str, object]
 
     @property
-    def fingerprint(self) -> str:
+    def cache_key(self) -> str:
+        """Return the cache key for this snapshot."""
+        docs_fingerprint = sha256_hexdigest(
+            json.dumps(self.docs_manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        )
         raw = "|".join(
             [
                 self.scope,
@@ -54,7 +58,7 @@ class MetaSnapshot:
                 self.tree_hash,
                 self.model_id,
                 self.prompt_version,
-                sha256_hexdigest(self.docs_text),
+                docs_fingerprint,
             ]
         )
         return sha256_hexdigest(raw)
@@ -65,24 +69,27 @@ class MetaSnapshot:
         repo_dir: Path,
         agent_llm: BaseChatModel,
         ignore_manager: RepoIgnoreManager,
-    ) -> "MetaSnapshot":
-        """Build snapshot inputs from repository content and model settings."""
+        prompt_version: str,
+    ) -> "MetaCacheIdentity":
+        """Build a metadata snapshot from repository and LLM context."""
         repo_root = repo_dir.resolve()
+        all_files = _collect_all_repo_files(repo_root, ignore_manager)
+        doc_paths = _collect_doc_paths(repo_root, all_files)
+        docs_manifest = _build_docs_manifest(repo_root, doc_paths)
         return cls(
             scope=str(repo_root),
-            docs_text=_compute_docs_text(repo_root, ignore_manager),
-            deps_hash=_compute_deps_hash(repo_root, ignore_manager),
-            tree_hash=_compute_tree_hash(repo_root, ignore_manager),
+            deps_hash=_hash_dependency_inputs(repo_root, ignore_manager),
+            tree_hash=_hash_repo_tree(repo_root, all_files),
             model_id=_normalize_model_id(agent_llm),
-            prompt_version=_compute_prompt_version(),
+            prompt_version=prompt_version,
+            docs_manifest=docs_manifest,
         )
 
-    def is_compatible_with_cached_meta(
+    def matches_cached_metadata(
         self,
         cached_meta: dict[str, object],
-        similarity_threshold: float = README_SIMILARITY_MIN,
     ) -> bool:
-        """Return True when cached metadata remains valid for this snapshot."""
+        """Return whether cached metadata can be safely reused."""
         if cached_meta.get("model_id") != self.model_id:
             return False
         if cached_meta.get("prompt_version") != self.prompt_version:
@@ -92,30 +99,38 @@ class MetaSnapshot:
         if cached_meta.get("tree_hash") != self.tree_hash:
             return False
 
-        old_docs = str(cached_meta.get("docs_text", ""))
-        similarity = _token_overlap_similarity(old_docs, self.docs_text)
-        return similarity >= similarity_threshold
+        match_result = _docs_manifest_match(
+            cached_meta.get("docs_manifest"),
+            self.docs_manifest,
+        )
+        if match_result is None:
+            logger.debug("Docs digest mismatch: signature_version_mismatch_or_invalid")
+            return False
+        return match_result == 1.0
 
-    def to_cache_meta(self) -> dict[str, object]:
-        """Return metadata payload persisted alongside cached analysis output."""
+    def to_cache_metadata(self) -> dict[str, object]:
+        """Build metadata payload stored with cached meta analysis output."""
         return {
-            "docs_text": self.docs_text,
             "deps_hash": self.deps_hash,
             "tree_hash": self.tree_hash,
             "model_id": self.model_id,
             "prompt_version": self.prompt_version,
+            "docs_manifest_schema_version": DOCS_MANIFEST_SCHEMA_VERSION,
+            "docs_manifest": self.docs_manifest,
         }
 
 
 def _safe_read_text(path: Path) -> str:
+    """Read file text safely and return empty text on failure."""
     try:
         return path.read_text(encoding="utf-8", errors="ignore")
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         logger.debug("Failed to read text for meta cache snapshot from %s: %s", path, e)
         return ""
 
 
 def _normalize_model_id(agent_llm: BaseChatModel) -> str:
+    """Extract a stable model identifier from the configured LLM."""
     for attr in ("model_name", "model", "model_id"):
         value = getattr(agent_llm, attr, None)
         if isinstance(value, str) and value:
@@ -123,11 +138,19 @@ def _normalize_model_id(agent_llm: BaseChatModel) -> str:
     return type(agent_llm).__name__
 
 
-def _compute_prompt_version() -> str:
-    return sha256_hexdigest(get_system_meta_analysis_message() + "\n" + get_meta_information_prompt())
+def _collect_all_repo_files(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    """Walk the repository once and return all non-ignored file paths."""
+    result: list[Path] = []
+    for path in repo_dir.rglob("*"):
+        if ignore_manager.should_ignore(path):
+            continue
+        if path.is_file():
+            result.append(path)
+    return result
 
 
 def _collect_dependency_paths(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+    """Collect dependency-related files used for cache invalidation."""
     found: list[Path] = []
     for dep_file in COMMON_DEPENDENCY_FILES:
         candidate = repo_dir / dep_file
@@ -146,7 +169,8 @@ def _collect_dependency_paths(repo_dir: Path, ignore_manager: RepoIgnoreManager)
     return sorted(set(found))
 
 
-def _compute_deps_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str:
+def _hash_dependency_inputs(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str:
+    """Compute a content hash across discovered dependency files."""
     payload_parts: list[str] = []
     for dep_path in _collect_dependency_paths(repo_dir, ignore_manager):
         rel = dep_path.relative_to(repo_dir).as_posix()
@@ -154,94 +178,146 @@ def _compute_deps_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str
     return sha256_hexdigest("\n---\n".join(payload_parts))
 
 
-def _compute_tree_hash(repo_dir: Path, ignore_manager: RepoIgnoreManager) -> str:
-    rel_paths: list[str] = []
-    for path in repo_dir.rglob("*"):
-        if ignore_manager.should_ignore(path):
-            continue
-        if path.is_file():
-            rel_paths.append(path.relative_to(repo_dir).as_posix())
-    rel_paths.sort()
+def _hash_repo_tree(repo_dir: Path, all_files: list[Path]) -> str:
+    """Compute a hash of the repository file tree from pre-collected files."""
+    rel_paths = sorted(path.relative_to(repo_dir).as_posix() for path in all_files)
     return sha256_hexdigest("\n".join(rel_paths))
 
 
-def _compute_docs_text(repo_dir: Path, ignore_manager: RepoIgnoreManager, max_total_chars: int = 400_000) -> str:
-    patterns = {".md", ".rst", ".txt", ".html"}
+def _collect_doc_paths(repo_dir: Path, all_files: list[Path]) -> list[Path]:
+    """Filter documentation files from pre-collected file list."""
     docs: list[Path] = []
-    for path in repo_dir.rglob("*"):
-        if ignore_manager.should_ignore(path) or not path.is_file():
+    for path in all_files:
+        if path.suffix.lower() not in DOC_EXTENSIONS:
             continue
-        if path.suffix.lower() not in patterns:
-            continue
-        if "tests" in path.parts or "test" in path.name.lower():
+        rel_path = path.relative_to(repo_dir)
+        lower_parts = {part.lower() for part in rel_path.parts}
+        if "tests" in lower_parts or "test" in rel_path.name.lower():
             continue
         docs.append(path)
+    docs.sort(key=lambda p: p.relative_to(repo_dir).as_posix())
+    return docs
 
-    docs.sort(key=lambda p: (len(p.parts), p.as_posix()))
-    chunks: list[str] = []
-    used = 0
-    for doc in docs:
-        if used >= max_total_chars:
-            break
+
+def _build_docs_manifest(repo_dir: Path, doc_paths: list[Path]) -> dict[str, object]:
+    """Build strict per-file documentation signature metadata."""
+    file_hashes: dict[str, str] = {}
+    priority_files: list[str] = []
+    for doc in doc_paths:
         rel = doc.relative_to(repo_dir).as_posix()
         text = _safe_read_text(doc)
-        remaining = max_total_chars - used
-        clipped = text[:remaining]
-        chunks.append(f"## {rel}\n{clipped}")
-        used += len(clipped)
-    return "\n\n".join(chunks)
+        file_hashes[rel] = sha256_hexdigest(text)
+
+        rel_lower = rel.lower()
+        name = Path(rel_lower).name
+        parts = Path(rel_lower).parts
+        in_root = len(parts) == 1
+        in_docs_dir = len(parts) >= 2 and parts[0] == "docs"
+        is_priority_name = name.startswith(("readme", "contributing", "architecture"))
+        is_docs_index = in_docs_dir and name.startswith("index.")
+        is_priority = (is_priority_name and (in_root or in_docs_dir)) or is_docs_index
+
+        if is_priority:
+            priority_files.append(rel)
+
+    priority_files.sort()
+
+    logger.debug("Computed docs digest for %s files in %s", len(file_hashes), repo_dir)
+    return {
+        "v": DOCS_MANIFEST_SCHEMA_VERSION,
+        "files": file_hashes,
+        "priority_files": priority_files,
+        "doc_extensions": sorted(DOC_EXTENSIONS),
+    }
 
 
-def _token_overlap_similarity(left: str, right: str) -> float:
-    """
-    Fast typo-tolerant similarity over documentation text.
+def _normalize_rel_path(path: str) -> str:
+    """Normalize a documentation relative path for stable comparisons."""
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
 
-    We intentionally use token overlap instead of SequenceMatcher; SequenceMatcher
-    can over-penalize long repeated sequences and incorrectly invalidate cache for
-    tiny README edits.
-    """
-    left_tokens = left.split()
-    right_tokens = right.split()
 
-    if not left_tokens and not right_tokens:
-        return 1.0
-    if not left_tokens or not right_tokens:
+def _coerce_digest(signature: object) -> dict[str, str] | None:
+    """Validate and normalize a docs signature into path-to-hash mapping."""
+    if not isinstance(signature, dict):
+        return None
+    version = signature.get("v")
+    if not isinstance(version, int):
+        return None
+    if version != DOCS_MANIFEST_SCHEMA_VERSION:
+        return None
+
+    files = signature.get("files")
+    if not isinstance(files, dict):
+        return None
+
+    normalized: dict[str, str] = {}
+    for rel_path, file_hash in files.items():
+        if not isinstance(rel_path, str) or not isinstance(file_hash, str):
+            return None
+        norm_path = _normalize_rel_path(rel_path)
+        existing = normalized.get(norm_path)
+        if existing is not None and existing != file_hash:
+            return None
+        normalized[norm_path] = file_hash
+    return normalized
+
+
+def _docs_manifest_match(old_manifest: object, new_manifest: object) -> float | None:
+    """Return exact-manifest similarity score or None for invalid manifests."""
+    old_digest = _coerce_digest(old_manifest)
+    new_digest = _coerce_digest(new_manifest)
+    if old_digest is None or new_digest is None:
+        return None
+
+    old_paths = set(old_digest)
+    new_paths = set(new_digest)
+    if old_paths != new_paths:
+        logger.debug(
+            "Docs digest mismatch: file_set_changed old_count=%s new_count=%s",
+            len(old_paths),
+            len(new_paths),
+        )
         return 0.0
 
-    left_counter = Counter(left_tokens)
-    right_counter = Counter(right_tokens)
-    overlap = 0
-    for token, left_count in left_counter.items():
-        overlap += min(left_count, right_counter.get(token, 0))
+    for rel_path, new_hash in new_digest.items():
+        old_hash = old_digest.get(rel_path)
+        if old_hash != new_hash:
+            logger.debug("Docs digest mismatch: file_hash_changed path=%s", rel_path)
+            return 0.0
 
-    denom = max(len(left_tokens), len(right_tokens))
-    return overlap / denom if denom else 0.0
+    logger.debug("Docs digest compatible: files_unchanged=%s", len(new_digest))
+    return 1.0
 
 
 class MetaAgentCache:
     def __init__(self, db_path: Path):
-        self._store = SQLiteCacheStore(db_path, table_name=META_CACHE_TABLE_NAME)
+        """Initialize the meta-agent cache store with configured retention policy."""
+        self._store = SQLiteCacheStore(
+            db_path,
+            table_name=META_CACHE_TABLE_NAME,
+            ttl_seconds=META_CACHE_TTL_SECONDS,
+        )
 
     @classmethod
     def from_repo_dir(cls, repo_dir: Path) -> "MetaAgentCache":
+        """Create a meta cache instance rooted in the repository cache directory."""
         return cls(get_meta_cache_db_path(repo_dir))
 
-    def load_if_valid(self, snapshot: MetaSnapshot) -> MetaAnalysisInsights | None:
-        """Load cached meta insights only when snapshot compatibility checks pass."""
+    def load_if_valid(self, snapshot: MetaCacheIdentity) -> str | None:
+        """Load cached meta insights JSON when the current snapshot is valid."""
         latest = self._store.load_latest(snapshot.scope)
         if latest is None:
             return None
-        payload_json, cached_meta = latest
-        if not snapshot.is_compatible_with_cached_meta(cached_meta):
+        cache_key, payload_json, cached_meta = latest
+        if not snapshot.matches_cached_metadata(cached_meta):
             return None
-        try:
-            return MetaAnalysisInsights.model_validate_json(payload_json)
-        except Exception:
-            logger.warning("Meta cache payload is not valid MetaAnalysisInsights; treating as cache miss")
-            return None
+        self._store.touch(snapshot.scope, cache_key)
+        return payload_json
 
-    def save(self, snapshot: MetaSnapshot, result: MetaAnalysisInsights) -> None:
-        """Save meta insights together with snapshot metadata for future cache hits."""
-        meta_json = snapshot.to_cache_meta()
-        payload_json = result.model_dump_json()
-        self._store.upsert(snapshot.scope, snapshot.fingerprint, payload_json, meta_json)
+    def save(self, snapshot: MetaCacheIdentity, payload_json: str) -> None:
+        """Persist meta insights JSON with snapshot metadata for future reuse."""
+        meta_json = snapshot.to_cache_metadata()
+        self._store.upsert(snapshot.scope, snapshot.cache_key, payload_json, meta_json)

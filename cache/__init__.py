@@ -1,8 +1,8 @@
-from cache.meta_cache import MetaAgentCache, MetaSnapshot
+from cache.meta_cache import MetaAgentCache, MetaCacheIdentity
 from cache.static_cache import StaticAnalysisCache
 
 __all__ = [
     "MetaAgentCache",
-    "MetaSnapshot",
+    "MetaCacheIdentity",
     "StaticAnalysisCache",
 ]

@@ -74,3 +74,6 @@ COMMON_DEPENDENCY_FILES: tuple[str, ...] = (
     *GO_DEPENDENCY_FILES,
     *PHP_DEPENDENCY_FILES,
 )
+
+COMMON_DEPENDENCY_SUBDIRS: tuple[str, ...] = ("requirements", "deps", "dependencies", "env")
+COMMON_DEPENDENCY_GLOBS: tuple[str, ...] = ("*.txt", "*.yml", "*.yaml", "*.toml")

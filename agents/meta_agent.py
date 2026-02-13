@@ -8,9 +8,10 @@ from langgraph.prebuilt import create_react_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
-from cache.meta_cache import MetaAgentCache, MetaSnapshot
+from cache.meta_cache import MetaAgentCache, MetaCacheIdentity
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from utils import sha256_hexdigest
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +56,27 @@ class MetaAgent(CodeBoardingAgent):
     ) -> MetaAnalysisInsights:
         """Return cached metadata context or recompute and persist it."""
         effective_llm = agent_llm or self.agent_llm
-        snapshot = MetaSnapshot.from_repo(
+        prompt_version = sha256_hexdigest(get_system_meta_analysis_message() + "\n" + get_meta_information_prompt())
+        snapshot = MetaCacheIdentity.from_repo(
             self.repo_dir,
             effective_llm,
             ignore_manager=self.ignore_manager,
+            prompt_version=prompt_version,
         )
         cache = MetaAgentCache.from_repo_dir(self.repo_dir)
 
         if not force_refresh:
-            cached_meta = cache.load_if_valid(snapshot)
-            if cached_meta is not None:
-                logger.info("Meta cache hit; reusing metadata analysis")
-                return cached_meta
-            logger.info("Meta cache miss/invalid; recomputing metadata analysis")
+            cached_json = cache.load_if_valid(snapshot)
+            if cached_json is not None:
+                try:
+                    loaded = MetaAnalysisInsights.model_validate_json(cached_json)
+                    logger.info("Meta cache hit; reusing metadata analysis")
+                    return loaded
+                except Exception:
+                    logger.warning("Meta cache payload is not valid MetaAnalysisInsights; treating as cache miss")
         else:
             logger.info("Meta cache bypassed due to force_refresh; recomputing metadata analysis")
 
         computed_meta = self.analyze_project_metadata()
-        cache.save(snapshot, computed_meta)
+        cache.save(snapshot, computed_meta.model_dump_json())
         return computed_meta
