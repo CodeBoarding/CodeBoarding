@@ -13,13 +13,11 @@ from agents.agent_responses import AnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
-from diagram_analysis.analysis_json import from_analysis_to_json
-from diagram_analysis.incremental.io_utils import load_sub_analysis
+from diagram_analysis.incremental.io_utils import load_sub_analysis, save_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.incremental.path_patching import patch_sub_analysis
 from diagram_analysis.incremental.component_checker import subcomponent_has_only_renames
 from diagram_analysis.manifest import AnalysisManifest
-from output_generators.markdown import sanitize
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -56,39 +54,28 @@ def reexpand_single_component(
 
     try:
         # Check if we can patch the existing sub-analysis instead of re-running
-        safe_name = sanitize(component_name)
-        sub_analysis_path = context.output_dir / f"{safe_name}.json"
+        existing_sub_analysis = load_sub_analysis(context.output_dir, component_name)
 
-        if sub_analysis_path.exists():
-            existing_sub_analysis = load_sub_analysis(context.output_dir, component_name)
-            if existing_sub_analysis and context.impact:
-                # Check if changes within this component are just renames
-                if subcomponent_has_only_renames(
-                    component_name,
+        if existing_sub_analysis and context.impact:
+            # Check if changes within this component are just renames
+            if subcomponent_has_only_renames(
+                component_name,
+                existing_sub_analysis,
+                context.impact,
+            ):
+                logger.info(
+                    f"Component '{component_name}' sub-analysis has only renames, patching instead of re-expanding"
+                )
+
+                # Patch the sub-analysis
+                if patch_sub_analysis(
                     existing_sub_analysis,
-                    context.impact,
+                    context.impact.deleted_files if context.impact else [],
+                    context.impact.renames if context.impact else {},
                 ):
-                    logger.info(
-                        f"Component '{component_name}' sub-analysis has only renames, patching instead of re-expanding"
-                    )
-
-                    # Patch the sub-analysis
-                    if patch_sub_analysis(
-                        existing_sub_analysis,
-                        context.impact.deleted_files if context.impact else [],
-                        context.impact.renames if context.impact else {},
-                    ):
-                        # Get expandable sub-components from the patched analysis
-                        new_components = plan_analysis(
-                            existing_sub_analysis, parent_had_clusters=bool(component.source_cluster_ids)
-                        )
-
-                        # Save patched sub-analysis
-                        with open(sub_analysis_path, "w") as f:
-                            f.write(from_analysis_to_json(existing_sub_analysis, new_components))
-
-                        logger.info(f"Patched component '{component_name}' sub-analysis -> {sub_analysis_path}")
-                        return component_name
+                    save_sub_analysis(existing_sub_analysis, context.output_dir, component_name)
+                    logger.info(f"Patched component '{component_name}' sub-analysis")
+                    return component_name
 
         # If patching wasn't possible or changes are structural, re-run DetailsAgent
         logger.info(f"Re-expanding component: {component_name}")
@@ -96,14 +83,10 @@ def reexpand_single_component(
         # Run DetailsAgent to regenerate sub-analysis
         sub_analysis, _ = details_agent.run(component)
 
-        # Get expandable sub-components
-        new_components = plan_analysis(sub_analysis, parent_had_clusters=bool(component.source_cluster_ids))
+        # Save sub-analysis into the unified file
+        save_sub_analysis(sub_analysis, context.output_dir, component_name)
 
-        # Save sub-analysis
-        with open(sub_analysis_path, "w") as f:
-            f.write(from_analysis_to_json(sub_analysis, new_components))
-
-        logger.info(f"Re-expanded component '{component_name}' -> {sub_analysis_path}")
+        logger.info(f"Re-expanded component '{component_name}'")
         return component_name
 
     except Exception as e:

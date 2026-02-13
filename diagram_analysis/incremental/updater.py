@@ -3,15 +3,13 @@
 import logging
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
-from agents.details_agent import DetailsAgent
-from agents.meta_agent import MetaAgent
-from agents.planner_agent import plan_analysis
-from agents.validation import ValidationContext, validate_component_relationships, validate_key_entities
-from diagram_analysis.analysis_json import from_analysis_to_json
+from agents.agent_responses import AnalysisInsights
+from diagram_analysis.incremental.path_patching import patch_sub_analysis
 from diagram_analysis.incremental.io_utils import (
     load_analysis,
+    load_sub_analysis,
     save_analysis,
+    save_sub_analysis,
 )
 from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.incremental.path_patching import (
@@ -40,13 +38,11 @@ from diagram_analysis.incremental.scoped_analysis import (
 )
 from diagram_analysis.incremental.validation import validate_incremental_update
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest
-from output_generators.markdown import sanitize
 from repo_utils import get_repo_state_hash
 from repo_utils.change_detector import ChangeSet, detect_changes_from_commit, get_current_commit
 from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -382,21 +378,14 @@ class IncrementalUpdater:
                 logger.warning(f"Component '{component_name}' not found in analysis")
                 continue
 
-            safe_name = sanitize(component_name)
-            sub_analysis_path = self.output_dir / f"{safe_name}.json"
-
-            if sub_analysis_path.exists():
-                from diagram_analysis.incremental.io_utils import load_sub_analysis, save_sub_analysis
-                from diagram_analysis.incremental.path_patching import patch_sub_analysis
-
-                sub_analysis = load_sub_analysis(self.output_dir, component_name)
-                if sub_analysis:
-                    if patch_sub_analysis(sub_analysis, self.impact.deleted_files, self.impact.renames):
-                        save_sub_analysis(sub_analysis, self.output_dir, component_name)
-                        logger.info(f"Component '{component_name}' sub-analysis patched")
+            sub_analysis = load_sub_analysis(self.output_dir, component_name)
+            if sub_analysis:
+                if patch_sub_analysis(sub_analysis, self.impact.deleted_files, self.impact.renames):
+                    save_sub_analysis(sub_analysis, self.output_dir, component_name)
+                    logger.info(f"Component '{component_name}' sub-analysis patched")
                 patched_components.append(component_name)
             else:
-                logger.info(f"Component '{component_name}' has no sub-analysis file, updating in place")
+                logger.info(f"Component '{component_name}' has no sub-analysis, updating in place")
                 patched_components.append(component_name)
 
         # Step 7: Validate the updated analysis

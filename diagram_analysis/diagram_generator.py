@@ -10,12 +10,12 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import Component
+from agents.agent_responses import Component, AnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
-from diagram_analysis.analysis_json import from_analysis_to_json
+from diagram_analysis.analysis_json import build_unified_analysis_json
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -24,7 +24,6 @@ from diagram_analysis.manifest import (
 from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
-from utils import sanitize
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash, get_repo_state_hash
@@ -68,8 +67,10 @@ class DiagramGenerator:
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
-    def process_component(self, component: Component):
-        """Process a single component and return its output path and any new components to analyze"""
+    def process_component(
+        self, component: Component
+    ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
+        """Process a single component and return its name, sub-analysis, and new components to analyze."""
         try:
             assert self.details_agent is not None
 
@@ -81,16 +82,10 @@ class DiagramGenerator:
             # Get new components to analyze (deterministic, no LLM)
             new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
 
-            safe_name = sanitize(component.name)
-            output_path = os.path.join(self.output_dir, f"{safe_name}.json")
-
-            with open(output_path, "w") as f:
-                f.write(from_analysis_to_json(analysis, new_components))
-
-            return output_path, new_components
+            return component.name, analysis, new_components
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
-            return None, []
+            return None, None, []
 
     def _run_health_report(self, static_analysis: StaticAnalysisResults) -> None:
         """Run health checks and write the report to the output directory."""
@@ -205,11 +200,9 @@ class DiagramGenerator:
     def generate_analysis(self):
         """
         Generate the graph analysis for the given repository.
-        The output is stored in json files in output_dir.
+        The output is stored in a single analysis.json file in output_dir.
         Components are analyzed in parallel by level.
         """
-        files: list[str] = []
-
         if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
 
@@ -227,17 +220,14 @@ class DiagramGenerator:
             current_level_components = plan_analysis(analysis)
             logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
 
-            # Save the root analysis
-            analysis_path = os.path.join(self.output_dir, "analysis.json")
-            with open(analysis_path, "w") as f:
-                f.write(from_analysis_to_json(analysis, current_level_components))
-            files.append(analysis_path)
-
             level = 0
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
-            # Track components that were actually expanded (have sub-analysis files)
-            expanded_components: list = []
+            # Track components that were actually expanded (have sub-analysis)
+            expanded_components: list[Component] = []
+
+            # Collect all sub-analyses: component_name -> (AnalysisInsights, expandable_sub_components)
+            all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
 
             # Process each level of components in parallel
             while current_level_components:
@@ -261,10 +251,9 @@ class DiagramGenerator:
                     ):
                         component = future_to_component[future]
                         try:
-                            result_path, new_components = future.result()
-                            if result_path:
-                                files.append(result_path)
-                                # Track this component as expanded (has sub-analysis file)
+                            comp_name, sub_analysis, new_components = future.result()
+                            if comp_name and sub_analysis:
+                                all_sub_analyses[comp_name] = (sub_analysis, new_components)
                                 expanded_components.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
@@ -274,15 +263,27 @@ class DiagramGenerator:
                 logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
                 current_level_components = next_level_components
 
-            logger.info(f"Analysis complete. Generated {len(files)} analysis files")
-            print("Generated analysis files: %s", [os.path.abspath(file) for file in files])
+            # Write a single unified analysis.json
+            analysis_path = os.path.join(self.output_dir, "analysis.json")
+            with open(analysis_path, "w") as f:
+                f.write(
+                    build_unified_analysis_json(
+                        analysis=analysis,
+                        expandable_components=expanded_components,
+                        repo_name=self.repo_name,
+                        sub_analyses=all_sub_analyses,
+                    )
+                )
+
+            logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
+            print("Generated analysis file: %s", os.path.abspath(analysis_path))
 
             # Save manifest for incremental updates
             self._save_manifest(analysis, expanded_components)
 
-            return files
+            return [analysis_path]
 
-    def _save_manifest(self, analysis, expanded_components: list) -> None:
+    def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
         """Save the analysis manifest for incremental updates."""
         try:
             repo_state_hash = get_repo_state_hash(self.repo_location)

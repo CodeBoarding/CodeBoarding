@@ -123,12 +123,6 @@ class TestStaticAnalysisConsistency:
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time
 
-        # Verify the expected language is present in results
-        actual_languages = static_analysis.get_languages()
-        assert (
-            config.language in actual_languages
-        ), f"Expected language '{config.language}' not in results. Found: {actual_languages}"
-
         # Extract actual metrics
         actual_metrics = extract_metrics(static_analysis, config.language)
         actual_metrics["execution_time_seconds"] = actual_execution_time

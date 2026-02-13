@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -8,14 +9,26 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from agents.agent_responses import AnalysisInsights
-
 from diagram_analysis import DiagramGenerator
+from diagram_analysis.analysis_json import parse_unified_analysis
+from diagram_analysis.incremental.io_utils import load_analysis, save_sub_analysis
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
-from repo_utils import clone_repository, get_branch, get_repo_name, store_token, upload_onboarding_materials
+from repo_utils import (
+    clone_repository,
+    get_branch,
+    get_repo_name,
+    store_token,
+    upload_onboarding_materials,
+)
 from repo_utils.ignore import initialize_codeboardingignore
-from utils import caching_enabled, create_temp_repo_folder, monitoring_enabled, remove_temp_repo_folder
+from utils import (
+    caching_enabled,
+    create_temp_repo_folder,
+    monitoring_enabled,
+    remove_temp_repo_folder,
+    sanitize,
+)
 from monitoring import monitor_execution
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from vscode_constants import update_config
@@ -92,23 +105,38 @@ def generate_markdown_docs(
     target_branch = get_branch(repo_path)
     repo_ref = f"{repo_url}/blob/{target_branch}/"
 
-    for file in analysis_files:
-        with open(file, "r") as f:
-            analysis = AnalysisInsights.model_validate_json(f.read())
-            logger.info(f"Generating markdown for analysis file: {file}")
-            fname = Path(file).name.split(".json")[0]
-            if fname.endswith("analysis"):
-                fname = "on_boarding"
+    # Load the single unified analysis.json
+    analysis_path = analysis_files[0]
+    with open(analysis_path, "r") as f:
+        data = json.load(f)
 
-            generate_markdown_file(
-                fname,
-                analysis,
-                repo_name,
-                repo_ref=repo_ref,
-                linked_files=analysis_files,
-                temp_dir=output_dir,
-                demo=demo_mode,
-            )
+    root_analysis, sub_analyses = parse_unified_analysis(data)
+
+    # Generate markdown for root analysis
+    root_expanded = set(sub_analyses.keys())
+    generate_markdown_file(
+        "on_boarding",
+        root_analysis,
+        repo_name,
+        repo_ref=repo_ref,
+        expanded_components=root_expanded,
+        temp_dir=output_dir,
+        demo=demo_mode,
+    )
+
+    # Generate markdown for each sub-analysis
+    for comp_name, sub_analysis in sub_analyses.items():
+        sub_expanded = {c.name for c in sub_analysis.components if c.name in sub_analyses}
+        fname = sanitize(comp_name)
+        generate_markdown_file(
+            fname,
+            sub_analysis,
+            repo_name,
+            repo_ref=repo_ref,
+            expanded_components=sub_expanded,
+            temp_dir=output_dir,
+            demo=demo_mode,
+        )
 
 
 def partial_update(
@@ -116,7 +144,6 @@ def partial_update(
     output_dir: Path,
     project_name: str,
     component_name: str,
-    analysis_name: str,
     depth_level: int = 1,
 ):
     """
@@ -131,16 +158,10 @@ def partial_update(
     )
     generator.pre_analysis()
 
-    # Load the analysis for which we want to extend the component
-    analysis_file = output_dir / f"{analysis_name}.json"
-    try:
-        with open(analysis_file, "r") as file:
-            analysis = AnalysisInsights.model_validate_json(file.read())
-    except FileNotFoundError:
-        logger.error(f"Analysis file '{analysis_file}' not found. Please ensure the file exists.")
-        return
-    except Exception as e:
-        logger.error(f"Failed to load analysis file '{analysis_file}': {e}")
+    # Load the analysis from the unified analysis.json
+    analysis = load_analysis(output_dir)
+    if analysis is None:
+        logger.error(f"No analysis.json found in '{output_dir}'. Please ensure the file exists.")
         return
 
     # Find and update the component
@@ -152,10 +173,16 @@ def partial_update(
             break
 
     if component_to_update is None:
-        logger.error(f"Component '{component_name}' not found in analysis '{analysis_name}'")
+        logger.error(f"Component '{component_name}' not found in analysis")
         return
 
-    generator.process_component(component_to_update)
+    comp_name, sub_analysis, new_components = generator.process_component(component_to_update)
+
+    if sub_analysis:
+        save_sub_analysis(sub_analysis, output_dir, component_name)
+        logger.info(f"Updated component '{component_name}' in analysis.json")
+    else:
+        logger.error(f"Failed to generate sub-analysis for component '{component_name}'")
 
 
 def generate_docs_remote(
@@ -246,19 +273,17 @@ def process_local_repository(
     project_name: str,
     depth_level: int = 1,
     component_name: str | None = None,
-    analysis_name: str | None = None,
     monitoring_enabled: bool = False,
     incremental: bool = False,
     force_full: bool = False,
 ):
-    # Handle legacy partial updates
-    if component_name and analysis_name:
+    # Handle partial updates
+    if component_name:
         partial_update(
             repo_path=repo_path,
             output_dir=output_dir,
             project_name=project_name,
             component_name=component_name,
-            analysis_name=analysis_name,
             depth_level=depth_level,
         )
         return
@@ -323,50 +348,69 @@ def validate_arguments(args, parser, is_local: bool):
         parser.error("--project-name is required when using --local")
 
     # Validate partial update arguments
-    if (args.partial_component or args.partial_analysis) and not is_local:
-        parser.error("Partial updates (--partial-component, --partial-analysis) only work with local repositories")
-
-    if args.partial_component and not args.partial_analysis:
-        parser.error("--partial-analysis is required when using --partial-component")
-
-    if args.partial_analysis and not args.partial_component:
-        parser.error("--partial-component is required when using --partial-analysis")
+    if args.partial_component and not is_local:
+        parser.error("--partial-component only works with local repositories")
 
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
     """
     Adds all command-line arguments and groups to the ArgumentParser.
     """
-    parser.add_argument("repositories", nargs="*", help="One or more Git repository URLs to generate documentation for")
+    parser.add_argument(
+        "repositories",
+        nargs="*",
+        help="One or more Git repository URLs to generate documentation for",
+    )
     parser.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
     parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
 
     # Local repository specific options
-    parser.add_argument("--project-name", type=str, help="Name of the project (required for local repositories)")
+    parser.add_argument(
+        "--project-name",
+        type=str,
+        help="Name of the project (required for local repositories)",
+    )
 
     # Partial update options
-    parser.add_argument("--partial-component", type=str, help="Component to update (for partial updates only)")
-    parser.add_argument("--partial-analysis", type=str, help="Analysis file to update (for partial updates only)")
-
+    parser.add_argument(
+        "--partial-component",
+        type=str,
+        help="Component to update (for partial updates only)",
+    )
     # Advanced options
     parser.add_argument(
         "--load-env-variables",
         action="store_true",
         help="Load the .env file for environment variables",
     )
-    parser.add_argument("--binary-location", type=Path, help="Path to the binary directory for language servers")
-    parser.add_argument("--depth-level", type=int, default=1, help="Depth level for diagram generation (default: 1)")
+    parser.add_argument(
+        "--binary-location",
+        type=Path,
+        help="Path to the binary directory for language servers",
+    )
+    parser.add_argument(
+        "--depth-level",
+        type=int,
+        default=1,
+        help="Depth level for diagram generation (default: 1)",
+    )
     parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
     )
     parser.add_argument(
-        "--no-cache-check", action="store_true", help="Skip checking if materials already exist (remote repos only)"
+        "--no-cache-check",
+        action="store_true",
+        help="Skip checking if materials already exist (remote repos only)",
     )
-    parser.add_argument("--project-root", type=Path, help="Project root directory (default: current directory)")
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        help="Project root directory (default: current directory)",
+    )
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
     # Incremental update options
@@ -397,9 +441,9 @@ Examples:
   # Local repository
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
 
-  # Partial update (legacy - update single component)
+  # Partial update (update single component)
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
-                 --partial-component ComponentName --partial-analysis analysis_name
+                 --partial-component "Component Name"
 
   # Incremental update (smart - detects changes automatically)
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --incremental
@@ -452,7 +496,6 @@ Examples:
             project_name=args.project_name,
             depth_level=args.depth_level,
             component_name=args.partial_component,
-            analysis_name=args.partial_analysis,
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
@@ -473,7 +516,11 @@ Examples:
                 run_id = generate_run_id(base_name)
                 monitoring_dir = get_monitoring_run_dir(run_id, create=should_monitor)
 
-                with monitor_execution(run_id=run_id, output_dir=str(monitoring_dir), enabled=should_monitor) as mon:
+                with monitor_execution(
+                    run_id=run_id,
+                    output_dir=str(monitoring_dir),
+                    enabled=should_monitor,
+                ) as mon:
                     mon.step(f"processing_{repo_name}")
 
                     try:

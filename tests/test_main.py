@@ -89,7 +89,10 @@ class TestGenerateAnalysis(unittest.TestCase):
     def test_generate_analysis(self, mock_generator_class):
         # Test generate_analysis function
         mock_generator = MagicMock()
-        mock_generator.generate_analysis.return_value = [Path("analysis1.json"), Path("analysis2.json")]
+        mock_generator.generate_analysis.return_value = [
+            Path("analysis1.json"),
+            Path("analysis2.json"),
+        ]
         mock_generator_class.return_value = mock_generator
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,12 +159,47 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
+    @patch("main.save_sub_analysis")
+    @patch("main.load_analysis")
     @patch("main.DiagramGenerator")
-    @patch("builtins.open", create=True)
-    def test_partial_update_success(self, mock_open, mock_generator_class):
+    def test_partial_update_success(self, mock_generator_class, mock_load_analysis, mock_save_sub_analysis):
         # Test successful partial update
+        from agents.agent_responses import AnalysisInsights, Component
+
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
+
+        # Mock process_component to return a valid tuple
+        mock_sub_analysis = AnalysisInsights(
+            description="test sub-analysis",
+            components=[
+                Component(
+                    name="SubComponent",
+                    description="Sub",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                )
+            ],
+            components_relations=[],
+        )
+        mock_generator.process_component.return_value = (
+            "TestComponent",
+            mock_sub_analysis,
+            [],
+        )
+
+        mock_load_analysis.return_value = AnalysisInsights(
+            description="test",
+            components=[
+                Component(
+                    name="TestComponent",
+                    description="Test",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                )
+            ],
+            components_relations=[],
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -169,46 +207,25 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            # Create a test analysis file
-            analysis_file = output_dir / "test_analysis.json"
-            analysis_json = """
-            {
-                "description": "test",
-                "components": [
-                    {
-                        "name": "TestComponent",
-                        "description": "Test",
-                        "key_entities": [],
-                        "source_cluster_ids": []
-                    }
-                ],
-                "components_relations": []
-            }
-            """
-
-            # Mock file reading
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
-
             partial_update(
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
                 component_name="TestComponent",
-                analysis_name="test_analysis",
                 depth_level=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once()
+            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "TestComponent")
 
+    @patch("main.load_analysis")
     @patch("main.DiagramGenerator")
-    def test_partial_update_file_not_found(self, mock_generator_class):
-        # Test when analysis file doesn't exist
+    def test_partial_update_file_not_found(self, mock_generator_class, mock_load_analysis):
+        # Test when analysis.json doesn't exist
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
+        mock_load_analysis.return_value = None
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -222,7 +239,6 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_name="TestComponent",
-                analysis_name="nonexistent",
                 depth_level=1,
             )
 
@@ -358,7 +374,6 @@ class TestProcessLocalRepository(unittest.TestCase):
                 project_name="test_project",
                 depth_level=2,
                 component_name="TestComponent",
-                analysis_name="test_analysis",
             )
 
             mock_partial_update.assert_called_once_with(
@@ -366,7 +381,6 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_name="TestComponent",
-                analysis_name="test_analysis",
                 depth_level=2,
             )
 
@@ -402,7 +416,6 @@ class TestValidateArguments(unittest.TestCase):
         args.local = "/path/to/repo"
         args.project_name = None
         args.partial_component = None
-        args.partial_analysis = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_called_once()
@@ -415,22 +428,8 @@ class TestValidateArguments(unittest.TestCase):
         args.local = None
         args.project_name = "test"
         args.partial_component = "Component1"
-        args.partial_analysis = "analysis"
 
         validate_arguments(args, parser, is_local=False)
-        parser.error.assert_called_once()
-
-    def test_validate_arguments_partial_component_without_analysis(self):
-        # Test partial component without analysis name
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = None
-        args.local = "/path/to/repo"
-        args.project_name = "test"
-        args.partial_component = "Component1"
-        args.partial_analysis = None
-
-        validate_arguments(args, parser, is_local=True)
         parser.error.assert_called_once()
 
     def test_validate_arguments_valid(self):
@@ -441,7 +440,6 @@ class TestValidateArguments(unittest.TestCase):
         args.local = "/path/to/repo"
         args.project_name = "test"
         args.partial_component = None
-        args.partial_analysis = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_not_called()

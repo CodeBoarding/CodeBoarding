@@ -1,104 +1,104 @@
+import json
 import logging
 import os
 from pathlib import Path
-from typing import List
 
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
+from diagram_analysis.analysis_json import parse_unified_analysis
 from output_generators.markdown import generate_markdown_file
 from output_generators.html import generate_html_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
 from repo_utils import clone_repository, checkout_repo
-from utils import create_temp_repo_folder
+from utils import create_temp_repo_folder, sanitize
 
 logger = logging.getLogger(__name__)
 
 
+def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights, set[str]]]:
+    """Load the unified analysis.json and return a list of (file_name, analysis, expanded_components) tuples.
+
+    Returns the root analysis as 'overview' plus one entry per expanded component.
+    """
+    with open(analysis_path, "r") as f:
+        data = json.load(f)
+
+    root_analysis, sub_analyses = parse_unified_analysis(data)
+
+    # Root analysis: expanded components are those that have sub-analyses
+    root_expanded = set(sub_analyses.keys())
+    entries: list[tuple[str, AnalysisInsights, set[str]]] = [("overview", root_analysis, root_expanded)]
+
+    # Sub-analyses: determine which of their components are further expanded
+    for comp_name, sub_analysis in sub_analyses.items():
+        sub_expanded = {c.name for c in sub_analysis.components if c.name in sub_analyses}
+        fname = sanitize(comp_name)
+        entries.append((fname, sub_analysis, sub_expanded))
+
+    return entries
+
+
 def generate_markdown(
-    analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir
+    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
 ):
-    for file in analysis_files:
-        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
-            print(f"Processing analysis file: {file}")
-            with open(file, "r") as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logger.info(f"Generated analysis file: {file}")
-                fname = Path(file).stem
-                if fname.endswith("analysis"):
-                    fname = "overview"
-                generate_markdown_file(
-                    fname,
-                    analysis,
-                    repo_name,
-                    repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-                    linked_files=analysis_files,
-                    temp_dir=temp_repo_folder,
-                )
+    entries = _load_all_analyses(analysis_path)
+    for fname, analysis, expanded_components in entries:
+        logger.info(f"Generating markdown for: {fname}")
+        generate_markdown_file(
+            fname,
+            analysis,
+            repo_name,
+            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+            expanded_components=expanded_components,
+            temp_dir=temp_repo_folder,
+        )
 
 
-def generate_html(analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path):
-    for file in analysis_files:
-        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
-            print(f"Processing analysis file: {file}")
-            with open(file, "r") as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logger.info(f"Generated analysis file: {file}")
-                fname = Path(file).stem
-                if fname.endswith("analysis"):
-                    fname = "overview"
-                generate_html_file(
-                    fname,
-                    analysis,
-                    repo_name,
-                    repo_ref=f"{repo_url}/blob/{target_branch}",
-                    linked_files=analysis_files,
-                    temp_dir=temp_repo_folder,
-                )
+def generate_html(analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path):
+    entries = _load_all_analyses(analysis_path)
+    for fname, analysis, expanded_components in entries:
+        logger.info(f"Generating HTML for: {fname}")
+        generate_html_file(
+            fname,
+            analysis,
+            repo_name,
+            repo_ref=f"{repo_url}/blob/{target_branch}",
+            expanded_components=expanded_components,
+            temp_dir=temp_repo_folder,
+        )
 
 
 def generate_mdx(
-    analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir
+    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
 ):
-    for file in analysis_files:
-        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
-            print(f"Processing analysis file: {file}")
-            with open(file, "r") as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logger.info(f"Generated analysis file: {file}")
-                fname = Path(file).stem
-                if fname.endswith("analysis"):
-                    fname = "overview"
-                generate_mdx_file(
-                    fname,
-                    analysis,
-                    repo_name,
-                    repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-                    linked_files=analysis_files,
-                    temp_dir=temp_repo_folder,
-                )
+    entries = _load_all_analyses(analysis_path)
+    for fname, analysis, expanded_components in entries:
+        logger.info(f"Generating MDX for: {fname}")
+        generate_mdx_file(
+            fname,
+            analysis,
+            repo_name,
+            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+            expanded_components=expanded_components,
+            temp_dir=temp_repo_folder,
+        )
 
 
 def generate_rst(
-    analysis_files: List[str], repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir
+    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
 ):
-    for file in analysis_files:
-        if str(file).endswith(".json") and "codeboarding_version.json" not in str(file):
-            print(f"Processing analysis file: {file}")
-            with open(file, "r") as f:
-                analysis = AnalysisInsights.model_validate_json(f.read())
-                logger.info(f"Generated analysis file: {file}")
-                fname = Path(file).stem
-                if fname.endswith("analysis"):
-                    fname = "overview"
-                generate_rst_file(
-                    fname,
-                    analysis,
-                    repo_name,
-                    repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-                    linked_files=analysis_files,
-                    temp_dir=temp_repo_folder,
-                )
+    entries = _load_all_analyses(analysis_path)
+    for fname, analysis, expanded_components in entries:
+        logger.info(f"Generating RST for: {fname}")
+        generate_rst_file(
+            fname,
+            analysis,
+            repo_name,
+            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+            expanded_components=expanded_components,
+            temp_dir=temp_repo_folder,
+        )
 
 
 def generate_analysis(
@@ -124,16 +124,19 @@ def generate_analysis(
 
     analysis_files = generator.generate_analysis()
 
-    # Now generated the markdowns:
+    # The generator now returns a single analysis.json path
+    analysis_path = Path(analysis_files[0])
+
+    # Now generate the output docs:
     match extension:
         case ".md":
-            generate_markdown(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+            generate_markdown(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         case ".html":
-            generate_html(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder)
+            generate_html(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder)
         case ".mdx":
-            generate_mdx(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+            generate_mdx(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         case ".rst":
-            generate_rst(analysis_files, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+            generate_rst(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
         case _:
             raise ValueError(f"Unsupported extension: {extension}")
 

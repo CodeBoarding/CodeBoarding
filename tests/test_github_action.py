@@ -1,8 +1,9 @@
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 from github_action import (
     generate_analysis,
@@ -12,27 +13,34 @@ from github_action import (
     generate_rst,
 )
 
+UNIFIED_ANALYSIS_JSON = {
+    "version": 2,
+    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1},
+    "description": "test",
+    "components": [],
+    "components_relations": [],
+}
+
+
+def _write_analysis_file(path: Path) -> Path:
+    """Write a minimal unified analysis JSON file and return its path."""
+    with open(path, "w") as f:
+        json.dump(UNIFIED_ANALYSIS_JSON, f)
+    return path
+
 
 class TestGenerateMarkdown(unittest.TestCase):
     @patch("github_action.generate_markdown_file")
-    @patch("builtins.open", create=True)
-    def test_generate_markdown_with_analysis_files(self, mock_open, mock_generate_file):
-        # Test markdown generation with analysis files
+    def test_generate_markdown_with_analysis_file(self, mock_generate_file):
+        # Test markdown generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Create test analysis files
-            analysis_file = temp_path / "component_analysis.json"
-            analysis_json = '{"description": "test", "components": [], "components_relations": []}'
-
-            # Mock file reading
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
+            analysis_file = temp_path / "analysis.json"
+            _write_analysis_file(analysis_file)
 
             generate_markdown(
-                analysis_files=[str(analysis_file)],
+                analysis_path=analysis_file,
                 repo_name="test_repo",
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
@@ -43,21 +51,51 @@ class TestGenerateMarkdown(unittest.TestCase):
             # Check that generate_markdown_file was called
             mock_generate_file.assert_called_once()
             args = mock_generate_file.call_args
-            self.assertEqual(args[0][0], "overview")  # fname should be changed to 'overview'
+            self.assertEqual(args[0][0], "overview")
             self.assertEqual(args[1]["repo_ref"], "https://github.com/test/repo/blob/main/.codeboarding")
 
     @patch("github_action.generate_markdown_file")
-    @patch("builtins.open", create=True)
-    def test_generate_markdown_skip_version_file(self, mock_open, mock_generate_file):
-        # Test that codeboarding_version.json is skipped
+    def test_generate_markdown_with_components(self, mock_generate_file):
+        # Test with components that produce multiple entries
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Create version file (should be skipped)
-            version_file = temp_path / "codeboarding_version.json"
+            analysis_data = {
+                "version": 2,
+                "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 2},
+                "description": "test",
+                "components": [
+                    {
+                        "name": "ComponentA",
+                        "description": "Component A",
+                        "key_entities": [],
+                        "assigned_files": [],
+                        "components": [
+                            {
+                                "name": "SubComp1",
+                                "description": "Sub component 1",
+                                "key_entities": [],
+                                "assigned_files": [],
+                            }
+                        ],
+                        "components_relations": [],
+                    },
+                    {
+                        "name": "ComponentB",
+                        "description": "Component B",
+                        "key_entities": [],
+                        "assigned_files": [],
+                    },
+                ],
+                "components_relations": [],
+            }
+
+            analysis_file = temp_path / "analysis.json"
+            with open(analysis_file, "w") as f:
+                json.dump(analysis_data, f)
 
             generate_markdown(
-                analysis_files=[str(version_file)],
+                analysis_path=analysis_file,
                 repo_name="test_repo",
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
@@ -65,58 +103,22 @@ class TestGenerateMarkdown(unittest.TestCase):
                 output_dir=".codeboarding",
             )
 
-            # Should not call generate_markdown_file for version file
-            mock_generate_file.assert_not_called()
-
-    @patch("github_action.generate_markdown_file")
-    @patch("builtins.open", create=True)
-    def test_generate_markdown_multiple_files(self, mock_open, mock_generate_file):
-        # Test with multiple analysis files
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-
-            analysis_files = [
-                temp_path / "analysis1.json",
-                temp_path / "analysis2.json",
-            ]
-
-            analysis_json = '{"description": "test", "components": [], "components_relations": []}'
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
-
-            generate_markdown(
-                analysis_files=[str(f) for f in analysis_files],
-                repo_name="test_repo",
-                repo_url="https://github.com/test/repo",
-                target_branch="main",
-                temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
-            )
-
-            # Should be called twice
+            # Should be called for overview + ComponentA sub-analysis
             self.assertEqual(mock_generate_file.call_count, 2)
 
 
 class TestGenerateHtml(unittest.TestCase):
     @patch("github_action.generate_html_file")
-    @patch("builtins.open", create=True)
-    def test_generate_html_with_analysis_files(self, mock_open, mock_generate_file):
-        # Test HTML generation with analysis files
+    def test_generate_html_with_analysis_file(self, mock_generate_file):
+        # Test HTML generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            analysis_file = temp_path / "component_analysis.json"
-            analysis_json = '{"description": "test", "components": [], "components_relations": []}'
-
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
+            analysis_file = temp_path / "analysis.json"
+            _write_analysis_file(analysis_file)
 
             generate_html(
-                analysis_files=[str(analysis_file)],
+                analysis_path=analysis_file,
                 repo_name="test_repo",
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
@@ -126,44 +128,20 @@ class TestGenerateHtml(unittest.TestCase):
             mock_generate_file.assert_called_once()
             args = mock_generate_file.call_args
             self.assertEqual(args[0][0], "overview")
-
-    @patch("github_action.generate_html_file")
-    @patch("builtins.open", create=True)
-    def test_generate_html_skip_version_file(self, mock_open, mock_generate_file):
-        # Test that version file is skipped
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            version_file = temp_path / "codeboarding_version.json"
-
-            generate_html(
-                analysis_files=[str(version_file)],
-                repo_name="test_repo",
-                repo_url="https://github.com/test/repo",
-                target_branch="main",
-                temp_repo_folder=temp_path,
-            )
-
-            mock_generate_file.assert_not_called()
 
 
 class TestGenerateMdx(unittest.TestCase):
     @patch("github_action.generate_mdx_file")
-    @patch("builtins.open", create=True)
-    def test_generate_mdx_with_analysis_files(self, mock_open, mock_generate_file):
-        # Test MDX generation with analysis files
+    def test_generate_mdx_with_analysis_file(self, mock_generate_file):
+        # Test MDX generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            analysis_file = temp_path / "component_analysis.json"
-            analysis_json = '{"description": "test", "components": [], "components_relations": []}'
-
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
+            analysis_file = temp_path / "analysis.json"
+            _write_analysis_file(analysis_file)
 
             generate_mdx(
-                analysis_files=[str(analysis_file)],
+                analysis_path=analysis_file,
                 repo_name="test_repo",
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
@@ -174,45 +152,20 @@ class TestGenerateMdx(unittest.TestCase):
             mock_generate_file.assert_called_once()
             args = mock_generate_file.call_args
             self.assertEqual(args[0][0], "overview")
-
-    @patch("github_action.generate_mdx_file")
-    @patch("builtins.open", create=True)
-    def test_generate_mdx_skip_version_file(self, mock_open, mock_generate_file):
-        # Test that version file is skipped
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            version_file = temp_path / "codeboarding_version.json"
-
-            generate_mdx(
-                analysis_files=[str(version_file)],
-                repo_name="test_repo",
-                repo_url="https://github.com/test/repo",
-                target_branch="main",
-                temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
-            )
-
-            mock_generate_file.assert_not_called()
 
 
 class TestGenerateRst(unittest.TestCase):
     @patch("github_action.generate_rst_file")
-    @patch("builtins.open", create=True)
-    def test_generate_rst_with_analysis_files(self, mock_open, mock_generate_file):
-        # Test RST generation with analysis files
+    def test_generate_rst_with_analysis_file(self, mock_generate_file):
+        # Test RST generation with a unified analysis file
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            analysis_file = temp_path / "component_analysis.json"
-            analysis_json = '{"description": "test", "components": [], "components_relations": []}'
-
-            mock_file = MagicMock()
-            mock_file.read.return_value = analysis_json
-            mock_file.__enter__.return_value = mock_file
-            mock_open.return_value = mock_file
+            analysis_file = temp_path / "analysis.json"
+            _write_analysis_file(analysis_file)
 
             generate_rst(
-                analysis_files=[str(analysis_file)],
+                analysis_path=analysis_file,
                 repo_name="test_repo",
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
@@ -223,25 +176,6 @@ class TestGenerateRst(unittest.TestCase):
             mock_generate_file.assert_called_once()
             args = mock_generate_file.call_args
             self.assertEqual(args[0][0], "overview")
-
-    @patch("github_action.generate_rst_file")
-    @patch("builtins.open", create=True)
-    def test_generate_rst_skip_version_file(self, mock_open, mock_generate_file):
-        # Test that version file is skipped
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            version_file = temp_path / "codeboarding_version.json"
-
-            generate_rst(
-                analysis_files=[str(version_file)],
-                repo_name="test_repo",
-                repo_url="https://github.com/test/repo",
-                target_branch="main",
-                temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
-            )
-
-            mock_generate_file.assert_not_called()
 
 
 class TestGenerateAnalysis(unittest.TestCase):
@@ -291,8 +225,12 @@ class TestGenerateAnalysis(unittest.TestCase):
             args = mock_generator_class.call_args
             self.assertEqual(args[1]["depth_level"], 2)
 
-            # Check that markdown generation was called
+            # Check that markdown generation was called with a Path
             mock_generate_markdown.assert_called_once()
+            call_kwargs = mock_generate_markdown.call_args
+            self.assertIsInstance(
+                call_kwargs[1]["analysis_path"] if "analysis_path" in call_kwargs[1] else call_kwargs[0][0], Path
+            )
 
             # Check return value
             self.assertEqual(result, temp_path)
@@ -435,6 +373,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
             self.assertIn("Unsupported extension", str(context.exception))
 
+    @patch("github_action.generate_markdown")
     @patch("github_action.DiagramGenerator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
@@ -446,17 +385,17 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_checkout,
         mock_create_temp,
         mock_generator_class,
+        mock_generate_markdown,
     ):
         # Test that branch checkout is called with correct branch
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            repo_path = Path("/tmp/repos/test_repo")
 
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
             mock_generator = MagicMock()
-            mock_generator.generate_analysis.return_value = []
+            mock_generator.generate_analysis.return_value = [temp_path / "analysis.json"]
             mock_generator_class.return_value = mock_generator
 
             generate_analysis(

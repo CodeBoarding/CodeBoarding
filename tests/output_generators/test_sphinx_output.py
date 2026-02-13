@@ -59,7 +59,7 @@ class TestSphinxOutput(unittest.TestCase):
             components_relations=[self.relation],
         )
 
-        self.linked_files = [Path("Component1.json"), Path("Component2.json")]
+        self.expanded_components = {"Component1", "Component2"}
         self.repo_ref = "https://github.com/user/repo/blob/main"
         self.project = "test_project"
 
@@ -67,7 +67,7 @@ class TestSphinxOutput(unittest.TestCase):
         # Test Mermaid diagram generation in RST format
         result = generated_mermaid_str(
             self.analysis,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             repo_ref=self.repo_ref,
             project=self.project,
             demo=False,
@@ -83,7 +83,7 @@ class TestSphinxOutput(unittest.TestCase):
         # Test Mermaid diagram with links in RST
         result = generated_mermaid_str(
             self.analysis,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             repo_ref=self.repo_ref,
             project=self.project,
             demo=False,
@@ -96,7 +96,7 @@ class TestSphinxOutput(unittest.TestCase):
         # Test Mermaid diagram in demo mode
         result = generated_mermaid_str(
             self.analysis,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             repo_ref=self.repo_ref,
             project=self.project,
             demo=True,
@@ -107,7 +107,7 @@ class TestSphinxOutput(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        result = component_header("Component1", self.linked_files)
+        result = component_header("Component1", self.expanded_components)
 
         self.assertIn("Component1", result)
         self.assertIn("^", result)  # RST underline character
@@ -115,7 +115,7 @@ class TestSphinxOutput(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("UnlinkedComponent", [])
+        result = component_header("UnlinkedComponent", set())
 
         self.assertIn("UnlinkedComponent", result)
         self.assertIn("^", result)
@@ -124,7 +124,7 @@ class TestSphinxOutput(unittest.TestCase):
     def test_component_header_length(self):
         # Test that header underline matches component name length
         component_name = "Test Component"
-        result = component_header(component_name, [])
+        result = component_header(component_name, set())
 
         lines = result.split("\n")
         self.assertEqual(len(lines[0]), len(lines[1]))
@@ -136,7 +136,7 @@ class TestSphinxOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="on_boarding",
         )
@@ -156,7 +156,7 @@ class TestSphinxOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="test",
         )
@@ -174,7 +174,7 @@ class TestSphinxOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="test",
         )
@@ -193,7 +193,7 @@ class TestSphinxOutput(unittest.TestCase):
                 insights=self.analysis,
                 project=self.project,
                 repo_ref=self.repo_ref,
-                linked_files=self.linked_files,
+                expanded_components=self.expanded_components,
                 temp_dir=temp_path,
                 demo=False,
             )
@@ -223,7 +223,7 @@ class TestSphinxOutput(unittest.TestCase):
             analysis_no_ref,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )
@@ -238,7 +238,7 @@ class TestSphinxOutput(unittest.TestCase):
             self.analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=self.linked_files,
+            expanded_components=self.expanded_components,
             demo=False,
             file_name="test",
         )
@@ -272,7 +272,7 @@ class TestSphinxOutput(unittest.TestCase):
             analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )
@@ -306,7 +306,7 @@ class TestSphinxOutput(unittest.TestCase):
             analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )
@@ -342,7 +342,7 @@ class TestSphinxOutput(unittest.TestCase):
             analysis,
             project=self.project,
             repo_ref=self.repo_ref,
-            linked_files=[],
+            expanded_components=set(),
             demo=False,
             file_name="test",
         )

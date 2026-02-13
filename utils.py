@@ -48,13 +48,6 @@ def monitoring_enabled():
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
 
 
-def contains_json(node_id, files):
-    for file in files:
-        if str(file).endswith(f"{node_id}.json"):
-            return True
-    return False
-
-
 def get_config(item_key: str):
     path = os.getenv("STATIC_ANALYSIS_CONFIG")
     if not path:

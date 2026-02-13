@@ -10,7 +10,6 @@ import utils
 from utils import (
     CFGGenerationError,
     caching_enabled,
-    contains_json,
     create_temp_repo_folder,
     default_config,
     get_config,
@@ -77,26 +76,6 @@ class TestUtils(unittest.TestCase):
     def test_caching_enabled_default(self):
         # Test default value when env var is not set
         self.assertFalse(caching_enabled())
-
-    def test_contains_json_true(self):
-        # Test when JSON file exists
-        files = [Path("file1.txt"), Path("node123.json"), Path("file2.py")]
-        self.assertTrue(contains_json("node123", files))
-
-    def test_contains_json_false(self):
-        # Test when JSON file doesn't exist
-        files = [Path("file1.txt"), Path("other.json"), Path("file2.py")]
-        self.assertFalse(contains_json("node123", files))
-
-    def test_contains_json_empty_list(self):
-        # Test with empty file list
-        files: list[Path] = []
-        self.assertFalse(contains_json("node123", files))
-
-    def test_contains_json_with_path(self):
-        # Test with full paths
-        files = [Path("/some/path/node456.json")]
-        self.assertTrue(contains_json("node456", files))
 
     @patch.dict(os.environ, {}, clear=True)
     def test_get_config_no_env_var(self):

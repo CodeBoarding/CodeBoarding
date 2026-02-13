@@ -25,7 +25,6 @@ from diagram_analysis.incremental.impact_analyzer import (
     _filter_changes_for_scope,
 )
 from diagram_analysis.manifest import AnalysisManifest, save_manifest as save_manifest_func
-from output_generators.markdown import sanitize
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -91,14 +90,6 @@ def handle_scoped_component_update(
 
     Patches paths for renames or re-runs DetailsAgent for component updates.
     """
-
-    # Ensure this component is expanded (has a sub-analysis file)
-    safe_name = sanitize(component_name)
-    sub_path = output_dir / f"{safe_name}.json"
-    if not sub_path.exists():
-        return
-
-    # Load sub-analysis
     sub_analysis = load_sub_analysis(output_dir, component_name)
     if not sub_analysis:
         return
