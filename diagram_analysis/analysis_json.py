@@ -27,10 +27,38 @@ class ComponentJson(Component):
     )
 
 
+class NotAnalyzedFile(BaseModel):
+    path: str = Field(description="Relative path of the file.")
+    reason: str = Field(description="Exclusion reason for the file.")
+
+
+class FileCoverageSummary(BaseModel):
+    total_files: int = Field(description="Total number of text files in the repository.")
+    analyzed: int = Field(description="Number of files included in the analysis.")
+    not_analyzed: int = Field(description="Number of files excluded from the analysis.")
+    not_analyzed_by_reason: dict[str, int] = Field(
+        default_factory=dict, description="Count of excluded files grouped by reason."
+    )
+
+
+class FileCoverageReport(BaseModel):
+    version: int = Field(default=1, description="Schema version of the file coverage report.")
+    generated_at: str = Field(description="ISO timestamp of when the report was generated.")
+    analyzed_files: list[str] = Field(description="List of analyzed file paths.")
+    not_analyzed_files: list[NotAnalyzedFile] = Field(description="List of excluded files with optional reasons.")
+    summary: FileCoverageSummary = Field(description="Aggregated coverage counts.")
+
+
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
+    file_coverage_summary: FileCoverageSummary = Field(
+        default_factory=lambda: FileCoverageSummary(
+            total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}
+        ),
+        description="Lightweight file coverage counts.",
+    )
 
 
 class UnifiedAnalysisJson(BaseModel):
@@ -132,6 +160,7 @@ def build_unified_analysis_json(
     expandable_components: list[Component],
     repo_name: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
+    file_coverage_summary: FileCoverageSummary | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -141,11 +170,18 @@ def build_unified_analysis_json(
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
 
+    # Use default summary if none provided
+    if file_coverage_summary is None:
+        summary = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={})
+    else:
+        summary = file_coverage_summary
+
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
+            file_coverage_summary=summary,
         ),
         description=analysis.description,
         components=components_json,

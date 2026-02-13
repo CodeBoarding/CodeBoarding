@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
@@ -15,7 +16,13 @@ from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
-from diagram_analysis.analysis_json import build_unified_analysis_json
+from diagram_analysis.analysis_json import (
+    build_unified_analysis_json,
+    FileCoverageReport,
+    FileCoverageSummary,
+    NotAnalyzedFile,
+)
+from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -27,6 +34,7 @@ from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
@@ -63,6 +71,7 @@ class DiagramGenerator:
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
+        self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -94,7 +103,10 @@ class DiagramGenerator:
         health_config = load_health_config(health_config_dir)
 
         health_report = run_health_checks(
-            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+            static_analysis,
+            self.repo_name,
+            config=health_config,
+            repo_path=self.repo_location,
         )
         if health_report is not None:
             health_path = os.path.join(self.output_dir, "health", "health_report.json")
@@ -103,6 +115,35 @@ class DiagramGenerator:
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
         else:
             logger.warning("Health checks skipped: no languages found in static analysis results")
+
+    def _build_file_coverage(self, scanner: ProjectScanner, static_analysis: StaticAnalysisResults) -> dict:
+        """Build file coverage data comparing all text files against analyzed files."""
+        ignore_manager = RepoIgnoreManager(self.repo_location)
+        coverage = FileCoverage(self.repo_location, ignore_manager)
+
+        # Convert to Path objects for set operations
+        all_files = {Path(f) for f in scanner.all_text_files}
+        analyzed_files = {Path(f) for f in static_analysis.get_all_source_files()}
+
+        return coverage.build(all_files, analyzed_files)
+
+    def _write_file_coverage(self) -> None:
+        """Write file_coverage.json to output directory."""
+        if not self.file_coverage_data:
+            return
+
+        report = FileCoverageReport(
+            version=1,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            analyzed_files=self.file_coverage_data["analyzed_files"],
+            not_analyzed_files=[NotAnalyzedFile(**entry) for entry in self.file_coverage_data["not_analyzed_files"]],
+            summary=FileCoverageSummary(**self.file_coverage_data["summary"]),
+        )
+
+        coverage_path = os.path.join(self.output_dir, "file_coverage.json")
+        with open(coverage_path, "w") as f:
+            f.write(report.model_dump_json(indent=2, exclude_none=True))
+        logger.info(f"File coverage report written to {coverage_path}")
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -142,6 +183,9 @@ class DiagramGenerator:
                 "lines_of_code": loc_by_language.get(language, 0),
             }
 
+        # Build file coverage data from scanner's all_text_files and analyzed files
+        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+
         self._run_health_report(static_analysis)
 
         self.details_agent = DetailsAgent(
@@ -167,7 +211,8 @@ class DiagramGenerator:
         with open(version_file, "w") as f:
             f.write(
                 Version(
-                    commit_hash=get_git_commit_hash(self.repo_location), code_boarding_version="0.2.0"
+                    commit_hash=get_git_commit_hash(self.repo_location),
+                    code_boarding_version="0.2.0",
                 ).model_dump_json(indent=2)
             )
 
@@ -247,13 +292,18 @@ class DiagramGenerator:
 
                     # Use tqdm for a progress bar
                     for future in tqdm(
-                        as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
+                        as_completed(future_to_component),
+                        total=len(future_to_component),
+                        desc=f"Level {level}",
                     ):
                         component = future_to_component[future]
                         try:
                             comp_name, sub_analysis, new_components = future.result()
                             if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (sub_analysis, new_components)
+                                all_sub_analyses[comp_name] = (
+                                    sub_analysis,
+                                    new_components,
+                                )
                                 expanded_components.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
@@ -262,6 +312,17 @@ class DiagramGenerator:
 
                 logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
                 current_level_components = next_level_components
+
+            # Build file coverage summary for metadata
+            file_coverage_summary = None
+            if self.file_coverage_data:
+                s = self.file_coverage_data["summary"]
+                file_coverage_summary = FileCoverageSummary(
+                    total_files=s["total_files"],
+                    analyzed=s["analyzed"],
+                    not_analyzed=s["not_analyzed"],
+                    not_analyzed_by_reason=s["not_analyzed_by_reason"],
+                )
 
             # Write a single unified analysis.json
             analysis_path = os.path.join(self.output_dir, "analysis.json")
@@ -272,11 +333,15 @@ class DiagramGenerator:
                         expandable_components=expanded_components,
                         repo_name=self.repo_name,
                         sub_analyses=all_sub_analyses,
+                        file_coverage_summary=file_coverage_summary,
                     )
                 )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             print("Generated analysis file: %s", os.path.abspath(analysis_path))
+
+            # Write file_coverage.json
+            self._write_file_coverage()
 
             # Save manifest for incremental updates
             self._save_manifest(analysis, expanded_components)
@@ -359,6 +424,19 @@ class DiagramGenerator:
 
         if updater.execute():
             logger.info("Incremental update completed successfully")
+
+            # Update file coverage incrementally
+            if static_analysis:
+                scanner = ProjectScanner(self.repo_location)
+                current_analyzed = {Path(f) for f in static_analysis.get_all_source_files()}
+                all_text_files = {Path(f) for f in scanner.all_text_files}
+
+                self.file_coverage_data = updater.update_file_coverage(
+                    current_analyzed_files=current_analyzed,
+                    all_text_files=all_text_files,
+                )
+                self._write_file_coverage()
+
             return [str(self.output_dir / "analysis.json")]
 
         # Incremental update failed or not possible

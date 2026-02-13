@@ -201,22 +201,28 @@ class RepoIgnoreManager:
 
     def reload(self):
         """Reload ignore patterns from .gitignore and .codeboardingignore."""
-        patterns = self._load_gitignore_patterns()
-        patterns.extend(self._load_codeboardingignore_patterns())
+        gitignore_patterns = self._load_gitignore_patterns()
+        codeboardingignore_patterns = self._load_codeboardingignore_patterns()
 
-        # Always add default ignored directories as patterns
-        for d in self.DEFAULT_IGNORED_DIRS:
-            patterns.append(f"{d}/\n")
+        # Build separate specs for categorization
+        self.gitignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", gitignore_patterns)
+        self.codeboardingignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", codeboardingignore_patterns)
 
-        # Add default ignored file patterns (build artifacts, minified files, etc.)
+        default_patterns: list[str] = []
         for pattern in self.DEFAULT_IGNORED_FILE_PATTERNS:
-            patterns.append(f"{pattern}\n")
-
-        # Add test/infrastructure patterns
+            default_patterns.append(f"{pattern}\n")
         for pattern in TEST_INFRASTRUCTURE_PATTERNS:
-            patterns.append(f"{pattern}\n")
+            default_patterns.append(f"{pattern}\n")
+        self.default_spec = pathspec.PathSpec.from_lines("gitwildmatch", default_patterns)
 
-        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+        # Combined spec for the existing should_ignore() fast path
+        all_patterns = list(gitignore_patterns)
+        all_patterns.extend(codeboardingignore_patterns)
+        for d in self.DEFAULT_IGNORED_DIRS:
+            all_patterns.append(f"{d}/\n")
+        all_patterns.extend(default_patterns)
+
+        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", all_patterns)
 
     def _load_gitignore_patterns(self) -> list[str]:
         """Load and parse .gitignore file if it exists."""
@@ -283,6 +289,39 @@ class RepoIgnoreManager:
     def filter_paths(self, paths: list[Path]) -> list[Path]:
         """Filter a list of paths, returning only those that should not be ignored."""
         return [p for p in paths if not self.should_ignore(p)]
+
+    def categorize_file(self, path: Path) -> str:
+        """Return the exclusion reason for a file.
+
+        Reasons for excluded files: "ignored_directory", "test_or_infrastructure",
+        "codeboardingignore", "gitignore".
+        Returns "other" if the file is not excluded by any known rule.
+        """
+        try:
+            if path.is_absolute():
+                path = path.resolve()
+                if not path.is_relative_to(self.repo_root):
+                    return "other"
+                rel_path = path.relative_to(self.repo_root)
+            else:
+                rel_path = path
+
+            for part in rel_path.parts:
+                if part in self.DEFAULT_IGNORED_DIRS or part.startswith("."):
+                    return "ignored_directory"
+
+            rel_str = str(rel_path)
+            if self.default_spec.match_file(rel_str):
+                return "test_or_infrastructure"
+            if self.codeboardingignore_spec.match_file(rel_str):
+                return "codeboardingignore"
+            if self.gitignore_spec.match_file(rel_str):
+                return "gitignore"
+
+            return "other"
+        except Exception as e:
+            logger.error(f"Error categorizing file {path}: {e}")
+            return "other"
 
 
 def initialize_codeboardingignore(output_dir: Path) -> None:

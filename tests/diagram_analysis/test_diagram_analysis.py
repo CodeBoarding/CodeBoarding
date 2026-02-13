@@ -344,6 +344,7 @@ class TestDiagramGenerator(unittest.TestCase):
         # Mock ProjectScanner to avoid tokei dependency
         mock_scanner_instance = Mock()
         mock_scanner_instance.scan.return_value = []
+        mock_scanner_instance.all_text_files = []
         mock_scanner.return_value = mock_scanner_instance
 
         gen = DiagramGenerator(
