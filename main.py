@@ -351,6 +351,10 @@ def validate_arguments(args, parser, is_local: bool):
     if args.partial_component and not is_local:
         parser.error("--partial-component only works with local repositories")
 
+    # Remote runs must persist output somewhere explicit.
+    if not is_local and args.output_dir is None:
+        parser.error("--output-dir is required when using remote repositories")
+
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
     """
@@ -364,7 +368,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--local", type=Path, help="Path to a local repository")
 
     # Output configuration
-    parser.add_argument("--output-dir", type=Path, help="Directory to output generated files to")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Directory for generated files (required for remote repositories; optional for local, default: ./analysis)",
+    )
 
     # Local repository specific options
     parser.add_argument(
@@ -434,7 +442,6 @@ def main():
         epilog="""
 Examples:
   # Remote repositories
-  python main.py https://github.com/user/repo1
   python main.py https://github.com/user/repo1 --output-dir ./docs
   python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
 
@@ -511,6 +518,8 @@ Examples:
 
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 repo_name = get_repo_name(repo)
+                repo_output_dir = output_dir / repo_name if len(args.repositories) > 1 else output_dir
+                repo_output_dir.mkdir(parents=True, exist_ok=True)
 
                 base_name = args.project_name if args.project_name else repo_name
                 run_id = generate_run_id(base_name)
@@ -526,7 +535,7 @@ Examples:
                     try:
                         process_remote_repository(
                             repo_url=repo,
-                            output_dir=output_dir,
+                            output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
                             cache_check=not args.no_cache_check,
