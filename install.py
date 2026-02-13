@@ -88,9 +88,11 @@ def install_npm_with_nodeenv() -> bool:
     print("   impact: installs Node.js + npm into the active Python virtual environment")
 
     try:
-        subprocess.run(command, check=True)
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Step: npm remediation finished: failure - {e}")
+        if e.stderr:
+            print(f"   {e.stderr.strip()}")
         print("   You can install Node.js manually from: https://nodejs.org/en/download")
         print("   Then verify with: npm --version")
         return False
@@ -515,7 +517,7 @@ def download_jdtls():
 
         print("  Extracting JDTLS...")
         with tarfile.open(jdtls_archive, "r:gz") as tar:
-            tar.extractall(path=jdtls_dir)
+            tar.extractall(path=jdtls_dir, filter="tar")
 
         jdtls_archive.unlink()
 
