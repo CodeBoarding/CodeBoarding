@@ -137,7 +137,7 @@ python main.py --local /path/to/repo --project-name MyProject --output-dir <outp
 - `--local <path>` - Path to a local repository for analysis
 
 **Output Configuration:**
-- `--output-dir <path>` - Directory where generated documentation will be saved (optional, defaults to `./analysis` for local repos)
+- `--output-dir <path>` - Directory where generated documentation will be saved (required for remote repos; optional for local repos, defaults to `./analysis`)
 
 **Local Repository Options:**
 - `--project-name <name>` - Name of the project (required when using `--local`)
