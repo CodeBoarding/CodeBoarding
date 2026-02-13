@@ -416,6 +416,7 @@ class TestValidateArguments(unittest.TestCase):
         args.local = "/path/to/repo"
         args.project_name = None
         args.partial_component = None
+        args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_called_once()
@@ -428,6 +429,7 @@ class TestValidateArguments(unittest.TestCase):
         args.local = None
         args.project_name = "test"
         args.partial_component = "Component1"
+        args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_called_once()
@@ -440,8 +442,35 @@ class TestValidateArguments(unittest.TestCase):
         args.local = "/path/to/repo"
         args.project_name = "test"
         args.partial_component = None
+        args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
+        parser.error.assert_not_called()
+
+    def test_validate_arguments_remote_without_output_dir(self):
+        # Test remote mode requires output_dir
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = None
+        args.project_name = None
+        args.partial_component = None
+        args.output_dir = None
+
+        validate_arguments(args, parser, is_local=False)
+        parser.error.assert_called_once_with("--output-dir is required when using remote repositories")
+
+    def test_validate_arguments_remote_with_output_dir(self):
+        # Test remote mode with output_dir is valid
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = None
+        args.project_name = None
+        args.partial_component = None
+        args.output_dir = Path("./analysis")
+
+        validate_arguments(args, parser, is_local=False)
         parser.error.assert_not_called()
 
 
