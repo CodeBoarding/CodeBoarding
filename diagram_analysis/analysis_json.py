@@ -29,7 +29,7 @@ class ComponentJson(Component):
 
 class NotAnalyzedFile(BaseModel):
     path: str = Field(description="Relative path of the file.")
-    reason: str | None = Field(default=None, description="Exclusion reason if determinable.")
+    reason: str = Field(description="Exclusion reason for the file.")
 
 
 class FileCoverageSummary(BaseModel):
@@ -53,8 +53,11 @@ class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
-    file_coverage_summary: FileCoverageSummary | None = Field(
-        default=None, description="Lightweight file coverage counts."
+    file_coverage_summary: FileCoverageSummary = Field(
+        default_factory=lambda: FileCoverageSummary(
+            total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}
+        ),
+        description="Lightweight file coverage counts.",
     )
 
 
@@ -167,12 +170,18 @@ def build_unified_analysis_json(
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
 
+    # Use default summary if none provided
+    if file_coverage_summary is None:
+        summary = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={})
+    else:
+        summary = file_coverage_summary
+
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
-            file_coverage_summary=file_coverage_summary,
+            file_coverage_summary=summary,
         ),
         description=analysis.description,
         components=components_json,

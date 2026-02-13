@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 
 from agents.agent_responses import ClusterAnalysis, AnalysisInsights, ComponentFiles
+from repo_utils import normalize_path
 from static_analyzer.graph import ClusterResult, CallGraph
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,11 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
 
         # Check if any cluster pair has an edge
         has_edge = _check_edge_between_cluster_sets(
-            src_clusters, dst_clusters, context.cluster_results, context.cfg_graphs, cluster_edge_lookup
+            src_clusters,
+            dst_clusters,
+            context.cluster_results,
+            context.cfg_graphs,
+            cluster_edge_lookup,
         )
 
         if not has_edge:
@@ -225,24 +230,16 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     feedback_messages = []
 
-    def _normalize_path(path: str) -> str:
-        if context.repo_dir and os.path.isabs(path):
-            path = os.path.relpath(path, context.repo_dir)
-        path = os.path.normpath(path)
-        if os.sep != "/":
-            path = path.replace(os.sep, "/")
-        return path
-
     # Get classified file paths from result
-    classified_files = {_normalize_path(fc.file_path) for fc in result.file_paths}
+    classified_files = {normalize_path(fc.file_path, context.repo_dir) for fc in result.file_paths}
 
     # Normalize paths for comparison
-    expected_files_normalized = {_normalize_path(file_path) for file_path in context.expected_files}
+    expected_files_normalized = {normalize_path(file_path, context.repo_dir) for file_path in context.expected_files}
 
     # Check 1: Are all unassigned files classified?
     missing_files = expected_files_normalized - classified_files
     if missing_files:
-        missing_list = sorted(missing_files)[:10]
+        missing_list = sorted(str(f) for f in missing_files)[:10]
         missing_str = ", ".join(missing_list)
         more_msg = f" and {len(missing_files) - 10} more" if len(missing_files) > 10 else ""
         feedback_messages.append(

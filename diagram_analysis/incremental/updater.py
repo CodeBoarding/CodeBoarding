@@ -37,10 +37,15 @@ from diagram_analysis.incremental.scoped_analysis import (
     run_scoped_component_impacts,
 )
 from diagram_analysis.incremental.validation import validate_incremental_update
+from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest
 from repo_utils import get_repo_state_hash
-from repo_utils.change_detector import ChangeSet, detect_changes_from_commit, get_current_commit
-from repo_utils.ignore import should_skip_file
+from repo_utils.change_detector import (
+    ChangeSet,
+    detect_changes_from_commit,
+    get_current_commit,
+)
+from repo_utils.ignore import should_skip_file, RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 
@@ -305,7 +310,13 @@ class IncrementalUpdater:
                 logger.info(f"Component '{component_name}' has only renames, will patch instead of re-expanding")
                 components_to_patch.add(component_name)
             else:
-                if can_patch_sub_analysis(component_name, self.manifest, self.impact, self.output_dir, self.analysis):
+                if can_patch_sub_analysis(
+                    component_name,
+                    self.manifest,
+                    self.impact,
+                    self.output_dir,
+                    self.analysis,
+                ):
                     logger.info(f"Component '{component_name}' can be patched without LLM re-analysis")
                     components_to_patch.add(component_name)
                     if component_name in components_with_new_files:
@@ -353,7 +364,10 @@ class IncrementalUpdater:
         for component_name, new_files in components_to_classify.items():
             static_analysis = self.static_analysis
             if static_analysis is None:
-                logger.debug("Skipping classification for %s because static_analysis is not available", component_name)
+                logger.debug(
+                    "Skipping classification for %s because static_analysis is not available",
+                    component_name,
+                )
                 continue
 
             if classify_new_files_in_component(
@@ -419,3 +433,41 @@ class IncrementalUpdater:
         if not self.manifest:
             return {}
         return analyze_expanded_component_impacts(changes, self.manifest, self.static_analysis)
+
+    def update_file_coverage(
+        self,
+        current_analyzed_files: set[Path],
+        all_text_files: set[Path],
+    ) -> dict:
+        """Update file coverage incrementally based on changes.
+
+        Args:
+            current_analyzed_files: Files analyzed in current incremental run
+            all_text_files: All text files currently in repository
+
+        Returns:
+            Updated file coverage dictionary
+        """
+        ignore_manager = RepoIgnoreManager(self.repo_dir)
+        coverage = FileCoverage(self.repo_dir, ignore_manager)
+
+        if not self.changes:
+            logger.warning("No changes detected, cannot update file coverage incrementally")
+            # Build fresh coverage from current state
+            return coverage.build(all_text_files, current_analyzed_files)
+
+        # Load existing coverage
+        existing_coverage = FileCoverage.load(self.output_dir)
+
+        if existing_coverage is None:
+            # No existing coverage, build fresh
+            logger.info("No existing file coverage found, building fresh coverage")
+            return coverage.build(all_text_files, current_analyzed_files)
+
+        # Update incrementally
+        return coverage.update(
+            existing_coverage=existing_coverage,
+            all_text_files=all_text_files,
+            analyzed_files=current_analyzed_files,
+            changes=self.changes,
+        )

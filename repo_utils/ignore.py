@@ -290,16 +290,18 @@ class RepoIgnoreManager:
         """Filter a list of paths, returning only those that should not be ignored."""
         return [p for p in paths if not self.should_ignore(p)]
 
-    def categorize_file(self, path: Path) -> str | None:
-        """Return the exclusion reason for a file, or None if it should be included.
+    def categorize_file(self, path: Path) -> str:
+        """Return the exclusion reason for a file.
 
-        Reasons: "ignored_directory", "test_or_infrastructure", "codeboardingignore", "gitignore".
+        Reasons for excluded files: "ignored_directory", "test_or_infrastructure",
+        "codeboardingignore", "gitignore".
+        Returns "other" if the file is not excluded by any known rule.
         """
         try:
             if path.is_absolute():
                 path = path.resolve()
                 if not path.is_relative_to(self.repo_root):
-                    return None
+                    return "other"
                 rel_path = path.relative_to(self.repo_root)
             else:
                 rel_path = path
@@ -316,10 +318,10 @@ class RepoIgnoreManager:
             if self.gitignore_spec.match_file(rel_str):
                 return "gitignore"
 
-            return None
+            return "other"
         except Exception as e:
             logger.error(f"Error categorizing file {path}: {e}")
-            return None
+            return "other"
 
 
 def initialize_codeboardingignore(output_dir: Path) -> None:

@@ -5,6 +5,7 @@ import hashlib
 import subprocess
 from functools import wraps
 from pathlib import Path
+from collections.abc import Collection
 from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
@@ -230,3 +231,45 @@ def get_branch(repo_dir: Path) -> str:
     """
     repo = Repo(repo_dir)
     return repo.active_branch.name if repo.active_branch else "main"
+
+
+def normalize_path(path: str | Path, root: str | Path | None = None) -> Path:
+    """Normalize a path for consistent comparison and storage.
+
+    Performs the following normalizations:
+    - If root is provided and path is absolute, makes it relative to root
+    - Normalizes using os.path.normpath() to handle '.', '..', redundant separators
+    - Returns as Path object for further operations
+
+    Args:
+        path: The path to normalize (str or Path)
+        root: Optional root directory to make the path relative to
+
+    Returns:
+        Normalized Path object
+    """
+    path_obj = Path(path)
+    root_obj = Path(root) if root else None
+
+    if root_obj and path_obj.is_absolute():
+        try:
+            path_obj = path_obj.relative_to(root_obj)
+        except (ValueError, TypeError):
+            pass
+
+    # Use normpath to handle '.', '..', redundant separators, then convert back to Path
+    normalized_str = os.path.normpath(str(path_obj))
+    return Path(normalized_str)
+
+
+def normalize_paths(paths: Collection[str | Path], root: str | Path | None = None) -> set[Path]:
+    """Normalize a collection of paths for consistent comparison.
+
+    Args:
+        paths: Collection of paths to normalize
+        root: Optional root directory to make paths relative to
+
+    Returns:
+        Set of normalized Path objects
+    """
+    return {normalize_path(p, root) for p in paths}

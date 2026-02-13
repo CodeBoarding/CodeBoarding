@@ -22,6 +22,7 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -102,7 +103,10 @@ class DiagramGenerator:
         health_config = load_health_config(health_config_dir)
 
         health_report = run_health_checks(
-            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+            static_analysis,
+            self.repo_name,
+            config=health_config,
+            repo_path=self.repo_location,
         )
         if health_report is not None:
             health_path = os.path.join(self.output_dir, "health", "health_report.json")
@@ -115,55 +119,13 @@ class DiagramGenerator:
     def _build_file_coverage(self, scanner: ProjectScanner, static_analysis: StaticAnalysisResults) -> dict:
         """Build file coverage data comparing all text files against analyzed files."""
         ignore_manager = RepoIgnoreManager(self.repo_location)
+        coverage = FileCoverage(self.repo_location, ignore_manager)
 
-        analyzed_paths: set[str] = set()
-        for src_file in static_analysis.get_all_source_files():
-            try:
-                p = Path(src_file)
-                if p.is_absolute():
-                    p = p.relative_to(self.repo_location)
-                analyzed_paths.add(str(p))
-            except (ValueError, TypeError):
-                analyzed_paths.add(str(src_file))
+        # Convert to Path objects for set operations
+        all_files = {Path(f) for f in scanner.all_text_files}
+        analyzed_files = {Path(f) for f in static_analysis.get_all_source_files()}
 
-        analyzed_files = sorted(analyzed_paths)
-        not_analyzed_files: list[dict] = []
-        reason_counts: dict[str, int] = {}
-
-        for file_path in scanner.all_text_files:
-            try:
-                p = Path(file_path)
-                if p.is_absolute():
-                    p = p.relative_to(self.repo_location)
-                rel_str = str(p)
-            except (ValueError, TypeError):
-                rel_str = str(file_path)
-
-            if rel_str in analyzed_paths:
-                continue
-
-            reason = ignore_manager.categorize_file(Path(rel_str))
-            entry: dict = {"path": rel_str}
-            if reason:
-                entry["reason"] = reason
-                reason_counts[reason] = reason_counts.get(reason, 0) + 1
-            else:
-                reason_counts["other"] = reason_counts.get("other", 0) + 1
-
-            not_analyzed_files.append(entry)
-
-        not_analyzed_files.sort(key=lambda x: x["path"])
-
-        return {
-            "analyzed_files": analyzed_files,
-            "not_analyzed_files": not_analyzed_files,
-            "summary": {
-                "total_files": len(scanner.all_text_files),
-                "analyzed": len(analyzed_files),
-                "not_analyzed": len(not_analyzed_files),
-                "not_analyzed_by_reason": reason_counts,
-            },
-        }
+        return coverage.build(all_files, analyzed_files)
 
     def _write_file_coverage(self) -> None:
         """Write file_coverage.json to output directory."""
@@ -249,7 +211,8 @@ class DiagramGenerator:
         with open(version_file, "w") as f:
             f.write(
                 Version(
-                    commit_hash=get_git_commit_hash(self.repo_location), code_boarding_version="0.2.0"
+                    commit_hash=get_git_commit_hash(self.repo_location),
+                    code_boarding_version="0.2.0",
                 ).model_dump_json(indent=2)
             )
 
@@ -329,13 +292,18 @@ class DiagramGenerator:
 
                     # Use tqdm for a progress bar
                     for future in tqdm(
-                        as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
+                        as_completed(future_to_component),
+                        total=len(future_to_component),
+                        desc=f"Level {level}",
                     ):
                         component = future_to_component[future]
                         try:
                             comp_name, sub_analysis, new_components = future.result()
                             if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (sub_analysis, new_components)
+                                all_sub_analyses[comp_name] = (
+                                    sub_analysis,
+                                    new_components,
+                                )
                                 expanded_components.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
@@ -456,6 +424,19 @@ class DiagramGenerator:
 
         if updater.execute():
             logger.info("Incremental update completed successfully")
+
+            # Update file coverage incrementally
+            if static_analysis:
+                scanner = ProjectScanner(self.repo_location)
+                current_analyzed = {Path(f) for f in static_analysis.get_all_source_files()}
+                all_text_files = {Path(f) for f in scanner.all_text_files}
+
+                self.file_coverage_data = updater.update_file_coverage(
+                    current_analyzed_files=current_analyzed,
+                    all_text_files=all_text_files,
+                )
+                self._write_file_coverage()
+
             return [str(self.output_dir / "analysis.json")]
 
         # Incremental update failed or not possible
