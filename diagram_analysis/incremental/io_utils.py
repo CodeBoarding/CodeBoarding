@@ -24,11 +24,6 @@ from diagram_analysis.analysis_json import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# AnalysisFileStore – single point of coordination for analysis.json
-# ---------------------------------------------------------------------------
-
-
 class AnalysisFileStore:
     """Coordinated reader/writer for ``analysis.json`` with file locking and caching.
 
@@ -44,10 +39,8 @@ class AnalysisFileStore:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
         self._analysis_path = output_dir / "analysis.json"
-        self._lock = FileLock(output_dir / "analysis.json.lock", timeout=120)
+        self._lock = FileLock(output_dir / "analysis.json.lock", timeout=10)
         self._cache: tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None = None
-
-    # -- public readers -----------------------------------------------------
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load and cache the unified ``analysis.json``.
@@ -76,24 +69,20 @@ class AnalysisFileStore:
 
     def read_root(self) -> AnalysisInsights | None:
         """Load just the root analysis."""
-        with self._lock:
-            result = self.read()
-            return result[0] if result else None
+        result = self.read()
+        return result[0] if result else None
 
     def read_sub(self, component_name: str) -> AnalysisInsights | None:
         """Load a sub-analysis for a specific component."""
-        with self._lock:
-            result = self.read()
-            if result is None:
-                return None
+        result = self.read()
+        if result is None:
+            return None
 
-            _, sub_analyses, _ = result
-            sub = sub_analyses.get(component_name)
-            if sub is None:
-                logger.debug(f"No sub-analysis found for component '{component_name}' in unified analysis")
-            return sub
-
-    # -- public writers -----------------------------------------------------
+        _, sub_analyses, _ = result
+        sub = sub_analyses.get(component_name)
+        if sub is None:
+            logger.debug(f"No sub-analysis found for component '{component_name}' in unified analysis")
+        return sub
 
     def write(
         self,
@@ -109,7 +98,7 @@ class AnalysisFileStore:
         """
         with self._lock:
             self._invalidate_cache()
-            return self._write_unlocked(analysis, expandable_components, sub_analyses, repo_name)
+            return self._write_with_lock_held(analysis, expandable_components, sub_analyses, repo_name)
 
     def write_sub(
         self,
@@ -143,7 +132,7 @@ class AnalysisFileStore:
             # Determine which root components are expandable
             all_expandable = expandable_components or list(sub_analyses.keys())
 
-            return self._write_unlocked(root_analysis, all_expandable, sub_analyses, repo_name)
+            return self._write_with_lock_held(root_analysis, all_expandable, sub_analyses, repo_name)
 
     def write_raw(self, content: str) -> Path:
         """Write raw JSON content to ``analysis.json``.
@@ -158,8 +147,6 @@ class AnalysisFileStore:
                 f.write(content)
             return self._analysis_path
 
-    # -- public helpers -----------------------------------------------------
-
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
         """Find components that have sub-analyses in the unified ``analysis.json``."""
         result = self.read()
@@ -169,12 +156,10 @@ class AnalysisFileStore:
         _, sub_analyses, _ = result
         return [c.name for c in analysis.components if c.name in sub_analyses]
 
-    # -- internals ----------------------------------------------------------
-
     def _invalidate_cache(self) -> None:
         self._cache = None
 
-    def _write_unlocked(
+    def _write_with_lock_held(
         self,
         analysis: AnalysisInsights,
         expandable_components: list[str] | None = None,
