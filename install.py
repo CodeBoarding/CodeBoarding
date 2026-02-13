@@ -1,4 +1,5 @@
 import argparse
+import io
 import os
 import platform
 import shutil
@@ -152,6 +153,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Automatically install npm via nodeenv when npm is missing",
     )
+    parser.add_argument(
+        "--auto-install-vcpp",
+        action="store_true",
+        help="Automatically install Visual C++ Redistributable when binaries need it (Windows only)",
+    )
     return parser.parse_args()
 
 
@@ -233,6 +239,8 @@ def install_node_servers():
         os.chdir(original_cwd)
 
 
+VCREDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 unsigned
 GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
 
@@ -270,7 +278,131 @@ def download_github_release_asset(tag: str, asset_name: str, destination: Path) 
     return destination.exists() and destination.stat().st_size > 0
 
 
-def download_binaries():
+def verify_binary(binary_path: Path) -> bool:
+    """Run a quick smoke test to verify the binary actually executes.
+
+    Returns True if the binary runs without DLL-not-found or similar loader errors.
+    """
+    try:
+        result = subprocess.run(
+            [str(binary_path), "--version"],
+            capture_output=True,
+            timeout=10,
+        )
+        # Any exit code is fine as long as the process actually loaded.
+        # 0xC0000135 (unsigned 3221225781) means a required DLL is missing.
+        if result.returncode < 0:
+            code = result.returncode & 0xFFFFFFFF
+        else:
+            code = result.returncode
+        if code == STATUS_DLL_NOT_FOUND:
+            return False
+        return True
+    except OSError:
+        # Binary couldn't be started at all
+        return False
+    except subprocess.TimeoutExpired:
+        # If it ran long enough to time out, it loaded fine
+        return True
+
+
+def install_vcpp_redistributable() -> bool:
+    """Download and install the Visual C++ Redistributable on Windows.
+
+    Required when pre-built binaries are dynamically linked against the MSVC runtime
+    (vcruntime140.dll) which is not present on the system.
+    """
+    if platform.system() != "Windows":
+        return False
+
+    print("Step: Visual C++ Redistributable installation started")
+    print("  The downloaded binary requires the Visual C++ runtime (vcruntime140.dll).")
+
+    installer_path = Path("static_analyzer/servers/bin/vc_redist.x64.exe")
+    installer_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        print("  Downloading VC++ Redistributable...")
+        response = requests.get(VCREDIST_URL, stream=True, timeout=120, allow_redirects=True)
+        response.raise_for_status()
+        with open(installer_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+
+        print("  Running installer (this will request administrator privileges)...")
+        # Use PowerShell Start-Process with -Verb RunAs to trigger UAC elevation,
+        # then /install /passive for a non-interactive install with progress bar.
+        ps_command = (
+            f'Start-Process -FilePath "{installer_path.resolve()}" '
+            f'-ArgumentList "/install","/passive","/norestart" '
+            f"-Verb RunAs -Wait"
+        )
+        result = subprocess.run(
+            ["powershell", "-Command", ps_command],
+            check=False,
+            timeout=300,
+        )
+
+        try:
+            installer_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass  # Installer may still be releasing; not critical
+
+        if result.returncode == 0:
+            print("Step: Visual C++ Redistributable installation finished: success")
+            return True
+        elif result.returncode == 1638:
+            # 1638 = newer version already installed
+            print("Step: Visual C++ Redistributable installation finished: success (newer version already present)")
+            return True
+        elif result.returncode == 3010:
+            # 3010 = success, reboot required
+            print("Step: Visual C++ Redistributable installation finished: success (reboot may be needed)")
+            return True
+        else:
+            print(f"Step: Visual C++ Redistributable installation finished: failure (exit code {result.returncode})")
+            print("  You may need to run the installer manually with administrator privileges.")
+            print(f"  Download from: {VCREDIST_URL}")
+            return False
+
+    except Exception as e:
+        try:
+            installer_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+        print(f"Step: Visual C++ Redistributable installation finished: failure - {e}")
+        print(f"  Download and install manually from: {VCREDIST_URL}")
+        return False
+
+
+def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
+    """Offer actionable paths when the Visual C++ Redistributable is missing."""
+    print("Step: Visual C++ Redistributable required for downloaded binaries (vcruntime140.dll)")
+
+    if auto_install_vcpp:
+        return install_vcpp_redistributable()
+
+    if is_non_interactive_mode():
+        print("Step: Non-interactive mode detected - skipping VC++ prompt")
+        print("   Re-run with --auto-install-vcpp to install automatically")
+        print(f"   Or download and install manually from: {VCREDIST_URL}")
+        return False
+
+    choice = (
+        input("Visual C++ Redistributable is missing. Install it now? (requires admin privileges) [y/N]: ")
+        .strip()
+        .lower()
+    )
+    if choice in {"y", "yes"}:
+        return install_vcpp_redistributable()
+
+    print("Step: VC++ Redistributable installation skipped by user")
+    print(f"   Download and install manually from: {VCREDIST_URL}")
+    return False
+
+
+def download_binaries(auto_install_vcpp: bool = False):
     """Download tokei and gopls binaries from the latest GitHub release."""
     print("Step: Binary download started")
 
@@ -333,6 +465,29 @@ def download_binaries():
         print(f"Step: Binary download finished: partial success ({success_count}/{len(binaries)} binaries)")
     else:
         print("Step: Binary download finished: failure - No binaries downloaded")
+
+    # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
+    if system == "Windows" and success_count > 0:
+        vcpp_resolved = False
+        needs_vcpp = False
+        for local_name in binaries:
+            binary_path = platform_bin_dir / f"{local_name}.exe"
+            if not binary_path.exists():
+                continue
+
+            if not verify_binary(binary_path):
+                print(f"  {local_name}: verification failed - missing Visual C++ runtime")
+                needs_vcpp = True
+            else:
+                print(f"  {local_name}: verification passed")
+
+        if needs_vcpp:
+            vcpp_resolved = resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp)
+            if vcpp_resolved:
+                for local_name in binaries:
+                    binary_path = platform_bin_dir / f"{local_name}.exe"
+                    if binary_path.exists() and verify_binary(binary_path):
+                        print(f"  {local_name}: verification passed after VC++ install")
 
 
 def download_jdtls():
@@ -652,6 +807,10 @@ def print_language_support_summary(npm_available: bool):
 
 
 if __name__ == "__main__":
+    # Windows consoles default to cp1252 which can't encode emojis; force UTF-8.
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
     args = parse_args()
 
     print("🚀 CodeBoarding Installation Script")
@@ -666,7 +825,7 @@ if __name__ == "__main__":
         install_node_servers()
 
     # Step 3: Download binaries from GitHub release
-    download_binaries()
+    download_binaries(auto_install_vcpp=args.auto_install_vcpp)
 
     # Step 4: Download JDTLS from GitHub release
     download_jdtls()
