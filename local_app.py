@@ -199,7 +199,7 @@ async def start_generation_job(
     return {"job_id": job["id"], "status": job["status"]}
 
 
-@app.get("/heart_beat", response_class=JSONResponse, summary="Get heart beat")
+@app.head("/heart_beat", response_class=JSONResponse, summary="Get heart beat")
 async def get_heart_beat():
     return JSONResponse({"status": "ok"}, status_code=200)
 
