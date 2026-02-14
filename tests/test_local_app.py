@@ -383,12 +383,10 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 422)  # Validation error
 
     def test_get_heart_beat(self):
-        # Test GET /heart_beat endpoint
-        response = self.client.get("/heart_beat")
+        # Test HEAD /heart_beat endpoint
+        response = self.client.head("/heart_beat")
 
         self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["status"], "ok")
 
     @patch("local_app.fetch_job")
     def test_get_job_completed(self, mock_fetch_job):
