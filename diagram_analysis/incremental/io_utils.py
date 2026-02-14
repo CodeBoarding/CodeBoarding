@@ -21,6 +21,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from agents.agent_responses import AnalysisInsights, Component
+from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     build_unified_analysis_json,
@@ -28,6 +29,28 @@ from diagram_analysis.analysis_json import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_expandable_components(
+    analysis: AnalysisInsights,
+    parent_had_clusters: bool,
+) -> list[Component]:
+    """Compute expandable components deterministically for one analysis level."""
+    return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
+
+
+def _build_component_lookup(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, Component]:
+    """Build component_id -> component lookup across root and sub-analyses."""
+    lookup: dict[str, Component] = {}
+    for component in root_analysis.components:
+        lookup[component.component_id] = component
+    for sub_analysis in sub_analyses.values():
+        for component in sub_analysis.components:
+            lookup[component.component_id] = component
+    return lookup
 
 
 class _AnalysisFileStore:
@@ -150,10 +173,12 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
-        # Build expandable component list
-        expandable: list[Component] = []
-        if expandable_components:
-            expandable = [c for c in analysis.components if c.component_id in expandable_components]
+        # Keep caller-provided root expandables, but also preserve deterministic planner eligibility.
+        root_expandable_ids = set(expandable_components or [])
+        root_expandable_ids.update(
+            c.component_id for c in _compute_expandable_components(analysis, parent_had_clusters=True)
+        )
+        expandable = [c for c in analysis.components if c.component_id in root_expandable_ids]
 
         # If no sub_analyses provided, try to preserve existing ones from disk
         if sub_analyses is None:
@@ -167,9 +192,12 @@ class _AnalysisFileStore:
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
+            component_lookup = _build_component_lookup(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
-                sub_expandable = [c for c in sub.components if c.component_id in sub_analyses]
+                parent_component = component_lookup.get(cid)
+                parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
+                sub_expandable = _compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
         with open(self._analysis_path, "w") as f:

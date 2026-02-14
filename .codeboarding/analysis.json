@@ -2,7 +2,7 @@
   "metadata": {
     "generated_at": "2026-02-15T21:43:08.489319+00:00",
     "repo_name": "CodeBoarding",
-    "depth_level": 2,
+    "depth_level": 3,
     "file_coverage_summary": {
       "total_files": 253,
       "analyzed": 113,
@@ -69,6 +69,7 @@
         7,
         8
       ],
+      "component_id": "7943a6d4d2f54d29",
       "can_expand": true,
       "components": [
         {
@@ -86,6 +87,7 @@
             "agents/agent.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "725de598a33fe368",
           "can_expand": true,
           "component_id": "4de73b81-339a-43b7-ad33-41ffd6653db9"
         },
@@ -146,9 +148,18 @@
             {
               "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
               "reference_file": "agents/tools/toolkit.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_cfg.GetCFGTool",
+              "reference_file": "agents/tools/read_cfg.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_cfg.ReadFileTool",
+              "reference_file": "agents/tools/read_cfg.py"
             }
           ],
           "assigned_files": [
+            "agents/tools/read_cfg.py",
             "agents/tools/toolkit.py",
             "agents/tools/__init__.py",
             "agents/tools/base.py",
@@ -214,6 +225,7 @@
             "agents/tools/read_structure.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "f7757edeae7391c2",
           "can_expand": true,
           "component_id": "6f028190-6d01-4555-a95a-c6e40d70a77c"
         },
@@ -515,6 +527,7 @@
             "static_analyzer/scanner.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "554981072b4bf816",
           "can_expand": true,
           "component_id": "2b6ae31d-b099-484a-ac0e-28fb70049ece"
         },
@@ -544,6 +557,7 @@
             "static_analyzer/lsp_client/language_settings.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "dbf840cc6bbb6d70",
           "can_expand": true,
           "component_id": "88c32780-1702-4a7f-9b67-cbd8bf02e11f"
         },
@@ -577,6 +591,7 @@
             "static_analyzer/graph.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "99f8810092836f3c",
           "can_expand": true,
           "component_id": "f2f54162-fbc5-4698-b4cf-39904903fb50"
         },
@@ -1027,6 +1042,7 @@
       "source_cluster_ids": [
         2
       ],
+      "component_id": "80717db8c8c6687b",
       "can_expand": true,
       "components": [
         {
@@ -1053,6 +1069,7 @@
             "utils.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "8b435ecc9eb8d501",
           "can_expand": true,
           "component_id": "92d436d2-8585-40aa-912c-42a7a1d0e02c"
         },
@@ -1074,6 +1091,7 @@
             "vscode_constants.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "474286925e05f829",
           "can_expand": true,
           "component_id": "656e8a4c-735d-4d8c-a927-4352176896a6"
         },
@@ -1090,6 +1108,7 @@
             "diagram_analysis/diagram_generator.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "dda4cb878a69f3e6",
           "can_expand": true,
           "component_id": "fcfd9ff5-ea7c-4e37-b759-351ed209c68a"
         },
@@ -1107,6 +1126,7 @@
             "duckdb_crud.py"
           ],
           "source_cluster_ids": [],
+          "component_id": "50146fc928bca254",
           "can_expand": true,
           "component_id": "ccac2f3d-654e-43a9-bed7-fdbf608989b7"
         }
@@ -1193,6 +1213,7 @@
       "source_cluster_ids": [
         17
       ],
+      "component_id": "67763c02b453c9af",
       "can_expand": true,
       "components": [
         {

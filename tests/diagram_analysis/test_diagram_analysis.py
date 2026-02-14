@@ -401,6 +401,72 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
 
+    def test_generate_analysis_uses_root_expandables_for_can_expand(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+        )
+
+        # Prevent pre_analysis from running and avoid manifest writes.
+        gen.abstraction_agent = Mock()
+        gen.details_agent = Mock()
+        gen._save_manifest = Mock()
+
+        comp1 = Component(name="Component1", description="First", key_entities=[], assigned_files=["file1.py"])
+        comp2 = Component(name="Component2", description="Second", key_entities=[], assigned_files=["file2.py"])
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[comp1, comp2],
+            components_relations=[],
+        )
+        assign_component_ids(analysis)
+
+        gen.abstraction_agent.run.return_value = (analysis, {})
+
+        planned = [analysis.components[0]]
+        captured: dict[str, list[Component]] = {}
+
+        def _capture_build(*, analysis, expandable_components, repo_name, sub_analyses, file_coverage_summary=None):
+            captured["expandable_components"] = expandable_components
+            return "{}"
+
+        with patch("diagram_analysis.diagram_generator.plan_analysis", return_value=planned):
+            with patch("diagram_analysis.diagram_generator.build_unified_analysis_json", side_effect=_capture_build):
+                gen.generate_analysis()
+
+        self.assertEqual(
+            [c.component_id for c in captured["expandable_components"]],
+            [planned[0].component_id],
+        )
+
+    @patch("diagram_analysis.diagram_generator.plan_analysis")
+    def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_plan_analysis):
+        comp1 = Component(name="Comp1", description="Component one", key_entities=[], assigned_files=["a.py"])
+        comp2 = Component(name="Comp2", description="Component two", key_entities=[], assigned_files=["b.py"])
+        analysis = AnalysisInsights(description="Root analysis", components=[comp1, comp2], components_relations=[])
+        assign_component_ids(analysis)
+
+        mock_plan_analysis.return_value = analysis.components
+
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.abstraction_agent.run.return_value = (analysis, {})
+
+        gen.generate_analysis()
+
+        written = json.loads((self.output_dir / "analysis.json").read_text())
+        self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
+
 
 if __name__ == "__main__":
     unittest.main()

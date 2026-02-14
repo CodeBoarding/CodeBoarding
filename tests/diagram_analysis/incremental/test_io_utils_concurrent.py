@@ -188,3 +188,73 @@ class TestConcurrentSaveSubAnalysis:
         assert final_data["metadata"]["depth_level"] == 2
         assert len(final_data["components"]) == 3
         assert len(final_data["components_relations"]) == 1
+
+    def test_save_analysis_preserves_nested_can_expand_eligibility(self, tmp_path: Path) -> None:
+        """Nested can_expand should follow planner eligibility, not only existing sub-analysis keys."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        root_id = compute_component_id(ROOT_PARENT_ID, "RootComponent")
+        child_expandable_id = compute_component_id(root_id, "ChildExpandable")
+        child_leaf_id = compute_component_id(root_id, "ChildLeaf")
+
+        root_analysis = AnalysisInsights(
+            description="Root analysis",
+            components=[
+                Component(
+                    name="RootComponent",
+                    component_id=root_id,
+                    description="Root",
+                    key_entities=[],
+                    assigned_files=["src/root.py"],
+                    source_cluster_ids=[1],
+                )
+            ],
+            components_relations=[],
+        )
+
+        root_sub_analysis = AnalysisInsights(
+            description="Sub analysis",
+            components=[
+                Component(
+                    name="ChildExpandable",
+                    component_id=child_expandable_id,
+                    description="Expandable child",
+                    key_entities=[],
+                    assigned_files=["src/child_expandable.py"],
+                    source_cluster_ids=[10],
+                ),
+                Component(
+                    name="ChildLeaf",
+                    component_id=child_leaf_id,
+                    description="Leaf child",
+                    key_entities=[],
+                    assigned_files=[],
+                    source_cluster_ids=[],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        save_analysis(
+            analysis=root_analysis,
+            output_dir=output_dir,
+            expandable_components=[root_id],
+            sub_analyses={root_id: root_sub_analysis},
+            repo_name="test-repo",
+        )
+
+        with open(output_dir / "analysis.json") as f:
+            data = json.load(f)
+
+        root = data["components"][0]
+        assert root["can_expand"] is True
+        assert root["components"] is not None
+
+        child_expandable = next(c for c in root["components"] if c["component_id"] == child_expandable_id)
+        child_leaf = next(c for c in root["components"] if c["component_id"] == child_leaf_id)
+
+        # ChildExpandable is planner-eligible (has clusters) even without its own sub-analysis yet.
+        assert child_expandable["can_expand"] is True
+        assert child_expandable.get("components") is None
+        assert child_leaf["can_expand"] is False

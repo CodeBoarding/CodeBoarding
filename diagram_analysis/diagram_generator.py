@@ -2,44 +2,44 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import Component, AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
-from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.incremental.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
-    save_manifest,
     manifest_exists,
+    save_manifest,
 )
-from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from health.config import initialize_health_dir, load_health_config
+from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
-from health.runner import run_health_checks
-from health.config import initialize_health_dir, load_health_config
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +263,7 @@ class DiagramGenerator:
 
             # Get the initial components to analyze (deterministic, no LLM)
             current_level_components = plan_analysis(analysis)
+            root_expandable_components = list(current_level_components)
             logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
 
             level = 0
@@ -271,7 +272,7 @@ class DiagramGenerator:
             # Track components that were actually expanded (have sub-analysis)
             expanded_components: list[Component] = []
 
-            # Collect all sub-analyses: component_name -> (AnalysisInsights, expandable_sub_components)
+            # Collect all sub-analyses: component_id -> (AnalysisInsights, expandable_sub_components)
             all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
 
             # Process each level of components in parallel
@@ -315,7 +316,7 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.component_id for c in expanded_components],
+                    expandable_components=[c.component_id for c in root_expandable_components],
                     sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                 )
@@ -336,8 +337,8 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    expandable_components=root_expandable_components,
+                    sub_analyses=all_sub_analyses,
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
                 )
