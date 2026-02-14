@@ -5,7 +5,12 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    compute_component_id,
+    ROOT_PARENT_ID,
+)
 from diagram_analysis.incremental.component_checker import (
     is_expanded_component,
     component_has_only_renames,
@@ -14,6 +19,10 @@ from diagram_analysis.incremental.component_checker import (
 )
 from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.manifest import AnalysisManifest
+
+
+COMP_A_ID = compute_component_id(ROOT_PARENT_ID, "ComponentA")
+COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
 
 
 @pytest.fixture
@@ -29,10 +38,10 @@ def sample_manifest() -> AnalysisManifest:
         repo_state_hash="abc1234",
         base_commit="abc1234567890",
         file_to_component={
-            "src/module_a.py": "ComponentA",
-            "src/module_b.py": "ComponentB",
+            "src/module_a.py": COMP_A_ID,
+            "src/module_b.py": COMP_B_ID,
         },
-        expanded_components=["ComponentA"],
+        expanded_components=[COMP_A_ID],
     )
 
 
@@ -62,6 +71,7 @@ def sample_analysis() -> AnalysisInsights:
         components=[
             Component(
                 name="ComponentA",
+                component_id=COMP_A_ID,
                 description="Test component A",
                 key_entities=[],
                 assigned_files=["src/module_a.py"],
@@ -69,6 +79,7 @@ def sample_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentB",
+                component_id=COMP_B_ID,
                 description="Test component B",
                 key_entities=[],
                 assigned_files=["src/module_b.py"],
@@ -84,12 +95,12 @@ class TestIsExpandedComponent:
 
     def test_returns_true_when_in_manifest(self, sample_manifest: AnalysisManifest, temp_output_dir: Path):
         """Test that function returns True when component is in manifest's expanded list."""
-        result = is_expanded_component("ComponentA", sample_manifest, temp_output_dir)
+        result = is_expanded_component(COMP_A_ID, sample_manifest, temp_output_dir)
         assert result is True
 
     def test_returns_false_when_not_in_manifest(self, sample_manifest: AnalysisManifest, temp_output_dir: Path):
         """Test that function returns False when component is not in manifest's expanded list."""
-        result = is_expanded_component("ComponentB", sample_manifest, temp_output_dir)
+        result = is_expanded_component(COMP_B_ID, sample_manifest, temp_output_dir)
         assert result is False
 
     @patch("diagram_analysis.incremental.component_checker.load_sub_analysis")
@@ -97,12 +108,12 @@ class TestIsExpandedComponent:
         """Test that function returns True when sub-analysis exists in unified file (fallback check)."""
         mock_load.return_value = AnalysisInsights(description="Sub", components=[], components_relations=[])
 
-        result = is_expanded_component("ComponentA", None, temp_output_dir)
+        result = is_expanded_component(COMP_A_ID, None, temp_output_dir)
         assert result is True
 
     def test_returns_false_when_no_manifest_and_no_file(self, temp_output_dir: Path):
         """Test that function returns False when no manifest and no file exists."""
-        result = is_expanded_component("ComponentA", None, temp_output_dir)
+        result = is_expanded_component(COMP_A_ID, None, temp_output_dir)
         assert result is False
 
     @patch("diagram_analysis.incremental.component_checker.load_sub_analysis")
@@ -119,17 +130,17 @@ class TestComponentHasOnlyRenames:
 
     def test_returns_false_with_no_impact(self, sample_manifest: AnalysisManifest):
         """Test that function returns False when no impact is provided."""
-        result = component_has_only_renames("ComponentA", sample_manifest, None)
+        result = component_has_only_renames(COMP_A_ID, sample_manifest, None)
         assert result is False
 
     def test_returns_false_with_no_manifest(self, sample_impact: ChangeImpact):
         """Test that function returns False when no manifest is provided."""
-        result = component_has_only_renames("ComponentA", None, sample_impact)
+        result = component_has_only_renames(COMP_A_ID, None, sample_impact)
         assert result is False
 
     def test_returns_false_when_no_changes(self, sample_manifest: AnalysisManifest, sample_impact: ChangeImpact):
         """Test that function returns False when no structural changes exist."""
-        result = component_has_only_renames("ComponentA", sample_manifest, sample_impact)
+        result = component_has_only_renames(COMP_A_ID, sample_manifest, sample_impact)
         assert result is False
 
     def test_returns_true_for_rename_only(self, sample_manifest: AnalysisManifest):
@@ -139,7 +150,7 @@ class TestComponentHasOnlyRenames:
             deleted_files=["src/module_a.py"],
             modified_files=["src/module_a_new.py"],
             renames={"src/module_a.py": "src/module_a_new.py"},
-            dirty_components={"ComponentA"},
+            dirty_components={COMP_A_ID},
             components_needing_reexpansion=set(),
             cross_boundary_changes=[],
             architecture_dirty=False,
@@ -148,7 +159,7 @@ class TestComponentHasOnlyRenames:
             reason="Only renames",
         )
 
-        result = component_has_only_renames("ComponentA", sample_manifest, impact)
+        result = component_has_only_renames(COMP_A_ID, sample_manifest, impact)
         assert result is True
 
     def test_returns_false_for_true_deletion(self, sample_manifest: AnalysisManifest):
@@ -158,7 +169,7 @@ class TestComponentHasOnlyRenames:
             deleted_files=["src/module_a.py"],
             modified_files=[],
             renames={},
-            dirty_components={"ComponentA"},
+            dirty_components={COMP_A_ID},
             components_needing_reexpansion=set(),
             cross_boundary_changes=[],
             architecture_dirty=False,
@@ -167,7 +178,7 @@ class TestComponentHasOnlyRenames:
             reason="File deleted",
         )
 
-        result = component_has_only_renames("ComponentA", sample_manifest, impact)
+        result = component_has_only_renames(COMP_A_ID, sample_manifest, impact)
         assert result is False
 
     def test_returns_false_for_mixed_changes(self, sample_manifest: AnalysisManifest):
@@ -177,7 +188,7 @@ class TestComponentHasOnlyRenames:
             deleted_files=["src/module_a.py"],
             modified_files=["src/module_a_new.py", "src/module_b.py"],
             renames={"src/module_a.py": "src/module_a_new.py"},
-            dirty_components={"ComponentA", "ComponentB"},
+            dirty_components={COMP_A_ID, COMP_B_ID},
             components_needing_reexpansion=set(),
             cross_boundary_changes=[],
             architecture_dirty=False,
@@ -186,7 +197,7 @@ class TestComponentHasOnlyRenames:
             reason="Mixed changes",
         )
 
-        result = component_has_only_renames("ComponentB", sample_manifest, impact)
+        result = component_has_only_renames(COMP_B_ID, sample_manifest, impact)
         assert result is False
 
 
@@ -200,7 +211,7 @@ class TestCanPatchSubAnalysis:
         temp_output_dir: Path,
     ):
         """Test that function returns False when no analysis is provided."""
-        result = can_patch_sub_analysis("ComponentA", sample_manifest, sample_impact, temp_output_dir, None)
+        result = can_patch_sub_analysis(COMP_A_ID, sample_manifest, sample_impact, temp_output_dir, None)
         assert result is False
 
     def test_returns_false_with_no_manifest(
@@ -210,7 +221,7 @@ class TestCanPatchSubAnalysis:
         temp_output_dir: Path,
     ):
         """Test that function returns False when no manifest is provided."""
-        result = can_patch_sub_analysis("ComponentA", None, sample_impact, temp_output_dir, sample_analysis)
+        result = can_patch_sub_analysis(COMP_A_ID, None, sample_impact, temp_output_dir, sample_analysis)
         assert result is False
 
     def test_returns_false_when_component_not_found(
@@ -239,7 +250,7 @@ class TestCanPatchSubAnalysis:
     ):
         """Test that function returns False when sub-analysis file doesn't exist."""
         result = can_patch_sub_analysis(
-            "ComponentA",
+            COMP_A_ID,
             sample_manifest,
             sample_impact,
             temp_output_dir,
@@ -262,7 +273,7 @@ class TestCanPatchSubAnalysis:
         mock_load.return_value = None
 
         result = can_patch_sub_analysis(
-            "ComponentA",
+            COMP_A_ID,
             sample_manifest,
             sample_impact,
             temp_output_dir,
@@ -303,8 +314,8 @@ class TestCanPatchSubAnalysis:
             deleted_files=["src/module_a.py"],
             modified_files=[],
             renames={},
-            dirty_components={"ComponentA"},
-            components_needing_reexpansion={"ComponentA"},
+            dirty_components={COMP_A_ID},
+            components_needing_reexpansion={COMP_A_ID},
             cross_boundary_changes=[],
             architecture_dirty=False,
             unassigned_files=[],
@@ -312,7 +323,7 @@ class TestCanPatchSubAnalysis:
             reason="File deleted",
         )
 
-        result = can_patch_sub_analysis("ComponentA", sample_manifest, impact, temp_output_dir, sample_analysis)
+        result = can_patch_sub_analysis(COMP_A_ID, sample_manifest, impact, temp_output_dir, sample_analysis)
         assert result is False
 
     @patch("diagram_analysis.incremental.component_checker.load_sub_analysis")
@@ -356,7 +367,7 @@ class TestCanPatchSubAnalysis:
             reason="Only renames",
         )
 
-        result = can_patch_sub_analysis("ComponentA", sample_manifest, impact, temp_output_dir, sample_analysis)
+        result = can_patch_sub_analysis(COMP_A_ID, sample_manifest, impact, temp_output_dir, sample_analysis)
         assert result is True
 
 
@@ -365,12 +376,12 @@ class TestSubcomponentHasOnlyRenames:
 
     def test_returns_false_with_no_impact(self, sample_analysis: AnalysisInsights):
         """Test that function returns False when no impact is provided."""
-        result = subcomponent_has_only_renames("ComponentA", sample_analysis, None)
+        result = subcomponent_has_only_renames(COMP_A_ID, sample_analysis, None)
         assert result is False
 
     def test_returns_false_when_no_changes(self, sample_analysis: AnalysisInsights, sample_impact: ChangeImpact):
         """Test that function returns False when no structural changes exist."""
-        result = subcomponent_has_only_renames("ComponentA", sample_analysis, sample_impact)
+        result = subcomponent_has_only_renames(COMP_A_ID, sample_analysis, sample_impact)
         assert result is False
 
     def test_returns_true_for_rename_only(self, sample_analysis: AnalysisInsights):
@@ -389,7 +400,7 @@ class TestSubcomponentHasOnlyRenames:
             reason="Only renames",
         )
 
-        result = subcomponent_has_only_renames("ComponentA", sample_analysis, impact)
+        result = subcomponent_has_only_renames(COMP_A_ID, sample_analysis, impact)
         assert result is True
 
     def test_returns_false_for_true_deletion(self, sample_analysis: AnalysisInsights):
@@ -408,5 +419,5 @@ class TestSubcomponentHasOnlyRenames:
             reason="File deleted",
         )
 
-        result = subcomponent_has_only_renames("ComponentA", sample_analysis, impact)
+        result = subcomponent_has_only_renames(COMP_A_ID, sample_analysis, impact)
         assert result is False

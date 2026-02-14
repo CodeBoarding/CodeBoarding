@@ -70,16 +70,16 @@ class _AnalysisFileStore:
         result = self.read()
         return result[0] if result else None
 
-    def read_sub(self, component_name: str) -> AnalysisInsights | None:
-        """Load a sub-analysis for a specific component."""
+    def read_sub(self, component_id: str) -> AnalysisInsights | None:
+        """Load a sub-analysis for a specific component by component_id."""
         result = self.read()
         if result is None:
             return None
 
         _, sub_analyses, _ = result
-        sub = sub_analyses.get(component_name)
+        sub = sub_analyses.get(component_id)
         if sub is None:
-            logger.debug(f"No sub-analysis found for component '{component_name}' in unified analysis")
+            logger.debug(f"No sub-analysis found for component ID '{component_id}' in unified analysis")
         return sub
 
     def write(
@@ -103,13 +103,13 @@ class _AnalysisFileStore:
     def write_sub(
         self,
         sub_analysis: AnalysisInsights,
-        component_name: str,
+        component_id: str,
         expandable_components: list[str] | None = None,
     ) -> Path:
         """Update a single sub-analysis within ``analysis.json``.
 
         Acquires the file lock, loads the existing unified file, replaces the
-        sub-analysis for *component_name*, and re-writes the whole file.
+        sub-analysis for *component_id*, and re-writes the whole file.
         """
         with self._lock:
             existing = self.read()
@@ -120,7 +120,7 @@ class _AnalysisFileStore:
             root_analysis, sub_analyses, raw_data = existing
 
             # Update the sub-analysis for this component
-            sub_analyses[component_name] = sub_analysis
+            sub_analyses[component_id] = sub_analysis
 
             # Determine repo_name from existing metadata
             repo_name = ""
@@ -133,13 +133,13 @@ class _AnalysisFileStore:
             return self._write_with_lock_held(root_analysis, all_expandable, sub_analyses, repo_name)
 
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
-        """Find components that have sub-analyses in the unified ``analysis.json``."""
+        """Find component IDs that have sub-analyses in the unified ``analysis.json``."""
         result = self.read()
         if result is None:
             return []
 
         _, sub_analyses, _ = result
-        return [c.name for c in analysis.components if c.name in sub_analyses]
+        return [c.component_id for c in analysis.components if c.component_id in sub_analyses]
 
     def _write_with_lock_held(
         self,
@@ -153,7 +153,7 @@ class _AnalysisFileStore:
         # Build expandable component list
         expandable: list[Component] = []
         if expandable_components:
-            expandable = [c for c in analysis.components if c.name in expandable_components]
+            expandable = [c for c in analysis.components if c.component_id in expandable_components]
 
         # If no sub_analyses provided, try to preserve existing ones from disk
         if sub_analyses is None:
@@ -168,9 +168,9 @@ class _AnalysisFileStore:
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
             sub_analyses_tuples = {}
-            for name, sub in sub_analyses.items():
-                sub_expandable = [c for c in sub.components if c.name in sub_analyses]
-                sub_analyses_tuples[name] = (sub, sub_expandable)
+            for cid, sub in sub_analyses.items():
+                sub_expandable = [c for c in sub.components if c.component_id in sub_analyses]
+                sub_analyses_tuples[cid] = (sub, sub_expandable)
 
         with open(self._analysis_path, "w") as f:
             f.write(
@@ -223,16 +223,16 @@ def save_analysis(
     return _get_store(output_dir).write(analysis, expandable_components, sub_analyses, repo_name, file_coverage_summary)
 
 
-def load_sub_analysis(output_dir: Path, component_name: str) -> AnalysisInsights | None:
+def load_sub_analysis(output_dir: Path, component_id: str) -> AnalysisInsights | None:
     """Load a sub-analysis for a component from the unified analysis.json."""
-    return _get_store(output_dir).read_sub(component_name)
+    return _get_store(output_dir).read_sub(component_id)
 
 
 def save_sub_analysis(
     sub_analysis: AnalysisInsights,
     output_dir: Path,
-    component_name: str,
+    component_id: str,
     expandable_components: list[str] | None = None,
 ) -> Path:
     """Save/update a sub-analysis for a component in the unified analysis.json."""
-    return _get_store(output_dir).write_sub(sub_analysis, component_name, expandable_components)
+    return _get_store(output_dir).write_sub(sub_analysis, component_id, expandable_components)

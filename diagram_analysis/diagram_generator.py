@@ -91,7 +91,7 @@ class DiagramGenerator:
             # Get new components to analyze (deterministic, no LLM)
             new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
 
-            return component.name, analysis, new_components
+            return component.component_id, analysis, new_components
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -298,12 +298,9 @@ class DiagramGenerator:
                     ):
                         component = future_to_component[future]
                         try:
-                            comp_name, sub_analysis, new_components = future.result()
-                            if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (
-                                    sub_analysis,
-                                    new_components,
-                                )
+                            comp_id, sub_analysis, new_components = future.result()
+                            if comp_id and sub_analysis:
+                                all_sub_analyses[comp_id] = (sub_analysis, new_components)
                                 expanded_components.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
@@ -318,8 +315,8 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    expandable_components=[c.component_id for c in expanded_components],
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                 )
 
@@ -363,7 +360,7 @@ class DiagramGenerator:
             repo_state_hash = get_repo_state_hash(self.repo_location)
             base_commit = get_git_commit_hash(self.repo_location)
 
-            expanded_names = [c.name for c in expanded_components]
+            expanded_names = [c.component_id for c in expanded_components]
 
             manifest = build_manifest_from_analysis(
                 analysis=analysis,

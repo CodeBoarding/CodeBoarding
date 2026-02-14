@@ -30,7 +30,7 @@ def generated_mermaid_str(
     # Linking to other files.
     for comp in analysis.components:
         node_id = sanitize(comp.name)
-        if comp.name in expanded_components:
+        if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
                 lines.append(f'      click {node_id} href "{repo_ref}/{node_id}.html" "Details"')
@@ -96,7 +96,7 @@ def generate_rst(
     root_dir = os.path.join(repo_root, project) if repo_root else project
 
     for comp in insights.components:
-        lines.append(component_header(comp.name, expanded_components))
+        lines.append(component_header(comp.name, comp.component_id, expanded_components))
         lines.append("")
         lines.append(comp.description)
         lines.append("")
@@ -160,7 +160,7 @@ def generate_rst_file(
     return rst_file
 
 
-def component_header(component_name: str, expanded_components: set[str]) -> str:
+def component_header(component_name: str, component_id: str, expanded_components: set[str]) -> str:
     """
     Generate a header for a component with its name and a reference to its details.
     """
@@ -168,7 +168,7 @@ def component_header(component_name: str, expanded_components: set[str]) -> str:
     header_text = component_name
     header_underline = "^" * len(header_text)
 
-    if component_name in expanded_components:
+    if component_id in expanded_components:
         return f"{header_text}\n{header_underline}\n\n:ref:`Expand <{sanitized_name}>`"
     else:
         return f"{header_text}\n{header_underline}"

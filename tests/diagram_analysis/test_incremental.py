@@ -23,7 +23,18 @@ from repo_utils.change_detector import (
     DetectedChange,
     _parse_status_line,
 )
-from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    SourceCodeReference,
+    compute_component_id,
+    ROOT_PARENT_ID,
+)
+
+
+COMP_A_ID = compute_component_id(ROOT_PARENT_ID, "ComponentA")
+COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
 
 
 @pytest.fixture
@@ -34,6 +45,7 @@ def sample_analysis() -> AnalysisInsights:
         components=[
             Component(
                 name="ComponentA",
+                component_id=COMP_A_ID,
                 description="First component",
                 key_entities=[
                     SourceCodeReference(
@@ -48,6 +60,7 @@ def sample_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentB",
+                component_id=COMP_B_ID,
                 description="Second component",
                 key_entities=[
                     SourceCodeReference(
@@ -72,7 +85,7 @@ def sample_manifest(sample_analysis: AnalysisInsights) -> AnalysisManifest:
         analysis=sample_analysis,
         repo_state_hash="abc1234_deadbeef",
         base_commit="abc1234567890",
-        expanded_components=["ComponentA"],
+        expanded_components=[COMP_A_ID],
     )
 
 
@@ -87,18 +100,18 @@ class TestManifest:
         assert manifest.repo_state_hash == "test_hash"
         assert manifest.base_commit == "test_commit"
         assert len(manifest.file_to_component) == 3
-        assert manifest.file_to_component["src/module_a.py"] == "ComponentA"
-        assert manifest.file_to_component["src/module_b.py"] == "ComponentB"
+        assert manifest.file_to_component["src/module_a.py"] == COMP_A_ID
+        assert manifest.file_to_component["src/module_b.py"] == COMP_B_ID
 
     def test_get_component_for_file(self, sample_manifest: AnalysisManifest):
-        assert sample_manifest.get_component_for_file("src/module_a.py") == "ComponentA"
-        assert sample_manifest.get_component_for_file("src/module_b.py") == "ComponentB"
+        assert sample_manifest.get_component_for_file("src/module_a.py") == COMP_A_ID
+        assert sample_manifest.get_component_for_file("src/module_b.py") == COMP_B_ID
         assert sample_manifest.get_component_for_file("nonexistent.py") is None
 
     def test_update_file_path(self, sample_manifest: AnalysisManifest):
         result = sample_manifest.update_file_path("src/module_a.py", "src/renamed_a.py")
         assert result is True
-        assert sample_manifest.get_component_for_file("src/renamed_a.py") == "ComponentA"
+        assert sample_manifest.get_component_for_file("src/renamed_a.py") == COMP_A_ID
         assert sample_manifest.get_component_for_file("src/module_a.py") is None
 
     def test_save_and_load_manifest(self, sample_manifest: AnalysisManifest, tmp_path: Path):
@@ -179,7 +192,7 @@ class TestImpactAnalysis:
         impact = analyze_impact(changes, sample_manifest)
 
         assert impact.action == UpdateAction.PATCH_PATHS
-        assert "ComponentA" in impact.dirty_components
+        assert COMP_A_ID in impact.dirty_components
         assert impact.renames == {"src/module_a.py": "src/renamed_a.py"}
 
     def test_modified_file_action(self, sample_manifest: AnalysisManifest):
@@ -187,7 +200,7 @@ class TestImpactAnalysis:
         impact = analyze_impact(changes, sample_manifest)
 
         assert impact.action == UpdateAction.UPDATE_COMPONENTS
-        assert "ComponentA" in impact.dirty_components
+        assert COMP_A_ID in impact.dirty_components
 
     def test_new_file_unassigned(self, sample_manifest: AnalysisManifest):
         changes = ChangeSet(changes=[DetectedChange(ChangeType.ADDED, "src/new_module.py")])
@@ -212,7 +225,7 @@ class TestPathPatching:
         renames = {"src/module_a.py": "src/renamed_a.py"}
         patched = patch_paths_in_manifest(sample_manifest, renames)
 
-        assert patched.get_component_for_file("src/renamed_a.py") == "ComponentA"
+        assert patched.get_component_for_file("src/renamed_a.py") == COMP_A_ID
         assert patched.get_component_for_file("src/module_a.py") is None
 
 
@@ -234,8 +247,8 @@ class TestBugFixes:
             repo_state_hash="test",
             base_commit="abc123",
             file_to_component={
-                "src/old_name.py": "ComponentA",
-                "src/module_b.py": "ComponentB",
+                "src/old_name.py": COMP_A_ID,
+                "src/module_b.py": COMP_B_ID,
             },
             expanded_components=[],
         )
@@ -244,6 +257,7 @@ class TestBugFixes:
             components=[
                 Component(
                     name="ComponentA",
+                    component_id=COMP_A_ID,
                     description="A",
                     key_entities=[],
                     assigned_files=["src/old_name.py"],
@@ -251,6 +265,7 @@ class TestBugFixes:
                 ),
                 Component(
                     name="ComponentB",
+                    component_id=COMP_B_ID,
                     description="B",
                     key_entities=[],
                     assigned_files=["src/module_b.py"],
@@ -264,7 +279,7 @@ class TestBugFixes:
             modified_files=[],
             added_files=[],
             deleted_files=[],
-            dirty_components={"ComponentA"},
+            dirty_components={COMP_A_ID},
             components_needing_reexpansion=set(),
         )
 
@@ -277,11 +292,11 @@ class TestBugFixes:
         updater.recompute_dirty_components(mock_static)
 
         # ComponentA should still be dirty (old_name.py maps to it via manifest)
-        assert "ComponentA" in updater.impact.dirty_components
+        assert COMP_A_ID in updater.impact.dirty_components
         # The rename new path "src/new_name.py" should NOT have caused
         # ComponentB (or any other component) to be incorrectly added
         # Only ComponentA should be dirty since only old_name.py is in the manifest
-        assert "ComponentB" not in updater.impact.dirty_components
+        assert COMP_B_ID not in updater.impact.dirty_components
 
     def test_filter_changes_for_scope_strict_membership(self):
         """Bug 3: _filter_changes_for_scope should only include changes for files

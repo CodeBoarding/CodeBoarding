@@ -10,9 +10,11 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
+    assign_component_ids,
 )
 from diagram_analysis.analysis_json import (
     ComponentJson,
+    RelationJson,
     UnifiedAnalysisJson,
     from_analysis_to_json,
     from_component_to_json_component,
@@ -53,6 +55,7 @@ class TestComponentJson(unittest.TestCase):
         # Test creating a ComponentJson instance
         comp = ComponentJson(
             name="TestComponent",
+            component_id="test_comp_id",
             description="Test description",
             can_expand=True,
             assigned_files=["file1.py", "file2.py"],
@@ -68,6 +71,7 @@ class TestComponentJson(unittest.TestCase):
         # Test default values
         comp = ComponentJson(
             name="Component",
+            component_id="comp_defaults_id",
             description="Description",
             key_entities=[],
         )
@@ -80,7 +84,9 @@ class TestComponentJson(unittest.TestCase):
         ref = SourceCodeReference(
             qualified_name="test.TestClass", reference_file="test.py", reference_start_line=1, reference_end_line=10
         )
-        comp = ComponentJson(name="Component", description="Description", key_entities=[ref])
+        comp = ComponentJson(
+            name="Component", component_id="comp_ref_id", description="Description", key_entities=[ref]
+        )
 
         self.assertEqual(len(comp.key_entities), 1)
         self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
@@ -91,9 +97,9 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test creating a UnifiedAnalysisJson instance
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp1 = ComponentJson(name="Comp1", description="Description 1", key_entities=[])
-        comp2 = ComponentJson(name="Comp2", description="Description 2", key_entities=[])
-        rel = Relation(src_name="Comp1", dst_name="Comp2", relation="uses")
+        comp1 = ComponentJson(name="Comp1", component_id="comp1_id", description="Description 1", key_entities=[])
+        comp2 = ComponentJson(name="Comp2", component_id="comp2_id", description="Description 2", key_entities=[])
+        rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
@@ -111,7 +117,7 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test serialization
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp = ComponentJson(name="Comp", description="Description", key_entities=[])
+        comp = ComponentJson(name="Comp", component_id="comp_dump_id", description="Description", key_entities=[])
         analysis = UnifiedAnalysisJson(
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test",
@@ -149,6 +155,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             components=[self.comp1, self.comp2],
             components_relations=[self.rel],
         )
+        assign_component_ids(self.analysis)
 
     def test_from_component_to_json_component_can_expand_true(self):
         # Test when component can be expanded

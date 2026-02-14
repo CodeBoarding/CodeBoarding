@@ -9,7 +9,17 @@ from diagram_analysis.incremental.file_manager import (
     get_new_files_for_component,
 )
 from diagram_analysis.manifest import AnalysisManifest, build_manifest_from_analysis
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    SourceCodeReference,
+    compute_component_id,
+    ROOT_PARENT_ID,
+)
+
+
+COMP_A_ID = compute_component_id(ROOT_PARENT_ID, "ComponentA")
+COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
 
 
 @pytest.fixture
@@ -20,6 +30,7 @@ def sample_analysis() -> AnalysisInsights:
         components=[
             Component(
                 name="ComponentA",
+                component_id=COMP_A_ID,
                 description="First component",
                 key_entities=[
                     SourceCodeReference(
@@ -34,6 +45,7 @@ def sample_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentB",
+                component_id=COMP_B_ID,
                 description="Second component",
                 key_entities=[
                     SourceCodeReference(
@@ -58,7 +70,7 @@ def sample_manifest(sample_analysis: AnalysisInsights) -> AnalysisManifest:
         analysis=sample_analysis,
         repo_state_hash="abc1234_deadbeef",
         base_commit="abc1234567890",
-        expanded_components=["ComponentA"],
+        expanded_components=[COMP_A_ID],
     )
 
 
@@ -71,9 +83,9 @@ class TestAssignNewFiles:
 
         result = assign_new_files(new_files, sample_analysis, sample_manifest)
 
-        assert "ComponentA" in result
+        assert COMP_A_ID in result
         assert "src/new_file.py" in sample_analysis.components[0].assigned_files
-        assert sample_manifest.file_to_component["src/new_file.py"] == "ComponentA"
+        assert sample_manifest.file_to_component["src/new_file.py"] == COMP_A_ID
 
     def test_assign_new_files_skip_test_files(self, sample_analysis, sample_manifest):
         """Test that test files are skipped based on should_skip_file patterns."""
@@ -90,8 +102,8 @@ class TestAssignNewFiles:
 
         result = assign_new_files(new_files, sample_analysis, sample_manifest)
 
-        assert "ComponentA" in result
-        assert "ComponentB" in result
+        assert COMP_A_ID in result
+        assert COMP_B_ID in result
         assert "src/another_a.py" in sample_analysis.components[0].assigned_files
         assert "lib/another_b.py" in sample_analysis.components[1].assigned_files
 
@@ -151,7 +163,7 @@ class TestGetNewFilesForComponent:
         """Test retrieving new files for an existing component."""
         added_files = ["src/module_a.py", "src/new_file.py", "lib/module_b.py"]
 
-        result = get_new_files_for_component("ComponentA", added_files, sample_analysis)
+        result = get_new_files_for_component(COMP_A_ID, added_files, sample_analysis)
 
         assert "src/module_a.py" in result
         assert "src/new_file.py" not in result  # Not in component's assigned_files
@@ -169,6 +181,6 @@ class TestGetNewFilesForComponent:
         # Test with absolute-like path that ends with relative path
         added_files = ["/full/path/src/module_a.py"]
 
-        result = get_new_files_for_component("ComponentA", added_files, sample_analysis)
+        result = get_new_files_for_component(COMP_A_ID, added_files, sample_analysis)
 
         assert "/full/path/src/module_a.py" in result

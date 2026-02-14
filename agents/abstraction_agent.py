@@ -9,6 +9,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
     MetaAnalysisInsights,
+    assign_component_ids,
 )
 from agents.prompts import (
     get_system_message,
@@ -137,5 +138,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._ensure_unique_key_entities(analysis)
         # Step 7: Ensure unique file assignments across components
         self._ensure_unique_file_assignments(analysis)
+        # Step 8: Assign deterministic component IDs
+        assign_component_ids(analysis)
 
         return analysis, cluster_results

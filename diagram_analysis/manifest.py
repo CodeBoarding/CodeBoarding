@@ -18,7 +18,7 @@ from agents.agent_responses import AnalysisInsights
 logger = logging.getLogger(__name__)
 
 MANIFEST_FILENAME = "analysis_manifest.json"
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
 
 
 class AnalysisManifest(BaseModel):
@@ -30,22 +30,22 @@ class AnalysisManifest(BaseModel):
     repo_state_hash: str = Field(description="Hash from get_repo_state_hash()")
     base_commit: str = Field(description="Commit hash at time of analysis")
 
-    # Core lookup: file path (relative) -> component name
+    # Core lookup: file path (relative) -> component_id
     file_to_component: dict[str, str] = Field(default_factory=dict)
 
-    # Track which components have sub-analysis JSONs
+    # Track which components have sub-analysis JSONs (by component_id)
     expanded_components: list[str] = Field(default_factory=list)
 
     def get_component_for_file(self, file_path: str) -> str | None:
-        """Get the component that owns a file."""
+        """Get the component_id that owns a file."""
         return self.file_to_component.get(file_path)
 
-    def get_files_for_component(self, component_name: str) -> list[str]:
+    def get_files_for_component(self, component_id: str) -> list[str]:
         """Get all files belonging to a component."""
-        return [f for f, c in self.file_to_component.items() if c == component_name]
+        return [f for f, c in self.file_to_component.items() if c == component_id]
 
     def get_all_components(self) -> set[str]:
-        """Get set of all component names."""
+        """Get set of all component IDs."""
         return set(self.file_to_component.values())
 
     def update_file_path(self, old_path: str, new_path: str) -> bool:
@@ -62,9 +62,9 @@ class AnalysisManifest(BaseModel):
         """Remove a file from the manifest. Returns component name if found."""
         return self.file_to_component.pop(file_path, None)
 
-    def add_file(self, file_path: str, component_name: str) -> None:
+    def add_file(self, file_path: str, component_id: str) -> None:
         """Add a new file to a component."""
-        self.file_to_component[file_path] = component_name
+        self.file_to_component[file_path] = component_id
 
 
 def build_manifest_from_analysis(
@@ -80,7 +80,7 @@ def build_manifest_from_analysis(
         analysis: The analysis containing components with assigned_files
         repo_state_hash: Current repo state hash
         base_commit: Current commit hash
-        expanded_components: List of component names that have sub-analysis JSONs
+        expanded_components: List of component IDs that have sub-analysis JSONs
 
     Returns:
         AnalysisManifest with file_to_component mapping
@@ -91,7 +91,7 @@ def build_manifest_from_analysis(
         for file_path in component.assigned_files:
             # Normalize path (remove leading ./ if present)
             normalized_path = file_path.lstrip("./")
-            file_to_component[normalized_path] = component.name
+            file_to_component[normalized_path] = component.component_id
 
     return AnalysisManifest(
         repo_state_hash=repo_state_hash,

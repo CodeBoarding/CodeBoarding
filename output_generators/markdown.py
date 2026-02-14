@@ -26,7 +26,7 @@ def generated_mermaid_str(
     # Linking to other files.
     for comp in analysis.components:
         node_id = sanitize(comp.name)
-        if comp.name in expanded_components:
+        if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
                 lines.append(f'    click {node_id} href "{repo_ref}/{node_id}.md" "Details"')
@@ -62,7 +62,7 @@ def generate_markdown(
     root_dir = os.path.join(repo_root, project) if repo_root else project
 
     for comp in insights.components:
-        detail_lines.append(component_header(comp.name, expanded_components))
+        detail_lines.append(component_header(comp.name, comp.component_id, expanded_components))
         detail_lines.append(f"{comp.description}")
         if comp.key_entities:
             qn_list = []
@@ -120,12 +120,12 @@ def generate_markdown_file(
     return markdown_file
 
 
-def component_header(component_name: str, expanded_components: set[str]) -> str:
+def component_header(component_name: str, component_id: str, expanded_components: set[str]) -> str:
     """
     Generate a header for a component with its name and a link to its details.
     """
     sanitized_name = sanitize(component_name)
-    if component_name in expanded_components:
+    if component_id in expanded_components:
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"

@@ -8,6 +8,7 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
+    assign_component_ids,
 )
 from utils import sanitize
 from output_generators.html import (
@@ -66,6 +67,7 @@ class TestMarkdownGenerator(unittest.TestCase):
             components=[self.comp1, self.comp2],
             components_relations=[self.rel1],
         )
+        assign_component_ids(self.insights)
 
     def test_generated_mermaid_str_basic(self):
         # Test basic mermaid string generation
@@ -81,14 +83,14 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_generated_mermaid_str_with_links(self):
         # Test with expanded components
-        expanded = {"Authentication"}
+        expanded = {self.comp1.component_id}
         result = generated_mermaid_str(self.insights, expanded_components=expanded, repo_ref="/repo", project="test")
 
         self.assertIn('click Authentication href "/repo/Authentication.md"', result)
 
     def test_generated_mermaid_str_demo_mode(self):
         # Test demo mode links
-        expanded = {"Authentication"}
+        expanded = {self.comp1.component_id}
         result = generated_mermaid_str(
             self.insights, expanded_components=expanded, repo_ref="", project="myproject", demo=True
         )
@@ -149,8 +151,8 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        expanded = {"TestComponent"}
-        result = component_header("TestComponent", expanded)
+        expanded = {"test_comp_id"}  # matches the component_id passed below
+        result = component_header("TestComponent", "test_comp_id", expanded)
 
         self.assertIn("TestComponent", result)
         self.assertIn("[[Expand]]", result)
@@ -158,7 +160,7 @@ class TestMarkdownGenerator(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("TestComponent", set())
+        result = component_header("TestComponent", "test_comp_id", set())
 
         self.assertIn("TestComponent", result)
         self.assertNotIn("[[Expand]]", result)
@@ -184,6 +186,7 @@ class TestHTMLGenerator(unittest.TestCase):
             components=[self.comp1, self.comp2],
             components_relations=[self.rel1],
         )
+        assign_component_ids(self.insights)
 
     def test_generate_cytoscape_data(self):
         # Test Cytoscape data generation
@@ -202,7 +205,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_cytoscape_data_with_links(self):
         # Test with expanded components
-        expanded = {"Authentication"}
+        expanded = {self.comp1.component_id}
         result = generate_cytoscape_data(self.insights, expanded_components=expanded, project="test", demo=False)
 
         # Find the Authentication node
@@ -214,7 +217,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_generate_cytoscape_data_demo_mode(self):
         # Test demo mode
-        expanded = {"Authentication"}
+        expanded = {self.comp1.component_id}
         result = generate_cytoscape_data(self.insights, expanded_components=expanded, project="myproject", demo=True)
 
         auth_node = next(elem for elem in result["elements"] if elem["data"]["id"] == "Authentication")
@@ -291,8 +294,8 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_component_header_html_with_link(self):
         # Test HTML component header with link
-        expanded = {"TestComponent"}
-        result = component_header_html("TestComponent", expanded)
+        expanded = {"test_comp_id"}
+        result = component_header_html("TestComponent", "test_comp_id", expanded)
 
         self.assertIn("TestComponent", result)
         self.assertIn("[Expand]", result)
@@ -300,7 +303,7 @@ class TestHTMLGenerator(unittest.TestCase):
 
     def test_component_header_html_without_link(self):
         # Test HTML component header without link
-        result = component_header_html("TestComponent", set())
+        result = component_header_html("TestComponent", "test_comp_id", set())
 
         self.assertIn("TestComponent", result)
         self.assertNotIn("[Expand]", result)

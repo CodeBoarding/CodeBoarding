@@ -10,6 +10,7 @@ from agents.agent_responses import (
     ClusterAnalysis,
     Component,
     MetaAnalysisInsights,
+    assign_component_ids,
 )
 from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
@@ -166,5 +167,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 7: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
+        # Step 8: Assign deterministic component IDs based on parent
+        assign_component_ids(analysis, parent_id=component.component_id)
 
         return analysis, subgraph_cluster_results

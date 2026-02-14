@@ -11,8 +11,21 @@ from pathlib import Path
 
 import pytest
 
-from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    SourceCodeReference,
+    compute_component_id,
+    ROOT_PARENT_ID,
+)
 from diagram_analysis.incremental.io_utils import save_analysis, save_sub_analysis, load_sub_analysis
+
+
+COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_C_ID = compute_component_id(ROOT_PARENT_ID, "ComponentC")
+COMP_D_ID = compute_component_id(ROOT_PARENT_ID, "ComponentD")
+NAME_TO_ID = {"ComponentB": COMP_B_ID, "ComponentC": COMP_C_ID, "ComponentD": COMP_D_ID}
 
 
 def _make_sub_analysis(component_name: str) -> AnalysisInsights:
@@ -39,7 +52,7 @@ def _make_sub_analysis(component_name: str) -> AnalysisInsights:
     )
 
 
-def _worker_save_sub_analysis(output_dir: str, component_name: str, barrier_parties: int) -> None:
+def _worker_save_sub_analysis(output_dir: str, component_name: str, component_id: str, barrier_parties: int) -> None:
     """Worker function that runs in a separate process.
 
     Uses a Barrier so all workers attempt save_sub_analysis at roughly the same time,
@@ -48,7 +61,7 @@ def _worker_save_sub_analysis(output_dir: str, component_name: str, barrier_part
     # Recreate the sub-analysis in this process (can't pickle AnalysisInsights reliably across processes)
     sub_analysis = _make_sub_analysis(component_name)
     # Each process gets its own fresh cache — no stale data
-    save_sub_analysis(sub_analysis, Path(output_dir), component_name)
+    save_sub_analysis(sub_analysis, Path(output_dir), component_id)
 
 
 @pytest.fixture
@@ -59,6 +72,7 @@ def root_analysis() -> AnalysisInsights:
         components=[
             Component(
                 name="ComponentB",
+                component_id=COMP_B_ID,
                 description="Component B",
                 key_entities=[
                     SourceCodeReference(
@@ -73,6 +87,7 @@ def root_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentC",
+                component_id=COMP_C_ID,
                 description="Component C",
                 key_entities=[
                     SourceCodeReference(
@@ -87,6 +102,7 @@ def root_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentD",
+                component_id=COMP_D_ID,
                 description="Component D",
                 key_entities=[
                     SourceCodeReference(
@@ -118,7 +134,7 @@ class TestConcurrentSaveSubAnalysis:
         save_analysis(
             root_analysis,
             output_dir,
-            expandable_components=["ComponentB", "ComponentC", "ComponentD"],
+            expandable_components=[COMP_B_ID, COMP_C_ID, COMP_D_ID],
             repo_name="test-repo",
         )
 
@@ -134,7 +150,7 @@ class TestConcurrentSaveSubAnalysis:
         for name in component_names:
             p = multiprocessing.Process(
                 target=_worker_save_sub_analysis,
-                args=(str(output_dir), name, len(component_names)),
+                args=(str(output_dir), name, NAME_TO_ID[name], len(component_names)),
             )
             processes.append(p)
 
@@ -160,7 +176,8 @@ class TestConcurrentSaveSubAnalysis:
 
         # Also verify via the load_sub_analysis API
         for name in component_names:
-            sub = load_sub_analysis(output_dir, name)
+            cid = NAME_TO_ID[name]
+            sub = load_sub_analysis(output_dir, cid)
             assert sub is not None, f"load_sub_analysis returned None for {name}"
             # Verify sub-analysis has the expected sub-component
             sub_comp_names = [c.name for c in sub.components]

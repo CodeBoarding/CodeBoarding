@@ -21,7 +21,7 @@ def generate_cytoscape_data(
         component_ids.add(node_id)
 
         # Determine if component has linked file for styling
-        has_link = comp.name in expanded_components
+        has_link = comp.component_id in expanded_components
 
         node_data = {"data": {"id": node_id, "label": comp.name, "description": comp.description, "hasLink": has_link}}
 
@@ -110,7 +110,7 @@ def generate_html(
 
         # Check if there's a linked file for this component
         expand_link = ""
-        if comp.name in expanded_components:
+        if comp.component_id in expanded_components:
             expand_link = f' <a href="./{component_id}.html">[Expand]</a>'
 
         components_html += f"""
@@ -147,12 +147,12 @@ def generate_html_file(
     return html_file
 
 
-def component_header_html(component_name: str, expanded_components: set[str]) -> str:
+def component_header_html(component_name: str, component_id: str, expanded_components: set[str]) -> str:
     """
     Generate an HTML header for a component with its name and a link to its details.
     """
     sanitized_name = sanitize(component_name)
-    if component_name in expanded_components:
+    if component_id in expanded_components:
         return f'<h3 id="{sanitized_name}">{component_name} <a href="./{sanitized_name}.html">[Expand]</a></h3>'
     else:
         return f'<h3 id="{sanitized_name}">{component_name}</h3>'
