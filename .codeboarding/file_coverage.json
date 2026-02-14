@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-02-11T16:23:57.035322+00:00",
+  "generated_at": "2026-02-14T15:28:01.812129+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -37,6 +37,7 @@
     "diagram_analysis/__init__.py",
     "diagram_analysis/analysis_json.py",
     "diagram_analysis/diagram_generator.py",
+    "diagram_analysis/file_coverage.py",
     "diagram_analysis/incremental/__init__.py",
     "diagram_analysis/incremental/component_checker.py",
     "diagram_analysis/incremental/file_manager.py",
@@ -114,40 +115,52 @@
   ],
   "not_analyzed_files": [
     {
-      "path": "AGENTS.md"
+      "path": "AGENTS.md",
+      "reason": "other"
     },
     {
-      "path": "CLAUDE.md"
+      "path": "CLAUDE.md",
+      "reason": "other"
     },
     {
-      "path": "CONTRIBUTING.md"
+      "path": "CONTRIBUTING.md",
+      "reason": "other"
     },
     {
-      "path": "Dockerfile"
+      "path": "Dockerfile",
+      "reason": "other"
     },
     {
-      "path": "README.md"
+      "path": "README.md",
+      "reason": "other"
     },
     {
-      "path": "REVIEW.md"
+      "path": "REVIEW.md",
+      "reason": "other"
     },
     {
-      "path": "docs/architecture.md"
+      "path": "docs/architecture.md",
+      "reason": "other"
     },
     {
-      "path": "docs/development/architecture.md"
+      "path": "docs/development/architecture.md",
+      "reason": "other"
     },
     {
-      "path": "icon.svg"
+      "path": "icon.svg",
+      "reason": "other"
     },
     {
-      "path": "llms.txt"
+      "path": "llms.txt",
+      "reason": "other"
     },
     {
-      "path": "pyproject.toml"
+      "path": "pyproject.toml",
+      "reason": "other"
     },
     {
-      "path": "static_analysis_config.yml"
+      "path": "static_analysis_config.yml",
+      "reason": "other"
     },
     {
       "path": "tests/INTEGRATION_TESTS.md",
@@ -630,6 +643,10 @@
       "reason": "test_or_infrastructure"
     },
     {
+      "path": "tests/test_install.py",
+      "reason": "test_or_infrastructure"
+    },
+    {
       "path": "tests/test_local_app.py",
       "reason": "test_or_infrastructure"
     },
@@ -651,12 +668,12 @@
     }
   ],
   "summary": {
-    "total_files": 246,
-    "analyzed": 109,
-    "not_analyzed": 137,
+    "total_files": 248,
+    "analyzed": 110,
+    "not_analyzed": 138,
     "not_analyzed_by_reason": {
       "other": 12,
-      "test_or_infrastructure": 125
+      "test_or_infrastructure": 126
     }
   }
 }
