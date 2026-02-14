@@ -416,7 +416,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -429,7 +429,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = "test"
-        args.partial_component = "Component1"
+        args.partial_component_id = "test_comp_id"
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
@@ -442,7 +442,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = "test"
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -455,7 +455,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=False)
@@ -468,7 +468,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
