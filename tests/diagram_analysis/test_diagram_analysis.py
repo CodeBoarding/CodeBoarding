@@ -82,10 +82,16 @@ class TestComponentJson(unittest.TestCase):
     def test_component_json_with_references(self):
         # Test with source code references
         ref = SourceCodeReference(
-            qualified_name="test.TestClass", reference_file="test.py", reference_start_line=1, reference_end_line=10
+            qualified_name="test.TestClass",
+            reference_file="test.py",
+            reference_start_line=1,
+            reference_end_line=10,
         )
         comp = ComponentJson(
-            name="Component", component_id="comp_ref_id", description="Description", key_entities=[ref]
+            name="Component",
+            component_id="comp_ref_id",
+            description="Description",
+            key_entities=[ref],
         )
 
         self.assertEqual(len(comp.key_entities), 1)
@@ -97,8 +103,18 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test creating a UnifiedAnalysisJson instance
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp1 = ComponentJson(name="Comp1", component_id="comp1_id", description="Description 1", key_entities=[])
-        comp2 = ComponentJson(name="Comp2", component_id="comp2_id", description="Description 2", key_entities=[])
+        comp1 = ComponentJson(
+            name="Comp1",
+            component_id="comp1_id",
+            description="Description 1",
+            key_entities=[],
+        )
+        comp2 = ComponentJson(
+            name="Comp2",
+            component_id="comp2_id",
+            description="Description 2",
+            key_entities=[],
+        )
         rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
@@ -117,7 +133,12 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test serialization
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp = ComponentJson(name="Comp", component_id="comp_dump_id", description="Description", key_entities=[])
+        comp = ComponentJson(
+            name="Comp",
+            component_id="comp_dump_id",
+            description="Description",
+            key_entities=[],
+        )
         analysis = UnifiedAnalysisJson(
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test",
@@ -415,8 +436,18 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen._save_manifest = Mock()
 
-        comp1 = Component(name="Component1", description="First", key_entities=[], assigned_files=["file1.py"])
-        comp2 = Component(name="Component2", description="Second", key_entities=[], assigned_files=["file2.py"])
+        comp1 = Component(
+            name="Component1",
+            description="First",
+            key_entities=[],
+            assigned_files=["file1.py"],
+        )
+        comp2 = Component(
+            name="Component2",
+            description="Second",
+            key_entities=[],
+            assigned_files=["file2.py"],
+        )
         analysis = AnalysisInsights(
             description="Test analysis",
             components=[comp1, comp2],
@@ -429,24 +460,49 @@ class TestDiagramGenerator(unittest.TestCase):
         planned = [analysis.components[0]]
         captured: dict[str, list[Component]] = {}
 
-        def _capture_build(*, analysis, expandable_components, repo_name, sub_analyses, file_coverage_summary=None):
+        def _capture_build(
+            *,
+            analysis,
+            expandable_components,
+            repo_name,
+            sub_analyses,
+            file_coverage_summary=None,
+        ):
             captured["expandable_components"] = expandable_components
             return "{}"
 
         with patch("diagram_analysis.diagram_generator.plan_analysis", return_value=planned):
-            with patch("diagram_analysis.diagram_generator.build_unified_analysis_json", side_effect=_capture_build):
+            with patch(
+                "diagram_analysis.incremental.io_utils.build_unified_analysis_json",
+                side_effect=_capture_build,
+            ):
                 gen.generate_analysis()
 
+        # Both components have files, so both should be expandable (io_utils merges caller-provided with computed)
         self.assertEqual(
-            [c.component_id for c in captured["expandable_components"]],
-            [planned[0].component_id],
+            sorted([c.component_id for c in captured["expandable_components"]]),
+            sorted([c.component_id for c in analysis.components]),
         )
 
     @patch("diagram_analysis.diagram_generator.plan_analysis")
     def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_plan_analysis):
-        comp1 = Component(name="Comp1", description="Component one", key_entities=[], assigned_files=["a.py"])
-        comp2 = Component(name="Comp2", description="Component two", key_entities=[], assigned_files=["b.py"])
-        analysis = AnalysisInsights(description="Root analysis", components=[comp1, comp2], components_relations=[])
+        comp1 = Component(
+            name="Comp1",
+            description="Component one",
+            key_entities=[],
+            assigned_files=["a.py"],
+        )
+        comp2 = Component(
+            name="Comp2",
+            description="Component two",
+            key_entities=[],
+            assigned_files=["b.py"],
+        )
+        analysis = AnalysisInsights(
+            description="Root analysis",
+            components=[comp1, comp2],
+            components_relations=[],
+        )
         assign_component_ids(analysis)
 
         mock_plan_analysis.return_value = analysis.components

@@ -337,8 +337,8 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=root_expandable_components,
-                    sub_analyses=all_sub_analyses,
+                    expandable_components=[c.component_id for c in root_expandable_components],
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
                 )
