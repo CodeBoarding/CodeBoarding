@@ -406,7 +406,7 @@ class CallGraph:
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
         # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
         if algorithm == "louvain":
-                return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
+            return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
         elif algorithm == "leiden":

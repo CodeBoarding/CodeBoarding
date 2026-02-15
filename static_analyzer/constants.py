@@ -70,7 +70,6 @@ class ClusteringConfig:
     CLUSTERING_SEED = 42
 
 
-
 class NodeType:
     # LSP SymbolKind constants
     CLASS_TYPE = 5
@@ -95,7 +94,6 @@ class NodeType:
         VARIABLE_TYPE: "Variable",
         CONSTANT_TYPE: "Constant",
     }
-
 
 
 class Node:
@@ -166,4 +164,3 @@ class Node:
 
     def __repr__(self) -> str:
         return f"Node({self.fully_qualified_name}, {self.file_path}, {self.line_start}-{self.line_end})"
-
