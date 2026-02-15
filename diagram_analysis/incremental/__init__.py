@@ -29,7 +29,6 @@ from diagram_analysis.incremental.path_patching import (
     patch_sub_analysis,
 )
 from diagram_analysis.incremental.io_utils import (
-    AnalysisFileStore,
     load_analysis,
     save_analysis,
     load_sub_analysis,
@@ -51,7 +50,6 @@ __all__ = [
     "patch_paths_in_manifest",
     "patch_sub_analysis",
     # I/O Utilities
-    "AnalysisFileStore",
     "load_analysis",
     "save_analysis",
     "load_sub_analysis",

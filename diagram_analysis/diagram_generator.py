@@ -17,13 +17,12 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import (
-    build_unified_analysis_json,
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental.io_utils import AnalysisFileStore, save_analysis
+from diagram_analysis.incremental.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -335,17 +334,15 @@ class DiagramGenerator:
                     not_analyzed_by_reason=s["not_analyzed_by_reason"],
                 )
 
-            # Final write of unified analysis.json (uses build directly for full expandable fidelity)
-            store = AnalysisFileStore(Path(self.output_dir))
+            # Final write of unified analysis.json
             analysis_path = str(
-                store.write_raw(
-                    build_unified_analysis_json(
-                        analysis=analysis,
-                        expandable_components=expanded_components,
-                        repo_name=self.repo_name,
-                        sub_analyses=all_sub_analyses,
-                        file_coverage_summary=file_coverage_summary,
-                    )
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    expandable_components=[c.name for c in expanded_components],
+                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
+                    file_coverage_summary=file_coverage_summary,
                 )
             )
 

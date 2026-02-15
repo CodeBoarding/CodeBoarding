@@ -1,9 +1,14 @@
 """
 I/O utilities for incremental analysis.
 
-This module provides the ``AnalysisFileStore`` class – a coordinated
-reader/writer for the unified ``analysis.json`` file – along with thin
-free-function wrappers that preserve the original public API.
+This module provides coordinated read/write access to the unified
+``analysis.json`` file through **free functions** (``save_analysis``,
+``load_analysis``, etc.).
+
+Internally a singleton ``_AnalysisFileStore`` per ``output_dir`` owns the
+``FileLock`` and in-memory cache.  External code should **never** instantiate
+``_AnalysisFileStore`` directly – always use the free functions which route
+through the module-level registry.
 
 The unified format stores all analysis data (root + sub-analyses) in a single
 analysis.json file with nested components.
@@ -17,6 +22,7 @@ from filelock import FileLock
 
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.analysis_json import (
+    FileCoverageSummary,
     build_unified_analysis_json,
     parse_unified_analysis,
 )
@@ -24,15 +30,13 @@ from diagram_analysis.analysis_json import (
 logger = logging.getLogger(__name__)
 
 
-class AnalysisFileStore:
-    """Coordinated reader/writer for ``analysis.json`` with file locking and caching.
+class _AnalysisFileStore:
+    """Coordinated reader/writer for ``analysis.json`` with file locking.
 
     All concurrent access to a given ``analysis.json`` should go through the
-    same ``AnalysisFileStore`` instance (or the module-level free functions
-    which share instances via ``_get_store``).  The store owns:
-
-    * the ``FileLock`` that serialises writes,
-    * an in-memory cache that is invalidated on every write.
+    same ``_AnalysisFileStore`` instance (or the module-level free functions
+    which share instances via ``_get_store``).  The store owns the
+    ``FileLock`` that serialises writes across threads and processes.
     """
 
     def __init__(self, output_dir: Path) -> None:
@@ -40,18 +44,14 @@ class AnalysisFileStore:
         self._output_dir = output_dir
         self._analysis_path = output_dir / "analysis.json"
         self._lock = FileLock(output_dir / "analysis.json.lock", timeout=10)
-        self._cache: tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None = None
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
-        """Load and cache the unified ``analysis.json``.
+        """Load the unified ``analysis.json`` from disk.
 
         Returns ``(root_analysis, sub_analyses_dict, raw_data)`` or ``None``
         if the file does not exist or cannot be parsed.
         """
         with self._lock:
-            if self._cache is not None:
-                return self._cache
-
             if not self._analysis_path.exists():
                 return None
 
@@ -60,9 +60,7 @@ class AnalysisFileStore:
                     data = json.load(f)
 
                 root_analysis, sub_analyses = parse_unified_analysis(data)
-                result = (root_analysis, sub_analyses, data)
-                self._cache = result
-                return result
+                return (root_analysis, sub_analyses, data)
             except Exception as e:
                 logger.error(f"Failed to load unified analysis: {e}")
                 return None
@@ -90,6 +88,7 @@ class AnalysisFileStore:
         expandable_components: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
+        file_coverage_summary: FileCoverageSummary | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -97,8 +96,9 @@ class AnalysisFileStore:
         preserved.
         """
         with self._lock:
-            self._invalidate_cache()
-            return self._write_with_lock_held(analysis, expandable_components, sub_analyses, repo_name)
+            return self._write_with_lock_held(
+                analysis, expandable_components, sub_analyses, repo_name, file_coverage_summary
+            )
 
     def write_sub(
         self,
@@ -112,8 +112,6 @@ class AnalysisFileStore:
         sub-analysis for *component_name*, and re-writes the whole file.
         """
         with self._lock:
-            self._invalidate_cache()
-
             existing = self.read()
             if existing is None:
                 logger.error(f"Cannot save sub-analysis: no existing analysis.json in {self._output_dir}")
@@ -134,19 +132,6 @@ class AnalysisFileStore:
 
             return self._write_with_lock_held(root_analysis, all_expandable, sub_analyses, repo_name)
 
-    def write_raw(self, content: str) -> Path:
-        """Write raw JSON content to ``analysis.json``.
-
-        Acquires the file lock and invalidates the cache.  Used by callers
-        that build the JSON payload themselves (e.g. the final write in
-        ``DiagramGenerator.generate_analysis``).
-        """
-        with self._lock:
-            self._invalidate_cache()
-            with open(self._analysis_path, "w") as f:
-                f.write(content)
-            return self._analysis_path
-
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
         """Find components that have sub-analyses in the unified ``analysis.json``."""
         result = self.read()
@@ -156,15 +141,13 @@ class AnalysisFileStore:
         _, sub_analyses, _ = result
         return [c.name for c in analysis.components if c.name in sub_analyses]
 
-    def _invalidate_cache(self) -> None:
-        self._cache = None
-
     def _write_with_lock_held(
         self,
         analysis: AnalysisInsights,
         expandable_components: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
+        file_coverage_summary: FileCoverageSummary | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Build expandable component list
@@ -196,10 +179,10 @@ class AnalysisFileStore:
                     expandable_components=expandable,
                     repo_name=repo_name,
                     sub_analyses=sub_analyses_tuples,
+                    file_coverage_summary=file_coverage_summary,
                 )
             )
 
-        self._invalidate_cache()
         return self._analysis_path
 
 
@@ -207,14 +190,14 @@ class AnalysisFileStore:
 # Module-level store registry (one store per output_dir)
 # ---------------------------------------------------------------------------
 
-_stores: dict[str, AnalysisFileStore] = {}
+_stores: dict[str, _AnalysisFileStore] = {}
 
 
-def _get_store(output_dir: Path) -> AnalysisFileStore:
-    """Return the shared ``AnalysisFileStore`` for *output_dir*."""
+def _get_store(output_dir: Path) -> _AnalysisFileStore:
+    """Return the shared ``_AnalysisFileStore`` for *output_dir*."""
     key = str(output_dir.resolve())
     if key not in _stores:
-        _stores[key] = AnalysisFileStore(output_dir)
+        _stores[key] = _AnalysisFileStore(output_dir)
     return _stores[key]
 
 
@@ -234,9 +217,10 @@ def save_analysis(
     expandable_components: list[str] | None = None,
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
+    file_coverage_summary: FileCoverageSummary | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
-    return _get_store(output_dir).write(analysis, expandable_components, sub_analyses, repo_name)
+    return _get_store(output_dir).write(analysis, expandable_components, sub_analyses, repo_name, file_coverage_summary)
 
 
 def load_sub_analysis(output_dir: Path, component_name: str) -> AnalysisInsights | None:
