@@ -1,0 +1,19 @@
+"""Constants for the health module."""
+
+
+class HealthConfig:
+    DEFAULT_HEALTH_DIR = ".codeboarding/health"
+
+    HEALTHIGNORE_TEMPLATE = """# Health Check Exclusion Patterns
+# Add patterns here for entities that should be excluded from specific health checks.
+# Use fnmatch glob syntax (same as shell wildcards).
+#
+# Examples:
+# - Exclude all functions in evals: evals.*
+# - Exclude a specific function: utils.get_project_root
+# - Exclude by file path: */evals/*
+# - Exclude functions matching a pattern: *._*
+#
+# This file is automatically loaded by health checks to exclude specified
+# entities from analysis and reporting.
+"""
