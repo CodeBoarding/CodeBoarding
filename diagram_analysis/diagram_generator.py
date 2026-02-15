@@ -17,12 +17,12 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
 from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import (
-    build_unified_analysis_json,
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -313,6 +313,16 @@ class DiagramGenerator:
                 logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
                 current_level_components = next_level_components
 
+                # Save intermediate progress after each completed level so results survive crashes
+                logger.info(f"Saving intermediate analysis after level {level}")
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    expandable_components=[c.name for c in expanded_components],
+                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
+                )
+
             # Build file coverage summary for metadata
             file_coverage_summary = None
             if self.file_coverage_data:
@@ -324,18 +334,17 @@ class DiagramGenerator:
                     not_analyzed_by_reason=s["not_analyzed_by_reason"],
                 )
 
-            # Write a single unified analysis.json
-            analysis_path = os.path.join(self.output_dir, "analysis.json")
-            with open(analysis_path, "w") as f:
-                f.write(
-                    build_unified_analysis_json(
-                        analysis=analysis,
-                        expandable_components=expanded_components,
-                        repo_name=self.repo_name,
-                        sub_analyses=all_sub_analyses,
-                        file_coverage_summary=file_coverage_summary,
-                    )
+            # Final write of unified analysis.json
+            analysis_path = str(
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    expandable_components=[c.name for c in expanded_components],
+                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
+                    file_coverage_summary=file_coverage_summary,
                 )
+            )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             print("Generated analysis file: %s", os.path.abspath(analysis_path))

@@ -137,22 +137,42 @@ def _compute_depth_level(
     """Compute the maximum depth level from the sub_analyses structure.
 
     Returns 1 if there are no sub-analyses (root only), 2 if there is one level of
-    sub-analyses, etc.
+    sub-analyses, etc. Recursively traverses nested sub-analyses to find true max depth.
     """
     if not sub_analyses:
         return 1
 
-    max_child_depth = 1
-    for _, (sub_analysis, _) in sub_analyses.items():
-        # Check if any of this sub-analysis's components themselves have sub-analyses
-        child_depth = 1
-        for comp in sub_analysis.components:
-            if comp.name in sub_analyses:
-                child_depth = 2
-                break
-        max_child_depth = max(max_child_depth, child_depth)
+    def get_depth(analysis: AnalysisInsights, visited: set[str]) -> int:
+        """Recursively compute depth for a sub-analysis."""
+        max_depth = 1
+        for comp in analysis.components:
+            if comp.name in sub_analyses and comp.name not in visited:
+                visited.add(comp.name)
+                sub_analysis, _ = sub_analyses[comp.name]
+                child_depth = 1 + get_depth(sub_analysis, visited)
+                max_depth = max(max_depth, child_depth)
+                visited.remove(comp.name)
+        return max_depth
 
-    return 1 + max_child_depth
+    max_depth = 1
+    for name, (sub_analysis, _) in sub_analyses.items():
+        # Only compute depth for root-level sub-analyses (not referenced by others)
+        is_root_level = True
+        for other_name, (other_analysis, _) in sub_analyses.items():
+            if other_name != name:
+                for comp in other_analysis.components:
+                    if comp.name == name:
+                        is_root_level = False
+                        break
+            if not is_root_level:
+                break
+
+        if is_root_level:
+            visited = {name}
+            depth = 1 + get_depth(sub_analysis, visited)
+            max_depth = max(max_depth, depth)
+
+    return max_depth
 
 
 def build_unified_analysis_json(
@@ -164,7 +184,8 @@ def build_unified_analysis_json(
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
-    The depth_level metadata is computed automatically from the sub_analyses structure.
+    The depth_level metadata is computed automatically from the sub_analyses structure
+    if not provided explicitly.
     """
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
