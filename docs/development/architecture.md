@@ -2,55 +2,75 @@
 
 ```mermaid
 graph LR
-    AI_Insight_Agent_Orchestration_Engine_["AI Insight Agent (Orchestration Engine)"]
-    CodeBoardingToolkit_Tooling_Interface_["CodeBoardingToolkit (Tooling Interface)"]
-    PromptFactory_Prompt_Generation_Engine_["PromptFactory (Prompt Generation Engine)"]
-    LLM_Management["LLM Management"]
-    Data_Model_Schema["Data Model & Schema"]
-    Validation_Engine["Validation Engine"]
-    Analysis_Planner["Analysis Planner"]
-    Specialized_Analysis_Agents["Specialized Analysis Agents"]
-    AI_Insight_Agent_Orchestration_Engine_ -- "orchestrates" --> CodeBoardingToolkit_Tooling_Interface_
-    AI_Insight_Agent_Orchestration_Engine_ -- "utilizes" --> PromptFactory_Prompt_Generation_Engine_
-    AI_Insight_Agent_Orchestration_Engine_ -- "manages LLMs via" --> LLM_Management
-    AI_Insight_Agent_Orchestration_Engine_ -- "adheres to" --> Data_Model_Schema
-    AI_Insight_Agent_Orchestration_Engine_ -- "validates with" --> Validation_Engine
-    AI_Insight_Agent_Orchestration_Engine_ -- "consults" --> Analysis_Planner
-    AI_Insight_Agent_Orchestration_Engine_ -- "delegates to" --> Specialized_Analysis_Agents
-    CodeBoardingToolkit_Tooling_Interface_ -- "provides data to" --> AI_Insight_Agent_Orchestration_Engine_
-    CodeBoardingToolkit_Tooling_Interface_ -- "supports" --> Specialized_Analysis_Agents
-    PromptFactory_Prompt_Generation_Engine_ -- "generates prompts for" --> AI_Insight_Agent_Orchestration_Engine_
-    PromptFactory_Prompt_Generation_Engine_ -- "serves" --> Specialized_Analysis_Agents
-    PromptFactory_Prompt_Generation_Engine_ -- "adapts to" --> LLM_Management
-    LLM_Management -- "configures LLMs for" --> AI_Insight_Agent_Orchestration_Engine_
-    LLM_Management -- "informs" --> PromptFactory_Prompt_Generation_Engine_
-    Data_Model_Schema -- "defines structures for" --> AI_Insight_Agent_Orchestration_Engine_
-    Data_Model_Schema -- "governs" --> Validation_Engine
-    Validation_Engine -- "provides feedback to" --> AI_Insight_Agent_Orchestration_Engine_
-    Validation_Engine -- "consumes data from" --> Data_Model_Schema
-    Analysis_Planner -- "guides" --> AI_Insight_Agent_Orchestration_Engine_
-    Analysis_Planner -- "receives state from" --> AI_Insight_Agent_Orchestration_Engine_
-    Specialized_Analysis_Agents -- "report to" --> AI_Insight_Agent_Orchestration_Engine_
-    Specialized_Analysis_Agents -- "request prompts from" --> PromptFactory_Prompt_Generation_Engine_
+    Meta_Agent["Meta Agent"]
+    CodeBoarding_Agent["CodeBoarding Agent"]
+    Abstraction_Agent["Abstraction Agent"]
+    Planner_Agent["Planner Agent"]
+    Agent_Tooling_Interface["Agent Tooling Interface"]
+    File_System_Interaction_Tools["File System Interaction Tools"]
+    Static_Code_Analysis_Tools["Static Code Analysis Tools"]
+    Agent_Data_Models["Agent Data Models"]
+    Meta_Agent -- "orchestrates" --> Planner_Agent
+    Planner_Agent -- "configures" --> Meta_Agent
+    Meta_Agent -- "delegates analysis to" --> CodeBoarding_Agent
+    Planner_Agent -- "influences" --> CodeBoarding_Agent
+    Meta_Agent -- "interacts with" --> Agent_Tooling_Interface
+    CodeBoarding_Agent -- "provides analysis to" --> Abstraction_Agent
+    Abstraction_Agent -- "relies on" --> CodeBoarding_Agent
+    CodeBoarding_Agent -- "utilizes" --> File_System_Interaction_Tools
+    CodeBoarding_Agent -- "utilizes" --> Static_Code_Analysis_Tools
+    Agent_Tooling_Interface -- "exposes" --> File_System_Interaction_Tools
+    Agent_Tooling_Interface -- "exposes" --> Static_Code_Analysis_Tools
+    Meta_Agent -- "structures data with" --> Agent_Data_Models
+    CodeBoarding_Agent -- "structures data with" --> Agent_Data_Models
+    Abstraction_Agent -- "structures data with" --> Agent_Data_Models
+    Planner_Agent -- "structures data with" --> Agent_Data_Models
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This component provides the AI intelligence, housing the core agent logic that plans, executes, and validates analysis tasks using Large Language Models (LLMs). It includes a comprehensive toolkit for agents to interact with the codebase and static analysis results, and a robust prompt management system for effective LLM communication.
+Manages the lifecycle, coordination, and execution of various AI agents, providing them with tools, prompts, and LLM configurations to perform codebase analysis and generate insights. This component includes the core agent logic, specific tools for interaction, and the overall strategy for agent-based analysis.
 
-### AI Insight Agent (Orchestration Engine)
-Manages the overall workflow of code analysis, including file classification, component grouping, and validation. It coordinates the execution of specialized agents and tools, acting as the central intelligence for planning and executing analysis tasks.
+### Meta Agent
+Acts as the primary orchestrator for the entire codebase analysis workflow. It establishes the initial project context by analyzing metadata, classifies files, and guides the overall analysis strategy.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
 
 
-### CodeBoardingToolkit (Tooling Interface)
-Provides a unified interface to a suite of tools for accessing and analyzing the codebase (e.g., reading files, CFG, file structure, external dependencies, method invocations). It enables agents to interact with the codebase effectively.
+### CodeBoarding Agent
+Performs detailed, granular analysis of specific components or clusters identified during the initial phases. It is responsible for grouping files into logical components, managing their assignments, and extracting in-depth information about their internal structure and relationships.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`agents.codeboarding_agent.CodeBoardingAgent`</a>
+
+
+### Abstraction Agent
+Generates higher-level architectural abstractions and relationships between components based on the detailed analysis provided by other agents. This aids in creating conceptual diagrams and understanding the overall system design.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
+
+
+### Planner Agent
+Manages the planning of analysis steps, determines component expansion strategies, and provides system-wide constants and configuration settings for the agent system. It ensures an efficient and adaptive analysis workflow.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent.plan_analysis`</a>
+
+
+### Agent Tooling Interface
+Serves as a unified interface and factory for all specialized analysis tools. It provides a centralized mechanism for agents to access functionalities like reading files, documentation, CFG data, package dependencies, and code structure.
 
 
 **Related Classes/Methods**:
@@ -58,63 +78,39 @@ Provides a unified interface to a suite of tools for accessing and analyzing the
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py" target="_blank" rel="noopener noreferrer">`agents.tools.toolkit.CodeBoardingToolkit`</a>
 
 
-### PromptFactory (Prompt Generation Engine)
-Generates and manages LLM prompts, adapting them for different analysis tasks and specific LLM models. It ensures effective communication with LLMs by providing tailored prompts.
+### File System Interaction Tools
+A collection of tools dedicated to interacting with the file system. They provide capabilities to read documentation files, retrieve project directory structures, read the content of specific files, analyze Git diffs, and manage repository context.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_git_diff.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_git_diff`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_file`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_git_diff.py" target="_blank" rel="noopener noreferrer">`agents.tools.get_file_structure`</a>
 
 
-### LLM Management
-Handles the configuration, initialization, and lifecycle of various Large Language Models (LLMs) used throughout the analysis process, ensuring agents can interact with the appropriate LLM.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm.LLMManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm.LLMConfigurator`</a>
-
-
-### Data Model & Schema
-Defines the structured data formats (Pydantic models) for representing inputs, intermediate results, and final outputs of the code analysis, ensuring consistency across components and LLM interactions.
+### Static Code Analysis Tools
+A suite of tools focused on static code analysis. They enable the retrieval of source code for specific references, package dependency graphs, Control Flow Graph (CFG) data, class hierarchies, and method invocation details.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.LLMBaseModel`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`agents.tools.get_source_code`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`agents.tools.get_package_dependencies`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`agents.tools.get_class_hierarchy`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`agents.tools.get_cfg_data`</a>
 
 
-### Validation Engine
-Ensures the consistency and correctness of the generated analysis results, including file classifications, component relationships, and cluster coverage, providing a feedback mechanism for the agent's output.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.ResultValidator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.SchemaValidator`</a>
-
-
-### Analysis Planner
-Determines the scope and depth of analysis for individual components or clusters, advising the Orchestration Engine on whether further expansion or detailed examination is required.
+### Agent Data Models
+Defines the data models and structures for all inputs and outputs within the agent system. This includes models for analysis insights, component definitions, file classifications, and validation results, ensuring consistent data exchange and interoperability.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner.AnalysisPlanner`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner.AnalysisStrategy`</a>
-
-
-### Specialized Analysis Agents
-A group of specialized agents responsible for performing specific types of analysis: detailed insights, abstract representations, and metadata extraction. They report their findings to the Orchestration Engine.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.DetailedAnalysisAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.AbstractionAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.MetadataAnalysisAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.models.AnalysisInsight`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.models.ComponentDefinition`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.models.FileClassification`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.models.ValidationResult`</a>
 
 
 
@@ -124,102 +120,124 @@ A group of specialized agents responsible for performing specific types of analy
 
 ```mermaid
 graph LR
-    Analysis_Orchestrator_Core_["Analysis Orchestrator (Core)"]
-    Repository_Manager["Repository Manager"]
-    Job_Management_Service["Job Management Service"]
-    Incremental_Analysis_Engine["Incremental Analysis Engine"]
-    Analysis_Data_Store["Analysis Data Store"]
-    Monitoring_Telemetry["Monitoring & Telemetry"]
-    Analysis_Orchestrator_Core_ -- "orchestrates analysis using" --> Repository_Manager
-    Repository_Manager -- "informs" --> Analysis_Orchestrator_Core_
-    Analysis_Orchestrator_Core_ -- "orchestrates incremental analysis using" --> Incremental_Analysis_Engine
-    Incremental_Analysis_Engine -- "updates" --> Analysis_Orchestrator_Core_
-    Analysis_Orchestrator_Core_ -- "manages jobs via" --> Job_Management_Service
-    Job_Management_Service -- "notifies" --> Analysis_Orchestrator_Core_
-    Analysis_Orchestrator_Core_ -- "integrates with" --> Monitoring_Telemetry
-    Monitoring_Telemetry -- "collects data from" --> Analysis_Orchestrator_Core_
-    Analysis_Orchestrator_Core_ -- "persists and retrieves state from" --> Analysis_Data_Store
-    Analysis_Data_Store -- "supports" --> Analysis_Orchestrator_Core_
-    Incremental_Analysis_Engine -- "relies on" --> Analysis_Data_Store
-    Analysis_Data_Store -- "supports" --> Incremental_Analysis_Engine
+    AnalysisCacheManager["AnalysisCacheManager"]
+    StaticAnalysisResults["StaticAnalysisResults"]
+    IncrementalUpdater["IncrementalUpdater"]
+    _AnalysisFileStore["_AnalysisFileStore"]
+    AnalysisCacheManager -- "Stores and retrieves instances of StaticAnalysisResults from its cache." --> StaticAnalysisResults
+    AnalysisCacheManager -- "Receives updated analysis data from the updater to be cached." --> IncrementalUpdater
+    StaticAnalysisResults -- "Is stored in and retrieved from the cache by the AnalysisCacheManager." --> AnalysisCacheManager
+    StaticAnalysisResults -- "Is modified and updated by the IncrementalUpdater during analysis." --> IncrementalUpdater
+    StaticAnalysisResults -- "Is persisted to and loaded from the file store." --> _AnalysisFileStore
+    IncrementalUpdater -- "Queries the cache for existing analysis data to inform updates." --> AnalysisCacheManager
+    IncrementalUpdater -- "Directly operates on and modifies the StaticAnalysisResults based on detected changes." --> StaticAnalysisResults
+    _AnalysisFileStore -- "Stores and loads instances of StaticAnalysisResults for long-term persistence." --> StaticAnalysisResults
+    _AnalysisFileStore -- "May serve as a persistent backing store for the AnalysisCacheManager's operations." --> AnalysisCacheManager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This component serves as the central control plane, managing the entire analysis workflow from project initialization and repository change detection to orchestrating static analysis, AI-driven insights, and output generation. It handles job execution, incremental updates, and collects monitoring metrics.
+Manages the caching, persistence, and incremental updates of static analysis results, ensuring efficient storage and retrieval of codebase insights. This component is crucial for optimizing performance by only re-analyzing changed parts of the codebase.
 
-### Analysis Orchestrator (Core)
-This component serves as the central control plane, managing the entire analysis workflow from project initialization and repository change detection to orchestrating static analysis, AI-driven insights, and output generation. It handles job execution, incremental updates, and collects monitoring metrics. It is the primary coordinator of the analysis pipeline.
+### AnalysisCacheManager
+Manages the caching mechanism for static analysis results. This includes handling the serialization, deserialization, validation, and merging of incremental analysis data to optimize performance and reduce re-computation.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`AnalysisCacheManager`</a>
+
+
+### StaticAnalysisResults
+Serves as the central data structure for all static analysis outputs. It encapsulates foundational structural information extracted from the code, such as Control Flow Graphs, class hierarchies, package dependencies, and cross-references.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`StaticAnalysisResults`</a>
+
+
+### IncrementalUpdater
+Orchestrates the entire incremental analysis workflow. It determines the scope of changes, identifies affected components, and coordinates the execution of patching, re-classification, and re-expansion processes to update analysis results efficiently.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`IncrementalUpdater`</a>
+
+
+### _AnalysisFileStore
+Provides the underlying persistent storage and retrieval mechanism for static analysis outputs. It ensures the long-term availability and organization of analysis results, acting as the foundational storage layer.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`_AnalysisFileStore`</a>
+
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    Application_Orchestrator["Application Orchestrator"]
+    Local_API_Service["Local API Service"]
+    Diagram_Generator["Diagram Generator"]
+    Job_Database_Manager["Job Database Manager"]
+    Application_Orchestrator -- "manages" --> Local_API_Service
+    Local_API_Service -- "delegates requests to" --> Application_Orchestrator
+    Application_Orchestrator -- "invokes" --> Diagram_Generator
+    Diagram_Generator -- "returns diagrams to" --> Application_Orchestrator
+    Application_Orchestrator -- "manages job data in" --> Job_Database_Manager
+    Job_Database_Manager -- "provides job data to" --> Application_Orchestrator
+    Local_API_Service -- "queries and logs job data in" --> Job_Database_Manager
+    Job_Database_Manager -- "provides job status to" --> Local_API_Service
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+Orchestrates the main application workflow, manages analysis jobs, provides an API for external interaction, and generates diverse documentation and diagram outputs from analysis results. This component ties together the analysis results with user-consumable documentation and diagrams.
+
+### Application Orchestrator
+The central control unit that initializes the application, parses configurations, and orchestrates the entire codebase analysis and documentation generation pipeline. It coordinates the execution flow, manages repository processing, and initiates the analysis and output phases.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.main`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`orchestrator.workflow_manager.WorkflowManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`orchestrator.cli_parser.CLIParser`</a>
 
 
-### Repository Manager
-Handles all interactions with the code repository, such as cloning, fetching changes, managing ignore rules, detecting file modifications, and generating git diffs. It provides the raw data for analysis.
+### Local API Service
+Provides a local web API for users to interact with the application. It handles requests to initiate, manage, and monitor documentation generation jobs, acting as the primary interface for external interaction.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repo_utils.change_detector.detect_changes`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repo_utils.git_manager.GitManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repo_utils.ignore_rules.IgnoreRules`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repo_utils.diff_generator.DiffGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`local_app.local_app`</a>
 
 
-### Job Management Service
-Provides an API and backend for managing asynchronous documentation generation jobs, tracking their status and results, and persisting job data using DuckDB. It also includes general utilities for temporary file management and configuration.
+### Diagram Generator
+Transforms the structured analysis results into various diagram formats (e.g., component, sequence, activity diagrams). It processes the output from static analysis to create visual representations of the codebase architecture.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`job_management.job_manager.JobManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`job_management.duckdb_store.DuckDBJobStore`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`job_management.job_status_tracker.JobStatusTracker`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`job_management.temp_file_manager.TempFileManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.diagram_generator`</a>
 
 
-### Incremental Analysis Engine
-Optimizes analysis by detecting code changes, analyzing their impact on existing components, classifying new files, re-expanding affected components, patching paths in analysis data, and validating the integrity of incremental updates. It defines the models and logic for incremental processing.
+### Job Database Manager
+Manages the persistence of job-related data, including job status, configuration, and execution history, using a DuckDB database. It provides CRUD operations for job records.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.incremental.updater.analyze`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`incremental.change_detector.IncrementalChangeDetector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`incremental.component_reexpander.ComponentReexpander`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`incremental.path_patcher.PathPatcher`</a>
-
-
-### Analysis Data Store
-Persists and retrieves the structural metadata of the codebase analysis, including component definitions, file-to-component mappings, and repository state. It also tracks which files have been processed, identifies skipped or not yet analyzed files, and manages file coverage data.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`data_store.analysis_repository.AnalysisRepository`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`data_store.component_definitions_store.ComponentDefinitionsStore`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`data_store.file_mapping_store.FileMappingStore`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`data_store.file_coverage_tracker.FileCoverageTracker`</a>
-
-
-### Monitoring & Telemetry
-Collects, aggregates, and reports operational metrics, LLM usage, and performance data from the analysis pipeline. It provides callbacks for capturing events, writers for persisting data, and a mixin for easy integration into other components.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.callbacks.MonitoringCallback`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.metric_aggregator.MetricAggregator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.data_writer.DataWriter`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.llm_usage_tracker.LLMUsageTracker`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.duckdb_crud`</a>
 
 
 
@@ -229,111 +247,272 @@ Collects, aggregates, and reports operational metrics, LLM usage, and performanc
 
 ```mermaid
 graph LR
-    Project_Scanner_Configurer["Project Scanner & Configurer"]
-    LSP_Client_Core["LSP Client Core"]
-    Language_Specific_LSP_Adapters["Language-Specific LSP Adapters"]
-    LSP_Environment_Manager["LSP Environment Manager"]
-    Code_Graph_Reference_Management["Code Graph & Reference Management"]
-    Analysis_Results_Repository["Analysis Results Repository"]
-    Incremental_Analysis_Manager["Incremental Analysis Manager"]
-    Cluster_Change_Analyzer["Cluster Change Analyzer"]
-    Project_Scanner_Configurer -- "configures" --> LSP_Environment_Manager
-    Project_Scanner_Configurer -- "provides language settings to" --> Language_Specific_LSP_Adapters
-    LSP_Environment_Manager -- "manages LSP setup for" --> Language_Specific_LSP_Adapters
-    Language_Specific_LSP_Adapters -- "uses" --> LSP_Client_Core
-    LSP_Client_Core -- "provides code intelligence to" --> Code_Graph_Reference_Management
-    Code_Graph_Reference_Management -- "stores results in" --> Analysis_Results_Repository
-    Analysis_Results_Repository -- "provides analysis data to" --> Incremental_Analysis_Manager
-    Incremental_Analysis_Manager -- "informs" --> Code_Graph_Reference_Management
-    Incremental_Analysis_Manager -- "provides change context to" --> Cluster_Change_Analyzer
-    Cluster_Change_Analyzer -- "queries" --> Analysis_Results_Repository
+    Monitoring_Context_Manager["Monitoring Context Manager"]
+    Event_Capture_Processing["Event Capture & Processing"]
+    Statistics_Aggregator["Statistics Aggregator"]
+    Monitoring_Data_Writer["Monitoring Data Writer"]
+    Monitoring_Integration_Interface["Monitoring Integration Interface"]
+    Monitoring_Context_Manager -- "Manages lifecycle of" --> Event_Capture_Processing
+    Event_Capture_Processing -- "Utilizes context from" --> Monitoring_Context_Manager
+    Monitoring_Context_Manager -- "Establishes scope for" --> Statistics_Aggregator
+    Statistics_Aggregator -- "Adheres to scope from" --> Monitoring_Context_Manager
+    Event_Capture_Processing -- "Notifies" --> Statistics_Aggregator
+    Statistics_Aggregator -- "Consumes events from" --> Event_Capture_Processing
+    Statistics_Aggregator -- "Supplies data to" --> Monitoring_Data_Writer
+    Monitoring_Data_Writer -- "Stores data from" --> Statistics_Aggregator
+    Monitoring_Integration_Interface -- "Provides access to" --> Monitoring_Context_Manager
+    Monitoring_Integration_Interface -- "Provides access to" --> Statistics_Aggregator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This component performs deep code understanding by leveraging Language Server Protocol (LSP) clients for various languages. It extracts Control Flow Graphs (CFGs), class hierarchies, and diagnostics, manages analysis caching, and clusters code entities to identify relationships and track changes.
+Collects and reports runtime statistics and usage data, particularly for LLM and tool interactions. This component is vital for understanding the performance, cost, and behavior of the AI agents and the overall analysis pipeline.
 
-### Project Scanner & Configurer
-Scans the project to identify relevant files, determines programming languages, and builds language-specific configurations required for LSP clients and analysis. This component is essential for the initial setup and context building for the entire static analysis pipeline.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer.project_scanner.ProjectScanner`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer.project_scanner.LanguageDetector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/__init__.py" target="_blank" rel="noopener noreferrer">`static_analyzer.project_scanner.LSPConfigurationBuilder`</a>
-
-
-### LSP Client Core
-Provides the foundational communication layer for interacting with Language Server Protocol (LSP) servers, handling message passing, requests, and notifications to extract raw code intelligence data.
+### Monitoring Context Manager
+Provides a contextual wrapper for monitoring execution, allowing for the enablement/disablement of monitoring and the management of run-specific statistics and traces. It serves as the entry point for initiating and managing monitoring for a given operation or analysis run.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.client.LSPClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.context.MonitoringContext`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.context.MonitoringSession`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.context.enable_monitoring`</a>
 
 
-### Language-Specific LSP Adapters
-Extends the `LSP Client Core` to provide specialized initialization, configuration, and interaction logic tailored for specific programming languages (e.g., Java, TypeScript), adapting to their unique LSP server requirements.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.adapters.JavaLSPAdapter`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.adapters.TypeScriptLSPAdapter`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.adapters.LSPAdapterFactory`</a>
-
-
-### LSP Environment Manager
-Manages the setup and configuration of language-specific LSP environments, including detecting language installations and retrieving necessary settings for LSP server operation.
+### Event Capture & Processing
+Responsible for capturing and processing events generated during the execution of LLM calls and tool usage. It records granular metrics such as LLM input/output, tool start/end times, and errors, acting as the primary listener for operational events.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/language_settings.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_environment.EnvironmentDetector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/language_settings.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_environment.LanguageConfigManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/language_settings.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_environment.LSPEnvironment`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.context.MonitoringCallback`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.events.LLMEvent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.events.ToolEvent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.events.EventDispatcher`</a>
 
 
-### Code Graph & Reference Management
-Processes raw code intelligence data from LSP clients to construct and manage the project's call graph, representing function/method calls, class hierarchies, and relationships. It also performs initial clustering of code entities and ensures the accuracy and integrity of the graph by resolving all identified code references.
+### Statistics Aggregator
+Aggregates and stores various runtime statistics for a single execution run, including token usage, tool call counts, errors, and latency. It acts as a central data container for transforming raw event data into meaningful metrics.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/stats.py" target="_blank" rel="noopener noreferrer">`monitoring.stats.StatsManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/stats.py" target="_blank" rel="noopener noreferrer">`monitoring.stats.RunStatistics`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/stats.py" target="_blank" rel="noopener noreferrer">`monitoring.stats.MetricCollector`</a>
+
+
+### Monitoring Data Writer
+Handles the persistence and output of collected monitoring data and aggregated statistics to various destinations, such as the console or files. It manages output directories and formats the collected data for storage or display.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/writers.py" target="_blank" rel="noopener noreferrer">`monitoring.writers.ConsoleWriter`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/writers.py" target="_blank" rel="noopener noreferrer">`monitoring.writers.FileWriter`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/writers.py" target="_blank" rel="noopener noreferrer">`monitoring.writers.StatsFormatter`</a>
+
+
+### Monitoring Integration Interface
+Offers a reusable and standardized interface for integrating monitoring capabilities into other classes and components throughout the project. It provides methods to retrieve monitoring callbacks and access aggregated agent statistics.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/mixin.py" target="_blank" rel="noopener noreferrer">`monitoring.api.MonitoringAPI`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/mixin.py" target="_blank" rel="noopener noreferrer">`monitoring.api.get_current_callback`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/mixin.py" target="_blank" rel="noopener noreferrer">`monitoring.api.get_current_stats`</a>
+
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    Change_Detection_Engine["Change Detection Engine"]
+    Language_Configuration_Manager["Language Configuration Manager"]
+    External_Tool_Management_Service["External Tool Management Service"]
+    Specific_Dependency_Resolver["Specific Dependency Resolver"]
+    Java_Project_Scanner["Java Project Scanner"]
+    Language_Configuration_Manager -- "informs about necessary tools" --> External_Tool_Management_Service
+    External_Tool_Management_Service -- "delegates installation of prerequisites to" --> Specific_Dependency_Resolver
+    Language_Configuration_Manager -- "provides language-specific settings to" --> Java_Project_Scanner
+    Change_Detection_Engine -- "produces inputs for" --> Static_Analysis_Engine
+    Java_Project_Scanner -- "produces inputs for" --> Static_Analysis_Engine
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+Handles the initial project setup, language-specific configurations, installation of necessary tools, and detection of code changes within the repository to prepare for analysis. It ensures the application is correctly configured and capable of supporting various programming languages.
+
+### Change Detection Engine
+Identifies, categorizes, and provides detailed information about code changes within a repository (e.g., added, modified, deleted, renamed files, structural changes, uncommitted changes, commit-based changes). It leverages git diff utilities to produce `ChangeSet` objects, which define the scope for subsequent analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`repo_utils.change_set.ChangeSet`</a>
+
+
+### Language Configuration Manager
+Defines and manages the properties and configurations for various programming languages supported by the system. This includes mapping file extensions, providing language IDs, and configuring parameters for associated Language Server Protocols (LSPs), ensuring the utility can handle diverse language requirements.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguageBuilder`</a>
+
+
+### External Tool Management Service
+Manages the download, installation, and verification of external binaries and tools (e.g., JDTLS for Java, npm for JavaScript) that are required for language support and static analysis. It also updates the system's static analysis configuration based on the installed tools, ensuring the analysis environment is fully operational.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.install.install`</a>
+
+
+### Specific Dependency Resolver
+A specialized sub-component of the `External Tool Management Service` that handles the resolution and installation of specific, common external dependencies like npm (Node.js package manager) and Visual C++ Redistributable. These are often prerequisites for other language tools, ensuring a robust setup for various language analysis capabilities.
+
+
+**Related Classes/Methods**: _None_
+
+### Java Project Scanner
+Specializes in scanning Java projects to identify their build systems (e.g., Maven, Gradle, Eclipse) and extracting relevant project configurations, dependencies, and structural information. This enables the utility to understand the intricate structures of Java projects for accurate codebase analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.JavaConfigScanner`</a>
+
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    LLM_Configuration_Manager["LLM Configuration Manager"]
+    Prompt_Generation_System["Prompt Generation System"]
+    Prompt_Generation_System -- "uses" --> LLM_Configuration_Manager
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+Manages the generation of prompts for various Large Language Models (LLMs) and handles their configuration, including API key retrieval and argument resolution. It ensures that AI agents can correctly interact with different LLM providers.
+
+### LLM Configuration Manager
+This component is solely responsible for the configuration, initialization, and lifecycle management of various Large Language Model (LLM) instances. This includes retrieving and managing API keys, selecting the appropriate model, and resolving model-specific arguments and settings (e.g., temperature). It ensures that LLMs are properly set up and ready for interaction before consuming prompts.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.get_llm_api_key`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.resolve_llm_extra_args`</a>
+
+
+### Prompt Generation System
+This component manages the entire process of generating prompts for various Large Language Models (LLMs). It includes a `PromptFactory` that orchestrates the selection and instantiation of LLM-specific prompt factories (e.g., Claude, DeepSeek, Kimi, Gemini Flash, GLM, GPT). Its primary role is to provide specialized and correctly formatted prompt strings tailored to each LLM, guiding them effectively for codebase analysis tasks.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.LLMType`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
+
+
+
+
+### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
+
+
+```mermaid
+graph LR
+    Static_Analysis_Orchestrator["Static Analysis Orchestrator"]
+    Project_Scanner_Language_Detector["Project Scanner & Language Detector"]
+    LSP_Client_Interface["LSP Client Interface"]
+    Call_Graph_Clustering_Engine["Call Graph & Clustering Engine"]
+    Incremental_Analysis_Change_Detector["Incremental Analysis & Change Detector"]
+    Static_Analysis_Orchestrator -- "orchestrates" --> Project_Scanner_Language_Detector
+    Project_Scanner_Language_Detector -- "informs about project structure" --> Static_Analysis_Orchestrator
+    Static_Analysis_Orchestrator -- "utilizes" --> LSP_Client_Interface
+    LSP_Client_Interface -- "provides data to" --> Static_Analysis_Orchestrator
+    Static_Analysis_Orchestrator -- "triggers" --> Incremental_Analysis_Change_Detector
+    Incremental_Analysis_Change_Detector -- "reports changes to" --> Static_Analysis_Orchestrator
+    LSP_Client_Interface -- "feeds data to" --> Call_Graph_Clustering_Engine
+    Call_Graph_Clustering_Engine -- "supplies data to" --> Incremental_Analysis_Change_Detector
+    Static_Analysis_Orchestrator -- "queries" --> Call_Graph_Clustering_Engine
+    Call_Graph_Clustering_Engine -- "delivers results to" --> Static_Analysis_Orchestrator
+```
+
+[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
+
+## Details
+
+Performs deep static analysis of the codebase using Language Server Protocols (LSPs) to extract symbols, build call graphs, and identify logical code clusters. It handles communication with various language servers and provides the foundational structural analysis of the code.
+
+### Static Analysis Orchestrator
+Coordinates the entire static analysis workflow. It initializes and manages language server clients, orchestrates the collection of analysis data, resolves code references to ensure accuracy, and provides a central point for accessing analysis results. It acts as the main entry point for initiating and managing the analysis process.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/incremental_orchestrator.py" target="_blank" rel="noopener noreferrer">`static_analyzer.incremental_orchestrator.IncrementalAnalysisOrchestrator`</a>
+
+
+### Project Scanner & Language Detector
+Scans the project directory to discover all relevant source files, identify the programming languages used, and locate language-specific configuration files (e.g., tsconfig.json for TypeScript projects). This initial scan provides the necessary context for subsequent analysis steps.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.scanner.ProjectScanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.JavaConfigScanner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/typescript_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.typescript_config_scanner.TypeScriptConfigScanner`</a>
+
+
+### LSP Client Interface
+Provides a standardized interface for communicating with various Language Servers (e.g., JDTLS for Java, TypeScript Language Server). It handles language-specific initialization, sends requests for symbol information, call hierarchies, and diagnostics, and processes the responses. This component abstracts away the complexities of LSP for different languages.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.LSPClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/typescript_client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.TypeScriptClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/java_client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.JavaClient`</a>
+
+
+### Call Graph & Clustering Engine
+Constructs a detailed call graph representing the relationships between functions and methods in the codebase. It then applies clustering algorithms to this graph to identify logical components or modules within the code, providing a higher-level structural view. Helper functions assist in managing and retrieving cluster-related data.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.CallGraph`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.ReferenceResolver`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.EntityLinker`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.CallGraphBuilder`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.ClusterResult`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_helpers.build_all_cluster_results`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_helpers.get_all_cluster_ids`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_helpers.get_files_for_cluster_ids`</a>
 
 
-### Analysis Results Repository
-Aggregates, stores, and provides access to all static analysis outputs, including the call graph, class hierarchies, diagnostics, and other extracted code intelligence data.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_result.StaticAnalysisResults`</a>
-
-
-### Incremental Analysis Manager
-Optimizes analysis performance by managing the incremental analysis workflow, leveraging Git diffs to identify changes, and caching previous analysis results to avoid redundant computations.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_cache.AnalysisCacheManager`</a>
-
-
-### Cluster Change Analyzer
-Evaluates and classifies structural changes within code clusters between different analysis runs, providing insights into the evolution of the codebase's modularity and identifying significant architectural shifts.
+### Incremental Analysis & Change Detector
+Optimizes the analysis process by detecting code changes (using Git) and performing incremental updates. It compares new and old cluster structures to classify changes (e.g., added, removed, modified clusters) and intelligently re-analyzes only affected parts of the codebase, significantly improving efficiency for large projects.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/git_diff_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.git_diff_analyzer.GitDiffAnalyzer`</a>
 
 
 
@@ -343,60 +522,79 @@ Evaluates and classifies structural changes within code clusters between differe
 
 ```mermaid
 graph LR
-    HTML_Documentation_Generator["HTML Documentation Generator"]
-    Markdown_Documentation_Generator["Markdown Documentation Generator"]
-    MDX_Documentation_Generator["MDX Documentation Generator"]
-    reStructuredText_Documentation_Generator["reStructuredText Documentation Generator"]
-    Unified_Analysis_Data_Model -- "provides standardized input to" --> HTML_Documentation_Generator
-    Unified_Analysis_Data_Model -- "provides standardized input to" --> Markdown_Documentation_Generator
-    Unified_Analysis_Data_Model -- "provides standardized input to" --> MDX_Documentation_Generator
-    Unified_Analysis_Data_Model -- "provides standardized input to" --> reStructuredText_Documentation_Generator
-    HTML_Documentation_Generator -- "writes output files to" --> File_System
-    Markdown_Documentation_Generator -- "writes output files to" --> File_System
-    MDX_Documentation_Generator -- "writes output files to" --> File_System
-    reStructuredText_Documentation_Generator -- "writes output files to" --> File_System
+    Health_Check_Orchestrator["Health Check Orchestrator"]
+    Health_Report_Data_Model["Health Report Data Model"]
+    Code_Quality_Analyzers["Code Quality Analyzers"]
+    Configuration_Manager["Configuration Manager"]
+    LSP_Diagnostics_Parser["LSP Diagnostics Parser"]
+    Agent_Output_Validator["Agent Output Validator"]
+    Health_Check_Orchestrator -- "configures" --> Code_Quality_Analyzers
+    Health_Check_Orchestrator -- "collects results from" --> Code_Quality_Analyzers
+    Health_Check_Orchestrator -- "structures data with" --> Health_Report_Data_Model
+    Code_Quality_Analyzers -- "consumes" --> LSP_Diagnostics_Parser
+    Configuration_Manager -- "provides settings to" --> Health_Check_Orchestrator
+    Agent_Output_Validator -- "reports findings to" --> Health_Report_Data_Model
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This component is responsible for transforming the processed analysis data and AI-generated insights into various human-readable documentation formats, including HTML, Markdown, MDX, and reStructuredText, ensuring clear and effective presentation of architectural insights.
+Validates the integrity and correctness of analysis results, including cluster coverage and component relationships, and performs various code health checks. This component ensures the quality and reliability of the generated analysis and documentation.
 
-### HTML Documentation Generator
-Produces interactive HTML documentation. This involves generating Cytoscape graph data, constructing the HTML structure, and populating HTML templates with dynamic elements like CSS styles, Cytoscape scripts, and interactive control functions for rich visualization.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html.generate_html`</a>
-
-
-### Markdown Documentation Generator
-Generates documentation content in standard Markdown format. This includes creating component headers, producing Markdown content, writing to files, and incorporating Mermaid diagrams for visualization.
+### Health Check Orchestrator
+Manages the execution flow of all defined health checks, aggregates their individual results, applies global and check-specific configuration settings, and compiles a comprehensive health report for the codebase. It acts as the central coordinator for all health-related analyses.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.generate_markdown`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/runner.py" target="_blank" rel="noopener noreferrer">`health.runner.run_all_checks`</a>
 
 
-### MDX Documentation Generator
-Generates documentation in MDX (Markdown with JSX) format, allowing for embedding interactive components and richer content within Markdown. This includes creating component headers, generating frontmatter, producing MDX content, writing to files, and embedding Mermaid diagrams.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx.generate_mdx`</a>
-
-
-### reStructuredText Documentation Generator
-Creates documentation in reStructuredText (RST) format, specifically tailored for projects that use Sphinx for their documentation generation. This includes generating component headers, RST content, writing to files, and incorporating Mermaid diagrams.
+### Health Report Data Model
+Defines the standardized data structures and schemas for representing health check configurations, summaries of individual checks, detailed findings (e.g., `FindingEntity`, `FindingGroup`), and the overall structured health report. This ensures consistency and facilitates automated documentation and structured reporting.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx.generate_rst`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/models.py" target="_blank" rel="noopener noreferrer">`health.models`</a>
+
+
+### Code Quality Analyzers
+A collection of specialized modules, each responsible for performing a specific code quality or structural analysis. Examples include checks for unused code, "god classes," coupling, cohesion, inheritance patterns, function size, circular dependencies, and module instability. These are the analytical engines that identify specific code patterns and potential issues.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/unused_code_diagnostics.py" target="_blank" rel="noopener noreferrer">`health.checks.unused_code_diagnostics`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/god_class.py" target="_blank" rel="noopener noreferrer">`health.checks.god_class`</a>
+
+
+### Configuration Manager
+Responsible for loading, parsing, and managing health check configurations and exclusion patterns from project-specific files (e.g., `.healthcheckrc`). This allows developers to customize analysis behavior, set thresholds, and ignore irrelevant findings based on project requirements.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/config.py" target="_blank" rel="noopener noreferrer">`health.config`</a>
+
+
+### LSP Diagnostics Parser
+Processes and structures diagnostic messages received from Language Server Protocols (LSP). It converts raw, language-agnostic LSP data into a standardized, consumable format that can be utilized by various health checks and other analysis components within the system.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/diagnostics.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.diagnostics.LSPDiagnosticsCollector`</a>
+
+
+### Agent Output Validator
+Validates the accuracy, completeness, and consistency of classifications and analyses generated by AI agents. This includes verifying proper cluster coverage, correct file assignments to components, and the logical relationships between identified components, ensuring the reliability of AI-generated insights.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.validate_agent_output`</a>
 
 
 
@@ -406,161 +604,137 @@ Creates documentation in reStructuredText (RST) format, specifically tailored fo
 
 ```mermaid
 graph LR
-    System_Provisioning_Setup["System Provisioning & Setup"]
-    Configuration_Management["Configuration Management"]
-    Health_Check_Orchestration_Reporting["Health Check Orchestration & Reporting"]
+    AI_Agent_Orchestration["AI Agent Orchestration"]
+    Prompt_LLM_Configuration["Prompt & LLM Configuration"]
     Static_Analysis_Engine["Static Analysis Engine"]
-    System_Provisioning_Setup -- "uses" --> Configuration_Management
-    Configuration_Management -- "provides configurations to" --> System_Provisioning_Setup
-    Configuration_Management -- "provides analysis rules and thresholds to" --> Health_Check_Orchestration_Reporting
-    Health_Check_Orchestration_Reporting -- "uses" --> Configuration_Management
-    Configuration_Management -- "provides specific check parameters to" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "uses" --> Configuration_Management
-    Health_Check_Orchestration_Reporting -- "orchestrates" --> Static_Analysis_Engine
-    Static_Analysis_Engine -- "provides diagnostic findings to" --> Health_Check_Orchestration_Reporting
+    Analysis_Data_Management["Analysis Data Management"]
+    Project_Environment_Setup["Project & Environment Setup"]
+    Application_Orchestration_Output["Application Orchestration & Output"]
+    Validation_Health_Checks["Validation & Health Checks"]
+    Monitoring_Telemetry["Monitoring & Telemetry"]
+    Application_Orchestration_Output -- "Initiates project setup." --> Project_Environment_Setup
+    Project_Environment_Setup -- "Configures static analysis." --> Static_Analysis_Engine
+    Static_Analysis_Engine -- "Stores analysis data." --> Analysis_Data_Management
+    Analysis_Data_Management -- "Provides cached data." --> Static_Analysis_Engine
+    Analysis_Data_Management -- "Supplies analysis insights." --> AI_Agent_Orchestration
+    AI_Agent_Orchestration -- "Requests code details." --> Static_Analysis_Engine
+    AI_Agent_Orchestration -- "Utilizes LLM configurations." --> Prompt_LLM_Configuration
+    AI_Agent_Orchestration -- "Delivers generated content." --> Application_Orchestration_Output
+    Static_Analysis_Engine -- "Provides analysis for validation." --> Validation_Health_Checks
+    AI_Agent_Orchestration -- "Provides agent output for validation." --> Validation_Health_Checks
+    Application_Orchestration_Output -- "Consumes validation reports." --> Validation_Health_Checks
+    AI_Agent_Orchestration -- "Reports agent activity." --> Monitoring_Telemetry
+    Application_Orchestration_Output -- "Reports workflow metrics." --> Monitoring_Telemetry
+    click AI_Agent_Orchestration href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Agent_Orchestration.md" "Details"
+    click Prompt_LLM_Configuration href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_LLM_Configuration.md" "Details"
+    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
+    click Analysis_Data_Management href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Data_Management.md" "Details"
+    click Project_Environment_Setup href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Project_Environment_Setup.md" "Details"
+    click Application_Orchestration_Output href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestration_Output.md" "Details"
+    click Validation_Health_Checks href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Validation_Health_Checks.md" "Details"
+    click Monitoring_Telemetry href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Monitoring_Telemetry.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
 
 ## Details
 
-This component ensures the operational readiness and quality of the CodeBoarding system. It manages the installation and configuration of essential language server binaries and other dependencies, and performs health checks, such as identifying unused code diagnostics, to maintain code quality and system integrity.
+The CodeBoarding application orchestrates a sophisticated analysis pipeline, starting with Project & Environment Setup to configure the codebase and detect changes. The Static Analysis Engine then performs deep structural analysis, with results managed by Analysis Data Management for caching and incremental updates. AI Agent Orchestration leverages these analysis results, guided by Prompt & LLM Configuration, to interpret code and generate insights. All analysis and agent outputs are subject to Validation & Health Checks to ensure quality, while Monitoring & Telemetry tracks performance. Finally, Application Orchestration & Output manages the overall workflow, exposes an API, and generates comprehensive documentation and diagrams.
 
-### System Provisioning & Setup
-This component is responsible for the initial setup and configuration of the CodeBoarding environment. It handles the downloading and installation of essential language server binaries and updates the configuration for static analysis tools, ensuring the system has the necessary dependencies to operate.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`install.download_binaries`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`install.update_static_analysis_config`</a>
-
-
-### Configuration Management
-This component centralizes the loading and provision of all configuration settings, thresholds, and exclusion patterns required by the System Provisioning & Health subsystem. It ensures consistent behavior across provisioning tasks and health checks by managing inputs from files like health_config.toml and .healthignore.
+### AI Agent Orchestration [[Expand]](./AI_Agent_Orchestration.md)
+Manages the lifecycle, coordination, and execution of various AI agents, providing them with tools, prompts, and LLM configurations to perform codebase analysis and generate insights. This component includes the core agent logic, specific tools for interaction, and the overall strategy for agent-based analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/config.py" target="_blank" rel="noopener noreferrer">`config.ConfigurationManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/config.py#L128-L172" target="_blank" rel="noopener noreferrer">`config.load_health_config`:128-172</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/config.py" target="_blank" rel="noopener noreferrer">`config.load_ignore_patterns`</a>
-
-
-### Health Check Orchestration & Reporting
-This component orchestrates the entire health analysis workflow. It invokes individual static analysis checkers, applies exclusion patterns based on configuration, and aggregates their results into a comprehensive health report. It also defines the data structures (CodeMetricModels) for consistently representing these findings.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/__init__.py" target="_blank" rel="noopener noreferrer">`HealthCheckRunner`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/__init__.py" target="_blank" rel="noopener noreferrer">`CodeMetricModels`</a>
-
-
-### Static Analysis Engine
-This component comprises all specialized static analysis checkers that perform distinct types of code quality evaluations. It identifies issues such as unused code, "God Classes", measures cohesion/coupling, checks inheritance depth, detects circular dependencies, and analyzes function size, collecting LSP diagnostics to contribute specific findings to the overall health report.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/unused_code_diagnostics.py" target="_blank" rel="noopener noreferrer">`health.checks.unused_code_diagnostics.LSPDiagnosticsCollector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/unused_code_diagnostics.py" target="_blank" rel="noopener noreferrer">`health.checks.unused_code_diagnostics.check_unused_code_diagnostics`</a>
-
-
-
-
-### [FAQ](https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main?tab=readme-ov-file#faq)
-
-
-```mermaid
-graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    Code_Intelligence_Engine["Code Intelligence Engine"]
-    AI_Insight_Agent["AI Insight Agent"]
-    Documentation_Renderer["Documentation Renderer"]
-    System_Provisioning_Health["System Provisioning & Health"]
-    Analysis_Orchestrator -- "Requests static analysis tasks" --> Code_Intelligence_Engine
-    Code_Intelligence_Engine -- "Provides static analysis results" --> Analysis_Orchestrator
-    Analysis_Orchestrator -- "Dispatches analysis context and data" --> AI_Insight_Agent
-    AI_Insight_Agent -- "Delivers AI-generated insights" --> Analysis_Orchestrator
-    AI_Insight_Agent -- "Queries static analysis data via tools" --> Code_Intelligence_Engine
-    Analysis_Orchestrator -- "Supplies all analysis results and insights for generation" --> Documentation_Renderer
-    Analysis_Orchestrator -- "Initiates system setup and health checks" --> System_Provisioning_Health
-    System_Provisioning_Health -- "Reports system readiness and health status" --> Analysis_Orchestrator
-    System_Provisioning_Health -- "Configures and ensures readiness of language servers" --> Code_Intelligence_Engine
-    click Analysis_Orchestrator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Orchestrator.md" "Details"
-    click Code_Intelligence_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Code_Intelligence_Engine.md" "Details"
-    click AI_Insight_Agent href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Insight_Agent.md" "Details"
-    click Documentation_Renderer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Documentation_Renderer.md" "Details"
-    click System_Provisioning_Health href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/System_Provisioning_Health.md" "Details"
-```
-
-[![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
-
-## Details
-
-The `CodeBoarding` project operates as a sophisticated code analysis and documentation generation pipeline. The `Analysis Orchestrator` acts as the central control, initiating the process, managing repository changes, and coordinating tasks across other components. It first interacts with the `System Provisioning & Health` component to ensure the environment, including language servers, is correctly set up. Subsequently, it dispatches code analysis requests to the `Code Intelligence Engine`, which performs deep static analysis and returns structured results. These results, along with additional context, are then provided to the `AI Insight Agent` for intelligent interpretation and insight generation. The `AI Insight Agent` can also directly query the `Code Intelligence Engine` for specific code details. Finally, the `Analysis Orchestrator` aggregates all analysis data and AI-generated insights, passing them to the `Documentation Renderer` to produce various human-readable documentation formats.
-
-### Analysis Orchestrator [[Expand]](./Analysis_Orchestrator.md)
-This component serves as the central control plane, managing the entire analysis workflow from project initialization and repository change detection to orchestrating static analysis, AI-driven insights, and output generation. It handles job execution, incremental updates, and collects monitoring metrics.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.DiagramGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.main`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repo_utils.change_detector.detect_changes`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.incremental.updater.analyze`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/callbacks.py" target="_blank" rel="noopener noreferrer">`monitoring.callbacks.MonitoringCallback`</a>
-
-
-### Code Intelligence Engine [[Expand]](./Code_Intelligence_Engine.md)
-This component performs deep code understanding by leveraging Language Server Protocol (LSP) clients for various languages. It extracts Control Flow Graphs (CFGs), class hierarchies, and diagnostics, manages analysis caching, and clusters code entities to identify relationships and track changes.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/client.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.client.LSPClient`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py" target="_blank" rel="noopener noreferrer">`static_analyzer.graph.CallGraph`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_cache.AnalysisCacheManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_result.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_result.StaticAnalysisResults`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer`</a>
-
-
-### AI Insight Agent [[Expand]](./AI_Insight_Agent.md)
-This component provides the AI intelligence, housing the core agent logic that plans, executes, and validates analysis tasks using Large Language Models (LLMs). It includes a comprehensive toolkit for agents to interact with the codebase and static analysis results, and a robust prompt management system for effective LLM communication.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py" target="_blank" rel="noopener noreferrer">`agents.agent.CodeBoardingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_git_diff.py" target="_blank" rel="noopener noreferrer">`agents.codeboarding_agent.CodeBoardingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent.AbstractionAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent.MetaAgent`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py" target="_blank" rel="noopener noreferrer">`agents.tools.toolkit.CodeBoardingToolkit`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent.plan_analysis`</a>
+
+
+### Prompt & LLM Configuration [[Expand]](./Prompt_LLM_Configuration.md)
+Manages the generation of prompts for various Large Language Models (LLMs) and handles their configuration, including API key retrieval and argument resolution. It ensures that AI agents can correctly interact with different LLM providers.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.LLMType`</a>
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`agents.agent_responses.LLMBaseModel`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.get_llm_api_key`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config.resolve_llm_extra_args`</a>
 
 
-### Documentation Renderer [[Expand]](./Documentation_Renderer.md)
-This component is responsible for transforming the processed analysis data and AI-generated insights into various human-readable documentation formats, including HTML, Markdown, MDX, and reStructuredText, ensuring clear and effective presentation of architectural insights.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`output_generators.html.generate_html`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`output_generators.markdown.generate_markdown`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx.generate_mdx`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx.generate_rst`</a>
-
-
-### System Provisioning & Health [[Expand]](./System_Provisioning_Health.md)
-This component ensures the operational readiness and quality of the CodeBoarding system. It manages the installation and configuration of essential language server binaries and other dependencies, and performs health checks, such as identifying unused code diagnostics, to maintain code quality and system integrity.
+### Static Analysis Engine [[Expand]](./Static_Analysis_Engine.md)
+Performs deep static analysis of the codebase using Language Server Protocols (LSPs) to extract symbols, build call graphs, and identify logical code clusters. It handles communication with various language servers and provides the foundational structural analysis of the code.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`install.download_binaries`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`install.update_static_analysis_config`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/unused_code_diagnostics.py" target="_blank" rel="noopener noreferrer">`health.checks.unused_code_diagnostics.LSPDiagnosticsCollector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/unused_code_diagnostics.py" target="_blank" rel="noopener noreferrer">`health.checks.unused_code_diagnostics.check_unused_code_diagnostics`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.LSPClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.call_graph.CallGraph`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.TypeScriptClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_change_analyzer.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.JavaClient`</a>
+
+
+### Analysis Data Management [[Expand]](./Analysis_Data_Management.md)
+Manages the caching, persistence, and incremental updates of static analysis results, ensuring efficient storage and retrieval of codebase insights. This component is crucial for optimizing performance by only re-analyzing changed parts of the codebase.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`static_analyzer.analysis_cache_manager.AnalysisCacheManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`static_analyzer.static_analysis_results.StaticAnalysisResults`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.incremental.incremental_updater.IncrementalUpdater`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/io_utils.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.incremental.analysis_file_store._AnalysisFileStore`</a>
+
+
+### Project & Environment Setup [[Expand]](./Project_Environment_Setup.md)
+Handles the initial project setup, language-specific configurations, installation of necessary tools, and detection of code changes within the repository to prepare for analysis. It ensures the application is correctly configured and capable of supporting various programming languages.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.install.install`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`repo_utils.change_set.ChangeSet`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/programming_language.py" target="_blank" rel="noopener noreferrer">`static_analyzer.programming_language.ProgrammingLanguageBuilder`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.JavaConfigScanner`</a>
+
+
+### Application Orchestration & Output [[Expand]](./Application_Orchestration_Output.md)
+Orchestrates the main application workflow, manages analysis jobs, provides an API for external interaction, and generates diverse documentation and diagram outputs from analysis results. This component ties together the analysis results with user-consumable documentation and diagrams.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.main`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.diagram_generator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`local_app.local_app`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`duckdb_crud.duckdb_crud`</a>
+
+
+### Validation & Health Checks [[Expand]](./Validation_Health_Checks.md)
+Validates the integrity and correctness of analysis results, including cluster coverage and component relationships, and performs various code health checks. This component ensures the quality and reliability of the generated analysis and documentation.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/lsp_client/diagnostics.py" target="_blank" rel="noopener noreferrer">`static_analyzer.lsp_client.diagnostics.LSPDiagnosticsCollector`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/runner.py" target="_blank" rel="noopener noreferrer">`health.runner.run_all_checks`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.validate_agent_output`</a>
+
+
+### Monitoring & Telemetry [[Expand]](./Monitoring_Telemetry.md)
+Collects and reports runtime statistics and usage data, particularly for LLM and tool interactions. This component is vital for understanding the performance, cost, and behavior of the AI agents and the overall analysis pipeline.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/context.py" target="_blank" rel="noopener noreferrer">`monitoring.context.MonitoringCallback`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/stats.py" target="_blank" rel="noopener noreferrer">`monitoring.stats.StatsManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/writers.py" target="_blank" rel="noopener noreferrer">`monitoring.writers.ConsoleWriter`</a>
 
 
 
