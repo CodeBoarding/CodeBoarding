@@ -3,7 +3,8 @@ from unittest.mock import patch, Mock
 
 import networkx as nx
 
-from static_analyzer.graph import Node, Edge, CallGraph, ClusterResult
+from static_analyzer.constants import Node
+from static_analyzer.graph import Edge, CallGraph, ClusterResult
 
 
 class TestNode(unittest.TestCase):

@@ -4,7 +4,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from static_analyzer.graph import Node, CallGraph
+from static_analyzer.constants import Node
+from static_analyzer.graph import CallGraph
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
