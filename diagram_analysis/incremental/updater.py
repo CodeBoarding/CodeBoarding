@@ -237,7 +237,7 @@ class IncrementalUpdater:
 
             if overlap > best_overlap:
                 best_overlap = overlap
-                best_component = component.name
+                best_component = component.component_id
 
         # If no cluster overlap, try directory-based matching
         if best_component is None:
@@ -245,7 +245,7 @@ class IncrementalUpdater:
             for component in self.analysis.components:
                 for assigned_file in component.assigned_files:
                     if str(Path(assigned_file).parent) == file_dir:
-                        return component.name
+                        return component.component_id
 
         return best_component
 
@@ -302,30 +302,24 @@ class IncrementalUpdater:
         components_to_patch: set[str] = set()
         components_to_classify: dict[str, list[str]] = {}
 
-        for component_name in self.impact.components_needing_reexpansion | components_with_new_files:
-            if not is_expanded_component(component_name, self.manifest, self.output_dir):
+        for component_id in self.impact.components_needing_reexpansion | components_with_new_files:
+            if not is_expanded_component(component_id, self.manifest, self.output_dir):
                 continue
 
-            if component_has_only_renames(component_name, self.manifest, self.impact):
-                logger.info(f"Component '{component_name}' has only renames, will patch instead of re-expanding")
-                components_to_patch.add(component_name)
+            if component_has_only_renames(component_id, self.manifest, self.impact):
+                logger.info(f"Component '{component_id}' has only renames, will patch instead of re-expanding")
+                components_to_patch.add(component_id)
             else:
-                if can_patch_sub_analysis(
-                    component_name,
-                    self.manifest,
-                    self.impact,
-                    self.output_dir,
-                    self.analysis,
-                ):
-                    logger.info(f"Component '{component_name}' can be patched without LLM re-analysis")
-                    components_to_patch.add(component_name)
-                    if component_name in components_with_new_files:
-                        new_files = get_new_files_for_component(component_name, self.impact.added_files, self.analysis)
+                if can_patch_sub_analysis(component_id, self.manifest, self.impact, self.output_dir, self.analysis):
+                    logger.info(f"Component '{component_id}' can be patched without LLM re-analysis")
+                    components_to_patch.add(component_id)
+                    if component_id in components_with_new_files:
+                        new_files = get_new_files_for_component(component_id, self.impact.added_files, self.analysis)
                         if new_files:
-                            components_to_classify[component_name] = new_files
+                            components_to_classify[component_id] = new_files
                 else:
-                    logger.info(f"Component '{component_name}' needs full re-expansion")
-                    components_to_reexpand.add(component_name)
+                    logger.info(f"Component '{component_id}' needs full re-expansion")
+                    components_to_reexpand.add(component_id)
 
         # Step 5: Re-run DetailsAgent for components that need re-expansion
         reexpanded_components: list[str] = []
@@ -340,9 +334,9 @@ class IncrementalUpdater:
             reexpanded_components = reexpand_components(components_to_reexpand, self.repo_dir, context)
 
         # Step 5a: Sanity check
-        for comp_name in reexpanded_components:
-            if comp_name not in self.manifest.expanded_components:
-                logger.warning(f"Component {comp_name} is not found in original analysis")
+        for comp_id in reexpanded_components:
+            if comp_id not in self.manifest.expanded_components:
+                logger.warning(f"Component {comp_id} is not found in original analysis")
 
         # Step 5b: Run scoped impact summaries for changed expanded components
         run_scoped_component_impacts(
@@ -361,17 +355,14 @@ class IncrementalUpdater:
         classified_components: list[str] = []
 
         # First, run targeted classification for components with new files
-        for component_name, new_files in components_to_classify.items():
+        for component_id, new_files in components_to_classify.items():
             static_analysis = self.static_analysis
             if static_analysis is None:
-                logger.debug(
-                    "Skipping classification for %s because static_analysis is not available",
-                    component_name,
-                )
+                logger.debug("Skipping classification for %s because static_analysis is not available", component_id)
                 continue
 
             if classify_new_files_in_component(
-                component_name,
+                component_id,
                 new_files,
                 self.analysis,
                 self.manifest,
@@ -379,28 +370,28 @@ class IncrementalUpdater:
                 static_analysis,
                 self.repo_dir,
             ):
-                classified_components.append(component_name)
-                logger.info(f"Component '{component_name}' new files classified into sub-components")
+                classified_components.append(component_id)
+                logger.info(f"Component '{component_id}' new files classified into sub-components")
 
         # Then patch remaining components
-        for component_name in components_to_patch:
+        for component_id in components_to_patch:
             component = next(
-                (c for c in self.analysis.components if c.name == component_name),
+                (c for c in self.analysis.components if c.component_id == component_id),
                 None,
             )
             if not component:
-                logger.warning(f"Component '{component_name}' not found in analysis")
+                logger.warning(f"Component '{component_id}' not found in analysis")
                 continue
 
-            sub_analysis = load_sub_analysis(self.output_dir, component_name)
+            sub_analysis = load_sub_analysis(self.output_dir, component_id)
             if sub_analysis:
                 if patch_sub_analysis(sub_analysis, self.impact.deleted_files, self.impact.renames):
-                    save_sub_analysis(sub_analysis, self.output_dir, component_name)
-                    logger.info(f"Component '{component_name}' sub-analysis patched")
-                patched_components.append(component_name)
+                    save_sub_analysis(sub_analysis, self.output_dir, component_id)
+                    logger.info(f"Component '{component_id}' sub-analysis patched")
+                patched_components.append(component_id)
             else:
-                logger.info(f"Component '{component_name}' has no sub-analysis, updating in place")
-                patched_components.append(component_name)
+                logger.info(f"Component '{component_id}' has no sub-analysis, updating in place")
+                patched_components.append(component_id)
 
         # Step 7: Validate the updated analysis
         if self.static_analysis:

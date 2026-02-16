@@ -183,7 +183,7 @@ class TestPartialUpdate(unittest.TestCase):
             components_relations=[],
         )
         mock_generator.process_component.return_value = (
-            "TestComponent",
+            "test_comp_id",
             mock_sub_analysis,
             [],
         )
@@ -193,6 +193,7 @@ class TestPartialUpdate(unittest.TestCase):
             components=[
                 Component(
                     name="TestComponent",
+                    component_id="test_comp_id",
                     description="Test",
                     key_entities=[],
                     source_cluster_ids=[],
@@ -211,13 +212,13 @@ class TestPartialUpdate(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="test_comp_id",
                 depth_level=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once()
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "TestComponent")
+            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
 
     @patch("main.load_analysis")
     @patch("main.DiagramGenerator")
@@ -238,7 +239,7 @@ class TestPartialUpdate(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="TestComponent",
                 depth_level=1,
             )
 
@@ -373,14 +374,14 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 depth_level=2,
-                component_name="TestComponent",
+                component_id="TestComponent",
             )
 
             mock_partial_update.assert_called_once_with(
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="TestComponent",
                 depth_level=2,
             )
 
@@ -415,7 +416,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -428,7 +429,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = "test"
-        args.partial_component = "Component1"
+        args.partial_component_id = "test_comp_id"
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
@@ -441,7 +442,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = "test"
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -454,7 +455,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=False)
@@ -467,7 +468,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)

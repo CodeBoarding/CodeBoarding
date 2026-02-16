@@ -9,6 +9,7 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
+    assign_component_ids,
 )
 from output_generators.sphinx import (
     component_header,
@@ -59,7 +60,8 @@ class TestSphinxOutput(unittest.TestCase):
             components_relations=[self.relation],
         )
 
-        self.expanded_components = {"Component1", "Component2"}
+        assign_component_ids(self.analysis)
+        self.expanded_components = {self.component1.component_id, self.component2.component_id}
         self.repo_ref = "https://github.com/user/repo/blob/main"
         self.project = "test_project"
 
@@ -107,7 +109,7 @@ class TestSphinxOutput(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        result = component_header("Component1", self.expanded_components)
+        result = component_header("Component1", self.component1.component_id, self.expanded_components)
 
         self.assertIn("Component1", result)
         self.assertIn("^", result)  # RST underline character
@@ -115,7 +117,7 @@ class TestSphinxOutput(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("UnlinkedComponent", set())
+        result = component_header("UnlinkedComponent", "nonexistent_id", set())
 
         self.assertIn("UnlinkedComponent", result)
         self.assertIn("^", result)
@@ -124,7 +126,7 @@ class TestSphinxOutput(unittest.TestCase):
     def test_component_header_length(self):
         # Test that header underline matches component name length
         component_name = "Test Component"
-        result = component_header(component_name, set())
+        result = component_header(component_name, "test_id", set())
 
         lines = result.split("\n")
         self.assertEqual(len(lines[0]), len(lines[1]))

@@ -2,44 +2,44 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import Component, AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
-from agents.llm_config import initialize_llms
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.incremental.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
-    save_manifest,
     manifest_exists,
+    save_manifest,
 )
-from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from health.config import initialize_health_dir, load_health_config
+from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
-from health.runner import run_health_checks
-from health.config import initialize_health_dir, load_health_config
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class DiagramGenerator:
             # Get new components to analyze (deterministic, no LLM)
             new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
 
-            return component.name, analysis, new_components
+            return component.component_id, analysis, new_components
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -269,9 +269,9 @@ class DiagramGenerator:
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
             # Track components that were actually expanded (have sub-analysis)
-            expanded_components: list[Component] = []
+            actually_expanded: list[Component] = []
 
-            # Collect all sub-analyses: component_name -> (AnalysisInsights, expandable_sub_components)
+            # Collect all sub-analyses: component_id -> (AnalysisInsights, expandable_sub_components)
             all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
 
             # Process each level of components in parallel
@@ -298,13 +298,10 @@ class DiagramGenerator:
                     ):
                         component = future_to_component[future]
                         try:
-                            comp_name, sub_analysis, new_components = future.result()
-                            if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (
-                                    sub_analysis,
-                                    new_components,
-                                )
-                                expanded_components.append(component)
+                            comp_id, sub_analysis, new_components = future.result()
+                            if comp_id and sub_analysis:
+                                all_sub_analyses[comp_id] = (sub_analysis, new_components)
+                                actually_expanded.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
                         except Exception as exc:
@@ -318,8 +315,7 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                 )
 
@@ -339,8 +335,7 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
                 )
@@ -353,7 +348,7 @@ class DiagramGenerator:
             self._write_file_coverage()
 
             # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
+            self._save_manifest(analysis, actually_expanded)
 
             return [analysis_path]
 
@@ -363,7 +358,7 @@ class DiagramGenerator:
             repo_state_hash = get_repo_state_hash(self.repo_location)
             base_commit = get_git_commit_hash(self.repo_location)
 
-            expanded_names = [c.name for c in expanded_components]
+            expanded_names = [c.component_id for c in expanded_components]
 
             manifest = build_manifest_from_analysis(
                 analysis=analysis,

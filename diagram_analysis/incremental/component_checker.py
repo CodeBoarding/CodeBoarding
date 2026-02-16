@@ -16,22 +16,22 @@ from diagram_analysis.manifest import AnalysisManifest
 logger = logging.getLogger(__name__)
 
 
-def is_expanded_component(component_name: str, manifest: AnalysisManifest | None, output_dir: Path) -> bool:
+def is_expanded_component(component_id: str, manifest: AnalysisManifest | None, output_dir: Path) -> bool:
     """Check if a component has a sub-analysis (is expanded).
 
     Checks the manifest first, then falls back to checking the unified analysis.json.
     """
     # Check manifest first
-    if manifest and component_name in manifest.expanded_components:
+    if manifest and component_id in manifest.expanded_components:
         return True
 
     # Fallback: check if sub-analysis exists in the unified file
-    sub = load_sub_analysis(output_dir, component_name)
+    sub = load_sub_analysis(output_dir, component_id)
     return sub is not None
 
 
 def component_has_only_renames(
-    component_name: str, manifest: AnalysisManifest | None, impact: ChangeImpact | None
+    component_id: str, manifest: AnalysisManifest | None, impact: ChangeImpact | None
 ) -> bool:
     """Check if a component's structural changes are just file renames.
 
@@ -44,7 +44,7 @@ def component_has_only_renames(
     # Get all files associated with this component
     component_files = set()
     for file_path, comp in manifest.file_to_component.items():
-        if comp == component_name:
+        if comp == component_id:
             component_files.add(file_path)
 
     # Check if all "deleted" files are actually old paths of renames
@@ -67,7 +67,7 @@ def component_has_only_renames(
 
     # Log detailed analysis for debugging
     logger.debug(
-        f"Component '{component_name}' change analysis: "
+        f"Component '{component_id}' change analysis: "
         f"deleted={deleted_in_component}, modified={modified_in_component}, "
         f"renames={renames_in_component}"
     )
@@ -84,10 +84,10 @@ def component_has_only_renames(
 
     # Log the decision
     if deleted_are_all_renames and modified_are_all_renames:
-        logger.debug(f"Component '{component_name}' has only renames")
+        logger.debug(f"Component '{component_id}' has only renames")
     else:
         logger.debug(
-            f"Component '{component_name}' has true structural changes: "
+            f"Component '{component_id}' has true structural changes: "
             f"deleted_are_renames={deleted_are_all_renames}, "
             f"modified_are_renames={modified_are_all_renames}"
         )
@@ -97,7 +97,7 @@ def component_has_only_renames(
 
 
 def can_patch_sub_analysis(
-    component_name: str,
+    component_id: str,
     manifest: AnalysisManifest | None,
     impact: ChangeImpact | None,
     output_dir: Path,
@@ -114,14 +114,14 @@ def can_patch_sub_analysis(
 
     # Check component exists
     component = next(
-        (c for c in analysis.components if c.name == component_name),
+        (c for c in analysis.components if c.component_id == component_id),
         None,
     )
     if not component:
         return False
 
     # Load existing sub-analysis from the unified file
-    sub_analysis = load_sub_analysis(output_dir, component_name)
+    sub_analysis = load_sub_analysis(output_dir, component_id)
     if not sub_analysis:
         return False
 
@@ -156,7 +156,7 @@ def can_patch_sub_analysis(
     # We can patch if there are file changes but no structural logic changes
     # For additions, we'll handle them via targeted classification rather than full re-expansion
     logger.debug(
-        f"Component '{component_name}' sub-analysis check: "
+        f"Component '{component_id}' sub-analysis check: "
         f"additions={has_additions}, deletions={has_deletions}, renames={has_renames}"
     )
 
@@ -166,14 +166,14 @@ def can_patch_sub_analysis(
     # - Deletions: need to check if it affects structure
     if has_deletions:
         # Deletions might affect component structure, need re-expansion
-        logger.info(f"Component '{component_name}' has deletions, needs re-expansion")
+        logger.info(f"Component '{component_id}' has deletions, needs re-expansion")
         return False
 
     return True
 
 
 def subcomponent_has_only_renames(
-    component_name: str, sub_analysis: AnalysisInsights, impact: ChangeImpact | None
+    component_id: str, sub_analysis: AnalysisInsights, impact: ChangeImpact | None
 ) -> bool:
     """Check if changes within a component's sub-analysis are just renames.
 
@@ -208,7 +208,7 @@ def subcomponent_has_only_renames(
 
     # Log detailed analysis
     logger.debug(
-        f"Sub-component analysis for '{component_name}': "
+        f"Sub-component analysis for '{component_id}': "
         f"deleted={deleted_in_subcomponent}, modified={modified_in_subcomponent}, "
         f"renames={renames_in_subcomponent}"
     )
@@ -225,10 +225,10 @@ def subcomponent_has_only_renames(
 
     # Log the decision
     if deleted_are_all_renames and modified_are_all_renames:
-        logger.debug(f"Sub-analysis for '{component_name}' has only renames, can be patched")
+        logger.debug(f"Sub-analysis for '{component_id}' has only renames, can be patched")
     else:
         logger.debug(
-            f"Sub-analysis for '{component_name}' has true structural changes: "
+            f"Sub-analysis for '{component_id}' has true structural changes: "
             f"deleted_are_renames={deleted_are_all_renames}, "
             f"modified_are_renames={modified_are_all_renames}"
         )

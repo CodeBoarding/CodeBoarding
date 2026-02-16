@@ -10,9 +10,11 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
+    assign_component_ids,
 )
 from diagram_analysis.analysis_json import (
     ComponentJson,
+    RelationJson,
     UnifiedAnalysisJson,
     from_analysis_to_json,
     from_component_to_json_component,
@@ -53,6 +55,7 @@ class TestComponentJson(unittest.TestCase):
         # Test creating a ComponentJson instance
         comp = ComponentJson(
             name="TestComponent",
+            component_id="test_comp_id",
             description="Test description",
             can_expand=True,
             assigned_files=["file1.py", "file2.py"],
@@ -68,6 +71,7 @@ class TestComponentJson(unittest.TestCase):
         # Test default values
         comp = ComponentJson(
             name="Component",
+            component_id="comp_defaults_id",
             description="Description",
             key_entities=[],
         )
@@ -78,9 +82,17 @@ class TestComponentJson(unittest.TestCase):
     def test_component_json_with_references(self):
         # Test with source code references
         ref = SourceCodeReference(
-            qualified_name="test.TestClass", reference_file="test.py", reference_start_line=1, reference_end_line=10
+            qualified_name="test.TestClass",
+            reference_file="test.py",
+            reference_start_line=1,
+            reference_end_line=10,
         )
-        comp = ComponentJson(name="Component", description="Description", key_entities=[ref])
+        comp = ComponentJson(
+            name="Component",
+            component_id="comp_ref_id",
+            description="Description",
+            key_entities=[ref],
+        )
 
         self.assertEqual(len(comp.key_entities), 1)
         self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
@@ -91,9 +103,19 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test creating a UnifiedAnalysisJson instance
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp1 = ComponentJson(name="Comp1", description="Description 1", key_entities=[])
-        comp2 = ComponentJson(name="Comp2", description="Description 2", key_entities=[])
-        rel = Relation(src_name="Comp1", dst_name="Comp2", relation="uses")
+        comp1 = ComponentJson(
+            name="Comp1",
+            component_id="comp1_id",
+            description="Description 1",
+            key_entities=[],
+        )
+        comp2 = ComponentJson(
+            name="Comp2",
+            component_id="comp2_id",
+            description="Description 2",
+            key_entities=[],
+        )
+        rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
@@ -111,7 +133,12 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         # Test serialization
         from diagram_analysis.analysis_json import AnalysisMetadata
 
-        comp = ComponentJson(name="Comp", description="Description", key_entities=[])
+        comp = ComponentJson(
+            name="Comp",
+            component_id="comp_dump_id",
+            description="Description",
+            key_entities=[],
+        )
         analysis = UnifiedAnalysisJson(
             metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
             description="Test",
@@ -149,6 +176,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             components=[self.comp1, self.comp2],
             components_relations=[self.rel],
         )
+        assign_component_ids(self.analysis)
 
     def test_from_component_to_json_component_can_expand_true(self):
         # Test when component can be expanded
@@ -393,6 +421,107 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(result_name)
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
+
+    def test_generate_analysis_uses_root_expandables_for_can_expand(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+        )
+
+        # Prevent pre_analysis from running and avoid manifest writes.
+        gen.abstraction_agent = Mock()
+        gen.details_agent = Mock()
+        gen._save_manifest = Mock()
+
+        comp1 = Component(
+            name="Component1",
+            description="First",
+            key_entities=[],
+            assigned_files=["file1.py"],
+        )
+        comp2 = Component(
+            name="Component2",
+            description="Second",
+            key_entities=[],
+            assigned_files=["file2.py"],
+        )
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[comp1, comp2],
+            components_relations=[],
+        )
+        assign_component_ids(analysis)
+
+        gen.abstraction_agent.run.return_value = (analysis, {})
+
+        planned = [analysis.components[0]]
+        captured: dict[str, list[Component]] = {}
+
+        def _capture_build(
+            *,
+            analysis,
+            expandable_components,
+            repo_name,
+            sub_analyses,
+            file_coverage_summary=None,
+        ):
+            captured["expandable_components"] = expandable_components
+            return "{}"
+
+        with patch("diagram_analysis.diagram_generator.plan_analysis", return_value=planned):
+            with patch(
+                "diagram_analysis.incremental.io_utils.build_unified_analysis_json",
+                side_effect=_capture_build,
+            ):
+                gen.generate_analysis()
+
+        # Both components have files, so both should be expandable (io_utils merges caller-provided with computed)
+        self.assertEqual(
+            sorted([c.component_id for c in captured["expandable_components"]]),
+            sorted([c.component_id for c in analysis.components]),
+        )
+
+    @patch("diagram_analysis.diagram_generator.plan_analysis")
+    def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_plan_analysis):
+        comp1 = Component(
+            name="Comp1",
+            description="Component one",
+            key_entities=[],
+            assigned_files=["a.py"],
+        )
+        comp2 = Component(
+            name="Comp2",
+            description="Component two",
+            key_entities=[],
+            assigned_files=["b.py"],
+        )
+        analysis = AnalysisInsights(
+            description="Root analysis",
+            components=[comp1, comp2],
+            components_relations=[],
+        )
+        assign_component_ids(analysis)
+
+        mock_plan_analysis.return_value = analysis.components
+
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.abstraction_agent.run.return_value = (analysis, {})
+
+        gen.generate_analysis()
+
+        written = json.loads((self.output_dir / "analysis.json").read_text())
+        self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
 
 
 if __name__ == "__main__":

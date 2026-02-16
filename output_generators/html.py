@@ -17,35 +17,35 @@ def generate_cytoscape_data(
     # Add nodes (components)
     component_ids = set()
     for comp in analysis.components:
-        node_id = sanitize(comp.name)
-        component_ids.add(node_id)
+        node_key = sanitize(comp.name)
+        component_ids.add(node_key)
 
         # Determine if component has linked file for styling
-        has_link = comp.name in expanded_components
+        has_link = comp.component_id in expanded_components
 
-        node_data = {"data": {"id": node_id, "label": comp.name, "description": comp.description, "hasLink": has_link}}
+        node_data = {"data": {"id": node_key, "label": comp.name, "description": comp.description, "hasLink": has_link}}
 
         # Add link URL if component has linked file
         if has_link:
             if not demo:
-                node_data["data"]["linkUrl"] = f"./{node_id}.html"
+                node_data["data"]["linkUrl"] = f"./{node_key}.html"
             else:
                 node_data["data"][
                     "linkUrl"
-                ] = f"https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.html"
+                ] = f"https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_key}.html"
 
         elements.append(node_data)
 
     # Add edges (relations) - only if both source and target nodes exist
     edge_count = 0
     for rel in analysis.components_relations:
-        src_id = sanitize(rel.src_name)
-        dst_id = sanitize(rel.dst_name)
+        src_key = sanitize(rel.src_name)
+        dst_key = sanitize(rel.dst_name)
 
         # Only add edge if both source and destination nodes exist
-        if src_id in component_ids and dst_id in component_ids:
+        if src_key in component_ids and dst_key in component_ids:
             edge_data = {
-                "data": {"id": f"edge_{edge_count}", "source": src_id, "target": dst_id, "label": rel.relation}
+                "data": {"id": f"edge_{edge_count}", "source": src_key, "target": dst_key, "label": rel.relation}
             }
             elements.append(edge_data)
             edge_count += 1
@@ -110,7 +110,7 @@ def generate_html(
 
         # Check if there's a linked file for this component
         expand_link = ""
-        if comp.name in expanded_components:
+        if comp.component_id in expanded_components:
             expand_link = f' <a href="./{component_id}.html">[Expand]</a>'
 
         components_html += f"""
@@ -147,12 +147,12 @@ def generate_html_file(
     return html_file
 
 
-def component_header_html(component_name: str, expanded_components: set[str]) -> str:
+def component_header_html(component_name: str, component_id: str, expanded_components: set[str]) -> str:
     """
     Generate an HTML header for a component with its name and a link to its details.
     """
     sanitized_name = sanitize(component_name)
-    if component_name in expanded_components:
+    if component_id in expanded_components:
         return f'<h3 id="{sanitized_name}">{component_name} <a href="./{sanitized_name}.html">[Expand]</a></h3>'
     else:
         return f'<h3 id="{sanitized_name}">{component_name}</h3>'

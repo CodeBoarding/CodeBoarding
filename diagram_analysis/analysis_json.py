@@ -3,12 +3,21 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
-from agents.agent_responses import Component, Relation, AnalysisInsights
+from agents.agent_responses import Component, Relation, AnalysisInsights, assign_component_ids
 
 logger = logging.getLogger(__name__)
 
 
+class RelationJson(Relation):
+    """Relation subclass that includes src_id/dst_id in JSON serialization."""
+
+    src_id: str = Field(default="", description="Component ID of the source.")
+    dst_id: str = Field(default="", description="Component ID of the destination.")
+
+
 class ComponentJson(Component):
+    # Override to include in JSON serialization (parent has exclude=True)
+    component_id: str = Field(description="Deterministic unique identifier for this component.")
     can_expand: bool = Field(
         description="Whether the component can be expanded in detail or not.",
         default=False,
@@ -21,7 +30,7 @@ class ComponentJson(Component):
     components: list["ComponentJson"] | None = Field(
         description="Sub-components if expanded, None otherwise.", default=None
     )
-    components_relations: list[Relation] | None = Field(
+    components_relations: list[RelationJson] | None = Field(
         description="Relations among sub-components if expanded, None otherwise.",
         default=None,
     )
@@ -67,7 +76,7 @@ class UnifiedAnalysisJson(BaseModel):
         description="One paragraph explaining the functionality which is represented by this graph."
     )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
-    components_relations: list[Relation] = Field(description="List of relations among the components.")
+    components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
 
 def from_component_to_json_component(
@@ -86,21 +95,31 @@ def from_component_to_json_component(
         can_expand = False
     else:
         processed_ids.add(component_id_val)
-        can_expand = any(c.name == component.name for c in expandable_components)
+        can_expand = any(c.component_id == component.component_id for c in expandable_components)
 
     nested_components: list[ComponentJson] | None = None
-    nested_relations: list[Relation] | None = None
+    nested_relations: list[RelationJson] | None = None
 
-    if can_expand and sub_analyses and component.name in sub_analyses:
-        sub_analysis, sub_expandable = sub_analyses[component.name]
+    if can_expand and sub_analyses and component.component_id in sub_analyses:
+        sub_analysis, sub_expandable = sub_analyses[component.component_id]
         nested_components = [
             from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids)
             for c in sub_analysis.components
         ]
-        nested_relations = sub_analysis.components_relations
+        nested_relations = [
+            RelationJson(
+                relation=r.relation,
+                src_name=r.src_name,
+                dst_name=r.dst_name,
+                src_id=r.src_id,
+                dst_id=r.dst_id,
+            )
+            for r in sub_analysis.components_relations
+        ]
 
     return ComponentJson(
         name=component.name,
+        component_id=component.component_id,
         description=component.description,
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
@@ -121,10 +140,20 @@ def from_analysis_to_json(
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
+    relations_json = [
+        RelationJson(
+            relation=r.relation,
+            src_name=r.src_name,
+            dst_name=r.dst_name,
+            src_id=r.src_id,
+            dst_id=r.dst_id,
+        )
+        for r in analysis.components_relations
+    ]
     data = {
         "description": analysis.description,
         "components": [c.model_dump(exclude_none=True) for c in components_json],
-        "components_relations": [r.model_dump() for r in analysis.components_relations],
+        "components_relations": [r.model_dump() for r in relations_json],
     }
     import json
 
@@ -146,29 +175,29 @@ def _compute_depth_level(
         """Recursively compute depth for a sub-analysis."""
         max_depth = 1
         for comp in analysis.components:
-            if comp.name in sub_analyses and comp.name not in visited:
-                visited.add(comp.name)
-                sub_analysis, _ = sub_analyses[comp.name]
+            if comp.component_id in sub_analyses and comp.component_id not in visited:
+                visited.add(comp.component_id)
+                sub_analysis, _ = sub_analyses[comp.component_id]
                 child_depth = 1 + get_depth(sub_analysis, visited)
                 max_depth = max(max_depth, child_depth)
-                visited.remove(comp.name)
+                visited.remove(comp.component_id)
         return max_depth
 
     max_depth = 1
-    for name, (sub_analysis, _) in sub_analyses.items():
+    for cid, (sub_analysis, _) in sub_analyses.items():
         # Only compute depth for root-level sub-analyses (not referenced by others)
         is_root_level = True
-        for other_name, (other_analysis, _) in sub_analyses.items():
-            if other_name != name:
+        for other_cid, (other_analysis, _) in sub_analyses.items():
+            if other_cid != cid:
                 for comp in other_analysis.components:
-                    if comp.name == name:
+                    if comp.component_id == cid:
                         is_root_level = False
                         break
             if not is_root_level:
                 break
 
         if is_root_level:
-            visited = {name}
+            visited = {cid}
             depth = 1 + get_depth(sub_analysis, visited)
             max_depth = max(max_depth, depth)
 
@@ -197,6 +226,16 @@ def build_unified_analysis_json(
     else:
         summary = file_coverage_summary
 
+    relations_json = [
+        RelationJson(
+            relation=r.relation,
+            src_name=r.src_name,
+            dst_name=r.dst_name,
+            src_id=r.src_id,
+            dst_id=r.dst_id,
+        )
+        for r in analysis.components_relations
+    ]
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -206,7 +245,7 @@ def build_unified_analysis_json(
         ),
         description=analysis.description,
         components=components_json,
-        components_relations=analysis.components_relations,
+        components_relations=relations_json,
     )
     return unified.model_dump_json(indent=2, exclude_none=True)
 
@@ -217,12 +256,48 @@ def parse_unified_analysis(
     """Parse a unified analysis JSON dict into root AnalysisInsights and sub-analyses.
 
     Returns:
-        (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component name
+        (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
     """
     sub_analyses: dict[str, AnalysisInsights] = {}
     root_analysis = _extract_analysis_recursive(data, sub_analyses)
+
+    # Backward compatibility: if components lack component_id, assign deterministically
+    if any(c.component_id == "" for c in root_analysis.components):
+        _assign_ids_and_rekey(root_analysis, sub_analyses)
+
     return root_analysis, sub_analyses
+
+
+def _assign_ids_and_rekey(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> None:
+    """Assign component IDs to an analysis loaded from old JSON (without IDs) and re-key sub_analyses."""
+    from agents.agent_responses import ROOT_PARENT_ID
+
+    # Build old name -> sub_analysis mapping before clearing
+    old_subs = dict(sub_analyses)
+    sub_analyses.clear()
+
+    # Assign IDs to root and recursively to sub-analyses
+    _assign_ids_recursive(root_analysis, old_subs, sub_analyses, ROOT_PARENT_ID)
+
+
+def _assign_ids_recursive(
+    analysis: AnalysisInsights,
+    old_subs: dict[str, AnalysisInsights],
+    new_subs: dict[str, AnalysisInsights],
+    parent_id: str,
+) -> None:
+    """Recursively assign IDs and re-key sub_analyses from name-keyed to id-keyed."""
+    assign_component_ids(analysis, parent_id=parent_id)
+    for comp in analysis.components:
+        # Check if this component had a sub-analysis keyed by name
+        if comp.name in old_subs:
+            sub = old_subs[comp.name]
+            new_subs[comp.component_id] = sub
+            _assign_ids_recursive(sub, old_subs, new_subs, comp.component_id)
 
 
 def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsights]) -> AnalysisInsights:
@@ -230,7 +305,7 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
 
     Args:
         data: The analysis data dict containing components, description, etc.
-        sub_analyses: Dict to populate with component name -> AnalysisInsights mappings.
+        sub_analyses: Dict to populate with component_id -> AnalysisInsights mappings.
 
     Returns:
         AnalysisInsights for this level (components are non-nested at this level).
@@ -241,6 +316,7 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         # Create the component for this level (non-nested)
         component = Component(
             name=comp_data["name"],
+            component_id=comp_data.get("component_id", ""),
             description=comp_data["description"],
             key_entities=comp_data.get("key_entities", []),
             assigned_files=comp_data.get("assigned_files", []),
@@ -252,7 +328,7 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         nested_components = comp_data.get("components")
         if nested_components is not None:
             sub_analysis = _extract_analysis_recursive(comp_data, sub_analyses)
-            sub_analyses[comp_data["name"]] = sub_analysis
+            sub_analyses[component.component_id or comp_data["name"]] = sub_analysis
 
     return AnalysisInsights(
         description=data.get("description", ""),
