@@ -1,10 +1,10 @@
-name: CodeBoarding Documentation update workflow
+name: CodeBoarding Documentation (Direct)
 
 on:
   workflow_dispatch:
     inputs:
       repository_url:
-        description: 'Repository URL to analyze'
+        description: 'Repository URL to analyze (defaults to current repo)'
         required: false
         default: ''
         type: string
@@ -44,21 +44,28 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    
+
     steps:
-      - name: Checkout repository
+      - name: Checkout CodeBoarding engine
+        uses: actions/checkout@v4
+        with:
+          repository: CodeBoarding/CodeBoarding
+          path: codeboarding-engine
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout target repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0  # Required to access branch history
+          fetch-depth: 0
+          path: target-repo
 
-      # Determine branches based on context
       - name: Set branch variables
         id: set-branches
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "source_branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
-            echo "target_branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "source_branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "target_branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
             echo "repository_url=https://github.com/${{ github.repository }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.inputs.source_branch }}" != "" ] && [ "${{ github.event.inputs.target_branch }}" != "" ]; then
             echo "source_branch=${{ github.event.inputs.source_branch }}" >> $GITHUB_OUTPUT
@@ -70,28 +77,133 @@ jobs:
             echo "repository_url=https://github.com/${{ github.repository }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Fetch CodeBoarding Documentation
-        timeout-minutes: 30
-        id: codeboarding
-        uses: CodeBoarding/CodeBoarding-GHAction@0.1.2
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
         with:
-          repository_url: ${{ steps.set-branches.outputs.repository_url }}
-          source_branch: ${{ steps.set-branches.outputs.source_branch }}
-          target_branch: ${{ steps.set-branches.outputs.target_branch }}
-          output_directory: ${{ github.event.inputs.output_directory || '.codeboarding' }}
-          output_format: ${{ github.event.inputs.output_format || '.md' }}
+          python-version: '3.13'
 
-      - name: Display Action Results
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Cache uv venv
+        uses: actions/cache@v4
+        with:
+          path: codeboarding-engine/.venv
+          key: uv-venv-${{ runner.os }}-${{ hashFiles('codeboarding-engine/pyproject.toml', 'codeboarding-engine/uv.lock') }}
+          restore-keys: |
+            uv-venv-${{ runner.os }}-
+
+      - name: Cache LSP servers and binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            codeboarding-engine/static_analyzer/servers/node_modules
+            codeboarding-engine/static_analyzer/servers/bin
+          key: lsp-servers-${{ runner.os }}-v1
+          restore-keys: |
+            lsp-servers-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        working-directory: codeboarding-engine
         run: |
-          echo "Documentation files created: ${{ steps.codeboarding.outputs.markdown_files_created }}"
-          echo "JSON files created: ${{ steps.codeboarding.outputs.json_files_created }}"
-          echo "Documentation directory: ${{ steps.codeboarding.outputs.output_directory }}"
-          echo "JSON directory: ${{ steps.codeboarding.outputs.json_directory }}"
-          echo "Has changes: ${{ steps.codeboarding.outputs.has_changes }}"
+          uv venv --clear
+          uv pip install -e .
 
-      # Check if we have any changes to commit
-      - name: Check for changes
+      - name: Install LSP servers and binaries
+        working-directory: codeboarding-engine
+        run: |
+          uv run python install.py --auto-install-npm
+
+      - name: Run CodeBoarding analysis
+        working-directory: codeboarding-engine
+        timeout-minutes: 30
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
+          REPO_ROOT: ${{ github.workspace }}/codeboarding-engine/repos
+          STATIC_ANALYSIS_CONFIG: ${{ github.workspace }}/codeboarding-engine/static_analysis_config.yml
+          PROJECT_ROOT: ${{ github.workspace }}/codeboarding-engine
+          DIAGRAM_DEPTH_LEVEL: '5'
+          CACHING_DOCUMENTATION: 'false'
+          ENABLE_MONITORING: 'false'
+        run: |
+          # Ensure repos directory exists
+          mkdir -p repos
+
+          OUTPUT_FORMAT="${{ github.event.inputs.output_format || '.md' }}"
+          OUTPUT_DIR="${{ github.event.inputs.output_directory || '.codeboarding' }}"
+          REPO_URL="${{ steps.set-branches.outputs.repository_url }}"
+          SOURCE_BRANCH="${{ steps.set-branches.outputs.source_branch }}"
+          TARGET_BRANCH="${{ steps.set-branches.outputs.target_branch }}"
+
+          echo "Generating docs for: $REPO_URL"
+          echo "Source branch: $SOURCE_BRANCH"
+          echo "Target branch: $TARGET_BRANCH"
+          echo "Output format: $OUTPUT_FORMAT"
+          echo "Output directory: $OUTPUT_DIR"
+
+          uv run python -c "
+          from github_action import generate_analysis
+          result_dir = generate_analysis(
+              repo_url='$REPO_URL',
+              source_branch='$SOURCE_BRANCH',
+              target_branch='$TARGET_BRANCH',
+              extension='$OUTPUT_FORMAT',
+              output_dir='$OUTPUT_DIR',
+          )
+          print(f'Generated files in: {result_dir}')
+          "
+
+      - name: Copy generated files to target repo
+        id: copy-files
+        run: |
+          OUTPUT_DIR="${{ github.event.inputs.output_directory || '.codeboarding' }}"
+          OUTPUT_FORMAT="${{ github.event.inputs.output_format || '.md' }}"
+          ENGINE_TEMP=$(find codeboarding-engine/temp -maxdepth 1 -mindepth 1 -type d | head -1)
+
+          if [ -z "$ENGINE_TEMP" ]; then
+            echo "No temp directory found - analysis may have failed"
+            exit 1
+          fi
+
+          echo "Found generated files in: $ENGINE_TEMP"
+          ls -la "$ENGINE_TEMP"
+
+          # Copy doc files to target repo output directory
+          mkdir -p "target-repo/$OUTPUT_DIR"
+
+          json_count=0
+          doc_count=0
+
+          for f in "$ENGINE_TEMP"/*.json; do
+            if [ -f "$f" ]; then
+              cp "$f" "target-repo/$OUTPUT_DIR/"
+              json_count=$((json_count + 1))
+            fi
+          done
+
+          for f in "$ENGINE_TEMP"/*"$OUTPUT_FORMAT"; do
+            if [ -f "$f" ]; then
+              cp "$f" "target-repo/$OUTPUT_DIR/"
+              doc_count=$((doc_count + 1))
+            fi
+          done
+
+          echo "Copied $json_count JSON files and $doc_count doc files to target-repo/$OUTPUT_DIR/"
+          echo "json_files_created=$json_count" >> $GITHUB_OUTPUT
+          echo "markdown_files_created=$doc_count" >> $GITHUB_OUTPUT
+          echo "output_directory=$OUTPUT_DIR" >> $GITHUB_OUTPUT
+
+      - name: Check for changes in target repo
         id: git-changes
+        working-directory: target-repo
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "has_git_changes=true" >> $GITHUB_OUTPUT
@@ -99,86 +211,47 @@ jobs:
             echo "has_git_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      # Generate architecture documentation from CodeBoarding files
       - name: Generate architecture documentation
-        if: steps.git-changes.outputs.has_git_changes == 'true' && steps.codeboarding.outputs.has_changes == 'true'
+        if: steps.git-changes.outputs.has_git_changes == 'true'
+        working-directory: target-repo
         run: |
-          # Create docs/development directory if it doesn't exist
-          mkdir -p docs/development
-          
-          # Get the output format
+          OUTPUT_DIR="${{ github.event.inputs.output_directory || '.codeboarding' }}"
           output_format="${{ github.event.inputs.output_format || '.md' }}"
           file_extension="${output_format}"
-          
-          # Log the files found in the CodeBoarding directory
-          echo "📁 Scanning CodeBoarding directory for ${file_extension} files..."
-          ls -la .codeboarding/ || echo "⚠️  CodeBoarding directory not found"
-          
-          # Initialize the architecture file
+
+          mkdir -p docs/development
           echo "" > "docs/development/architecture${file_extension}"
-          
-          # First, add on_boarding file if it exists
-          if [ -f ".codeboarding/on_boarding${file_extension}" ]; then
-            echo "✅ Found and adding: on_boarding${file_extension}"
-            cat ".codeboarding/on_boarding${file_extension}" > "docs/development/architecture${file_extension}"
+
+          if [ -f "${OUTPUT_DIR}/on_boarding${file_extension}" ]; then
+            echo "Found and adding: on_boarding${file_extension}"
+            cat "${OUTPUT_DIR}/on_boarding${file_extension}" > "docs/development/architecture${file_extension}"
             echo "" >> "docs/development/architecture${file_extension}"
-          else
-            echo "ℹ️  on_boarding${file_extension} not found, skipping"
           fi
-          
-          # Count and log other files
-          other_files_count=0
-          
-          # Then add all other files (excluding on_boarding)
-          for file in .codeboarding/*${file_extension}; do
+
+          for file in ${OUTPUT_DIR}/*${file_extension}; do
             if [ -f "$file" ] && [ "$(basename "$file")" != "on_boarding${file_extension}" ]; then
               filename=$(basename "$file")
-              echo "✅ Found and adding: $filename"
+              echo "Found and adding: $filename"
               echo "" >> "docs/development/architecture${file_extension}"
               cat "$file" >> "docs/development/architecture${file_extension}"
               echo "" >> "docs/development/architecture${file_extension}"
-              other_files_count=$((other_files_count + 1))
             fi
           done
-          
-          # Summary logging
-          echo ""
-          echo "📊 Architecture generation summary:"
-          echo "   - on_boarding${file_extension}: $([ -f ".codeboarding/on_boarding${file_extension}" ] && echo "included" || echo "not found")"
-          echo "   - Other ${file_extension} files: $other_files_count files processed"
-          echo "   - Output: docs/development/architecture${file_extension}"
-          
-          # Show final file size
-          if [ -f "docs/development/architecture${file_extension}" ]; then
-            file_size=$(wc -c < "docs/development/architecture${file_extension}")
-            echo "   - Final file size: $file_size bytes"
-          fi
-          
-          echo "Architecture documentation generated at docs/development/architecture${file_extension}"
 
       - name: Commit and push changes
-        if: steps.git-changes.outputs.has_git_changes == 'true' && steps.codeboarding.outputs.has_changes == 'true'
+        if: steps.git-changes.outputs.has_git_changes == 'true'
+        working-directory: target-repo
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git commit -m "docs: update codeboarding documentation and generate architecture
+          git commit -m "docs: update codeboarding documentation
 
-          ## 📚 Documentation Update
-          This commit contains updated documentation files fetched from the CodeBoarding service and automatically generated architecture documentation.
-          
-          ### 📊 Summary
-          - Documentation files created/updated: ${{ steps.codeboarding.outputs.markdown_files_created }}
-          - JSON files created/updated: ${{ steps.codeboarding.outputs.json_files_created }}
-          - Documentation directory: ${{ steps.codeboarding.outputs.output_directory }}/
-          - JSON directory: ${{ steps.codeboarding.outputs.json_directory }}/
-          - Output format: ${{ github.event.inputs.output_format || '.md' }}
-          - Repository analyzed: ${{ steps.set-branches.outputs.repository_url }}
-          - Source branch: ${{ steps.set-branches.outputs.source_branch }}
-          - Target branch: ${{ steps.set-branches.outputs.target_branch }}
-          - Architecture documentation: docs/development/architecture${{ github.event.inputs.output_format || '.md' }} (auto-generated)
-          
-          The generated files have been automatically appended to the development documentation, and the architecture file has been generated from the CodeBoarding analysis files.
-          
-          🤖 This commit was automatically generated by the CodeBoarding documentation update workflow."
+          Documentation files created/updated: ${{ steps.copy-files.outputs.markdown_files_created }}
+          JSON files created/updated: ${{ steps.copy-files.outputs.json_files_created }}
+          Output format: ${{ github.event.inputs.output_format || '.md' }}
+          Repository analyzed: ${{ steps.set-branches.outputs.repository_url }}
+
+          Generated directly in GitHub Actions (no external server).
+          "
           git push
