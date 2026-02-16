@@ -6,6 +6,7 @@ from typing import get_origin, Optional
 from pydantic import BaseModel, Field
 
 ROOT_PARENT_ID = "ROOT"
+COMPONENT_ID_BYTES = 8
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -183,9 +184,14 @@ class AnalysisInsights(LLMBaseModel):
 
 
 def compute_component_id(parent_id: str, name: str, sibling_index: int = 0) -> str:
-    """Compute a deterministic component ID from parent ID, name, and sibling index."""
-    raw = f"{parent_id}:{name}:{sibling_index}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    """Compute a deterministic component ID from parent ID, name, and sibling index.
+
+    Note:
+        The ID is a compact, 64-bit prefix of SHA-256 (8 bytes -> 16 hex chars).
+        Truncation happens at the byte level to keep the representation explicit.
+    """
+    raw = f"{parent_id}:{name}:{sibling_index}".encode("utf-8")
+    return hashlib.sha256(raw).digest()[:COMPONENT_ID_BYTES].hex()
 
 
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = ROOT_PARENT_ID) -> None:
