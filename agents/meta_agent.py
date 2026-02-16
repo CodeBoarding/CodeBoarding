@@ -1,4 +1,3 @@
-import copy
 import hashlib
 import json
 import logging
@@ -64,34 +63,49 @@ class MetaAgent(CodeBoardingAgent):
         prompt_material = get_system_meta_analysis_message() + "\n" + get_meta_information_prompt()
         return hashlib.sha256(prompt_material.encode("utf-8")).hexdigest()
 
-    def _meta_llm_string(self, effective_llm: BaseChatModel) -> str:
+    def _llm_signature(self, llm: BaseChatModel) -> str:
         """Build a stable model signature string used in cache keys."""
         model_id = None
         for attr in ("model_name", "model", "model_id"):
-            value = getattr(effective_llm, attr, None)
+            value = getattr(llm, attr, None)
             if isinstance(value, str) and value:
                 model_id = value
                 break
 
         config: dict[str, object] = {}
         for attr in ("temperature", "max_tokens", "top_p", "timeout", "max_retries"):
-            value = getattr(effective_llm, attr, None)
+            value = getattr(llm, attr, None)
             if isinstance(value, (str, int, float, bool)) or value is None:
                 config[attr] = value
 
         payload = {
-            "provider": f"{type(effective_llm).__module__}.{type(effective_llm).__name__}",
-            "model_id": model_id or type(effective_llm).__name__,
+            "provider": f"{type(llm).__module__}.{type(llm).__name__}",
+            "model_id": model_id or type(llm).__name__,
             "config": config,
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def _meta_cache_prompt(self) -> str:
+    def _meta_llm_string(self, effective_llm: BaseChatModel) -> str:
+        """Backward-compatible alias for single-LLM signature."""
+        return self._llm_signature(effective_llm)
+
+    def _meta_cache_llm_string(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> str:
+        """Build cache key payload that includes both agent and parsing model signatures."""
+        payload = {
+            "kind": "meta_agent_llm_cache_v2",
+            "agent": self._llm_signature(agent_llm),
+            "parser": self._llm_signature(parsing_llm),
+        }
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+    def _meta_cache_prompt(self, repo_state_hash: str | None = None) -> str:
         """Build deterministic prompt-side cache key payload."""
+        if repo_state_hash is None:
+            repo_state_hash = get_repo_state_hash(self.repo_dir)
         payload = {
             "kind": "meta_agent_cache_v1",
             "project_name": self.project_name,
-            "repo_state_hash": get_repo_state_hash(self.repo_dir),
+            "repo_state_hash": repo_state_hash,
             "prompt_version": self._meta_prompt_version(),
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -115,10 +129,21 @@ class MetaAgent(CodeBoardingAgent):
         agent_llm: BaseChatModel | None = None,
     ) -> MetaAnalysisInsights:
         """Return cached metadata context or recompute and persist it."""
-        effective_llm = copy.copy(agent_llm or self.agent_llm)
-        cache = SQLiteCache(database_path=str(self._meta_cache_path()))
-        prompt_key = self._meta_cache_prompt()
-        llm_string = self._meta_llm_string(effective_llm)
+        if agent_llm is not None and agent_llm is not self.agent_llm:
+            raise ValueError("MetaAgent.get_meta_context does not support overriding agent_llm.")
+
+        repo_state_hash = get_repo_state_hash(self.repo_dir)
+        if repo_state_hash == "NoRepoStateHash":
+            logger.info("Meta cache disabled for non-git repository state; recomputing metadata analysis")
+            return self.analyze_project_metadata()
+
+        prompt_key = self._meta_cache_prompt(repo_state_hash)
+        llm_string = self._meta_cache_llm_string(self.agent_llm, self.parsing_llm)
+        try:
+            cache = SQLiteCache(database_path=str(self._meta_cache_path()))
+        except Exception as e:
+            logger.warning("Meta cache unavailable; continuing without cache: %s", e)
+            return self.analyze_project_metadata()
 
         if force_refresh:
             try:
