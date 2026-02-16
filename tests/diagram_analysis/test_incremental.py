@@ -28,13 +28,13 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
-    compute_component_id,
+    hash_component_id,
     ROOT_PARENT_ID,
 )
 
 
-COMP_A_ID = compute_component_id(ROOT_PARENT_ID, "ComponentA")
-COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_A_ID = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
 
 
 @pytest.fixture

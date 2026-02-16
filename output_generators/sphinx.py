@@ -15,29 +15,29 @@ def generated_mermaid_str(
 
     # Define each component as a node
     for comp in analysis.components:
-        node_id = sanitize(comp.name)
+        node_key = sanitize(comp.name)
         # Show name in the node label
         label = f"{comp.name}"
-        lines.append(f'      {node_id}["{label}"]')
+        lines.append(f'      {node_key}["{label}"]')
 
     # Add relations as labeled edges
     for rel in analysis.components_relations:
-        src_id = sanitize(rel.src_name)
-        dst_id = sanitize(rel.dst_name)
+        src_key = sanitize(rel.src_name)
+        dst_key = sanitize(rel.dst_name)
         # Use the relation phrase as the edge label
-        lines.append(f'      {src_id} -- "{rel.relation}" --> {dst_id}')
+        lines.append(f'      {src_key} -- "{rel.relation}" --> {dst_key}')
 
     # Linking to other files.
     for comp in analysis.components:
-        node_id = sanitize(comp.name)
+        node_key = sanitize(comp.name)
         if comp.component_id in expanded_components:
             # Create a link to the component's details file
             if not demo:
-                lines.append(f'      click {node_id} href "{repo_ref}/{node_id}.html" "Details"')
+                lines.append(f'      click {node_key} href "{repo_ref}/{node_key}.html" "Details"')
             else:
                 # For demo, link to a static URL
                 lines.append(
-                    f'      click {node_id} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_id}.html" "Details"'
+                    f'      click {node_key} href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/{project}/{node_key}.html" "Details"'
                 )
 
     return "\n".join(lines)

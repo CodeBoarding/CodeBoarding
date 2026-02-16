@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    compute_component_id,
+    hash_component_id,
     ROOT_PARENT_ID,
 )
 from diagram_analysis.incremental.component_checker import (
@@ -21,8 +21,8 @@ from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.manifest import AnalysisManifest
 
 
-COMP_A_ID = compute_component_id(ROOT_PARENT_ID, "ComponentA")
-COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_A_ID = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
 
 
 @pytest.fixture

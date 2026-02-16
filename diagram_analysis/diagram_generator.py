@@ -263,14 +263,13 @@ class DiagramGenerator:
 
             # Get the initial components to analyze (deterministic, no LLM)
             current_level_components = plan_analysis(analysis)
-            root_expandable_components = list(current_level_components)
             logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
 
             level = 0
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
             # Track components that were actually expanded (have sub-analysis)
-            expanded_components: list[Component] = []
+            actually_expanded: list[Component] = []
 
             # Collect all sub-analyses: component_id -> (AnalysisInsights, expandable_sub_components)
             all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
@@ -302,7 +301,7 @@ class DiagramGenerator:
                             comp_id, sub_analysis, new_components = future.result()
                             if comp_id and sub_analysis:
                                 all_sub_analyses[comp_id] = (sub_analysis, new_components)
-                                expanded_components.append(component)
+                                actually_expanded.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
                         except Exception as exc:
@@ -316,7 +315,6 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.component_id for c in root_expandable_components],
                     sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                 )
@@ -337,7 +335,6 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    expandable_components=[c.component_id for c in root_expandable_components],
                     sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
@@ -351,7 +348,7 @@ class DiagramGenerator:
             self._write_file_coverage()
 
             # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
+            self._save_manifest(analysis, actually_expanded)
 
             return [analysis_path]
 

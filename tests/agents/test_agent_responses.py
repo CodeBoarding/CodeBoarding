@@ -6,7 +6,7 @@ from agents.agent_responses import (
     Component,
     AnalysisInsights,
     ROOT_PARENT_ID,
-    compute_component_id,
+    hash_component_id,
 )
 
 
@@ -209,20 +209,20 @@ class TestAnalysisInsights(unittest.TestCase):
 
 class TestComponentIds(unittest.TestCase):
 
-    def test_compute_component_id_is_deterministic(self):
-        component_id_a = compute_component_id(ROOT_PARENT_ID, "ComponentA")
-        component_id_b = compute_component_id(ROOT_PARENT_ID, "ComponentA")
+    def test_hash_component_id_is_deterministic(self):
+        component_id_a = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+        component_id_b = hash_component_id(ROOT_PARENT_ID, "ComponentA")
 
         self.assertEqual(component_id_a, component_id_b)
 
-    def test_compute_component_id_format_is_16_hex_chars(self):
-        component_id = compute_component_id(ROOT_PARENT_ID, "ComponentA")
+    def test_hash_component_id_format_is_16_hex_chars(self):
+        component_id = hash_component_id(ROOT_PARENT_ID, "ComponentA")
 
         self.assertEqual(len(component_id), 16)
         self.assertRegex(component_id, r"^[0-9a-f]{16}$")
 
-    def test_compute_component_id_uses_sibling_index(self):
-        first = compute_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=0)
-        second = compute_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=1)
+    def test_hash_component_id_uses_sibling_index(self):
+        first = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=0)
+        second = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=1)
 
         self.assertNotEqual(first, second)

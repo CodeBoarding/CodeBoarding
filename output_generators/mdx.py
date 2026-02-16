@@ -12,24 +12,24 @@ def generated_mermaid_str(
 
     # 1. Define each component as a node, including its description
     for comp in analysis.components:
-        node_id = sanitize(comp.name)
+        node_key = sanitize(comp.name)
         # Show name and short description in the node label
         label = f"{comp.name}"
-        lines.append(f'    {node_id}["{label}"]')
+        lines.append(f'    {node_key}["{label}"]')
 
     # 2. Add relations as labeled edges
     for rel in analysis.components_relations:
-        src_id = sanitize(rel.src_name)
-        dst_id = sanitize(rel.dst_name)
+        src_key = sanitize(rel.src_name)
+        dst_key = sanitize(rel.dst_name)
         # Use the relation phrase as the edge label
-        lines.append(f'    {src_id} -- "{rel.relation}" --> {dst_id}')
+        lines.append(f'    {src_key} -- "{rel.relation}" --> {dst_key}')
 
     # Linking to other files with new MDX format
     for comp in analysis.components:
-        node_id = sanitize(comp.name)
+        node_key = sanitize(comp.name)
         if comp.component_id in expanded_components:
             # Create a link to the component's details file using new format
-            lines.append(f'    click {node_id} href "/codeboarding/{node_id}.md" "Details"')
+            lines.append(f'    click {node_key} href "/codeboarding/{node_key}.md" "Details"')
 
     lines.append("```")
     return "\n".join(lines)

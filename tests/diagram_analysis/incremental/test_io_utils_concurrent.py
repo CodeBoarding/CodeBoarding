@@ -16,15 +16,15 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
-    compute_component_id,
+    hash_component_id,
     ROOT_PARENT_ID,
 )
 from diagram_analysis.incremental.io_utils import save_analysis, save_sub_analysis, load_sub_analysis
 
 
-COMP_B_ID = compute_component_id(ROOT_PARENT_ID, "ComponentB")
-COMP_C_ID = compute_component_id(ROOT_PARENT_ID, "ComponentC")
-COMP_D_ID = compute_component_id(ROOT_PARENT_ID, "ComponentD")
+COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_C_ID = hash_component_id(ROOT_PARENT_ID, "ComponentC")
+COMP_D_ID = hash_component_id(ROOT_PARENT_ID, "ComponentD")
 NAME_TO_ID = {"ComponentB": COMP_B_ID, "ComponentC": COMP_C_ID, "ComponentD": COMP_D_ID}
 
 
@@ -134,7 +134,7 @@ class TestConcurrentSaveSubAnalysis:
         save_analysis(
             root_analysis,
             output_dir,
-            expandable_components=[COMP_B_ID, COMP_C_ID, COMP_D_ID],
+            expandable_component_ids=[COMP_B_ID, COMP_C_ID, COMP_D_ID],
             repo_name="test-repo",
         )
 
@@ -194,9 +194,9 @@ class TestConcurrentSaveSubAnalysis:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        root_id = compute_component_id(ROOT_PARENT_ID, "RootComponent")
-        child_expandable_id = compute_component_id(root_id, "ChildExpandable")
-        child_leaf_id = compute_component_id(root_id, "ChildLeaf")
+        root_id = hash_component_id(ROOT_PARENT_ID, "RootComponent")
+        child_expandable_id = hash_component_id(root_id, "ChildExpandable")
+        child_leaf_id = hash_component_id(root_id, "ChildLeaf")
 
         root_analysis = AnalysisInsights(
             description="Root analysis",
@@ -239,7 +239,7 @@ class TestConcurrentSaveSubAnalysis:
         save_analysis(
             analysis=root_analysis,
             output_dir=output_dir,
-            expandable_components=[root_id],
+            expandable_component_ids=[root_id],
             sub_analyses={root_id: root_sub_analysis},
             repo_name="test-repo",
         )

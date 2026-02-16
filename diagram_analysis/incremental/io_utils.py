@@ -31,28 +31,6 @@ from diagram_analysis.analysis_json import (
 logger = logging.getLogger(__name__)
 
 
-def _compute_expandable_components(
-    analysis: AnalysisInsights,
-    parent_had_clusters: bool,
-) -> list[Component]:
-    """Compute expandable components deterministically for one analysis level."""
-    return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
-
-
-def _build_component_lookup(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> dict[str, Component]:
-    """Build component_id -> component lookup across root and sub-analyses."""
-    lookup: dict[str, Component] = {}
-    for component in root_analysis.components:
-        lookup[component.component_id] = component
-    for sub_analysis in sub_analyses.values():
-        for component in sub_analysis.components:
-            lookup[component.component_id] = component
-    return lookup
-
-
 class _AnalysisFileStore:
     """Coordinated reader/writer for ``analysis.json`` with file locking.
 
@@ -61,6 +39,28 @@ class _AnalysisFileStore:
     which share instances via ``_get_store``).  The store owns the
     ``FileLock`` that serialises writes across threads and processes.
     """
+
+    @staticmethod
+    def _compute_expandable_components(
+        analysis: AnalysisInsights,
+        parent_had_clusters: bool,
+    ) -> list[Component]:
+        """Compute expandable components deterministically for one analysis level."""
+        return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
+
+    @staticmethod
+    def _build_component_lookup(
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> dict[str, Component]:
+        """Build component_id -> component lookup across root and sub-analyses."""
+        lookup: dict[str, Component] = {}
+        for component in root_analysis.components:
+            lookup[component.component_id] = component
+        for sub_analysis in sub_analyses.values():
+            for component in sub_analysis.components:
+                lookup[component.component_id] = component
+        return lookup
 
     def __init__(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -108,7 +108,7 @@ class _AnalysisFileStore:
     def write(
         self,
         analysis: AnalysisInsights,
-        expandable_components: list[str] | None = None,
+        expandable_component_ids: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
@@ -120,14 +120,14 @@ class _AnalysisFileStore:
         """
         with self._lock:
             return self._write_with_lock_held(
-                analysis, expandable_components, sub_analyses, repo_name, file_coverage_summary
+                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
             )
 
     def write_sub(
         self,
         sub_analysis: AnalysisInsights,
         component_id: str,
-        expandable_components: list[str] | None = None,
+        expandable_component_ids: list[str] | None = None,
     ) -> Path:
         """Update a single sub-analysis within ``analysis.json``.
 
@@ -151,9 +151,9 @@ class _AnalysisFileStore:
                 repo_name = raw_data["metadata"].get("repo_name", "")
 
             # Determine which root components are expandable
-            all_expandable = expandable_components or list(sub_analyses.keys())
+            all_expandable_ids = expandable_component_ids or list(sub_analyses.keys())
 
-            return self._write_with_lock_held(root_analysis, all_expandable, sub_analyses, repo_name)
+            return self._write_with_lock_held(root_analysis, all_expandable_ids, sub_analyses, repo_name)
 
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
         """Find component IDs that have sub-analyses in the unified ``analysis.json``."""
@@ -167,18 +167,18 @@ class _AnalysisFileStore:
     def _write_with_lock_held(
         self,
         analysis: AnalysisInsights,
-        expandable_components: list[str] | None = None,
+        expandable_component_ids: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
-        # Keep caller-provided root expandables, but also preserve deterministic planner eligibility.
-        root_expandable_ids = set(expandable_components or [])
-        root_expandable_ids.update(
-            c.component_id for c in _compute_expandable_components(analysis, parent_had_clusters=True)
+        # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
+        expandable_ids = set(expandable_component_ids or [])
+        expandable_ids.update(
+            c.component_id for c in self._compute_expandable_components(analysis, parent_had_clusters=True)
         )
-        expandable = [c for c in analysis.components if c.component_id in root_expandable_ids]
+        expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # If no sub_analyses provided, try to preserve existing ones from disk
         if sub_analyses is None:
@@ -192,12 +192,12 @@ class _AnalysisFileStore:
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
-            component_lookup = _build_component_lookup(analysis, sub_analyses)
+            component_lookup = self._build_component_lookup(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
                 parent_component = component_lookup.get(cid)
                 parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
-                sub_expandable = _compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
+                sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
         with open(self._analysis_path, "w") as f:
@@ -242,13 +242,15 @@ def load_analysis(output_dir: Path) -> AnalysisInsights | None:
 def save_analysis(
     analysis: AnalysisInsights,
     output_dir: Path,
-    expandable_components: list[str] | None = None,
+    expandable_component_ids: list[str] | None = None,
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
-    return _get_store(output_dir).write(analysis, expandable_components, sub_analyses, repo_name, file_coverage_summary)
+    return _get_store(output_dir).write(
+        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
+    )
 
 
 def load_sub_analysis(output_dir: Path, component_id: str) -> AnalysisInsights | None:
@@ -260,7 +262,7 @@ def save_sub_analysis(
     sub_analysis: AnalysisInsights,
     output_dir: Path,
     component_id: str,
-    expandable_components: list[str] | None = None,
+    expandable_component_ids: list[str] | None = None,
 ) -> Path:
     """Save/update a sub-analysis for a component in the unified analysis.json."""
-    return _get_store(output_dir).write_sub(sub_analysis, component_id, expandable_components)
+    return _get_store(output_dir).write_sub(sub_analysis, component_id, expandable_component_ids)
