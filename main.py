@@ -124,8 +124,11 @@ def generate_markdown_docs(
         demo=demo_mode,
     )
 
-    # Build id-to-name mapping for file naming
-    id_to_name = {c.component_id: c.name for c in root_analysis.components}
+    # Build id-to-name mapping across all levels for file naming
+    id_to_name: dict[str, str] = {c.component_id: c.name for c in root_analysis.components}
+    for sub_analysis in sub_analyses.values():
+        for comp in sub_analysis.components:
+            id_to_name[comp.component_id] = comp.name
 
     # Generate markdown for each sub-analysis
     for comp_id, sub_analysis in sub_analyses.items():
