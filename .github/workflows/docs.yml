@@ -50,6 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: CodeBoarding/CodeBoarding
+          ref: ${{ github.sha }}
           path: codeboarding-engine
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -177,6 +178,7 @@ jobs:
           ls -la "$ENGINE_TEMP"
 
           # Copy doc files to target repo output directory
+          rm -rf "target-repo/$OUTPUT_DIR"
           mkdir -p "target-repo/$OUTPUT_DIR"
 
           json_count=0
