@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "repo_state_hash": "4512a71_01ba4719",
-  "base_commit": "4512a714c32a6285153c03775ed6c1a16f69d0a4",
+  "repo_state_hash": "eb5e538_01ba4719",
+  "base_commit": "eb5e5380db3c8415ab5b54bbf05abf4de79ad92c",
   "file_to_component": {
     "repo_utils/change_detector.py": "6d573da2150dc64e",
     "health_main.py": "6d573da2150dc64e",
@@ -11,7 +11,7 @@
     "install.py": "6d573da2150dc64e",
     "vscode_constants.py": "6d573da2150dc64e",
     "monitoring/paths.py": "6d573da2150dc64e",
-    "main.py": "3c839c8909bb966e",
+    "main.py": "6d573da2150dc64e",
     "repo_utils/__init__.py": "6d573da2150dc64e",
     "utils.py": "6d573da2150dc64e",
     "diagram_analysis/analysis_json.py": "6d573da2150dc64e",
