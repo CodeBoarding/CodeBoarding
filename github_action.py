@@ -26,13 +26,20 @@ def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights,
 
     root_analysis, sub_analyses = parse_unified_analysis(data)
 
+    # Build component_id -> name mapping across all levels for readable file names.
+    id_to_name: dict[str, str] = {c.component_id: c.name for c in root_analysis.components}
+    for sub_analysis in sub_analyses.values():
+        for component in sub_analysis.components:
+            id_to_name[component.component_id] = component.name
+
     # Root analysis: expanded components are those that have sub-analyses
     root_expanded = set(sub_analyses.keys())
     entries: list[tuple[str, AnalysisInsights, set[str]]] = [("overview", root_analysis, root_expanded)]
 
     # Sub-analyses: determine which of their components are further expanded
-    for comp_name, sub_analysis in sub_analyses.items():
-        sub_expanded = {c.name for c in sub_analysis.components if c.name in sub_analyses}
+    for comp_id, sub_analysis in sub_analyses.items():
+        sub_expanded = {c.component_id for c in sub_analysis.components if c.component_id in sub_analyses}
+        comp_name = id_to_name.get(comp_id, comp_id)
         fname = sanitize(comp_name)
         entries.append((fname, sub_analysis, sub_expanded))
 
