@@ -34,6 +34,13 @@ graph LR
     Analysis_Validation_Engine -- "reads results from" --> Analysis_Data_Models
     Cluster_Utilities -- "used by" --> Analysis_Orchestrator
     Cluster_Utilities -- "used by" --> Specialized_Analysis_Agents
+    click Prompt_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Generator.md" "Details"
+    click LLM_Configuration_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Configuration_Manager.md" "Details"
+    click Specialized_Analysis_Agents href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Specialized_Analysis_Agents.md" "Details"
+    click Analysis_Planning_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Planning_Engine.md" "Details"
+    click Analysis_Data_Models href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Data_Models.md" "Details"
+    click Analysis_Validation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Validation_Engine.md" "Details"
+    click Cluster_Utilities href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Cluster_Utilities.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -48,7 +55,7 @@ Primary coordinator of the entire code analysis and documentation generation wor
 
 **Related Classes/Methods**: _None_
 
-### Prompt Generator
+### Prompt Generator [[Expand]](./Prompt_Generator.md)
 Dynamically generates and manages context‑specific prompts for various LLMs and analysis tasks, ensuring precise instructions for effective code interpretation.
 
 
@@ -57,7 +64,7 @@ Dynamically generates and manages context‑specific prompts for various LLMs an
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptGenerator`</a>
 
 
-### LLM Configuration Manager
+### LLM Configuration Manager [[Expand]](./LLM_Configuration_Manager.md)
 Handles configuration, initialization, and management of different LLMs, storing API keys, model names, temperature settings, and provider‑specific parameters.
 
 
@@ -66,7 +73,7 @@ Handles configuration, initialization, and management of different LLMs, storing
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config`</a>
 
 
-### Specialized Analysis Agents
+### Specialized Analysis Agents [[Expand]](./Specialized_Analysis_Agents.md)
 Collection of distinct agents (Metadata, Abstraction, Details) each focused on a specific phase or type of code analysis, leveraging LLMs to extract domain‑specific insights.
 
 
@@ -77,7 +84,7 @@ Collection of distinct agents (Metadata, Abstraction, Details) each focused on a
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent`</a>
 
 
-### Analysis Planning Engine
+### Analysis Planning Engine [[Expand]](./Analysis_Planning_Engine.md)
 Strategically determines the optimal plan and sequence for the analysis workflow, deciding which code entities need deeper investigation based on current insights and goals.
 
 
@@ -86,7 +93,7 @@ Strategically determines the optimal plan and sequence for the analysis workflow
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent`</a>
 
 
-### Analysis Data Models
+### Analysis Data Models [[Expand]](./Analysis_Data_Models.md)
 Defines canonical data structures and schemas for representing analysis results, intermediate states, and architectural insights, ensuring consistent data exchange across the subsystem.
 
 
@@ -95,7 +102,7 @@ Defines canonical data structures and schemas for representing analysis results,
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.AnalysisInsights`</a>
 
 
-### Analysis Validation Engine
+### Analysis Validation Engine [[Expand]](./Analysis_Validation_Engine.md)
 Performs comprehensive validation of generated analysis results, checking consistency, completeness, and correctness, including cluster coverage and component relationship integrity.
 
 
@@ -104,7 +111,7 @@ Performs comprehensive validation of generated analysis results, checking consis
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation`</a>
 
 
-### Cluster Utilities
+### Cluster Utilities [[Expand]](./Cluster_Utilities.md)
 Provides reusable utility functions for manipulating and processing clusters of code entities, supporting assignment, representation building, and data integrity maintenance.
 
 

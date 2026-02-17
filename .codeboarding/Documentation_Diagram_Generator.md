@@ -26,6 +26,11 @@ graph LR
     HTMLOutputGenerator -- "embeds output from" --> DiagramGenerator
     MDXOutputGenerator -- "embeds output from" --> DiagramGenerator
     SphinxRSTOutputGenerator -- "embeds output from" --> DiagramGenerator
+    click AnalysisOrchestrator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AnalysisOrchestrator.md" "Details"
+    click DiagramGenerator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/DiagramGenerator.md" "Details"
+    click MarkdownOutputGenerator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/MarkdownOutputGenerator.md" "Details"
+    click HTMLOutputGenerator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/HTMLOutputGenerator.md" "Details"
+    click MDXOutputGenerator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/MDXOutputGenerator.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -34,7 +39,7 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### AnalysisOrchestrator
+### AnalysisOrchestrator [[Expand]](./AnalysisOrchestrator.md)
 Coordinates the overall workflow of the documentation and diagram generation process. It acts as the high-level entry point, parsing command-line arguments, managing repository interactions, and triggering the various output generators after analysis data is available.
 
 
@@ -51,7 +56,7 @@ Serves as the central repository for all processed analysis data, including comp
 
 **Related Classes/Methods**: _None_
 
-### DiagramGenerator
+### DiagramGenerator [[Expand]](./DiagramGenerator.md)
 Specializes in converting structured analysis data into visual architectural diagrams, primarily using formats like Mermaid.js syntax. It produces diagram definitions that can be embedded into various documentation formats by other generators.
 
 
@@ -61,7 +66,7 @@ Specializes in converting structured analysis data into visual architectural dia
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.diagram_analysis.diagram_generator.MermaidGenerator`</a>
 
 
-### MarkdownOutputGenerator
+### MarkdownOutputGenerator [[Expand]](./MarkdownOutputGenerator.md)
 Generates documentation content in Markdown format. It incorporates textual explanations, code snippets, and embeds diagrams provided by the DiagramGenerator to create comprehensive Markdown files.
 
 
@@ -71,7 +76,7 @@ Generates documentation content in Markdown format. It incorporates textual expl
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.markdown.MarkdownBuilder`</a>
 
 
-### HTMLOutputGenerator
+### HTMLOutputGenerator [[Expand]](./HTMLOutputGenerator.md)
 Produces interactive HTML documentation, rendering analysis insights and diagrams into a web-friendly format. It utilizes templates and potentially libraries like Cytoscape for dynamic visualizations.
 
 
@@ -82,7 +87,7 @@ Produces interactive HTML documentation, rendering analysis insights and diagram
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.html.CytoscapeRenderer`</a>
 
 
-### MDXOutputGenerator
+### MDXOutputGenerator [[Expand]](./MDXOutputGenerator.md)
 Creates documentation files in MDX format, which combines Markdown with JSX. This allows for rich, interactive content and seamless integration into modern documentation sites, handling front-matter and embedding diagrams.
 
 

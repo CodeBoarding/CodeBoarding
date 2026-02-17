@@ -300,6 +300,15 @@ def _assign_ids_recursive(
             _assign_ids_recursive(sub, old_subs, new_subs, comp.component_id)
 
 
+def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:
+    """Build a mapping from component_id to component name across all analysis levels."""
+    id_to_name: dict[str, str] = {c.component_id: c.name for c in root_analysis.components}
+    for sub_analysis in sub_analyses.values():
+        for comp in sub_analysis.components:
+            id_to_name[comp.component_id] = comp.name
+    return id_to_name
+
+
 def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsights]) -> AnalysisInsights:
     """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
 

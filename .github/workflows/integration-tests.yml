@@ -72,6 +72,8 @@ jobs:
           source .venv/bin/activate
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
           echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+          echo "PROJECT_ROOT=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "STATIC_ANALYSIS_CONFIG=$GITHUB_WORKSPACE/static_analysis_config.yml" >> $GITHUB_ENV
 
       - name: Install Go
         if: matrix.language == 'go'

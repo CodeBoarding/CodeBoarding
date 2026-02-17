@@ -15,6 +15,11 @@ graph LR
     StaticAnalysisResults -- "manages analysis data for" --> StaticAnalysisEngine
     UnusedCodeAnalyzer -- "queries call graph data from" --> CallGraphBuilder
     CallGraphBuilder -- "provides call graph data to" --> UnusedCodeAnalyzer
+    click StaticAnalysisEngine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/StaticAnalysisEngine.md" "Details"
+    click LSPClient href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LSPClient.md" "Details"
+    click CallGraphBuilder href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/CallGraphBuilder.md" "Details"
+    click UnusedCodeAnalyzer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/UnusedCodeAnalyzer.md" "Details"
+    click StaticAnalysisResults href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/StaticAnalysisResults.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -23,7 +28,7 @@ graph LR
 
 Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.
 
-### StaticAnalysisEngine
+### StaticAnalysisEngine [[Expand]](./StaticAnalysisEngine.md)
 Orchestrates the entire static analysis process, coordinating code retrieval, call graph construction, quality checks, and aggregation of findings.
 
 
@@ -32,7 +37,7 @@ Orchestrates the entire static analysis process, coordinating code retrieval, ca
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.StaticAnalysisEngine`</a>
 
 
-### LSPClient
+### LSPClient [[Expand]](./LSPClient.md)
 Communicates with Language Server Protocol servers to extract language‑specific structural information such as ASTs, symbol definitions, and references.
 
 
@@ -41,7 +46,7 @@ Communicates with Language Server Protocol servers to extract language‑specifi
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.LSPClient`</a>
 
 
-### CallGraphBuilder
+### CallGraphBuilder [[Expand]](./CallGraphBuilder.md)
 Constructs and maintains the call graph of the analyzed codebase by processing structural and semantic information obtained from the LSPClient.
 
 
@@ -50,7 +55,7 @@ Constructs and maintains the call graph of the analyzed codebase by processing s
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.CallGraphBuilder`</a>
 
 
-### UnusedCodeAnalyzer
+### UnusedCodeAnalyzer [[Expand]](./UnusedCodeAnalyzer.md)
 Identifies and reports code elements that are defined but never invoked or referenced, leveraging the call graph and structural information.
 
 
@@ -59,7 +64,7 @@ Identifies and reports code elements that are defined but never invoked or refer
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.UnusedCodeAnalyzer`</a>
 
 
-### StaticAnalysisResults
+### StaticAnalysisResults [[Expand]](./StaticAnalysisResults.md)
 Acts as a data repository for all outputs generated during static analysis, storing call graphs, code structures, and analyzer findings.
 
 

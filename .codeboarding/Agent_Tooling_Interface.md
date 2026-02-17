@@ -20,6 +20,11 @@ graph LR
     Control_Flow_Graph_CFG_Analysis_Engine -- "depends on" --> Repository_Context_Manager
     Code_Structure_Analysis_Engine -- "uses" --> File_System_Interaction_Layer
     Code_Structure_Analysis_Engine -- "depends on" --> Repository_Context_Manager
+    click Agent_Tooling_Interface href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Agent_Tooling_Interface.md" "Details"
+    click File_System_Interaction_Tool_ReadFileTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/File_System_Interaction_Tool_ReadFileTool_.md" "Details"
+    click CFG_Analysis_Tool_GetCFGTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/CFG_Analysis_Tool_GetCFGTool_.md" "Details"
+    click Code_Structure_Analysis_Tool_CodeStructureTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Code_Structure_Analysis_Tool_CodeStructureTool_.md" "Details"
+    click Repository_Context_Manager_BaseRepoTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Context_Manager_BaseRepoTool_.md" "Details"
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -28,7 +33,7 @@ graph LR
 
 Provides a set of specialized tools that allow the LLM Agent Core to interact with the codebase, query static analysis results, and perform specific actions within the project context.
 
-### Agent Tooling Interface
+### Agent Tooling Interface [[Expand]](./Agent_Tooling_Interface.md)
 Primary facade for the LLM Agent Core, aggregating and exposing all code analysis and interaction tools. It orchestrates and delegates requests from the agent to the appropriate specialized tools.
 
 
@@ -40,19 +45,19 @@ Primary facade for the LLM Agent Core, aggregating and exposing all code analysi
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.CodeStructureTool`</a>
 
 
-### File System Interaction Tool (ReadFileTool)
+### File System Interaction Tool (ReadFileTool) [[Expand]](./File_System_Interaction_Tool_ReadFileTool_.md)
 Specialized tool that enables the LLM Agent Core to read specific file contents from the repository, providing direct access to source code. It serves as an interface to the underlying File System Interaction Layer.
 
 
 **Related Classes/Methods**: _None_
 
-### CFG Analysis Tool (GetCFGTool)
+### CFG Analysis Tool (GetCFGTool) [[Expand]](./CFG_Analysis_Tool_GetCFGTool_.md)
 Tool that provides the LLM Agent Core with the capability to query and retrieve Control Flow Graph (CFG) data, offering insights into execution paths and program logic. It acts as an interface to the CFG Analysis Engine.
 
 
 **Related Classes/Methods**: _None_
 
-### Code Structure Analysis Tool (CodeStructureTool)
+### Code Structure Analysis Tool (CodeStructureTool) [[Expand]](./Code_Structure_Analysis_Tool_CodeStructureTool_.md)
 Allows the LLM Agent Core to access high‑level code structure information, such as class hierarchies, package relationships, and source snippets. It interfaces with the Code Structure Analysis Engine.
 
 
@@ -76,7 +81,7 @@ Engine that interprets and extracts high‑level code structure, including sourc
 
 **Related Classes/Methods**: _None_
 
-### Repository Context Manager (BaseRepoTool)
+### Repository Context Manager (BaseRepoTool) [[Expand]](./Repository_Context_Manager_BaseRepoTool_.md)
 Supplies shared utilities such as file caching, .gitignore handling, and path resolution. It ensures consistent and optimized repository interaction across all analysis components, acting as a foundational service.
 
 
