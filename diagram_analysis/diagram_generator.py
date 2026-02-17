@@ -1,10 +1,11 @@
 import json
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -246,7 +247,7 @@ class DiagramGenerator:
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
-        Components are analyzed in parallel by level.
+        Components are analyzed in parallel as soon as their parents complete.
         """
         if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
@@ -262,66 +263,80 @@ class DiagramGenerator:
             analysis, cluster_results = self.abstraction_agent.run()
 
             # Get the initial components to analyze (deterministic, no LLM)
-            current_level_components = plan_analysis(analysis)
-            logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
+            root_components = plan_analysis(analysis)
+            logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
-            level = 0
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
             # Track components that were actually expanded (have sub-analysis)
             expanded_components: list[Component] = []
 
-            # Collect all sub-analyses: component_name -> (AnalysisInsights, expandable_sub_components)
-            all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
+            # Track all discovered sub-analyses for checkpoints/final write.
+            sub_analyses: dict[str, AnalysisInsights] = {}
 
-            # Process each level of components in parallel
-            while current_level_components:
-                level += 1
-                if level == self.depth_level:
-                    break
-                logger.info(f"Processing level {level} with {len(current_level_components)} components")
-                next_level_components = []
+            # Process components using a frontier queue: submit children as soon as parent finishes.
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_task: dict[Future, tuple[Component, int]] = {}
+                submitted_components = 0
+                save_count = 0
+                error_count = 0
 
-                # Process current level components in parallel
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    # Submit all tasks
-                    future_to_component = {
-                        executor.submit(self.process_component, component): component
-                        for component in current_level_components
-                    }
+                if self.depth_level > 1:
+                    for component in root_components:
+                        future = executor.submit(self.process_component, component)
+                        future_to_task[future] = (component, 1)
+                        submitted_components += 1
 
-                    # Use tqdm for a progress bar
-                    for future in tqdm(
-                        as_completed(future_to_component),
-                        total=len(future_to_component),
-                        desc=f"Level {level}",
-                    ):
-                        component = future_to_component[future]
-                        try:
-                            comp_name, sub_analysis, new_components = future.result()
-                            if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (
-                                    sub_analysis,
-                                    new_components,
-                                )
-                                expanded_components.append(component)
-                            if new_components:
-                                next_level_components.extend(new_components)
-                        except Exception as exc:
-                            logging.error(f"Component {component.name} generated an exception: {exc}")
-
-                logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
-                current_level_components = next_level_components
-
-                # Save intermediate progress after each completed level so results survive crashes
-                logger.info(f"Saving intermediate analysis after level {level}")
-                save_analysis(
-                    analysis=analysis,
-                    output_dir=Path(self.output_dir),
-                    expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
-                    repo_name=self.repo_name,
+                pbar = tqdm(
+                    total=max(1, submitted_components),
+                    desc="Frontier",
+                    unit="comp",
+                    disable=not sys.stderr.isatty(),
                 )
+
+                try:
+                    while future_to_task:
+                        completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
+
+                        for future in completed_futures:
+                            component, level = future_to_task.pop(future)
+
+                            try:
+                                comp_name, sub_analysis, new_components = future.result()
+                                if comp_name and sub_analysis:
+                                    sub_analyses[comp_name] = sub_analysis
+                                    expanded_components.append(component)
+
+                                    # Save intermediate progress after each completed component.
+                                    logger.info(f"Saving intermediate analysis after component {comp_name}")
+                                    save_analysis(
+                                        analysis=analysis,
+                                        output_dir=Path(self.output_dir),
+                                        expandable_components=[c.name for c in expanded_components],
+                                        sub_analyses=sub_analyses,
+                                        repo_name=self.repo_name,
+                                    )
+                                    save_count += 1
+                                if new_components and level + 1 < self.depth_level:
+                                    for child_component in new_components:
+                                        child_future = executor.submit(self.process_component, child_component)
+                                        future_to_task[child_future] = (child_component, level + 1)
+                                        submitted_components += 1
+                            except Exception as exc:
+                                error_count += 1
+                                logging.error(f"Component {component.name} generated an exception: {exc}")
+
+                            pbar.total = max(1, submitted_components)
+                            pbar.update(1)
+                            pbar.set_postfix(
+                                in_flight=len(future_to_task),
+                                saves=save_count,
+                                errors=error_count,
+                                refresh=False,
+                            )
+                            pbar.refresh()
+                finally:
+                    pbar.close()
 
             # Build file coverage summary for metadata
             file_coverage_summary = None
@@ -340,7 +355,7 @@ class DiagramGenerator:
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
                     expandable_components=[c.name for c in expanded_components],
-                    sub_analyses={name: sub for name, (sub, _) in all_sub_analyses.items()},
+                    sub_analyses=sub_analyses,
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
                 )
