@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.analysis_json import parse_unified_analysis
+from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_analysis, save_sub_analysis
 from logging_config import setup_logging
 from output_generators.markdown import generate_markdown_file
@@ -125,10 +125,7 @@ def generate_markdown_docs(
     )
 
     # Build id-to-name mapping across all levels for file naming
-    id_to_name: dict[str, str] = {c.component_id: c.name for c in root_analysis.components}
-    for sub_analysis in sub_analyses.values():
-        for comp in sub_analysis.components:
-            id_to_name[comp.component_id] = comp.name
+    id_to_name = build_id_to_name_map(root_analysis, sub_analyses)
 
     # Generate markdown for each sub-analysis
     for comp_id, sub_analysis in sub_analyses.items():

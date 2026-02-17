@@ -1,16 +1,17 @@
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.analysis_json import parse_unified_analysis
-from output_generators.markdown import generate_markdown_file
+from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
+from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
-from repo_utils import clone_repository, checkout_repo
+from repo_utils import checkout_repo, clone_repository
 from utils import create_temp_repo_folder, sanitize
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,8 @@ def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights,
 
     root_analysis, sub_analyses = parse_unified_analysis(data)
 
-    # Build component_id -> name mapping across all levels for readable file names.
-    id_to_name: dict[str, str] = {c.component_id: c.name for c in root_analysis.components}
-    for sub_analysis in sub_analyses.values():
-        for component in sub_analysis.components:
-            id_to_name[component.component_id] = component.name
+    # Build a complete id-to-name mapping across all levels
+    id_to_name = build_id_to_name_map(root_analysis, sub_analyses)
 
     # Root analysis: expanded components are those that have sub-analyses
     root_expanded = set(sub_analyses.keys())
@@ -108,18 +106,41 @@ def generate_rst(
         )
 
 
+def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
+    """Copy existing analysis files into the temp folder so incremental analysis can use them."""
+    for filename in ("analysis.json", "analysis_manifest.json"):
+        src = existing_analysis_dir / filename
+        if src.is_file():
+            shutil.copy2(src, temp_repo_folder / filename)
+            logger.info(f"Seeded existing {filename} for incremental analysis")
+
+
 def generate_analysis(
-    repo_url: str, source_branch: str, target_branch: str, extension: str, output_dir: str = ".codeboarding"
+    repo_url: str,
+    source_branch: str,
+    target_branch: str,
+    extension: str,
+    output_dir: str = ".codeboarding",
+    existing_analysis_dir: str | None = None,
 ):
     """
     Generate analysis for a GitHub repository URL.
     This function is intended to be used in a GitHub Action context.
+
+    Args:
+        existing_analysis_dir: Path to a directory containing a previous analysis.json
+            and analysis_manifest.json. When provided, incremental analysis is attempted
+            before falling back to a full analysis.
     """
     repo_root = Path(os.environ["REPO_ROOT"])
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
+
+    # Seed previous analysis files so incremental update can detect changes
+    if existing_analysis_dir:
+        _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
     generator = DiagramGenerator(
         repo_location=repo_dir,
@@ -129,7 +150,8 @@ def generate_analysis(
         depth_level=int(os.environ["DIAGRAM_DEPTH_LEVEL"]),
     )
 
-    analysis_files = generator.generate_analysis()
+    # Use smart analysis: tries incremental first, falls back to full
+    analysis_files = generator.generate_analysis_smart()
 
     # The generator now returns a single analysis.json path
     analysis_path = Path(analysis_files[0])

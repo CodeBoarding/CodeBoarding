@@ -150,14 +150,26 @@ jobs:
           echo "Output format: $OUTPUT_FORMAT"
           echo "Output directory: $OUTPUT_DIR"
 
+          # Check if previous analysis exists in target repo for incremental updates
+          EXISTING_ANALYSIS_DIR=""
+          TARGET_ANALYSIS_DIR="${{ github.workspace }}/target-repo/$OUTPUT_DIR"
+          if [ -f "$TARGET_ANALYSIS_DIR/analysis.json" ]; then
+            echo "Found existing analysis - will attempt incremental update"
+            EXISTING_ANALYSIS_DIR="$TARGET_ANALYSIS_DIR"
+          else
+            echo "No existing analysis found - will run full analysis"
+          fi
+
           uv run python -c "
           from github_action import generate_analysis
+          existing = '$EXISTING_ANALYSIS_DIR' or None
           result_dir = generate_analysis(
               repo_url='$REPO_URL',
               source_branch='$SOURCE_BRANCH',
               target_branch='$TARGET_BRANCH',
               extension='$OUTPUT_FORMAT',
               output_dir='$OUTPUT_DIR',
+              existing_analysis_dir=existing,
           )
           print(f'Generated files in: {result_dir}')
           "
@@ -178,7 +190,6 @@ jobs:
           ls -la "$ENGINE_TEMP"
 
           # Copy entire output directory to target repo, excluding logs
-          rm -rf "target-repo/$OUTPUT_DIR"
           mkdir -p "target-repo/$OUTPUT_DIR"
           cp -r "$ENGINE_TEMP"/* "target-repo/$OUTPUT_DIR/"
           
