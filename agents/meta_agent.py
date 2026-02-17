@@ -99,12 +99,12 @@ class MetaAgent(CodeBoardingAgent):
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def _meta_cache_llm_string(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> str:
+    def _meta_cache_llm_string(self) -> str:
         """Build cache key payload that includes both agent and parsing model signatures."""
         payload = {
             "kind": "meta_agent_llm_cache_v2",
-            "agent": self._llm_signature(agent_llm),
-            "parser": self._llm_signature(parsing_llm),
+            "agent": self._llm_signature(self.agent_llm),
+            "parser": self._llm_signature(self.parsing_llm),
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
@@ -120,11 +120,9 @@ class MetaAgent(CodeBoardingAgent):
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def construct_cache_keys(
-        self, repo_state_hash: str, agent_llm: BaseChatModel, parsing_llm: BaseChatModel
-    ) -> tuple[str, str]:
+    def construct_cache_keys(self, repo_state_hash: str) -> tuple[str, str]:
         """Return prompt and llm cache keys for metadata context lookup."""
-        return self._meta_cache_prompt(repo_state_hash), self._meta_cache_llm_string(agent_llm, parsing_llm)
+        return self._meta_cache_prompt(repo_state_hash), self._meta_cache_llm_string()
 
     def _lookup_cached_generation(self, cache: SQLiteCache, prompt_key: str, llm_key: str) -> Generation | None:
         """Lookup cached generations and normalize to expected output type."""
@@ -151,19 +149,16 @@ class MetaAgent(CodeBoardingAgent):
 
     def get_meta_context(
         self,
-        agent_llm: BaseChatModel,
         refresh: bool = False,
     ) -> MetaAnalysisInsights:
         """Return cached metadata context or recompute and persist it."""
-        if agent_llm is not self.agent_llm:
-            raise ValueError("MetaAgent.get_meta_context requires the configured agent_llm instance.")
 
         repo_state_hash = get_repo_state_hash(self.repo_dir)
         if repo_state_hash == "NoRepoStateHash":
             logger.info("Meta cache disabled for non-git repository state; recomputing metadata analysis")
             return self.analyze_project_metadata()
 
-        prompt_key, llm_key = self.construct_cache_keys(repo_state_hash, agent_llm, self.parsing_llm)
+        prompt_key, llm_key = self.construct_cache_keys(repo_state_hash, self.agent_llm, self.parsing_llm)
         cache = self._open_meta_cache()
         if cache is None:
             return self.analyze_project_metadata()
