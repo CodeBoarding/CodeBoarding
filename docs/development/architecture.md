@@ -1519,47 +1519,20 @@ Identifies and analyzes logical code clusters that have been modified, providing
 
 ```mermaid
 graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    Prompt_Generator["Prompt Generator"]
-    LLM_Configuration_Manager["LLM Configuration Manager"]
-    Specialized_Analysis_Agents["Specialized Analysis Agents"]
-    Analysis_Planning_Engine["Analysis Planning Engine"]
-    Analysis_Data_Models["Analysis Data Models"]
-    Analysis_Validation_Engine["Analysis Validation Engine"]
-    Cluster_Utilities["Cluster Utilities"]
-    Analysis_Orchestrator -- "invokes" --> Specialized_Analysis_Agents
-    Analysis_Orchestrator -- "consults" --> Analysis_Planning_Engine
-    Analysis_Orchestrator -- "stores/retrieves" --> Analysis_Data_Models
-    Analysis_Orchestrator -- "submits to" --> Analysis_Validation_Engine
-    Analysis_Orchestrator -- "utilizes" --> Cluster_Utilities
-    Analysis_Orchestrator -- "requests prompts from" --> Prompt_Generator
-    Analysis_Orchestrator -- "retrieves config from" --> LLM_Configuration_Manager
-    Prompt_Generator -- "provides prompts to" --> Analysis_Orchestrator
-    Prompt_Generator -- "provides prompts to" --> Specialized_Analysis_Agents
-    LLM_Configuration_Manager -- "supplies settings to" --> Analysis_Orchestrator
-    LLM_Configuration_Manager -- "supplies settings to" --> Specialized_Analysis_Agents
-    Specialized_Analysis_Agents -- "reports results to" --> Analysis_Orchestrator
-    Specialized_Analysis_Agents -- "stores insights in" --> Analysis_Data_Models
-    Specialized_Analysis_Agents -- "utilizes" --> Cluster_Utilities
-    Specialized_Analysis_Agents -- "requests prompts from" --> Prompt_Generator
-    Specialized_Analysis_Agents -- "retrieves config from" --> LLM_Configuration_Manager
-    Analysis_Planning_Engine -- "informs" --> Analysis_Orchestrator
-    Analysis_Planning_Engine -- "reads data from" --> Analysis_Data_Models
-    Analysis_Data_Models -- "provides data to" --> Analysis_Orchestrator
-    Analysis_Data_Models -- "receives outputs from" --> Specialized_Analysis_Agents
-    Analysis_Data_Models -- "provides data to" --> Analysis_Planning_Engine
-    Analysis_Data_Models -- "provides data to" --> Analysis_Validation_Engine
-    Analysis_Validation_Engine -- "reports validation to" --> Analysis_Orchestrator
-    Analysis_Validation_Engine -- "reads results from" --> Analysis_Data_Models
-    Cluster_Utilities -- "used by" --> Analysis_Orchestrator
-    Cluster_Utilities -- "used by" --> Specialized_Analysis_Agents
-    click Prompt_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Prompt_Generator.md" "Details"
-    click LLM_Configuration_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Configuration_Manager.md" "Details"
-    click Specialized_Analysis_Agents href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Specialized_Analysis_Agents.md" "Details"
-    click Analysis_Planning_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Planning_Engine.md" "Details"
-    click Analysis_Data_Models href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Data_Models.md" "Details"
-    click Analysis_Validation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Analysis_Validation_Engine.md" "Details"
-    click Cluster_Utilities href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Cluster_Utilities.md" "Details"
+    Orchestration_Agent["Orchestration Agent"]
+    Specialized_Reasoning_Agents["Specialized Reasoning Agents"]
+    Prompt_Management_System["Prompt Management System"]
+    Validation_Engine["Validation Engine"]
+    LLM_Configuration_Factory["LLM Configuration & Factory"]
+    Data_Models_Schema["Data Models & Schema"]
+    Analysis_Utilities["Analysis Utilities"]
+    Orchestration_Agent -- "delegates to" --> Specialized_Reasoning_Agents
+    Orchestration_Agent -- "submits insights to" --> Validation_Engine
+    Specialized_Reasoning_Agents -- "requests prompts from" --> Prompt_Management_System
+    Specialized_Reasoning_Agents -- "populates" --> Data_Models_Schema
+    Prompt_Management_System -- "queries provider settings from" --> LLM_Configuration_Factory
+    Validation_Engine -- "utilizes" --> Analysis_Utilities
+    Specialized_Reasoning_Agents -- "uses" --> Analysis_Utilities
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1568,75 +1541,74 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Analysis Orchestrator
-Primary coordinator of the entire code analysis and documentation generation workflow, managing operation sequencing, invoking specialized agents, integrating outputs, and overseeing pipeline state.
-
-
-**Related Classes/Methods**: _None_
-
-### Prompt Generator [[Expand]](./Prompt_Generator.md)
-Dynamically generates and manages context‑specific prompts for various LLMs and analysis tasks, ensuring precise instructions for effective code interpretation.
+### Orchestration Agent
+Central controller that manages the multi‑agent state machine, loads static analysis facts, classifies files, and coordinates the execution sequence of worker agents to ensure a coherent analysis lifecycle.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.CodeBoardingAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AgentState`</a>
 
 
-### LLM Configuration Manager [[Expand]](./LLM_Configuration_Manager.md)
-Handles configuration, initialization, and management of different LLMs, storing API keys, model names, temperature settings, and provider‑specific parameters.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.llm_config`</a>
-
-
-### Specialized Analysis Agents [[Expand]](./Specialized_Analysis_Agents.md)
-Collection of distinct agents (Metadata, Abstraction, Details) each focused on a specific phase or type of code analysis, leveraging LLMs to extract domain‑specific insights.
+### Specialized Reasoning Agents
+Suite of task‑specific workers that perform granular analysis. Each agent focuses on a specific abstraction level: metadata extraction, high‑level component mapping, detailed implementation analysis, or project planning.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py" target="_blank" rel="noopener noreferrer">`agents.meta_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py" target="_blank" rel="noopener noreferrer">`agents.abstraction_agent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py" target="_blank" rel="noopener noreferrer">`agents.details_agent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.MetaAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AbstractionAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.DetailsAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.PlannerAgent`</a>
 
 
-### Analysis Planning Engine [[Expand]](./Analysis_Planning_Engine.md)
-Strategically determines the optimal plan and sequence for the analysis workflow, deciding which code entities need deeper investigation based on current insights and goals.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py" target="_blank" rel="noopener noreferrer">`agents.planner_agent`</a>
-
-
-### Analysis Data Models [[Expand]](./Analysis_Data_Models.md)
-Defines canonical data structures and schemas for representing analysis results, intermediate states, and architectural insights, ensuring consistent data exchange across the subsystem.
+### Prompt Management System
+Strategy‑based factory that generates provider‑specific templates (GPT, Claude, Gemini). It decouples the reasoning logic from the linguistic requirements of different LLM providers.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.AnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.PromptGenerator`</a>
 
 
-### Analysis Validation Engine [[Expand]](./Analysis_Validation_Engine.md)
-Performs comprehensive validation of generated analysis results, checking consistency, completeness, and correctness, including cluster coverage and component relationship integrity.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation`</a>
-
-
-### Cluster Utilities [[Expand]](./Cluster_Utilities.md)
-Provides reusable utility functions for manipulating and processing clusters of code entities, supporting assignment, representation building, and data integrity maintenance.
+### Validation Engine
+Quality gate that verifies LLM‑generated architectural maps against ground‑truth static analysis facts, such as file existence and cluster coverage.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`agents.cluster_methods_mixin`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.ValidationEngine`</a>
+
+
+### LLM Configuration & Factory
+Manages provider initialization, API credentials, and runtime settings (temperature, token limits). Exposes a unified interface for the rest of the subsystem to interact with various LLM backends.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.config.LLMConfig`</a>
+
+
+### Data Models & Schema
+Defines the Pydantic contracts used for structured data exchange. These models ensure that LLM outputs are parsed into strictly typed objects used by the rest of the application.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.Component`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.Relation`</a>
+
+
+### Analysis Utilities
+Shared logic for manipulating static analysis clusters and mapping files to component structures. Provides the bridge between raw CFG data and LLM‑friendly formats.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`agents.utils.ClusterMethodsMixin`</a>
 
 
 

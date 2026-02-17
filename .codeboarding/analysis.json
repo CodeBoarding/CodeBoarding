@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-17T02:08:54.743413+00:00",
+    "generated_at": "2026-02-17T17:15:55.252550+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
     "file_coverage_summary": {
@@ -532,556 +532,93 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Analysis Orchestrator",
-          "description": "Primary coordinator of the entire code analysis and documentation generation workflow, managing operation sequencing, invoking specialized agents, integrating outputs, and overseeing pipeline state.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "22d979c4fc11eb52",
-          "can_expand": false
-        },
-        {
-          "name": "Prompt Generator",
-          "description": "Dynamically generates and manages context‑specific prompts for various LLMs and analysis tasks, ensuring precise instructions for effective code interpretation.",
+          "name": "Orchestration Agent",
+          "description": "Central controller that manages the multi‑agent state machine, loads static analysis facts, classifies files, and coordinates the execution sequence of worker agents to ensure a coherent analysis lifecycle.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.prompts.PromptGenerator",
-              "reference_file": "agents/prompts/__init__.py"
+              "qualified_name": "agents.prompts.gemini_flash_prompts.CodeBoardingAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AgentState",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
             }
           ],
           "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/__init__.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f0c582c0a26a4cda",
+          "can_expand": true
+        },
+        {
+          "name": "Specialized Reasoning Agents",
+          "description": "Suite of task‑specific workers that perform granular analysis. Each agent focuses on a specific abstraction level: metadata extraction, high‑level component mapping, detailed implementation analysis, or project planning.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.MetaAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AbstractionAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.DetailsAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PlannerAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/abstraction_agent.py",
+            "agents/agent.py",
+            "agents/details_agent.py",
+            "agents/meta_agent.py",
+            "agents/planner_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8c8a3b220039937e",
+          "can_expand": true
+        },
+        {
+          "name": "Prompt Management System",
+          "description": "Strategy‑based factory that generates provider‑specific templates (GPT, Claude, Gemini). It decouples the reasoning logic from the linguistic requirements of different LLM providers.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+              "reference_file": "agents/prompts/prompt_factory.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PromptGenerator",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/prompt_factory.py",
+            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/__init__.py",
             "agents/prompts/abstract_prompt_factory.py",
             "agents/prompts/claude_prompts.py",
             "agents/prompts/deepseek_prompts.py",
-            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/glm_prompts.py",
             "agents/prompts/gpt_prompts.py",
-            "agents/prompts/kimi_prompts.py",
-            "agents/prompts/prompt_factory.py"
+            "agents/prompts/kimi_prompts.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "ed55f30ee4e0537c",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Prompt Orchestrator",
-              "description": "Dynamically selects and manages LLM‑specific prompt factories, providing a central interface for retrieving tailored prompts for various analysis tasks. It acts as the entry point for the system to obtain the correct prompt based on the target LLM.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.LLMType",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.PromptFactory._create_prompt_factory",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.PromptFactory.get_prompt",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.initialize_global_factory",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/prompts/prompt_factory.py",
-                "agents/prompts/__init__.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "26debf26e8d72aa9",
-              "can_expand": false
-            },
-            {
-              "name": "LLM‑Specific Prompt Template Repository",
-              "description": "Manages a collection of predefined prompt templates, each specifically designed and formatted for different Large Language Models, ensuring optimal interaction and performance. This component encapsulates the actual prompt content and its LLM‑specific structure.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-                  "reference_file": "agents/prompts/abstract_prompt_factory.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
-                  "reference_file": "agents/prompts/gemini_flash_prompts.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory",
-                  "reference_file": "agents/prompts/gpt_prompts.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory",
-                  "reference_file": "agents/prompts/claude_prompts.py"
-                },
-                {
-                  "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
-                  "reference_file": "agents/prompts/abstract_prompt_factory.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/prompts/gpt_prompts.py",
-                "agents/prompts/claude_prompts.py",
-                "agents/prompts/abstract_prompt_factory.py",
-                "agents/prompts/gemini_flash_prompts.py",
-                "agents/prompts/deepseek_prompts.py",
-                "agents/prompts/glm_prompts.py",
-                "agents/prompts/kimi_prompts.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "2169abadd88d0619",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "configures",
-              "src_name": "Prompt Orchestrator",
-              "dst_name": "LLM‑Specific Prompt Template Repository",
-              "src_id": "26debf26e8d72aa9",
-              "dst_id": "2169abadd88d0619"
-            },
-            {
-              "relation": "retrieves prompts from",
-              "src_name": "Prompt Orchestrator",
-              "dst_name": "LLM‑Specific Prompt Template Repository",
-              "src_id": "26debf26e8d72aa9",
-              "dst_id": "2169abadd88d0619"
-            }
-          ]
+          "component_id": "db4a86ad3c9c99dc",
+          "can_expand": true
         },
         {
-          "name": "LLM Configuration Manager",
-          "description": "Handles configuration, initialization, and management of different LLMs, storing API keys, model names, temperature settings, and provider‑specific parameters.",
+          "name": "Validation Engine",
+          "description": "Quality gate that verifies LLM‑generated architectural maps against ground‑truth static analysis facts, such as file existence and cluster coverage.",
           "key_entities": [
             {
-              "qualified_name": "agents.llm_config",
-              "reference_file": "agents/llm_config.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/llm_config.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "b4d7586dc850365a",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LLM Configuration Data Model & Access",
-              "description": "Defines the canonical data model for LLM configurations, manages secure storage and retrieval of API keys, resolves additional parameters, and determines the active status of LLM configurations, acting as the single source of truth for all LLM‑related settings.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.llm_config",
-                  "reference_file": "agents/llm_config.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/llm_config.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "4b2fd7049a0636d7",
-              "can_expand": false
-            },
-            {
-              "name": "LLM Instance Provisioner",
-              "description": "Orchestrates the creation and instantiation of diverse LLM instances (generic chat models, agent‑specific LLMs, parsing‑focused LLMs) by consuming configuration data, selecting the appropriate chat class or LLM implementation, and building concrete, usable LLM objects.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "909c8fc48b0c51d7",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "requests configuration from",
-              "src_name": "LLM Instance Provisioner",
-              "dst_name": "LLM Configuration Data Model & Access",
-              "src_id": "909c8fc48b0c51d7",
-              "dst_id": "4b2fd7049a0636d7"
-            },
-            {
-              "relation": "provides configuration to",
-              "src_name": "LLM Configuration Data Model & Access",
-              "dst_name": "LLM Instance Provisioner",
-              "src_id": "4b2fd7049a0636d7",
-              "dst_id": "909c8fc48b0c51d7"
-            }
-          ]
-        },
-        {
-          "name": "Specialized Analysis Agents",
-          "description": "Collection of distinct agents (Metadata, Abstraction, Details) each focused on a specific phase or type of code analysis, leveraging LLMs to extract domain‑specific insights.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.meta_agent",
-              "reference_file": "agents/meta_agent.py"
-            },
-            {
-              "qualified_name": "agents.abstraction_agent",
-              "reference_file": "agents/abstraction_agent.py"
-            },
-            {
-              "qualified_name": "agents.details_agent",
-              "reference_file": "agents/details_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/__init__.py",
-            "agents/abstraction_agent.py",
-            "agents/agent.py",
-            "agents/constants.py",
-            "agents/details_agent.py",
-            "agents/meta_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "56cec86e982e5f5d",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "CodeBoarding Orchestrator",
-              "description": "Central control unit that initiates and manages the entire code analysis workflow, classifies files, dispatches tasks to specialized agents, and coordinates the overall process.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/agent.py",
-                "agents/__init__.py",
-                "agents/constants.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9ba2aaf802a2110b",
-              "can_expand": false
-            },
-            {
-              "name": "Abstraction Agent",
-              "description": "Generates high-level summaries and conceptual groupings from code, receiving tasks from the Orchestrator and producing abstract representations of code structures and functionalities.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.abstraction_agent",
-                  "reference_file": "agents/abstraction_agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/abstraction_agent.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9fb8e8d21ca7b773",
-              "can_expand": false
-            },
-            {
-              "name": "Details Agent",
-              "description": "Performs granular analysis of specific code segments or clusters, extracting fine-grained insights and detailed information under the direction of the Orchestrator.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.details_agent",
-                  "reference_file": "agents/details_agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/details_agent.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "949a72df88bc7b00",
-              "can_expand": false
-            },
-            {
-              "name": "Metadata Agent",
-              "description": "Extracts and interprets project-level metadata such as project type, domain, technology stack, and architectural patterns, providing essential contextual information.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.meta_agent",
-                  "reference_file": "agents/meta_agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/meta_agent.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "b51bd8bcd39087a4",
-              "can_expand": false
-            },
-            {
-              "name": "Response Parser",
-              "description": "Utility component that interprets and standardizes structured responses from LLMs or external APIs, transforming raw outputs into usable data formats for the Orchestrator and agents.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent._parse_response",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent._try_parse",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/agent.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "87fa75350dfb9509",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "initiates analysis tasks for",
-              "src_name": "CodeBoarding Orchestrator",
-              "dst_name": "Abstraction Agent",
-              "src_id": "9ba2aaf802a2110b",
-              "dst_id": "9fb8e8d21ca7b773"
-            },
-            {
-              "relation": "initiates analysis tasks for",
-              "src_name": "CodeBoarding Orchestrator",
-              "dst_name": "Details Agent",
-              "src_id": "9ba2aaf802a2110b",
-              "dst_id": "949a72df88bc7b00"
-            },
-            {
-              "relation": "initiates analysis tasks for",
-              "src_name": "CodeBoarding Orchestrator",
-              "dst_name": "Metadata Agent",
-              "src_id": "9ba2aaf802a2110b",
-              "dst_id": "b51bd8bcd39087a4"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "CodeBoarding Orchestrator",
-              "dst_name": "Response Parser",
-              "src_id": "9ba2aaf802a2110b",
-              "dst_id": "87fa75350dfb9509"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "Abstraction Agent",
-              "dst_name": "Response Parser",
-              "src_id": "9fb8e8d21ca7b773",
-              "dst_id": "87fa75350dfb9509"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "Details Agent",
-              "dst_name": "Response Parser",
-              "src_id": "949a72df88bc7b00",
-              "dst_id": "87fa75350dfb9509"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "Metadata Agent",
-              "dst_name": "Response Parser",
-              "src_id": "b51bd8bcd39087a4",
-              "dst_id": "87fa75350dfb9509"
-            }
-          ]
-        },
-        {
-          "name": "Analysis Planning Engine",
-          "description": "Strategically determines the optimal plan and sequence for the analysis workflow, deciding which code entities need deeper investigation based on current insights and goals.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.planner_agent",
-              "reference_file": "agents/planner_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/planner_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "2df1ccc1348cbfe5",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Analysis Planner Agent",
-              "description": "Core component of the Analysis Planning Engine that strategically determines the optimal plan and sequence for the analysis workflow, deciding which code entities need deeper investigation based on current insights and goals. It orchestrates tasks, interacts with other engines, and monitors progress.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.planner_agent.AnalysisPlannerAgent",
-                  "reference_file": "agents/planner_agent.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/planner_agent.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "a7692efbccbdf957",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "receives from",
-              "src_name": "Orchestration Engine",
-              "dst_name": "Analysis Planner Agent",
-              "src_id": "",
-              "dst_id": "a7692efbccbdf957"
-            },
-            {
-              "relation": "sends to",
-              "src_name": "Analysis Planner Agent",
-              "dst_name": "Static Analysis Engine",
-              "src_id": "a7692efbccbdf957",
-              "dst_id": ""
-            },
-            {
-              "relation": "sends to",
-              "src_name": "Analysis Planner Agent",
-              "dst_name": "AI Interpretation Layer",
-              "src_id": "a7692efbccbdf957",
-              "dst_id": ""
-            },
-            {
-              "relation": "sends to",
-              "src_name": "Analysis Planner Agent",
-              "dst_name": "Output Generation Engine",
-              "src_id": "a7692efbccbdf957",
-              "dst_id": ""
-            }
-          ]
-        },
-        {
-          "name": "Analysis Data Models",
-          "description": "Defines canonical data structures and schemas for representing analysis results, intermediate states, and architectural insights, ensuring consistent data exchange across the subsystem.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.models.AnalysisInsights",
-              "reference_file": "agents/agent_responses.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/agent_responses.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "812e662433b0cda4",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Analysis Data Models (ADM)",
-              "description": "Defines canonical data structures and schemas for representing analysis results, intermediate states, and architectural insights, ensuring consistent data exchange across the subsystem.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "01b1f7d7f0aa901e",
-              "can_expand": false
-            },
-            {
-              "name": "LLM Response Formatter (LRF)",
-              "description": "Converts structured analysis data into human‑readable or LLM‑consumable string formats. Manages representation of CFG‑specific components and clusters, ensuring complex data can be communicated to AI agents or documentation.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "25d0bb4dffef560f",
-              "can_expand": false
-            },
-            {
-              "name": "LLM Base Utilities (LBU)",
-              "description": "Provides foundational utilities for interacting with LLMs, including a base model for LLM responses and mechanisms for extracting relevant strings.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.llm_utils.LLMBaseModel",
-                  "reference_file": "agents/agent_responses.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.llm_utils.extractor_str",
-                  "reference_file": "agents/agent_responses.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/agent_responses.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "f1afbf5386467ab2",
-              "can_expand": false
-            },
-            {
-              "name": "Source Code Reference Manager (SCRM)",
-              "description": "Manages references to specific parts of source code (file paths, line numbers) enabling agents to point to relevant snippets.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "49f4f974367b862b",
-              "can_expand": false
-            },
-            {
-              "name": "Component ID Service (CIS)",
-              "description": "Ensures unique identification and tracking of components by providing functions for assigning and hashing component IDs.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "643cda068ae8c92a",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "provides data to",
-              "src_name": "Analysis Data Models (ADM)",
-              "dst_name": "LLM Response Formatter (LRF)",
-              "src_id": "01b1f7d7f0aa901e",
-              "dst_id": "25d0bb4dffef560f"
-            },
-            {
-              "relation": "stores references from",
-              "src_name": "Analysis Data Models (ADM)",
-              "dst_name": "Source Code Reference Manager (SCRM)",
-              "src_id": "01b1f7d7f0aa901e",
-              "dst_id": "49f4f974367b862b"
-            },
-            {
-              "relation": "uses",
-              "src_name": "Analysis Data Models (ADM)",
-              "dst_name": "Component ID Service (CIS)",
-              "src_id": "01b1f7d7f0aa901e",
-              "dst_id": "643cda068ae8c92a"
-            },
-            {
-              "relation": "formats data from",
-              "src_name": "LLM Response Formatter (LRF)",
-              "dst_name": "Analysis Data Models (ADM)",
-              "src_id": "25d0bb4dffef560f",
-              "dst_id": "01b1f7d7f0aa901e"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "LLM Response Formatter (LRF)",
-              "dst_name": "LLM Base Utilities (LBU)",
-              "src_id": "25d0bb4dffef560f",
-              "dst_id": "f1afbf5386467ab2"
-            },
-            {
-              "relation": "provides services to",
-              "src_name": "LLM Base Utilities (LBU)",
-              "dst_name": "LLM Response Formatter (LRF)",
-              "src_id": "f1afbf5386467ab2",
-              "dst_id": "25d0bb4dffef560f"
-            },
-            {
-              "relation": "provides references to",
-              "src_name": "Source Code Reference Manager (SCRM)",
-              "dst_name": "Analysis Data Models (ADM)",
-              "src_id": "49f4f974367b862b",
-              "dst_id": "01b1f7d7f0aa901e"
-            },
-            {
-              "relation": "assigns IDs for",
-              "src_name": "Component ID Service (CIS)",
-              "dst_name": "Analysis Data Models (ADM)",
-              "src_id": "643cda068ae8c92a",
-              "dst_id": "01b1f7d7f0aa901e"
-            }
-          ]
-        },
-        {
-          "name": "Analysis Validation Engine",
-          "description": "Performs comprehensive validation of generated analysis results, checking consistency, completeness, and correctness, including cluster coverage and component relationship integrity.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.validation",
+              "qualified_name": "agents.validation.ValidationEngine",
               "reference_file": "agents/validation.py"
             }
           ],
@@ -1089,155 +626,57 @@
             "agents/validation.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "0c8384ea39f2eb84",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Validation Orchestrator",
-              "description": "Manages the overall validation workflow, coordinating different validation checks and aggregating their results. It acts as the entry point for initiating validation processes.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.validation.ValidationOrchestrator",
-                  "reference_file": "agents/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "27000bc7f7679792",
-              "can_expand": false
-            },
-            {
-              "name": "Consistency Validator",
-              "description": "Checks for logical consistency across various analysis artifacts, ensuring that different views or representations of the codebase do not contradict each other.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.validation.ConsistencyValidator",
-                  "reference_file": "agents/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "c091fd9e7dc23876",
-              "can_expand": false
-            },
-            {
-              "name": "Completeness Validator",
-              "description": "Verifies that all expected elements, relationships, or coverage metrics are present in the analysis results, identifying any missing information.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.validation.CompletenessValidator",
-                  "reference_file": "agents/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "a3392b0ed443a6e9",
-              "can_expand": false
-            },
-            {
-              "name": "Relationship Integrity Validator",
-              "description": "Focuses on validating the correctness and integrity of identified component relationships, ensuring they are well-formed and accurately reflect the codebase's structure.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.validation.RelationshipIntegrityValidator",
-                  "reference_file": "agents/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "81634de4fbc4266e",
-              "can_expand": false
-            },
-            {
-              "name": "Result Aggregator/Reporter",
-              "description": "Collects the outcomes from individual validation checks, compiles a comprehensive validation report, and potentially flags critical issues.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.validation.ResultAggregator",
-                  "reference_file": "agents/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "59c7a19080f49d35",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "delegates to",
-              "src_name": "Validation Orchestrator",
-              "dst_name": "Consistency Validator",
-              "src_id": "27000bc7f7679792",
-              "dst_id": "c091fd9e7dc23876"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "Validation Orchestrator",
-              "dst_name": "Completeness Validator",
-              "src_id": "27000bc7f7679792",
-              "dst_id": "a3392b0ed443a6e9"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "Validation Orchestrator",
-              "dst_name": "Relationship Integrity Validator",
-              "src_id": "27000bc7f7679792",
-              "dst_id": "81634de4fbc4266e"
-            },
-            {
-              "relation": "reports to",
-              "src_name": "Consistency Validator",
-              "dst_name": "Validation Orchestrator",
-              "src_id": "c091fd9e7dc23876",
-              "dst_id": "27000bc7f7679792"
-            },
-            {
-              "relation": "reports to",
-              "src_name": "Completeness Validator",
-              "dst_name": "Validation Orchestrator",
-              "src_id": "a3392b0ed443a6e9",
-              "dst_id": "27000bc7f7679792"
-            },
-            {
-              "relation": "reports to",
-              "src_name": "Relationship Integrity Validator",
-              "dst_name": "Validation Orchestrator",
-              "src_id": "81634de4fbc4266e",
-              "dst_id": "27000bc7f7679792"
-            },
-            {
-              "relation": "forwards results to",
-              "src_name": "Validation Orchestrator",
-              "dst_name": "Result Aggregator/Reporter",
-              "src_id": "27000bc7f7679792",
-              "dst_id": "59c7a19080f49d35"
-            },
-            {
-              "relation": "provides final report to",
-              "src_name": "Result Aggregator/Reporter",
-              "dst_name": "Validation Orchestrator",
-              "src_id": "59c7a19080f49d35",
-              "dst_id": "27000bc7f7679792"
-            }
-          ]
+          "component_id": "717698077f1ebbf2",
+          "can_expand": true
         },
         {
-          "name": "Cluster Utilities",
-          "description": "Provides reusable utility functions for manipulating and processing clusters of code entities, supporting assignment, representation building, and data integrity maintenance.",
+          "name": "LLM Configuration & Factory",
+          "description": "Manages provider initialization, API credentials, and runtime settings (temperature, token limits). Exposes a unified interface for the rest of the subsystem to interact with various LLM backends.",
           "key_entities": [
             {
-              "qualified_name": "agents.cluster_methods_mixin",
+              "qualified_name": "agents.config.LLMConfig",
+              "reference_file": "agents/llm_config.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/llm_config.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "94d85fa8dbf901c6",
+          "can_expand": true
+        },
+        {
+          "name": "Data Models & Schema",
+          "description": "Defines the Pydantic contracts used for structured data exchange. These models ensure that LLM outputs are parsed into strictly typed objects used by the rest of the application.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AnalysisInsights",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.Component",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.Relation",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/agent_responses.py",
+            "agents/constants.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "14c1cd2f347b2b93",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Utilities",
+          "description": "Shared logic for manipulating static analysis clusters and mapping files to component structures. Provides the bridge between raw CFG data and LLM‑friendly formats.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.utils.ClusterMethodsMixin",
               "reference_file": "agents/cluster_methods_mixin.py"
             }
           ],
@@ -1245,242 +684,59 @@
             "agents/cluster_methods_mixin.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "615f25cdef2dd28e",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Clustering Orchestrator",
-              "description": "Orchestrates the overall process of defining, refining, and managing code clusters. Provides high-level control over cluster creation, validation, representation, ensures uniqueness of assignments and entities, sanitizes identifiers, and manages the lifecycle of clusters.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
-                  "reference_file": "agents/cluster_methods_mixin.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/cluster_methods_mixin.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9634a4c4c306a6f3",
-              "can_expand": false
-            },
-            {
-              "name": "File-to-Component Mapper",
-              "description": "Manages the concrete assignment of individual source code files to specific code components or clusters, linking physical file structure to logical component organization and ensuring consistency and accuracy.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.cluster_methods_mixin.FileAssignmentHandler",
-                  "reference_file": "agents/cluster_methods_mixin.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/cluster_methods_mixin.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "bcaacdc1b471d1e7",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "delegates file assignment tasks to",
-              "src_name": "Clustering Orchestrator",
-              "dst_name": "File-to-Component Mapper",
-              "src_id": "9634a4c4c306a6f3",
-              "dst_id": "bcaacdc1b471d1e7"
-            },
-            {
-              "relation": "utilizes mapping services provided by",
-              "src_name": "Clustering Orchestrator",
-              "dst_name": "File-to-Component Mapper",
-              "src_id": "9634a4c4c306a6f3",
-              "dst_id": "bcaacdc1b471d1e7"
-            }
-          ]
+          "component_id": "13b8136fda71b301",
+          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "invokes",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "56cec86e982e5f5d"
+          "relation": "delegates to",
+          "src_name": "Orchestration Agent",
+          "dst_name": "Specialized Reasoning Agents",
+          "src_id": "f0c582c0a26a4cda",
+          "dst_id": "8c8a3b220039937e"
         },
         {
-          "relation": "consults",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Analysis Planning Engine",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "2df1ccc1348cbfe5"
-        },
-        {
-          "relation": "stores/retrieves",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Analysis Data Models",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "812e662433b0cda4"
-        },
-        {
-          "relation": "submits to",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Analysis Validation Engine",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "0c8384ea39f2eb84"
-        },
-        {
-          "relation": "utilizes",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Cluster Utilities",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "615f25cdef2dd28e"
+          "relation": "submits insights to",
+          "src_name": "Orchestration Agent",
+          "dst_name": "Validation Engine",
+          "src_id": "f0c582c0a26a4cda",
+          "dst_id": "717698077f1ebbf2"
         },
         {
           "relation": "requests prompts from",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Prompt Generator",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "ed55f30ee4e0537c"
+          "src_name": "Specialized Reasoning Agents",
+          "dst_name": "Prompt Management System",
+          "src_id": "8c8a3b220039937e",
+          "dst_id": "db4a86ad3c9c99dc"
         },
         {
-          "relation": "retrieves config from",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "LLM Configuration Manager",
-          "src_id": "22d979c4fc11eb52",
-          "dst_id": "b4d7586dc850365a"
+          "relation": "populates",
+          "src_name": "Specialized Reasoning Agents",
+          "dst_name": "Data Models & Schema",
+          "src_id": "8c8a3b220039937e",
+          "dst_id": "14c1cd2f347b2b93"
         },
         {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Generator",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "ed55f30ee4e0537c",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Generator",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "ed55f30ee4e0537c",
-          "dst_id": "56cec86e982e5f5d"
-        },
-        {
-          "relation": "supplies settings to",
-          "src_name": "LLM Configuration Manager",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "b4d7586dc850365a",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "supplies settings to",
-          "src_name": "LLM Configuration Manager",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "b4d7586dc850365a",
-          "dst_id": "56cec86e982e5f5d"
-        },
-        {
-          "relation": "reports results to",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "stores insights in",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Analysis Data Models",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "812e662433b0cda4"
+          "relation": "queries provider settings from",
+          "src_name": "Prompt Management System",
+          "dst_name": "LLM Configuration & Factory",
+          "src_id": "db4a86ad3c9c99dc",
+          "dst_id": "94d85fa8dbf901c6"
         },
         {
           "relation": "utilizes",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Cluster Utilities",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "615f25cdef2dd28e"
+          "src_name": "Validation Engine",
+          "dst_name": "Analysis Utilities",
+          "src_id": "717698077f1ebbf2",
+          "dst_id": "13b8136fda71b301"
         },
         {
-          "relation": "requests prompts from",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Prompt Generator",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "ed55f30ee4e0537c"
-        },
-        {
-          "relation": "retrieves config from",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "LLM Configuration Manager",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "b4d7586dc850365a"
-        },
-        {
-          "relation": "informs",
-          "src_name": "Analysis Planning Engine",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "2df1ccc1348cbfe5",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "reads data from",
-          "src_name": "Analysis Planning Engine",
-          "dst_name": "Analysis Data Models",
-          "src_id": "2df1ccc1348cbfe5",
-          "dst_id": "812e662433b0cda4"
-        },
-        {
-          "relation": "provides data to",
-          "src_name": "Analysis Data Models",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "812e662433b0cda4",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "receives outputs from",
-          "src_name": "Analysis Data Models",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "812e662433b0cda4",
-          "dst_id": "56cec86e982e5f5d"
-        },
-        {
-          "relation": "provides data to",
-          "src_name": "Analysis Data Models",
-          "dst_name": "Analysis Planning Engine",
-          "src_id": "812e662433b0cda4",
-          "dst_id": "2df1ccc1348cbfe5"
-        },
-        {
-          "relation": "provides data to",
-          "src_name": "Analysis Data Models",
-          "dst_name": "Analysis Validation Engine",
-          "src_id": "812e662433b0cda4",
-          "dst_id": "0c8384ea39f2eb84"
-        },
-        {
-          "relation": "reports validation to",
-          "src_name": "Analysis Validation Engine",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "0c8384ea39f2eb84",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "reads results from",
-          "src_name": "Analysis Validation Engine",
-          "dst_name": "Analysis Data Models",
-          "src_id": "0c8384ea39f2eb84",
-          "dst_id": "812e662433b0cda4"
-        },
-        {
-          "relation": "used by",
-          "src_name": "Cluster Utilities",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "615f25cdef2dd28e",
-          "dst_id": "22d979c4fc11eb52"
-        },
-        {
-          "relation": "used by",
-          "src_name": "Cluster Utilities",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "615f25cdef2dd28e",
-          "dst_id": "56cec86e982e5f5d"
+          "relation": "uses",
+          "src_name": "Specialized Reasoning Agents",
+          "dst_name": "Analysis Utilities",
+          "src_id": "8c8a3b220039937e",
+          "dst_id": "13b8136fda71b301"
         }
       ]
     },
