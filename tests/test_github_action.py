@@ -105,6 +105,10 @@ class TestGenerateMarkdown(unittest.TestCase):
 
             # Should be called for overview + ComponentA sub-analysis
             self.assertEqual(mock_generate_file.call_count, 2)
+            first_call = mock_generate_file.call_args_list[0]
+            second_call = mock_generate_file.call_args_list[1]
+            self.assertEqual(first_call.args[0], "overview")
+            self.assertEqual(second_call.args[0], "ComponentA")
 
 
 class TestGenerateHtml(unittest.TestCase):

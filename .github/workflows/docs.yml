@@ -177,26 +177,20 @@ jobs:
           echo "Found generated files in: $ENGINE_TEMP"
           ls -la "$ENGINE_TEMP"
 
-          # Copy doc files to target repo output directory
+          # Copy entire output directory to target repo, excluding logs
           rm -rf "target-repo/$OUTPUT_DIR"
           mkdir -p "target-repo/$OUTPUT_DIR"
+          cp -r "$ENGINE_TEMP"/* "target-repo/$OUTPUT_DIR/"
+          
+          # Remove logs directory if it exists
+          if [ -d "target-repo/$OUTPUT_DIR/logs" ]; then
+            echo "Removing logs directory..."
+            rm -rf "target-repo/$OUTPUT_DIR/logs"
+          fi
 
-          json_count=0
-          doc_count=0
-
-          for f in "$ENGINE_TEMP"/*.json; do
-            if [ -f "$f" ]; then
-              cp "$f" "target-repo/$OUTPUT_DIR/"
-              json_count=$((json_count + 1))
-            fi
-          done
-
-          for f in "$ENGINE_TEMP"/*"$OUTPUT_FORMAT"; do
-            if [ -f "$f" ]; then
-              cp "$f" "target-repo/$OUTPUT_DIR/"
-              doc_count=$((doc_count + 1))
-            fi
-          done
+          # Count files for reporting
+          json_count=$(find "target-repo/$OUTPUT_DIR" -name "*.json" -type f | wc -l)
+          doc_count=$(find "target-repo/$OUTPUT_DIR" -name "*$OUTPUT_FORMAT" -type f | wc -l)
 
           echo "Copied $json_count JSON files and $doc_count doc files to target-repo/$OUTPUT_DIR/"
           echo "json_files_created=$json_count" >> $GITHUB_OUTPUT
