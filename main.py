@@ -313,6 +313,7 @@ def process_local_repository(
         output_dir=output_dir,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        force_full=force_full,
     )
 
 

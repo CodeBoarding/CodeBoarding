@@ -137,8 +137,8 @@ class TestMetaAgent(unittest.TestCase):
             patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context()
-            loaded_second = agent.get_meta_context()
+            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
@@ -161,14 +161,14 @@ class TestMetaAgent(unittest.TestCase):
             patch("agents.meta_agent.get_repo_state_hash", side_effect=["state-a", "state-b"]),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context()
-            loaded_second = agent.get_meta_context()
+            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
-    def test_get_meta_context_force_refresh_recomputes(self):
+    def test_get_meta_context_refresh_recomputes(self):
         mock_llm = self._mock_llm("meta-model-v1")
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
@@ -185,9 +185,9 @@ class TestMetaAgent(unittest.TestCase):
             patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context()
-            loaded_second = agent.get_meta_context(force_refresh=True)
-            loaded_third = agent.get_meta_context()
+            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_second = agent.get_meta_context(agent_llm=mock_llm, refresh=True)
+            loaded_third = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
@@ -212,7 +212,7 @@ class TestMetaAgent(unittest.TestCase):
 
             recomputed = self._meta_insights("library")
             with patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock:
-                loaded = agent.get_meta_context()
+                loaded = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
@@ -234,8 +234,8 @@ class TestMetaAgent(unittest.TestCase):
             patch("agents.meta_agent.get_repo_state_hash", return_value="NoRepoStateHash"),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context()
-            loaded_second = agent.get_meta_context()
+            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
@@ -257,7 +257,7 @@ class TestMetaAgent(unittest.TestCase):
             patch.object(agent, "_meta_cache_path", side_effect=PermissionError("read-only")),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
         ):
-            loaded = agent.get_meta_context()
+            loaded = agent.get_meta_context(agent_llm=mock_llm)
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
@@ -285,16 +285,16 @@ class TestMetaAgent(unittest.TestCase):
 
         with patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"):
             with patch.object(agent_a, "analyze_project_metadata", return_value=first) as analyze_a:
-                loaded_first = agent_a.get_meta_context()
+                loaded_first = agent_a.get_meta_context(agent_llm=agent_llm)
             with patch.object(agent_b, "analyze_project_metadata", return_value=second) as analyze_b:
-                loaded_second = agent_b.get_meta_context()
+                loaded_second = agent_b.get_meta_context(agent_llm=agent_llm)
 
         self.assertEqual(analyze_a.call_count, 1)
         self.assertEqual(analyze_b.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
-    def test_get_meta_context_rejects_agent_llm_override(self):
+    def test_get_meta_context_rejects_different_agent_llm_instance(self):
         mock_llm = self._mock_llm("meta-model-v1")
         mock_parsing_llm = self._mock_llm("parse-model-v1")
         override_llm = self._mock_llm("meta-model-v2")

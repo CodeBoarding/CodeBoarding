@@ -1,6 +1,8 @@
 import hashlib
 import json
 import logging
+import sqlite3
+from collections.abc import Sequence
 from pathlib import Path
 
 from langchain_community.cache import SQLiteCache
@@ -17,6 +19,8 @@ from repo_utils import get_repo_state_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
+
+type JsonScalar = str | int | float | bool | None
 
 
 class MetaAgent(CodeBoardingAgent):
@@ -58,7 +62,17 @@ class MetaAgent(CodeBoardingAgent):
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "meta_agent_llm.sqlite"
 
-    def _meta_prompt_version(self) -> str:
+    def _open_meta_cache(self) -> SQLiteCache | None:
+        """Open sqlite cache, returning None when cache cannot be used."""
+        try:
+            db_path = self._meta_cache_path()
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            return SQLiteCache(database_path=str(db_path))
+        except (OSError, sqlite3.Error) as e:
+            logger.warning("Meta cache disabled: %s", e)
+            return None
+
+    def _meta_prompt_signature(self) -> str:
         """Return stable prompt version hash for cache invalidation on prompt changes."""
         prompt_material = get_system_meta_analysis_message() + "\n" + get_meta_information_prompt()
         return hashlib.sha256(prompt_material.encode("utf-8")).hexdigest()
@@ -72,7 +86,7 @@ class MetaAgent(CodeBoardingAgent):
                 model_id = value
                 break
 
-        config: dict[str, object] = {}
+        config: dict[str, JsonScalar] = {}
         for attr in ("temperature", "max_tokens", "top_p", "timeout", "max_retries"):
             value = getattr(llm, attr, None)
             if isinstance(value, (str, int, float, bool)) or value is None:
@@ -84,10 +98,6 @@ class MetaAgent(CodeBoardingAgent):
             "config": config,
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-    def _meta_llm_string(self, effective_llm: BaseChatModel) -> str:
-        """Backward-compatible alias for single-LLM signature."""
-        return self._llm_signature(effective_llm)
 
     def _meta_cache_llm_string(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> str:
         """Build cache key payload that includes both agent and parsing model signatures."""
@@ -106,17 +116,33 @@ class MetaAgent(CodeBoardingAgent):
             "kind": "meta_agent_cache_v1",
             "project_name": self.project_name,
             "repo_state_hash": repo_state_hash,
-            "prompt_version": self._meta_prompt_version(),
+            "prompt_version": self._meta_prompt_signature(),
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def _load_cached_meta(self, cached_generations: object) -> MetaAnalysisInsights | None:
-        """Decode cached LLM generations to typed meta insights."""
-        if not isinstance(cached_generations, list) or not cached_generations:
+    def construct_cache_keys(
+        self, repo_state_hash: str, agent_llm: BaseChatModel, parsing_llm: BaseChatModel
+    ) -> tuple[str, str]:
+        """Return prompt and llm cache keys for metadata context lookup."""
+        return self._meta_cache_prompt(repo_state_hash), self._meta_cache_llm_string(agent_llm, parsing_llm)
+
+    def _lookup_cached_generation(self, cache: SQLiteCache, prompt_key: str, llm_key: str) -> Generation | None:
+        """Lookup cached generations and normalize to expected output type."""
+        raw_generations: Sequence[Generation] | None = cache.lookup(prompt_key, llm_key)
+        if raw_generations is None:
             return None
-        first = cached_generations[0]
-        text = getattr(first, "text", None)
-        if not isinstance(text, str) or not text:
+
+        if len(raw_generations) > 1:
+            logger.warning("Meta cache returned %d generations for one key; using first", len(raw_generations))
+
+        return raw_generations[0]
+
+    def _load_cached_meta(self, cached_generation: Generation | None) -> MetaAnalysisInsights | None:
+        """Decode cached LLM generations to typed meta insights."""
+        if cached_generation is None:
+            return None
+        text = cached_generation.text
+        if not text:
             return None
         try:
             return MetaAnalysisInsights.model_validate_json(text)
@@ -125,47 +151,34 @@ class MetaAgent(CodeBoardingAgent):
 
     def get_meta_context(
         self,
-        force_refresh: bool = False,
-        agent_llm: BaseChatModel | None = None,
+        agent_llm: BaseChatModel,
+        refresh: bool = False,
     ) -> MetaAnalysisInsights:
         """Return cached metadata context or recompute and persist it."""
-        if agent_llm is not None and agent_llm is not self.agent_llm:
-            raise ValueError("MetaAgent.get_meta_context does not support overriding agent_llm.")
+        if agent_llm is not self.agent_llm:
+            raise ValueError("MetaAgent.get_meta_context requires the configured agent_llm instance.")
 
         repo_state_hash = get_repo_state_hash(self.repo_dir)
         if repo_state_hash == "NoRepoStateHash":
             logger.info("Meta cache disabled for non-git repository state; recomputing metadata analysis")
             return self.analyze_project_metadata()
 
-        prompt_key = self._meta_cache_prompt(repo_state_hash)
-        llm_string = self._meta_cache_llm_string(self.agent_llm, self.parsing_llm)
-        try:
-            cache = SQLiteCache(database_path=str(self._meta_cache_path()))
-        except Exception as e:
-            logger.warning("Meta cache unavailable; continuing without cache: %s", e)
+        prompt_key, llm_key = self.construct_cache_keys(repo_state_hash, agent_llm, self.parsing_llm)
+        cache = self._open_meta_cache()
+        if cache is None:
             return self.analyze_project_metadata()
 
-        if force_refresh:
-            try:
-                cache.clear()
-                logger.info("Meta cache cleared due to force_refresh")
-            except Exception as e:
-                logger.warning("Failed clearing meta cache; continuing with recompute: %s", e)
+        if refresh:
+            cache.clear()
+            logger.info("Meta cache cleared due to refresh request")
 
-        try:
-            cached_generations = cache.lookup(prompt_key, llm_string)
-        except Exception as e:
-            logger.warning("Meta cache lookup failed; treating as cache miss: %s", e)
-            cached_generations = None
+        cached_generation = self._lookup_cached_generation(cache, prompt_key, llm_key)
 
-        cached = self._load_cached_meta(cached_generations)
+        cached = self._load_cached_meta(cached_generation)
         if cached is not None:
             logger.info("Meta cache hit; reusing metadata analysis")
             return cached
 
         computed_meta = self.analyze_project_metadata()
-        try:
-            cache.update(prompt_key, llm_string, [Generation(text=computed_meta.model_dump_json())])
-        except Exception as e:
-            logger.warning("Meta cache update failed; continuing without cache write: %s", e)
+        cache.update(prompt_key, llm_key, [Generation(text=computed_meta.model_dump_json())])
         return computed_meta
