@@ -234,9 +234,22 @@ def _get_store(output_dir: Path) -> _AnalysisFileStore:
 # ---------------------------------------------------------------------------
 
 
-def load_analysis(output_dir: Path) -> AnalysisInsights | None:
+def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
     """Load the root analysis from the unified analysis.json file."""
     return _get_store(output_dir).read_root()
+
+
+def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]] | None:
+    """Load both the root analysis and all sub-analyses from the unified analysis.json file.
+
+    Returns ``(root_analysis, sub_analyses)`` or ``None`` if the file does not exist.
+    Sub-analyses maps component_id to its nested AnalysisInsights, covering all depth levels.
+    """
+    result = _get_store(output_dir).read()
+    if result is None:
+        return None
+    root_analysis, sub_analyses, _ = result
+    return root_analysis, sub_analyses
 
 
 def save_analysis(

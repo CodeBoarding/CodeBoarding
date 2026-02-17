@@ -4,9 +4,21 @@ import logging
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from diagram_analysis.incremental.path_patching import patch_sub_analysis
+from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental.component_checker import (
+    can_patch_sub_analysis,
+    component_has_only_renames,
+    is_expanded_component,
+)
+from diagram_analysis.incremental.file_manager import (
+    assign_new_files,
+    classify_new_files_in_component,
+    get_new_files_for_component,
+    remove_deleted_files,
+)
+from diagram_analysis.incremental.impact_analyzer import analyze_impact
 from diagram_analysis.incremental.io_utils import (
-    load_analysis,
+    load_root_analysis,
     load_sub_analysis,
     save_analysis,
     save_sub_analysis,
@@ -15,29 +27,17 @@ from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.incremental.path_patching import (
     patch_paths_in_analysis,
     patch_paths_in_manifest,
-)
-from diagram_analysis.incremental.impact_analyzer import analyze_impact
-from diagram_analysis.incremental.component_checker import (
-    is_expanded_component,
-    component_has_only_renames,
-    can_patch_sub_analysis,
+    patch_sub_analysis,
 )
 from diagram_analysis.incremental.reexpansion import (
     ReexpansionContext,
     reexpand_components,
-)
-from diagram_analysis.incremental.file_manager import (
-    assign_new_files,
-    remove_deleted_files,
-    classify_new_files_in_component,
-    get_new_files_for_component,
 )
 from diagram_analysis.incremental.scoped_analysis import (
     analyze_expanded_component_impacts,
     run_scoped_component_impacts,
 )
 from diagram_analysis.incremental.validation import validate_incremental_update
-from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.manifest import AnalysisManifest, load_manifest, save_manifest
 from repo_utils import get_repo_state_hash
 from repo_utils.change_detector import (
@@ -45,7 +45,7 @@ from repo_utils.change_detector import (
     detect_changes_from_commit,
     get_current_commit,
 )
-from repo_utils.ignore import should_skip_file, RepoIgnoreManager
+from repo_utils.ignore import RepoIgnoreManager, should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 
@@ -83,7 +83,7 @@ class IncrementalUpdater:
             logger.info("No manifest found, full analysis required")
             return False
 
-        self.analysis = load_analysis(self.output_dir)
+        self.analysis = load_root_analysis(self.output_dir)
         if not self.analysis:
             logger.info("No analysis found, full analysis required")
             return False
