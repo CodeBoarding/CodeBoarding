@@ -1,8 +1,10 @@
 """Tests for LLM configuration and model detection."""
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from agents.llm_config import initialize_agent_llm, initialize_parsing_llm
 from agents.prompts.prompt_factory import LLMType
 
@@ -65,6 +67,7 @@ class TestDetectLLMTypeFromModel:
             "gemini-2.0-flash",
             "gemini-2.5-flash",
             "gemini-2.5-pro",
+            "gemini-3-flash",
             "gemini-3-pro-preview",  # Future model
             "gemini-flash",  # Simplified name
             "GEMINI-PRO",  # Uppercase
@@ -350,10 +353,11 @@ class TestMonitoringIntegration:
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     def test_agent_monitoring_callback_gets_model_name(self, mock_init_factory, mock_providers):
         """Test that agent's monitoring callback gets the correct model name."""
-        from agents.agent import CodeBoardingAgent
-        from unittest.mock import MagicMock
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from agents.agent import CodeBoardingAgent
 
         # Setup mock provider
         mock_config = MagicMock()
