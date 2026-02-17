@@ -39,6 +39,11 @@ class TestMetaAgent(unittest.TestCase):
             architectural_bias="Focus on modularity and testability",
         )
 
+    def _mock_llm(self, model_name: str) -> MagicMock:
+        llm = MagicMock()
+        llm.model_name = model_name
+        return llm
+
     def test_init(self):
         # Test initialization
         mock_llm = MagicMock()
@@ -116,8 +121,7 @@ class TestMetaAgent(unittest.TestCase):
         mock_parse_invoke.assert_called_once()
 
     def test_get_meta_context_cache_miss_then_hit(self):
-        mock_llm = MagicMock()
-        mock_llm.model_name = "meta-model-v1"
+        mock_llm = self._mock_llm("meta-model-v1")
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
@@ -129,7 +133,10 @@ class TestMetaAgent(unittest.TestCase):
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
-        with patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock:
+        with (
+            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
+        ):
             loaded_first = agent.get_meta_context()
             loaded_second = agent.get_meta_context()
 
@@ -138,8 +145,7 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_second.model_dump(), first.model_dump())
 
     def test_get_meta_context_invalidates_when_repo_state_hash_changes(self):
-        mock_llm = MagicMock()
-        mock_llm.model_name = "meta-model-v1"
+        mock_llm = self._mock_llm("meta-model-v1")
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
@@ -163,8 +169,7 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
     def test_get_meta_context_force_refresh_recomputes(self):
-        mock_llm = MagicMock()
-        mock_llm.model_name = "meta-model-v1"
+        mock_llm = self._mock_llm("meta-model-v1")
         mock_parsing_llm = MagicMock()
         agent = MetaAgent(
             repo_dir=self.repo_dir,
@@ -176,7 +181,10 @@ class TestMetaAgent(unittest.TestCase):
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
-        with patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock:
+        with (
+            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
+        ):
             loaded_first = agent.get_meta_context()
             loaded_second = agent.get_meta_context(force_refresh=True)
             loaded_third = agent.get_meta_context()
@@ -187,9 +195,8 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_third.model_dump(), second.model_dump())
 
     def test_get_meta_context_corrupt_cache_falls_back_to_recompute(self):
-        mock_llm = MagicMock()
-        mock_llm.model_name = "meta-model-v1"
-        mock_parsing_llm = MagicMock()
+        mock_llm = self._mock_llm("meta-model-v1")
+        mock_parsing_llm = self._mock_llm("parse-model-v1")
         agent = MetaAgent(
             repo_dir=self.repo_dir,
             project_name=self.project_name,
@@ -199,7 +206,7 @@ class TestMetaAgent(unittest.TestCase):
 
         with patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"):
             prompt_key = agent._meta_cache_prompt()
-            llm_string = agent._meta_llm_string(mock_llm)
+            llm_string = agent._meta_cache_llm_string(mock_llm, mock_parsing_llm)
             cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
             cache.update(prompt_key, llm_string, [Generation(text="not-json")])
 
@@ -209,6 +216,97 @@ class TestMetaAgent(unittest.TestCase):
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
+
+    def test_get_meta_context_non_git_repo_bypasses_cache(self):
+        mock_llm = self._mock_llm("meta-model-v1")
+        mock_parsing_llm = self._mock_llm("parse-model-v1")
+        agent = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        first = self._meta_insights("library")
+        second = self._meta_insights("web application")
+
+        with (
+            patch("agents.meta_agent.get_repo_state_hash", return_value="NoRepoStateHash"),
+            patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
+        ):
+            loaded_first = agent.get_meta_context()
+            loaded_second = agent.get_meta_context()
+
+        self.assertEqual(analyze_mock.call_count, 2)
+        self.assertEqual(loaded_first.model_dump(), first.model_dump())
+        self.assertEqual(loaded_second.model_dump(), second.model_dump())
+
+    def test_get_meta_context_cache_init_failure_falls_back_to_recompute(self):
+        mock_llm = self._mock_llm("meta-model-v1")
+        mock_parsing_llm = self._mock_llm("parse-model-v1")
+        agent = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        recomputed = self._meta_insights("library")
+        with (
+            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch.object(agent, "_meta_cache_path", side_effect=PermissionError("read-only")),
+            patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
+        ):
+            loaded = agent.get_meta_context()
+
+        self.assertEqual(analyze_mock.call_count, 1)
+        self.assertEqual(loaded.model_dump(), recomputed.model_dump())
+
+    def test_get_meta_context_invalidates_when_parsing_model_changes(self):
+        agent_llm = self._mock_llm("meta-model-v1")
+        parsing_llm_a = self._mock_llm("parse-model-v1")
+        parsing_llm_b = self._mock_llm("parse-model-v2")
+
+        agent_a = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm_a,
+        )
+        agent_b = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm_b,
+        )
+
+        first = self._meta_insights("library")
+        second = self._meta_insights("web application")
+
+        with patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"):
+            with patch.object(agent_a, "analyze_project_metadata", return_value=first) as analyze_a:
+                loaded_first = agent_a.get_meta_context()
+            with patch.object(agent_b, "analyze_project_metadata", return_value=second) as analyze_b:
+                loaded_second = agent_b.get_meta_context()
+
+        self.assertEqual(analyze_a.call_count, 1)
+        self.assertEqual(analyze_b.call_count, 1)
+        self.assertEqual(loaded_first.model_dump(), first.model_dump())
+        self.assertEqual(loaded_second.model_dump(), second.model_dump())
+
+    def test_get_meta_context_rejects_agent_llm_override(self):
+        mock_llm = self._mock_llm("meta-model-v1")
+        mock_parsing_llm = self._mock_llm("parse-model-v1")
+        override_llm = self._mock_llm("meta-model-v2")
+        agent = MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        with self.assertRaises(ValueError):
+            agent.get_meta_context(agent_llm=override_llm)
 
 
 if __name__ == "__main__":
