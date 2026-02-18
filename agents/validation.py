@@ -4,9 +4,9 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-from agents.agent_responses import ClusterAnalysis, AnalysisInsights, ComponentFiles
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
-from static_analyzer.graph import ClusterResult, CallGraph
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +272,7 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
-def validate_relation_component_names(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+def validate_relation_component_names(result: AnalysisInsights, _context: ValidationContext) -> ValidationResult:
     """
     Validate that every src_name and dst_name in components_relations refers to an existing component.
 
