@@ -47,7 +47,7 @@ def validate_env_vars():
         "CEREBRAS_API_KEY",
         "VERCEL_API_KEY",
     ]
-    api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
+    api_env_keys = [key for key in api_provider_keys if (os.getenv(key) or "").strip()]
 
     if len(api_env_keys) == 0:
         logger.error(f"API key not set, set one of the following: {api_provider_keys}")
