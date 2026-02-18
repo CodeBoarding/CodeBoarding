@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-18T16:55:12.209317+00:00",
+    "generated_at": "2026-02-18T18:24:56.969220+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
     "file_coverage_summary": {
@@ -316,51 +316,40 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Orchestration Agent",
-          "description": "Central controller that manages the multi‑agent state machine, loads static analysis facts, classifies files, and coordinates the execution sequence of worker agents to ensure a coherent analysis lifecycle.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.CodeBoardingAgent",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
-            },
-            {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.AgentState",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/prompts/gemini_flash_prompts.py",
-            "agents/__init__.py"
-          ],
+          "name": "Workflow Orchestrator",
+          "description": "The central brain of the subsystem. It manages the state machine of the analysis process, coordinates the sequence of agent invocations, and handles the logic for retrying failed analysis steps when validation fails.",
+          "key_entities": [],
+          "assigned_files": [],
           "source_cluster_ids": [],
-          "component_id": "f0c582c0a26a4cda",
-          "can_expand": true
+          "component_id": "1bdb6022d5a30d65",
+          "can_expand": false
         },
         {
           "name": "Specialized Reasoning Agents",
-          "description": "Suite of task‑specific workers that perform granular analysis. Each agent focuses on a specific abstraction level: metadata extraction, high‑level component mapping, detailed implementation analysis, or project planning.",
+          "description": "A suite of task‑specific LLM agents that decompose the complex problem of code understanding into manageable phases: context gathering, planning, high‑level abstraction, and detailed component analysis.",
           "key_entities": [
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.MetaAgent",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.agents.MetaAgent",
+              "reference_file": "agents/__init__.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.AbstractionAgent",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.agents.PlannerAgent",
+              "reference_file": "agents/__init__.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.DetailsAgent",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.agents.AbstractionAgent",
+              "reference_file": "agents/__init__.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.PlannerAgent",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.agents.DetailsAgent",
+              "reference_file": "agents/__init__.py"
             }
           ],
           "assigned_files": [
-            "agents/prompts/gemini_flash_prompts.py",
+            "agents/__init__.py",
             "agents/abstraction_agent.py",
             "agents/agent.py",
+            "agents/constants.py",
             "agents/details_agent.py",
             "agents/meta_agent.py",
             "agents/planner_agent.py"
@@ -370,39 +359,51 @@
           "can_expand": true
         },
         {
-          "name": "Prompt Management System",
-          "description": "Strategy‑based factory that generates provider‑specific templates (GPT, Claude, Gemini). It decouples the reasoning logic from the linguistic requirements of different LLM providers.",
+          "name": "Prompt Engineering Framework",
+          "description": "A provider‑agnostic layer that manages the complex templates required for different LLMs. It ensures that reasoning agents receive the correct system instructions and context formatting regardless of the underlying model (Claude, GPT, Gemini).",
           "key_entities": [
             {
-              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-              "reference_file": "agents/prompts/prompt_factory.py"
+              "qualified_name": "repos.codeboarding.prompts.PromptFactory",
+              "reference_file": "agents/prompts/__init__.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.PromptGenerator",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.prompts.PromptGenerator",
+              "reference_file": "agents/prompts/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.agents.prompts.gemini_flash_prompts",
+              "reference_file": "agents/prompts/__init__.py"
             }
           ],
           "assigned_files": [
-            "agents/prompts/prompt_factory.py",
-            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/__init__.py",
             "agents/prompts/abstract_prompt_factory.py",
             "agents/prompts/claude_prompts.py",
             "agents/prompts/deepseek_prompts.py",
+            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/glm_prompts.py",
             "agents/prompts/gpt_prompts.py",
-            "agents/prompts/kimi_prompts.py"
+            "agents/prompts/kimi_prompts.py",
+            "agents/prompts/prompt_factory.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "db4a86ad3c9c99dc",
+          "component_id": "61004d54c28f7085",
           "can_expand": true
         },
         {
-          "name": "Validation Engine",
-          "description": "Quality gate that verifies LLM‑generated architectural maps against ground‑truth static analysis facts, such as file existence and cluster coverage.",
+          "name": "Integrity & Validation Engine",
+          "description": "The \"ground‑truth\" gatekeeper. It compares the semantic components proposed by LLMs against the hard static analysis data (CFG clusters) to ensure no code is left unanalyzed and that the architecture is technically sound.",
           "key_entities": [
             {
-              "qualified_name": "agents.validation.ValidationEngine",
+              "qualified_name": "repos.codeboarding.validation.IntegrityChecker",
+              "reference_file": "agents/validation.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.validation.IntegrityChecker.verify_cluster_coverage",
+              "reference_file": "agents/validation.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.validation.IntegrityChecker.validate_schema_conformity",
               "reference_file": "agents/validation.py"
             }
           ],
@@ -410,57 +411,47 @@
             "agents/validation.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "717698077f1ebbf2",
+          "component_id": "0b6140a3160eb197",
           "can_expand": true
         },
         {
-          "name": "LLM Configuration & Factory",
-          "description": "Manages provider initialization, API credentials, and runtime settings (temperature, token limits). Exposes a unified interface for the rest of the subsystem to interact with various LLM backends.",
+          "name": "Semantic Data Models",
+          "description": "Pydantic‑based schemas that define the \"language\" of the subsystem. These models enforce strict typing on LLM outputs, ensuring that downstream components receive predictable data structures.",
           "key_entities": [
             {
-              "qualified_name": "agents.config.LLMConfig",
-              "reference_file": "agents/llm_config.py"
+              "qualified_name": "repos.codeboarding.models.AnalysisInsights",
+              "reference_file": "agents/agent_responses.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.models.Component",
+              "reference_file": "agents/agent_responses.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.models.Relation",
+              "reference_file": "agents/agent_responses.py"
             }
           ],
           "assigned_files": [
-            "agents/llm_config.py"
+            "agents/agent_responses.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "94d85fa8dbf901c6",
+          "component_id": "b75d3ae021c47a35",
           "can_expand": true
         },
         {
-          "name": "Data Models & Schema",
-          "description": "Defines the Pydantic contracts used for structured data exchange. These models ensure that LLM outputs are parsed into strictly typed objects used by the rest of the application.",
+          "name": "Analysis Support Mixins",
+          "description": "Utility layers that bridge the gap between raw static analysis data and LLM‑friendly text. They handle the heavy lifting of mapping CFG nodes to source files and cleaning data for prompt inclusion.",
           "key_entities": [
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.AnalysisInsights",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.mixins.ClusterMethodsMixin",
+              "reference_file": "agents/cluster_methods_mixin.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.Component",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+              "qualified_name": "repos.codeboarding.mixins.ClusterMethodsMixin.get_cluster_context",
+              "reference_file": "agents/cluster_methods_mixin.py"
             },
             {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.Relation",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/prompts/gemini_flash_prompts.py",
-            "agents/agent_responses.py",
-            "agents/constants.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "14c1cd2f347b2b93",
-          "can_expand": true
-        },
-        {
-          "name": "Analysis Utilities",
-          "description": "Shared logic for manipulating static analysis clusters and mapping files to component structures. Provides the bridge between raw CFG data and LLM‑friendly formats.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.utils.ClusterMethodsMixin",
+              "qualified_name": "repos.codeboarding.utils.DataSanitizer",
               "reference_file": "agents/cluster_methods_mixin.py"
             }
           ],
@@ -468,59 +459,83 @@
             "agents/cluster_methods_mixin.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "13b8136fda71b301",
+          "component_id": "fa7bf3c122723004",
+          "can_expand": true
+        },
+        {
+          "name": "LLM Infrastructure Layer",
+          "description": "Manages the lifecycle and configuration of LLM connections. It abstracts the complexities of different API providers (OpenAI, Anthropic, Gemini) and provides a unified interface for the agents.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.infrastructure.LLMProviderManager",
+              "reference_file": "agents/llm_config.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.infrastructure.ChatModelFactory",
+              "reference_file": "agents/llm_config.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.config.LLMSettings",
+              "reference_file": "agents/llm_config.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/llm_config.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "0c52eeee0f524911",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "delegates to",
-          "src_name": "Orchestration Agent",
+          "relation": "delegates specific analysis phases to",
+          "src_name": "Workflow Orchestrator",
           "dst_name": "Specialized Reasoning Agents",
-          "src_id": "f0c582c0a26a4cda",
+          "src_id": "1bdb6022d5a30d65",
           "dst_id": "8c8a3b220039937e"
         },
         {
-          "relation": "submits insights to",
-          "src_name": "Orchestration Agent",
-          "dst_name": "Validation Engine",
-          "src_id": "f0c582c0a26a4cda",
-          "dst_id": "717698077f1ebbf2"
-        },
-        {
-          "relation": "requests prompts from",
+          "relation": "requests model-specific prompt templates from",
           "src_name": "Specialized Reasoning Agents",
-          "dst_name": "Prompt Management System",
+          "dst_name": "Prompt Engineering Framework",
           "src_id": "8c8a3b220039937e",
-          "dst_id": "db4a86ad3c9c99dc"
+          "dst_id": "61004d54c28f7085"
         },
         {
-          "relation": "populates",
+          "relation": "executes reasoning tasks by sending formatted prompts to",
           "src_name": "Specialized Reasoning Agents",
-          "dst_name": "Data Models & Schema",
+          "dst_name": "LLM Infrastructure Layer",
           "src_id": "8c8a3b220039937e",
-          "dst_id": "14c1cd2f347b2b93"
+          "dst_id": "0c52eeee0f524911"
         },
         {
-          "relation": "queries provider settings from",
-          "src_name": "Prompt Management System",
-          "dst_name": "LLM Configuration & Factory",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "94d85fa8dbf901c6"
+          "relation": "uses mixins to transform raw CFG data into structured context for",
+          "src_name": "Workflow Orchestrator",
+          "dst_name": "Analysis Support Mixins",
+          "src_id": "1bdb6022d5a30d65",
+          "dst_id": "fa7bf3c122723004"
         },
         {
-          "relation": "utilizes",
-          "src_name": "Validation Engine",
-          "dst_name": "Analysis Utilities",
-          "src_id": "717698077f1ebbf2",
-          "dst_id": "13b8136fda71b301"
+          "relation": "submits aggregated agent findings for verification to",
+          "src_name": "Workflow Orchestrator",
+          "dst_name": "Integrity & Validation Engine",
+          "src_id": "1bdb6022d5a30d65",
+          "dst_id": "0b6140a3160eb197"
         },
         {
-          "relation": "uses",
+          "relation": "returns validation errors or missing cluster reports to",
+          "src_name": "Integrity & Validation Engine",
+          "dst_name": "Workflow Orchestrator",
+          "src_id": "0b6140a3160eb197",
+          "dst_id": "1bdb6022d5a30d65"
+        },
+        {
+          "relation": "instantiates structured Pydantic objects from LLM outputs for",
           "src_name": "Specialized Reasoning Agents",
-          "dst_name": "Analysis Utilities",
+          "dst_name": "Semantic Data Models",
           "src_id": "8c8a3b220039937e",
-          "dst_id": "13b8136fda71b301"
+          "dst_id": "b75d3ae021c47a35"
         }
       ]
     },
@@ -1689,924 +1704,223 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Agent Tooling Interface",
-          "description": "Primary facade for the LLM Agent Core, aggregating and exposing all code analysis and interaction tools. It orchestrates and delegates requests from the agent to the appropriate specialized tools.",
+          "name": "Toolkit Orchestrator",
+          "description": "Acts as the central registry and factory; it instantiates the suite of tools and injects the shared repository context, exposing a unified interface to the LLM planner.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.tools.CodeBoardingToolkit",
-              "reference_file": "agents/tools/read_source.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.tools.ReadFileTool",
-              "reference_file": "agents/tools/read_source.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.tools.GetCFGTool",
-              "reference_file": "agents/tools/read_source.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.tools.CodeStructureTool",
-              "reference_file": "agents/tools/read_source.py"
+              "qualified_name": "CodeBoardingToolkit",
+              "reference_file": "agents/tools/toolkit.py",
+              "reference_start_line": 19,
+              "reference_end_line": 116
             }
           ],
           "assigned_files": [
-            "agents/tools/read_source.py",
             "agents/tools/__init__.py",
-            "agents/tools/base.py",
-            "agents/tools/external_deps.py",
             "agents/tools/toolkit.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "471730b3c8ffced5",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "CodeBoardingToolkit",
-              "description": "The central orchestrator and entry point for the Agent Tooling Interface. It aggregates various code analysis capabilities and delegates agent requests to the appropriate specialized tools, managing their lifecycle and coordinating their outputs.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.CodeBoardingToolkit",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py",
-                "agents/tools/toolkit.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "099cd14f248116d3",
-              "can_expand": false
-            },
-            {
-              "name": "CodeReferenceReader",
-              "description": "Specializes in parsing code references (e.g., fully qualified names) and extracting specific source code snippets or definitions from the codebase. It translates high‑level references into concrete code segments for analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.CodeReferenceReader",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "1a7cedcf18af5b55",
-              "can_expand": false
-            },
-            {
-              "name": "ExternalDepsTool",
-              "description": "Responsible for identifying and summarizing external software dependencies by scanning project manifests, configuration files, and build scripts. It provides an overview of the project's external ecosystem.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.ExternalDepsTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py",
-                "agents/tools/external_deps.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "67664d8c0b4bcec5",
-              "can_expand": false
-            },
-            {
-              "name": "ReadFileTool",
-              "description": "Provides direct access to the file system, allowing for the retrieval of raw file content based on a given file path. It acts as a low‑level interface for reading source files.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.ReadFileTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "d5b1d2bb1374fa7a",
-              "can_expand": false
-            },
-            {
-              "name": "GetCFGTool",
-              "description": "Generates and retrieves Control Flow Graphs (CFGs) for specified code units (e.g., functions, methods). This tool is essential for understanding the execution paths and logical flow within the code.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.GetCFGTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "93b80eede52274e5",
-              "can_expand": false
-            },
-            {
-              "name": "CodeStructureTool",
-              "description": "Analyzes the codebase to extract and present its structural organization, including class hierarchies, module relationships, function signatures, and other high‑level architectural elements.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.CodeStructureTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "e4ae05f938a049ad",
-              "can_expand": false
-            },
-            {
-              "name": "BaseRepoTool",
-              "description": "Offers foundational repository utilities, including context management, caching mechanisms for file system operations, and methods for traversing the project directory structure. It serves as a common backend for other tools requiring repository access.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.BaseRepoTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py",
-                "agents/tools/__init__.py",
-                "agents/tools/base.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "7f0b940c4aac000b",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "delegates to",
-              "src_name": "CodeBoardingToolkit",
-              "dst_name": "CodeReferenceReader",
-              "src_id": "099cd14f248116d3",
-              "dst_id": "1a7cedcf18af5b55"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "CodeBoardingToolkit",
-              "dst_name": "ExternalDepsTool",
-              "src_id": "099cd14f248116d3",
-              "dst_id": "67664d8c0b4bcec5"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "CodeBoardingToolkit",
-              "dst_name": "ReadFileTool",
-              "src_id": "099cd14f248116d3",
-              "dst_id": "d5b1d2bb1374fa7a"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "CodeBoardingToolkit",
-              "dst_name": "GetCFGTool",
-              "src_id": "099cd14f248116d3",
-              "dst_id": "93b80eede52274e5"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "CodeBoardingToolkit",
-              "dst_name": "CodeStructureTool",
-              "src_id": "099cd14f248116d3",
-              "dst_id": "e4ae05f938a049ad"
-            },
-            {
-              "relation": "relies on",
-              "src_name": "CodeReferenceReader",
-              "dst_name": "BaseRepoTool",
-              "src_id": "1a7cedcf18af5b55",
-              "dst_id": "7f0b940c4aac000b"
-            },
-            {
-              "relation": "relies on",
-              "src_name": "ExternalDepsTool",
-              "dst_name": "BaseRepoTool",
-              "src_id": "67664d8c0b4bcec5",
-              "dst_id": "7f0b940c4aac000b"
-            },
-            {
-              "relation": "relies on",
-              "src_name": "ReadFileTool",
-              "dst_name": "BaseRepoTool",
-              "src_id": "d5b1d2bb1374fa7a",
-              "dst_id": "7f0b940c4aac000b"
-            },
-            {
-              "relation": "relies on",
-              "src_name": "GetCFGTool",
-              "dst_name": "BaseRepoTool",
-              "src_id": "93b80eede52274e5",
-              "dst_id": "7f0b940c4aac000b"
-            },
-            {
-              "relation": "relies on",
-              "src_name": "CodeStructureTool",
-              "dst_name": "BaseRepoTool",
-              "src_id": "e4ae05f938a049ad",
-              "dst_id": "7f0b940c4aac000b"
-            }
-          ]
+          "component_id": "407832532a9a73ff",
+          "can_expand": true
         },
         {
-          "name": "File System Interaction Tool (ReadFileTool)",
-          "description": "Specialized tool that enables the LLM Agent Core to read specific file contents from the repository, providing direct access to source code. It serves as an interface to the underlying File System Interaction Layer.",
-          "key_entities": [],
+          "name": "Repository Context Manager",
+          "description": "Manages the foundational execution state, including repository discovery, file‑system walking, ignore patterns (e.g., .gitignore), and path resolution.",
+          "key_entities": [
+            {
+              "qualified_name": "RepoContext",
+              "reference_file": "agents/tools/base.py",
+              "reference_start_line": 10,
+              "reference_end_line": 54
+            },
+            {
+              "qualified_name": "BaseRepoTool",
+              "reference_file": "agents/tools/base.py",
+              "reference_start_line": 57,
+              "reference_end_line": 96
+            }
+          ],
           "assigned_files": [
-            "agents/tools/read_source.py",
-            "agents/tools/read_file.py"
+            "agents/tools/base.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "ae662ff4266edb0c",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LLM Agent Core",
-              "description": "The intelligent core responsible for interpreting user queries, planning actions, and making decisions on what information to retrieve or analyze. It orchestrates the use of various tools, including ReadFileTool.",
-              "key_entities": [
-                {
-                  "qualified_name": "Agent",
-                  "reference_file": "agents/abstraction_agent.py",
-                  "reference_start_line": 35,
-                  "reference_end_line": 144
-                },
-                {
-                  "qualified_name": "LLM",
-                  "reference_file": "agents/abstraction_agent.py",
-                  "reference_start_line": 42,
-                  "reference_end_line": 42
-                },
-                {
-                  "qualified_name": "Tool",
-                  "reference_file": "agents/agent.py",
-                  "reference_start_line": 64,
-                  "reference_end_line": 66
-                }
-              ],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "65ade597df9783ab",
-              "can_expand": false
-            },
-            {
-              "name": "Orchestration Engine",
-              "description": "Manages the workflow and execution of tasks across different components, ensuring that operations are performed in the correct sequence and that data flows appropriately.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "ab870886b50bbcce",
-              "can_expand": false
-            },
-            {
-              "name": "File System Interaction Tool (ReadFileTool)",
-              "description": "Specialized tool that enables the LLM Agent Core to read specific file contents from the repository, providing direct access to source code. It serves as an interface to the underlying File System Interaction Layer.",
-              "key_entities": [
-                {
-                  "qualified_name": "ReadFileTool",
-                  "reference_file": "agents/tools/read_file.py",
-                  "reference_start_line": 19,
-                  "reference_end_line": 90
-                },
-                {
-                  "qualified_name": "_run",
-                  "reference_file": "agents/tools/external_deps.py",
-                  "reference_start_line": 51,
-                  "reference_end_line": 94
-                },
-                {
-                  "qualified_name": "FileContentSchema",
-                  "reference_file": "agents/tools/read_file.py"
-                },
-                {
-                  "qualified_name": "ToolInputSchema",
-                  "reference_file": "agents/tools/read_file.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_file.py",
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "26f9c914dcb66f3f",
-              "can_expand": false
-            },
-            {
-              "name": "Repository Manager",
-              "description": "The underlying layer responsible for abstracting and managing access to code repositories. It handles the actual file system operations.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "1aff2bc672507c57",
-              "can_expand": false
-            },
-            {
-              "name": "Static Analysis Engine",
-              "description": "A component dedicated to performing in-depth analysis of source code to extract structural information, identify patterns, and detect potential issues without executing the code.",
-              "key_entities": [
-                {
-                  "qualified_name": "AnalysisOrchestrator",
-                  "reference_file": "static_analyzer/incremental_orchestrator.py",
-                  "reference_start_line": 27,
-                  "reference_end_line": 671
-                }
-              ],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "b74d187108521a03",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "requests execution from",
-              "src_name": "LLM Agent Core",
-              "dst_name": "Orchestration Engine",
-              "src_id": "65ade597df9783ab",
-              "dst_id": "ab870886b50bbcce"
-            },
-            {
-              "relation": "manages workflow for",
-              "src_name": "Orchestration Engine",
-              "dst_name": "LLM Agent Core",
-              "src_id": "ab870886b50bbcce",
-              "dst_id": "65ade597df9783ab"
-            },
-            {
-              "relation": "delegates file reading tasks to",
-              "src_name": "Orchestration Engine",
-              "dst_name": "File System Interaction Tool (ReadFileTool)",
-              "src_id": "ab870886b50bbcce",
-              "dst_id": "26f9c914dcb66f3f"
-            },
-            {
-              "relation": "accesses repository data via",
-              "src_name": "File System Interaction Tool (ReadFileTool)",
-              "dst_name": "Repository Manager",
-              "src_id": "26f9c914dcb66f3f",
-              "dst_id": "1aff2bc672507c57"
-            },
-            {
-              "relation": "supplies requested file content to",
-              "src_name": "File System Interaction Tool (ReadFileTool)",
-              "dst_name": "LLM Agent Core",
-              "src_id": "26f9c914dcb66f3f",
-              "dst_id": "65ade597df9783ab"
-            },
-            {
-              "relation": "provides source code to",
-              "src_name": "LLM Agent Core",
-              "dst_name": "Static Analysis Engine",
-              "src_id": "65ade597df9783ab",
-              "dst_id": "b74d187108521a03"
-            },
-            {
-              "relation": "delivers analysis reports to",
-              "src_name": "Static Analysis Engine",
-              "dst_name": "LLM Agent Core",
-              "src_id": "b74d187108521a03",
-              "dst_id": "65ade597df9783ab"
-            }
-          ]
+          "component_id": "8f80fe6db117abfa",
+          "can_expand": true
         },
         {
-          "name": "CFG Analysis Tool (GetCFGTool)",
-          "description": "Tool that provides the LLM Agent Core with the capability to query and retrieve Control Flow Graph (CFG) data, offering insights into execution paths and program logic. It acts as an interface to the CFG Analysis Engine.",
-          "key_entities": [],
-          "assigned_files": [
-            "agents/tools/read_source.py",
-            "agents/tools/get_method_invocations.py",
-            "agents/tools/read_cfg.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "2584b7b5819a626a",
-          "can_expand": true,
-          "components": [
+          "name": "Structural Topology Analyzer",
+          "description": "Maps the high‑level organization of the project, providing the agent with directory trees, package hierarchies, and class relationships.",
+          "key_entities": [
             {
-              "name": "CodeReferenceReader",
-              "description": "Retrieves raw source code content from various references (files, modules, specific lines). It serves as the foundational data access layer for static analysis, providing the raw text needed for further processing by other analysis tools.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "2f97d4eb97b2bbab",
-              "can_expand": false
+              "qualified_name": "FileStructureTool",
+              "reference_file": "agents/tools/read_file_structure.py",
+              "reference_start_line": 22,
+              "reference_end_line": 102
             },
             {
-              "name": "GetCFGTool",
-              "description": "Generates Control Flow Graphs (CFGs) for specified code components, abstracting execution flow into a graphical representation. This tool is crucial for understanding program logic and potential execution paths without actual execution.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_cfg",
-                  "reference_file": "agents/tools/read_cfg.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_cfg.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "ab405f790181a9c2",
-              "can_expand": false
+              "qualified_name": "PackageRelationsTool",
+              "reference_file": "agents/tools/read_packages.py",
+              "reference_start_line": 26,
+              "reference_end_line": 60
             },
             {
-              "name": "MethodInvocationsTool",
-              "description": "Identifies and reports method invocation instances across the codebase, mapping call hierarchies and dependencies. It provides insights into how different parts of the code interact, complementing CFG analysis by detailing inter-component communication.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.get_method_invocations",
-                  "reference_file": "agents/tools/get_method_invocations.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/get_method_invocations.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "c4965c91279c1f75",
-              "can_expand": false
+              "qualified_name": "CodeStructureTool",
+              "reference_file": "agents/tools/read_source.py"
             }
           ],
-          "components_relations": [
-            {
-              "relation": "consumes source code from",
-              "src_name": "GetCFGTool",
-              "dst_name": "CodeReferenceReader",
-              "src_id": "ab405f790181a9c2",
-              "dst_id": "2f97d4eb97b2bbab"
-            },
-            {
-              "relation": "consumes source code from",
-              "src_name": "MethodInvocationsTool",
-              "dst_name": "CodeReferenceReader",
-              "src_id": "c4965c91279c1f75",
-              "dst_id": "2f97d4eb97b2bbab"
-            },
-            {
-              "relation": "leverages CFG data from",
-              "src_name": "MethodInvocationsTool",
-              "dst_name": "GetCFGTool",
-              "src_id": "c4965c91279c1f75",
-              "dst_id": "ab405f790181a9c2"
-            }
-          ]
-        },
-        {
-          "name": "Code Structure Analysis Tool (CodeStructureTool)",
-          "description": "Allows the LLM Agent Core to access high‑level code structure information, such as class hierarchies, package relationships, and source snippets. It interfaces with the Code Structure Analysis Engine.",
-          "key_entities": [],
           "assigned_files": [
             "agents/tools/read_source.py",
-            "agents/tools/read_docs.py",
             "agents/tools/read_file_structure.py",
             "agents/tools/read_packages.py",
             "agents/tools/read_structure.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "ee00ed7ea1176310",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LLM Agent Core",
-              "description": "The primary consumer of code structure analysis. It initiates requests for structural information to understand the codebase and inform its decision-making processes.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "0494dcc99c9d478f",
-              "can_expand": false
-            },
-            {
-              "name": "Orchestrator",
-              "description": "Manages the workflow of code analysis requests. It determines which tools to invoke, in what sequence, and aggregates their outputs to fulfill the LLM Agent Core's requests.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "a2cbc65c86c766ab",
-              "can_expand": false
-            },
-            {
-              "name": "FileStructureTool",
-              "description": "Provides a hierarchical tree view of the project's directory structure, respecting specified depth limits and ignore patterns. Essential for initial project exploration and locating relevant files.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_file_structure.FileStructureTool._run",
-                  "reference_file": "agents/tools/read_file_structure.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_file_structure.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "826eb834de1c2438",
-              "can_expand": false
-            },
-            {
-              "name": "PackageRelationsTool",
-              "description": "Analyzes and presents high-level package-level dependencies, offering an architectural map of the codebase. Provides essential architectural context beyond individual files.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_packages.PackageRelationsTool._run",
-                  "reference_file": "agents/tools/read_packages.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_packages.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "a26aacd421be3037",
-              "can_expand": false
-            },
-            {
-              "name": "CodeReferenceReader",
-              "description": "Resolves fully-qualified code references and retrieves the corresponding source code snippets. Primary mechanism for obtaining raw code for other analysis tools.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.CodeReferenceReader._run",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "dd16f03ce59b5706",
-              "can_expand": false
-            },
-            {
-              "name": "CodeStructureTool",
-              "description": "Inspects a given class (identified by its fully-qualified name) and extracts detailed structural information, including inheritance hierarchy, methods, and attributes.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_structure.CodeStructureTool._run",
-                  "reference_file": "agents/tools/read_structure.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_structure.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "d2e687684e0e5d46",
-              "can_expand": false
-            },
-            {
-              "name": "ReadDocsTool",
-              "description": "Extracts content from documentation files based on supplied paths and line ranges. Supports the LLM by providing human-written context.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_docs.ReadDocsTool._run",
-                  "reference_file": "agents/tools/read_docs.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_docs.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "c780004893207815",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "initiates analysis workflow",
-              "src_name": "LLM Agent Core",
-              "dst_name": "Orchestrator",
-              "src_id": "0494dcc99c9d478f",
-              "dst_id": "a2cbc65c86c766ab"
-            },
-            {
-              "relation": "delivers analysis outcomes",
-              "src_name": "Orchestrator",
-              "dst_name": "LLM Agent Core",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "0494dcc99c9d478f"
-            },
-            {
-              "relation": "utilizes for file system exploration",
-              "src_name": "Orchestrator",
-              "dst_name": "FileStructureTool",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "826eb834de1c2438"
-            },
-            {
-              "relation": "informs Orchestrator about project layout",
-              "src_name": "FileStructureTool",
-              "dst_name": "Orchestrator",
-              "src_id": "826eb834de1c2438",
-              "dst_id": "a2cbc65c86c766ab"
-            },
-            {
-              "relation": "leverages for architectural insights",
-              "src_name": "Orchestrator",
-              "dst_name": "PackageRelationsTool",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "a26aacd421be3037"
-            },
-            {
-              "relation": "supplies package dependency data to Orchestrator",
-              "src_name": "PackageRelationsTool",
-              "dst_name": "Orchestrator",
-              "src_id": "a26aacd421be3037",
-              "dst_id": "a2cbc65c86c766ab"
-            },
-            {
-              "relation": "relies on for code retrieval",
-              "src_name": "Orchestrator",
-              "dst_name": "CodeReferenceReader",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "dd16f03ce59b5706"
-            },
-            {
-              "relation": "provides source code snippets to Orchestrator",
-              "src_name": "CodeReferenceReader",
-              "dst_name": "Orchestrator",
-              "src_id": "dd16f03ce59b5706",
-              "dst_id": "a2cbc65c86c766ab"
-            },
-            {
-              "relation": "delegates structural inspection to",
-              "src_name": "Orchestrator",
-              "dst_name": "CodeStructureTool",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "d2e687684e0e5d46"
-            },
-            {
-              "relation": "furnishes detailed structural data to Orchestrator",
-              "src_name": "CodeStructureTool",
-              "dst_name": "Orchestrator",
-              "src_id": "d2e687684e0e5d46",
-              "dst_id": "a2cbc65c86c766ab"
-            },
-            {
-              "relation": "integrates documentation from",
-              "src_name": "Orchestrator",
-              "dst_name": "ReadDocsTool",
-              "src_id": "a2cbc65c86c766ab",
-              "dst_id": "c780004893207815"
-            },
-            {
-              "relation": "provides documentation content to Orchestrator",
-              "src_name": "ReadDocsTool",
-              "dst_name": "Orchestrator",
-              "src_id": "c780004893207815",
-              "dst_id": "a2cbc65c86c766ab"
-            }
-          ]
+          "component_id": "a701ed5058c3f218",
+          "can_expand": true
         },
         {
-          "name": "File System Interaction Layer",
-          "description": "Provides raw, low‑level access to the repository, including reading file contents, traversing directory structures, and handling file‑related operations. It is the foundational layer for accessing source code.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "36e7225505489bf3",
-          "can_expand": false
-        },
-        {
-          "name": "Control Flow Graph (CFG) Analysis Engine",
-          "description": "Core engine responsible for generating, processing, and querying control flow graphs and method invocation data. It performs detailed static analysis of execution paths and program logic.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "b938b5dd475e61e3",
-          "can_expand": false
-        },
-        {
-          "name": "Code Structure Analysis Engine",
-          "description": "Engine that interprets and extracts high‑level code structure, including source snippets, external dependencies, package relationships, and class hierarchies. It provides the structural understanding of the codebase.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "7cf29487e396d1b9",
-          "can_expand": false
-        },
-        {
-          "name": "Repository Context Manager (BaseRepoTool)",
-          "description": "Supplies shared utilities such as file caching, .gitignore handling, and path resolution. It ensures consistent and optimized repository interaction across all analysis components, acting as a foundational service.",
+          "name": "Logic & Flow Analyzer",
+          "description": "Extracts behavioral data by generating Control Flow Graphs (CFG) and tracing method invocation chains across the codebase.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.tools.BaseRepoTool",
+              "qualified_name": "GetCFGTool",
+              "reference_file": "agents/tools/read_cfg.py",
+              "reference_start_line": 8,
+              "reference_end_line": 60
+            },
+            {
+              "qualified_name": "MethodInvocationsTool",
+              "reference_file": "agents/tools/get_method_invocations.py",
+              "reference_start_line": 14,
+              "reference_end_line": 47
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/get_method_invocations.py",
+            "agents/tools/read_cfg.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "617c7d14d324b1ea",
+          "can_expand": true
+        },
+        {
+          "name": "Source Code Provider",
+          "description": "Retrieves raw source code or specific code nodes (classes/functions) once the agent has identified target areas via structural or logic analysis.",
+          "key_entities": [
+            {
+              "qualified_name": "ReadFileTool",
               "reference_file": "agents/tools/read_source.py"
             },
             {
-              "qualified_name": "repos.codeboarding.repo_context.FileCache",
-              "reference_file": "agents/tools/read_source.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.repo_context.GitignoreHandler",
+              "qualified_name": "GetSourceCodeTool",
               "reference_file": "agents/tools/read_source.py"
             }
           ],
           "assigned_files": [
             "agents/tools/read_source.py",
+            "agents/tools/read_file.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "ee6547f759dda2e9",
+          "can_expand": true
+        },
+        {
+          "name": "Evolution & Dependency Analyzer",
+          "description": "Provides temporal and environmental context by analyzing Git history (diffs) and external library requirements.",
+          "key_entities": [
+            {
+              "qualified_name": "GitDiffTool",
+              "reference_file": "agents/tools/external_deps.py"
+            },
+            {
+              "qualified_name": "PackageDependenciesTool",
+              "reference_file": "agents/tools/external_deps.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/external_deps.py",
             "agents/tools/read_git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "9e4034f05e361206",
-          "can_expand": true,
-          "components": [
+          "component_id": "9d5dd27289b847d8",
+          "can_expand": true
+        },
+        {
+          "name": "Documentation Provider",
+          "description": "Discovers and parses project‑level documentation (READMEs, Markdown) to capture high‑level design intent and developer instructions.",
+          "key_entities": [
             {
-              "name": "BaseRepoTool",
-              "description": "Core repository context manager that provides file caching, .gitignore filtering, and normalized path resolution for all analysis components.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.BaseRepoTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9f091c67b31d8126",
-              "can_expand": false
+              "qualified_name": "ReadDocTool",
+              "reference_file": "agents/tools/read_docs.py"
             },
             {
-              "name": "FileCache",
-              "description": "Utility that stores and retrieves file contents to reduce redundant I/O and speed up repository interactions.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.FileCache",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "5083364a9525f544",
-              "can_expand": false
-            },
-            {
-              "name": "GitignoreHandler",
-              "description": "Parses .gitignore files and provides filtering logic to exclude irrelevant paths from analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.GitignoreHandler",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "d0b8d8df5ec9e5c0",
-              "can_expand": false
-            },
-            {
-              "name": "ReadDiffTool",
-              "description": "Tool that extends BaseRepoTool to read and parse git diff output, exposing structured change information for incremental analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.ReadDiffTool",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py",
-                "agents/tools/read_git_diff.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "77e711319c57d03a",
-              "can_expand": false
-            },
-            {
-              "name": "CodeReferenceReader",
-              "description": "Component that resolves abstract code references to concrete file paths and returns raw source code strings for downstream processing.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_source.CodeReferenceReader",
-                  "reference_file": "agents/tools/read_source.py"
-                }
-              ],
-              "assigned_files": [
-                "agents/tools/read_source.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "ea605d242fa886c7",
-              "can_expand": false
+              "qualified_name": "SearchDocsTool",
+              "reference_file": "agents/tools/read_docs.py"
             }
           ],
-          "components_relations": [
-            {
-              "relation": "uses",
-              "src_name": "BaseRepoTool",
-              "dst_name": "FileCache",
-              "src_id": "9f091c67b31d8126",
-              "dst_id": "5083364a9525f544"
-            },
-            {
-              "relation": "uses",
-              "src_name": "BaseRepoTool",
-              "dst_name": "GitignoreHandler",
-              "src_id": "9f091c67b31d8126",
-              "dst_id": "d0b8d8df5ec9e5c0"
-            },
-            {
-              "relation": "inherits from",
-              "src_name": "ReadDiffTool",
-              "dst_name": "BaseRepoTool",
-              "src_id": "77e711319c57d03a",
-              "dst_id": "9f091c67b31d8126"
-            },
-            {
-              "relation": "uses",
-              "src_name": "CodeReferenceReader",
-              "dst_name": "BaseRepoTool",
-              "src_id": "ea605d242fa886c7",
-              "dst_id": "9f091c67b31d8126"
-            }
-          ]
+          "assigned_files": [
+            "agents/tools/read_docs.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "bbfa52e386817910",
+          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "uses",
-          "src_name": "LLM Agent Core",
-          "dst_name": "Agent Tooling Interface",
-          "src_id": "",
-          "dst_id": "471730b3c8ffced5"
-        },
-        {
-          "relation": "delegates to",
-          "src_name": "Agent Tooling Interface",
-          "dst_name": "File System Interaction Tool",
-          "src_id": "471730b3c8ffced5",
-          "dst_id": ""
-        },
-        {
-          "relation": "delegates to",
-          "src_name": "Agent Tooling Interface",
-          "dst_name": "CFG Analysis Tool",
-          "src_id": "471730b3c8ffced5",
-          "dst_id": ""
-        },
-        {
-          "relation": "delegates to",
-          "src_name": "Agent Tooling Interface",
-          "dst_name": "Code Structure Analysis Tool",
-          "src_id": "471730b3c8ffced5",
-          "dst_id": ""
-        },
-        {
-          "relation": "uses",
-          "src_name": "File System Interaction Tool",
-          "dst_name": "File System Interaction Layer",
-          "src_id": "",
-          "dst_id": "36e7225505489bf3"
-        },
-        {
-          "relation": "uses",
-          "src_name": "CFG Analysis Tool",
-          "dst_name": "Control Flow Graph (CFG) Analysis Engine",
-          "src_id": "",
-          "dst_id": "b938b5dd475e61e3"
-        },
-        {
-          "relation": "uses",
-          "src_name": "Code Structure Analysis Tool",
-          "dst_name": "Code Structure Analysis Engine",
-          "src_id": "",
-          "dst_id": "7cf29487e396d1b9"
-        },
-        {
-          "relation": "depends on",
-          "src_name": "File System Interaction Layer",
+          "relation": "injects shared RepoContext into",
+          "src_name": "Toolkit Orchestrator",
           "dst_name": "Repository Context Manager",
-          "src_id": "36e7225505489bf3",
-          "dst_id": ""
+          "src_id": "407832532a9a73ff",
+          "dst_id": "8f80fe6db117abfa"
         },
         {
-          "relation": "uses",
-          "src_name": "Control Flow Graph (CFG) Analysis Engine",
-          "dst_name": "File System Interaction Layer",
-          "src_id": "b938b5dd475e61e3",
-          "dst_id": "36e7225505489bf3"
+          "relation": "provides resolved file paths and ignore‑pattern filtering for directory walking",
+          "src_name": "Repository Context Manager",
+          "dst_name": "Structural Topology Analyzer",
+          "src_id": "8f80fe6db117abfa",
+          "dst_id": "a701ed5058c3f218"
         },
         {
-          "relation": "depends on",
-          "src_name": "Control Flow Graph (CFG) Analysis Engine",
-          "dst_name": "Repository Context Manager",
-          "src_id": "b938b5dd475e61e3",
-          "dst_id": ""
+          "relation": "identifies specific class/method signatures to be targeted for CFG extraction",
+          "src_name": "Structural Topology Analyzer",
+          "dst_name": "Logic & Flow Analyzer",
+          "src_id": "a701ed5058c3f218",
+          "dst_id": "617c7d14d324b1ea"
         },
         {
-          "relation": "uses",
-          "src_name": "Code Structure Analysis Engine",
-          "dst_name": "File System Interaction Layer",
-          "src_id": "7cf29487e396d1b9",
-          "dst_id": "36e7225505489bf3"
+          "relation": "provides specific line numbers or node references for targeted code retrieval",
+          "src_name": "Logic & Flow Analyzer",
+          "dst_name": "Source Code Provider",
+          "src_id": "617c7d14d324b1ea",
+          "dst_id": "ee6547f759dda2e9"
         },
         {
-          "relation": "depends on",
-          "src_name": "Code Structure Analysis Engine",
-          "dst_name": "Repository Context Manager",
-          "src_id": "7cf29487e396d1b9",
-          "dst_id": ""
+          "relation": "supplies file paths discovered during tree traversal for full‑file reading",
+          "src_name": "Structural Topology Analyzer",
+          "dst_name": "Source Code Provider",
+          "src_id": "a701ed5058c3f218",
+          "dst_id": "ee6547f759dda2e9"
+        },
+        {
+          "relation": "supplies historical change data to enrich the agent's current session context",
+          "src_name": "Evolution & Dependency Analyzer",
+          "dst_name": "Toolkit Orchestrator",
+          "src_id": "9d5dd27289b847d8",
+          "dst_id": "407832532a9a73ff"
+        },
+        {
+          "relation": "supplies narrative design intent to guide high‑level planning",
+          "src_name": "Documentation Provider",
+          "dst_name": "Toolkit Orchestrator",
+          "src_id": "bbfa52e386817910",
+          "dst_id": "407832532a9a73ff"
+        },
+        {
+          "relation": "ensures file I/O operations respect repository boundaries and encoding settings",
+          "src_name": "Repository Context Manager",
+          "dst_name": "Source Code Provider",
+          "src_id": "8f80fe6db117abfa",
+          "dst_id": "ee6547f759dda2e9"
         }
       ]
     },

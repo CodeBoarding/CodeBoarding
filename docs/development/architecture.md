@@ -2,31 +2,21 @@
 
 ```mermaid
 graph LR
-    Agent_Tooling_Interface["Agent Tooling Interface"]
-    File_System_Interaction_Tool_ReadFileTool_["File System Interaction Tool (ReadFileTool)"]
-    CFG_Analysis_Tool_GetCFGTool_["CFG Analysis Tool (GetCFGTool)"]
-    Code_Structure_Analysis_Tool_CodeStructureTool_["Code Structure Analysis Tool (CodeStructureTool)"]
-    File_System_Interaction_Layer["File System Interaction Layer"]
-    Control_Flow_Graph_CFG_Analysis_Engine["Control Flow Graph (CFG) Analysis Engine"]
-    Code_Structure_Analysis_Engine["Code Structure Analysis Engine"]
-    Repository_Context_Manager_BaseRepoTool_["Repository Context Manager (BaseRepoTool)"]
-    LLM_Agent_Core -- "uses" --> Agent_Tooling_Interface
-    Agent_Tooling_Interface -- "delegates to" --> File_System_Interaction_Tool
-    Agent_Tooling_Interface -- "delegates to" --> CFG_Analysis_Tool
-    Agent_Tooling_Interface -- "delegates to" --> Code_Structure_Analysis_Tool
-    File_System_Interaction_Tool -- "uses" --> File_System_Interaction_Layer
-    CFG_Analysis_Tool -- "uses" --> Control_Flow_Graph_CFG_Analysis_Engine
-    Code_Structure_Analysis_Tool -- "uses" --> Code_Structure_Analysis_Engine
-    File_System_Interaction_Layer -- "depends on" --> Repository_Context_Manager
-    Control_Flow_Graph_CFG_Analysis_Engine -- "uses" --> File_System_Interaction_Layer
-    Control_Flow_Graph_CFG_Analysis_Engine -- "depends on" --> Repository_Context_Manager
-    Code_Structure_Analysis_Engine -- "uses" --> File_System_Interaction_Layer
-    Code_Structure_Analysis_Engine -- "depends on" --> Repository_Context_Manager
-    click Agent_Tooling_Interface href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Agent_Tooling_Interface.md" "Details"
-    click File_System_Interaction_Tool_ReadFileTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/File_System_Interaction_Tool_ReadFileTool_.md" "Details"
-    click CFG_Analysis_Tool_GetCFGTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/CFG_Analysis_Tool_GetCFGTool_.md" "Details"
-    click Code_Structure_Analysis_Tool_CodeStructureTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Code_Structure_Analysis_Tool_CodeStructureTool_.md" "Details"
-    click Repository_Context_Manager_BaseRepoTool_ href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Context_Manager_BaseRepoTool_.md" "Details"
+    Toolkit_Orchestrator["Toolkit Orchestrator"]
+    Repository_Context_Manager["Repository Context Manager"]
+    Structural_Topology_Analyzer["Structural Topology Analyzer"]
+    Logic_Flow_Analyzer["Logic & Flow Analyzer"]
+    Source_Code_Provider["Source Code Provider"]
+    Evolution_Dependency_Analyzer["Evolution & Dependency Analyzer"]
+    Documentation_Provider["Documentation Provider"]
+    Toolkit_Orchestrator -- "injects shared RepoContext into" --> Repository_Context_Manager
+    Repository_Context_Manager -- "provides resolved file paths and ignore‑pattern filtering for directory walking" --> Structural_Topology_Analyzer
+    Structural_Topology_Analyzer -- "identifies specific class/method signatures to be targeted for CFG extraction" --> Logic_Flow_Analyzer
+    Logic_Flow_Analyzer -- "provides specific line numbers or node references for targeted code retrieval" --> Source_Code_Provider
+    Structural_Topology_Analyzer -- "supplies file paths discovered during tree traversal for full‑file reading" --> Source_Code_Provider
+    Evolution_Dependency_Analyzer -- "supplies historical change data to enrich the agent's current session context" --> Toolkit_Orchestrator
+    Documentation_Provider -- "supplies narrative design intent to guide high‑level planning" --> Toolkit_Orchestrator
+    Repository_Context_Manager -- "ensures file I/O operations respect repository boundaries and encoding settings" --> Source_Code_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -35,63 +25,74 @@ graph LR
 
 Provides a set of specialized tools that allow the LLM Agent Core to interact with the codebase, query static analysis results, and perform specific actions within the project context.
 
-### Agent Tooling Interface [[Expand]](./Agent_Tooling_Interface.md)
-Primary facade for the LLM Agent Core, aggregating and exposing all code analysis and interaction tools. It orchestrates and delegates requests from the agent to the appropriate specialized tools.
+### Toolkit Orchestrator
+Acts as the central registry and factory; it instantiates the suite of tools and injects the shared repository context, exposing a unified interface to the LLM planner.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.CodeBoardingToolkit`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ReadFileTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.GetCFGTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.CodeStructureTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py#L19-L116" target="_blank" rel="noopener noreferrer">`CodeBoardingToolkit`:19-116</a>
 
 
-### File System Interaction Tool (ReadFileTool) [[Expand]](./File_System_Interaction_Tool_ReadFileTool_.md)
-Specialized tool that enables the LLM Agent Core to read specific file contents from the repository, providing direct access to source code. It serves as an interface to the underlying File System Interaction Layer.
-
-
-**Related Classes/Methods**: _None_
-
-### CFG Analysis Tool (GetCFGTool) [[Expand]](./CFG_Analysis_Tool_GetCFGTool_.md)
-Tool that provides the LLM Agent Core with the capability to query and retrieve Control Flow Graph (CFG) data, offering insights into execution paths and program logic. It acts as an interface to the CFG Analysis Engine.
-
-
-**Related Classes/Methods**: _None_
-
-### Code Structure Analysis Tool (CodeStructureTool) [[Expand]](./Code_Structure_Analysis_Tool_CodeStructureTool_.md)
-Allows the LLM Agent Core to access high‑level code structure information, such as class hierarchies, package relationships, and source snippets. It interfaces with the Code Structure Analysis Engine.
-
-
-**Related Classes/Methods**: _None_
-
-### File System Interaction Layer
-Provides raw, low‑level access to the repository, including reading file contents, traversing directory structures, and handling file‑related operations. It is the foundational layer for accessing source code.
-
-
-**Related Classes/Methods**: _None_
-
-### Control Flow Graph (CFG) Analysis Engine
-Core engine responsible for generating, processing, and querying control flow graphs and method invocation data. It performs detailed static analysis of execution paths and program logic.
-
-
-**Related Classes/Methods**: _None_
-
-### Code Structure Analysis Engine
-Engine that interprets and extracts high‑level code structure, including source snippets, external dependencies, package relationships, and class hierarchies. It provides the structural understanding of the codebase.
-
-
-**Related Classes/Methods**: _None_
-
-### Repository Context Manager (BaseRepoTool) [[Expand]](./Repository_Context_Manager_BaseRepoTool_.md)
-Supplies shared utilities such as file caching, .gitignore handling, and path resolution. It ensures consistent and optimized repository interaction across all analysis components, acting as a foundational service.
+### Repository Context Manager
+Manages the foundational execution state, including repository discovery, file‑system walking, ignore patterns (e.g., .gitignore), and path resolution.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.BaseRepoTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repo_context.FileCache`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repo_context.GitignoreHandler`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L10-L54" target="_blank" rel="noopener noreferrer">`RepoContext`:10-54</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L57-L96" target="_blank" rel="noopener noreferrer">`BaseRepoTool`:57-96</a>
+
+
+### Structural Topology Analyzer
+Maps the high‑level organization of the project, providing the agent with directory trees, package hierarchies, and class relationships.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py#L22-L102" target="_blank" rel="noopener noreferrer">`FileStructureTool`:22-102</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_packages.py#L26-L60" target="_blank" rel="noopener noreferrer">`PackageRelationsTool`:26-60</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`CodeStructureTool`</a>
+
+
+### Logic & Flow Analyzer
+Extracts behavioral data by generating Control Flow Graphs (CFG) and tracing method invocation chains across the codebase.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py#L8-L60" target="_blank" rel="noopener noreferrer">`GetCFGTool`:8-60</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py#L14-L47" target="_blank" rel="noopener noreferrer">`MethodInvocationsTool`:14-47</a>
+
+
+### Source Code Provider
+Retrieves raw source code or specific code nodes (classes/functions) once the agent has identified target areas via structural or logic analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`ReadFileTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`GetSourceCodeTool`</a>
+
+
+### Evolution & Dependency Analyzer
+Provides temporal and environmental context by analyzing Git history (diffs) and external library requirements.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`GitDiffTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`PackageDependenciesTool`</a>
+
+
+### Documentation Provider
+Discovers and parses project‑level documentation (READMEs, Markdown) to capture high‑level design intent and developer instructions.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`ReadDocTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`SearchDocsTool`</a>
 
 
 
@@ -1547,20 +1548,20 @@ Performs final consistency checks between the updated analysis state and the phy
 
 ```mermaid
 graph LR
-    Orchestration_Agent["Orchestration Agent"]
+    Workflow_Orchestrator["Workflow Orchestrator"]
     Specialized_Reasoning_Agents["Specialized Reasoning Agents"]
-    Prompt_Management_System["Prompt Management System"]
-    Validation_Engine["Validation Engine"]
-    LLM_Configuration_Factory["LLM Configuration & Factory"]
-    Data_Models_Schema["Data Models & Schema"]
-    Analysis_Utilities["Analysis Utilities"]
-    Orchestration_Agent -- "delegates to" --> Specialized_Reasoning_Agents
-    Orchestration_Agent -- "submits insights to" --> Validation_Engine
-    Specialized_Reasoning_Agents -- "requests prompts from" --> Prompt_Management_System
-    Specialized_Reasoning_Agents -- "populates" --> Data_Models_Schema
-    Prompt_Management_System -- "queries provider settings from" --> LLM_Configuration_Factory
-    Validation_Engine -- "utilizes" --> Analysis_Utilities
-    Specialized_Reasoning_Agents -- "uses" --> Analysis_Utilities
+    Prompt_Engineering_Framework["Prompt Engineering Framework"]
+    Integrity_Validation_Engine["Integrity & Validation Engine"]
+    Semantic_Data_Models["Semantic Data Models"]
+    Analysis_Support_Mixins["Analysis Support Mixins"]
+    LLM_Infrastructure_Layer["LLM Infrastructure Layer"]
+    Workflow_Orchestrator -- "delegates specific analysis phases to" --> Specialized_Reasoning_Agents
+    Specialized_Reasoning_Agents -- "requests model-specific prompt templates from" --> Prompt_Engineering_Framework
+    Specialized_Reasoning_Agents -- "executes reasoning tasks by sending formatted prompts to" --> LLM_Infrastructure_Layer
+    Workflow_Orchestrator -- "uses mixins to transform raw CFG data into structured context for" --> Analysis_Support_Mixins
+    Workflow_Orchestrator -- "submits aggregated agent findings for verification to" --> Integrity_Validation_Engine
+    Integrity_Validation_Engine -- "returns validation errors or missing cluster reports to" --> Workflow_Orchestrator
+    Specialized_Reasoning_Agents -- "instantiates structured Pydantic objects from LLM outputs for" --> Semantic_Data_Models
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1569,74 +1570,77 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Orchestration Agent
-Central controller that manages the multi‑agent state machine, loads static analysis facts, classifies files, and coordinates the execution sequence of worker agents to ensure a coherent analysis lifecycle.
+### Workflow Orchestrator
+The central brain of the subsystem. It manages the state machine of the analysis process, coordinates the sequence of agent invocations, and handles the logic for retrying failed analysis steps when validation fails.
 
 
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.CodeBoardingAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AgentState`</a>
-
+**Related Classes/Methods**: _None_
 
 ### Specialized Reasoning Agents
-Suite of task‑specific workers that perform granular analysis. Each agent focuses on a specific abstraction level: metadata extraction, high‑level component mapping, detailed implementation analysis, or project planning.
+A suite of task‑specific LLM agents that decompose the complex problem of code understanding into manageable phases: context gathering, planning, high‑level abstraction, and detailed component analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.MetaAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AbstractionAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.DetailsAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.PlannerAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.MetaAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.PlannerAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.AbstractionAgent`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.DetailsAgent`</a>
 
 
-### Prompt Management System
-Strategy‑based factory that generates provider‑specific templates (GPT, Claude, Gemini). It decouples the reasoning logic from the linguistic requirements of different LLM providers.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/prompt_factory.py" target="_blank" rel="noopener noreferrer">`agents.prompts.prompt_factory.PromptFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.PromptGenerator`</a>
-
-
-### Validation Engine
-Quality gate that verifies LLM‑generated architectural maps against ground‑truth static analysis facts, such as file existence and cluster coverage.
+### Prompt Engineering Framework
+A provider‑agnostic layer that manages the complex templates required for different LLMs. It ensures that reasoning agents receive the correct system instructions and context formatting regardless of the underlying model (Claude, GPT, Gemini).
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`agents.validation.ValidationEngine`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.prompts.gemini_flash_prompts`</a>
 
 
-### LLM Configuration & Factory
-Manages provider initialization, API credentials, and runtime settings (temperature, token limits). Exposes a unified interface for the rest of the subsystem to interact with various LLM backends.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`agents.config.LLMConfig`</a>
-
-
-### Data Models & Schema
-Defines the Pydantic contracts used for structured data exchange. These models ensure that LLM outputs are parsed into strictly typed objects used by the rest of the application.
+### Integrity & Validation Engine
+The "ground‑truth" gatekeeper. It compares the semantic components proposed by LLMs against the hard static analysis data (CFG clusters) to ensure no code is left unanalyzed and that the architecture is technically sound.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.AnalysisInsights`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.Component`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`agents.prompts.gemini_flash_prompts.Relation`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.validation.IntegrityChecker`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.validation.IntegrityChecker.verify_cluster_coverage`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.validation.IntegrityChecker.validate_schema_conformity`</a>
 
 
-### Analysis Utilities
-Shared logic for manipulating static analysis clusters and mapping files to component structures. Provides the bridge between raw CFG data and LLM‑friendly formats.
+### Semantic Data Models
+Pydantic‑based schemas that define the "language" of the subsystem. These models enforce strict typing on LLM outputs, ensuring that downstream components receive predictable data structures.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`agents.utils.ClusterMethodsMixin`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.AnalysisInsights`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.Component`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.Relation`</a>
+
+
+### Analysis Support Mixins
+Utility layers that bridge the gap between raw static analysis data and LLM‑friendly text. They handle the heavy lifting of mapping CFG nodes to source files and cleaning data for prompt inclusion.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.mixins.ClusterMethodsMixin`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.mixins.ClusterMethodsMixin.get_cluster_context`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.utils.DataSanitizer`</a>
+
+
+### LLM Infrastructure Layer
+Manages the lifecycle and configuration of LLM connections. It abstracts the complexities of different API providers (OpenAI, Anthropic, Gemini) and provides a unified interface for the agents.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.infrastructure.LLMProviderManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.infrastructure.ChatModelFactory`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.LLMSettings`</a>
 
 
 
