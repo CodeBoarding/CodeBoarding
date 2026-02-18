@@ -192,17 +192,22 @@ def install_node_servers():
         npm_path = shutil.which("npm")
 
         if npm_path:
-            # Initialize package.json if it doesn't exist
-            if not Path("package.json").exists():
-                subprocess.run([npm_path, "init", "-y"], check=True, capture_output=True, text=True)
+            package_json = Path("package.json")
+            package_lock = Path("package-lock.json")
+            packages = ["typescript-language-server", "typescript", "pyright", "intelephense"]
 
-            # Install typescript-language-server, typescript, pyright, and intelephense
-            subprocess.run(
-                [npm_path, "install", "typescript-language-server", "typescript", "pyright", "intelephense"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            # Initialize package.json if it doesn't exist
+            if not package_json.exists():
+                subprocess.run([npm_path, "init", "-y"], check=True)
+
+            # Conventional scripted install: npm ci when lockfile exists.
+            if package_lock.exists():
+                npm_command = [npm_path, "ci", "--no-audit", "--no-fund"]
+            else:
+                npm_command = [npm_path, "install", "--no-audit", "--no-fund", *packages]
+
+            print(f"   command: {' '.join(npm_command)}")
+            subprocess.run(npm_command, check=True)
 
         # Verify the installation
         ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
@@ -417,7 +422,7 @@ def download_binaries(auto_install_vcpp: bool = False):
 
     if system not in platform_suffix_map:
         print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
-        return
+        return False
 
     suffix = platform_suffix_map[system]
     binaries = {
@@ -435,7 +440,7 @@ def download_binaries(auto_install_vcpp: bool = False):
         print(f"  Using release: {tag}")
     except Exception as e:
         print(f"Step: Binary download finished: failure - Could not determine latest release: {e}")
-        return
+        return False
 
     success_count = 0
     for local_name, asset_name in binaries.items():
@@ -463,10 +468,13 @@ def download_binaries(auto_install_vcpp: bool = False):
 
     if success_count == len(binaries):
         print("Step: Binary download finished: success")
+        success = True
     elif success_count > 0:
         print(f"Step: Binary download finished: partial success ({success_count}/{len(binaries)} binaries)")
+        success = False
     else:
         print("Step: Binary download finished: failure - No binaries downloaded")
+        success = False
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
     if system == "Windows" and success_count > 0:
@@ -490,6 +498,8 @@ def download_binaries(auto_install_vcpp: bool = False):
                     binary_path = platform_bin_dir / f"{local_name}.exe"
                     if binary_path.exists() and verify_binary(binary_path):
                         print(f"  {local_name}: verification passed after VC++ install")
+
+    return success
 
 
 def download_jdtls():
@@ -537,7 +547,7 @@ def update_static_analysis_config():
     config_path = Path("static_analysis_config.yml")
     if not config_path.exists():
         print("Step: Configuration update finished: failure - static_analysis_config.yml not found")
-        return
+        return False
 
     # Read the current configuration
     with open(config_path, "r") as f:
@@ -603,6 +613,7 @@ def update_static_analysis_config():
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 
     print(f"Step: Configuration update finished: success ({updates} paths updated)")
+    return True
 
 
 def init_dot_env_file():
@@ -612,7 +623,7 @@ def init_dot_env_file():
     env_file_path = Path(".env")
     if env_file_path.exists():
         print("Step: .env file creation finished: skipped - .env already exists")
-        return
+        return True
 
     # Get the absolute path to the project root
     project_root = Path.cwd().resolve()
@@ -698,9 +709,11 @@ ENABLE_MONITORING=false
             f.write(env_content)
 
         print("Step: .env file creation finished: success")
+        return True
 
     except Exception as e:
         print(f"Step: .env file creation finished: failure - {e}")
+        return False
 
 
 def install_pre_commit_hooks():
@@ -813,39 +826,72 @@ def print_language_support_summary(npm_available: bool):
 
 if __name__ == "__main__":
     # Windows consoles default to cp1252 which can't encode emojis; force UTF-8.
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True, write_through=True)
+    elif hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer,
+            encoding="utf-8",
+            errors="replace",
+            line_buffering=True,
+            write_through=True,
+        )
+
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace", line_buffering=True, write_through=True)
+    elif hasattr(sys.stderr, "buffer"):
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer,
+            encoding="utf-8",
+            errors="replace",
+            line_buffering=True,
+            write_through=True,
+        )
 
     args = parse_args()
 
     print("🚀 CodeBoarding Installation Script")
     print("=" * 40)
+    failed_steps: list[str] = []
 
     # Step 1: Validate uv environment
     check_uv_environment()
 
     # Step 2: Check for npm and install Node.js based servers if available
     npm_available = resolve_npm_availability(auto_install_npm=args.auto_install_npm)
-    if npm_available:
-        install_node_servers()
+    if not npm_available:
+        failed_steps.append("npm availability")
+    elif not install_node_servers():
+        failed_steps.append("Node.js servers installation")
 
     # Step 3: Download binaries from GitHub release
-    download_binaries(auto_install_vcpp=args.auto_install_vcpp)
+    if not download_binaries(auto_install_vcpp=args.auto_install_vcpp):
+        failed_steps.append("binary download")
 
     # Step 4: Download JDTLS from GitHub release
-    download_jdtls()
+    if not download_jdtls():
+        failed_steps.append("JDTLS download")
 
     # Step 5: Update configuration file with absolute paths
-    update_static_analysis_config()
+    if not update_static_analysis_config():
+        failed_steps.append("configuration update")
 
     # Step 6: Initialize .env file
-    init_dot_env_file()
+    if not init_dot_env_file():
+        failed_steps.append(".env file creation")
 
     # Step 6: Install pre-commit hooks
     install_pre_commit_hooks()
 
     # Step 7: Print language analysis availability
     print_language_support_summary(npm_available)
+
+    if failed_steps:
+        print("\n" + "=" * 40)
+        print("❌ Installation failed")
+        for step in failed_steps:
+            print(f" - {step}")
+        sys.exit(1)
 
     print("\n" + "=" * 40)
     print("🎉 Installation completed!")
