@@ -23,6 +23,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
+from core import get_registries
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,14 @@ def _collect_checks_for_language(
         logger.debug(f"No LSP diagnostics available for {language}")
     # Always add the check summary, even if empty
     summaries.append(check_unused_code_diagnostics(collector, config))
+
+    # Run plugin-provided health checks
+    for name, check_func in get_registries().health_checks.all().items():
+        try:
+            plugin_summaries = check_func(static_analysis, language, config)
+            summaries.extend(plugin_summaries)
+        except Exception:
+            logger.exception(f"Plugin health check '{name}' failed for language '{language}'")
 
     # Apply .healthignore exclusion patterns across all check findings
     _apply_exclude_patterns(summaries, exclude_patterns)

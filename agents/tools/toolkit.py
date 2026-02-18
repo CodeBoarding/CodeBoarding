@@ -11,6 +11,7 @@ from .get_method_invocations import MethodInvocationsTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .external_deps import ExternalDepsTool
+from core import get_registries
 from .read_git_diff import ReadDiffTool, FileChange
 
 logger = logging.getLogger(__name__)
@@ -101,9 +102,9 @@ class CodeBoardingToolkit:
 
     def get_all_tools(self) -> list[BaseRepoTool]:
         """
-        Returns all tools available in the toolkit.
+        Returns all tools available in the toolkit, including plugin-provided tools.
         """
-        return [
+        tools = [
             self.read_source_reference,
             self.read_packages,
             self.read_structure,
@@ -114,3 +115,10 @@ class CodeBoardingToolkit:
             self.read_docs,
             self.external_deps,
         ]
+        for name, factory in get_registries().tools.all().items():
+            try:
+                plugin_tools = factory(self.context)
+                tools.extend(plugin_tools)
+            except Exception:
+                logger.warning(f"Plugin tool factory '{name}' failed", exc_info=True)
+        return tools

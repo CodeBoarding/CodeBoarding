@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
@@ -488,6 +489,7 @@ Examples:
     # Setup logging first, before any operations that might log
     log_dir: Path | None = args.output_dir if args.output_dir else None
     setup_logging(log_dir=log_dir)
+    load_plugins(get_registries())
     logger.info("Starting CodeBoarding documentation generation...")
 
     # Load environment from .env file if it exists
