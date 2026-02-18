@@ -296,7 +296,9 @@ def validate_relation_component_names(result: AnalysisInsights, context: Validat
         if relation.dst_name not in known_names:
             unknown.append(f"dst_name='{relation.dst_name}'")
         if unknown:
-            invalid_relations.append(f"({relation.src_name} -{relation.relation}-> {relation.dst_name}): {', '.join(unknown)}")
+            invalid_relations.append(
+                f"({relation.src_name} -{relation.relation}-> {relation.dst_name}): {', '.join(unknown)}"
+            )
 
     if not invalid_relations:
         logger.info("[Validation] All relation component names refer to existing components")

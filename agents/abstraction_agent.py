@@ -116,7 +116,12 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         return self._validation_invoke(
             prompt,
             AnalysisInsights,
-            validators=[validate_relation_component_names, validate_component_relationships, validate_key_entities, validate_cluster_ids_populated],
+            validators=[
+                validate_relation_component_names,
+                validate_component_relationships,
+                validate_key_entities,
+                validate_cluster_ids_populated,
+            ],
             context=context,
         )
 
