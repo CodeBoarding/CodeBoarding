@@ -33,6 +33,13 @@ class TestValidateEnvVars(unittest.TestCase):
             validate_env_vars()
         self.assertEqual(cm.exception.code, 1)
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "   "}, clear=True)
+    def test_validate_env_vars_empty_key_value(self):
+        # Should treat empty/whitespace key values as unset
+        with self.assertRaises(SystemExit) as cm:
+            validate_env_vars()
+        self.assertEqual(cm.exception.code, 1)
+
     @patch.dict(os.environ, {"OPENAI_API_KEY": "key1", "ANTHROPIC_API_KEY": "key2"}, clear=True)
     def test_validate_env_vars_multiple_keys(self):
         # Should exit when multiple keys are set
