@@ -89,7 +89,7 @@ def mock_llm_provider():
         {"OPENAI_API_KEY": "test_key_sk-1234567890", "PARSING_MODEL": "gpt-4o-mini"},
         clear=False,
     ):
-        with patch("agents.agent.create_react_agent") as mock_create_agent:
+        with patch("agents.agent.create_agent") as mock_create_agent:
             with patch("agents.llm_config.ChatOpenAI") as mock_chat_openai:
                 with patch("agents.llm_config.ChatAnthropic"):
                     with patch("agents.llm_config.ChatGoogleGenerativeAI"):

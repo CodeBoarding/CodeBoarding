@@ -14,7 +14,7 @@ class ModuleInput(BaseModel):
             "The fully qualified code reference (import path) to the class, function, or method "
             "whose source code is to be retrieved. "
             "Examples: `langchain.tools.tool`, `langchain_core.output_parsers.JsonOutputParser`, "
-            "`langchain.agents.create_react_agent`. "
+            "`langchain.agents.create_agent`. "
             "Do not include file extensions (e.g., `.py`) or relative paths. "
             "If a 'repos.' prefix is present in the agent's context, it should be omitted."
         )

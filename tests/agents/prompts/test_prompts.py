@@ -129,6 +129,29 @@ class TestLLMTypeFromModelName(unittest.TestCase):
         self.assertEqual(LLMType.from_model_name("llama-70b"), LLMType.GEMINI_FLASH)
 
 
+class TestMetaPromptToolConsistency(unittest.TestCase):
+    def _combined_meta_prompts(self, llm_type: LLMType) -> str:
+        factory = PromptFactory(llm_type)
+        system_prompt = factory._prompt_factory.get_system_meta_analysis_message()
+        meta_prompt = factory._prompt_factory.get_meta_information_prompt()
+        return f"{system_prompt}\n{meta_prompt}"
+
+    def test_claude_meta_prompts_use_docs_and_external_deps(self):
+        combined_prompt = self._combined_meta_prompts(LLMType.CLAUDE)
+
+        self.assertIn("readDocs", combined_prompt)
+        self.assertIn("readExternalDeps", combined_prompt)
+        self.assertNotIn("getPackageDependencies", combined_prompt)
+        self.assertNotIn("readFile", combined_prompt)
+
+    def test_gpt_meta_prompts_use_docs_and_external_deps(self):
+        combined_prompt = self._combined_meta_prompts(LLMType.GPT4)
+
+        self.assertIn("readDocs", combined_prompt)
+        self.assertIn("readExternalDeps", combined_prompt)
+        self.assertNotIn("getPackageDependencies", combined_prompt)
+
+
 class TestGlobalFactory(unittest.TestCase):
     def setUp(self):
         # Reset global factory before each test
