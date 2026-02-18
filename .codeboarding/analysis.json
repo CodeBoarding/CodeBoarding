@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-17T17:15:55.252550+00:00",
+    "generated_at": "2026-02-18T09:42:54.564854+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
     "file_coverage_summary": {
@@ -61,89 +61,68 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Application Orchestrator & Repository Manager",
-          "description": "Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools. This component acts as the central coordinator, initiating and managing the sequence of operations.",
+          "name": "Main Orchestrator",
+          "description": "Central entry point handling CLI arguments, global configuration, and coordinating the high-level execution flow of the analysis pipeline.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.main.main",
+              "qualified_name": "codeboarding.main:main",
               "reference_file": "main.py"
-            },
+            }
+          ],
+          "assigned_files": [
+            "main.py",
+            "constants.py",
+            "health_main.py",
+            "logging_config.py",
+            "utils.py",
+            "vscode_constants.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "b31b6826ba3631a9",
+          "can_expand": true
+        },
+        {
+          "name": "Repository Manager",
+          "description": "Manages git operations (cloning, checkout) and applies file filtering via .gitignore and .codeboardingignore.",
+          "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
-              "reference_file": "repo_utils/change_detector.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
-              "reference_file": "repo_utils/change_detector.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.orchestrator.Orchestrator",
-              "reference_file": "repo_utils/change_detector.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.cli.parse_arguments",
+              "qualified_name": "codeboarding.repo_utils.change_detector:RepositoryManager",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
             "repo_utils/change_detector.py",
-            "main.py",
             "repo_utils/__init__.py",
             "repo_utils/errors.py",
-            "repo_utils/git_diff.py",
-            "repo_utils/ignore.py",
-            "utils.py"
+            "repo_utils/ignore.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "bbb45874eb523b48",
+          "component_id": "defcdfd415214940",
           "can_expand": true
         },
         {
-          "name": "Configuration Manager",
-          "description": "Centralizes the management and retrieval of application‑wide configuration settings. Provides default configurations and allows for dynamic updates, ensuring consistent behavior across all components, including LLM providers, analysis tools, and output formats.",
+          "name": "Incremental Change Detector",
+          "description": "Analyzes git diffs to identify added or modified files, enabling partial re‑analysis of the codebase.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.config.Config",
-              "reference_file": "constants.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.config.load_configuration",
-              "reference_file": "constants.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.config.LLMProviderSettings",
-              "reference_file": "constants.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.config.get_setting",
-              "reference_file": "constants.py"
+              "qualified_name": "codeboarding.repo_utils.change_detector:IncrementalChangeDetector",
+              "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
-            "constants.py"
+            "repo_utils/change_detector.py",
+            "repo_utils/git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "892c927991384d3e",
+          "component_id": "71c04ddb2b4869d7",
           "can_expand": true
         },
         {
-          "name": "Installation & Environment Setup",
-          "description": "Ensures necessary external tools, binaries (e.g., npm, JDTLS, VCPP redistributable), and language-specific environments are correctly installed and configured for static analysis and other operations. Updates static analysis configurations, acting as a critical prerequisite for a multi-language code analysis tool.",
+          "name": "Environment Provisioner",
+          "description": "Ensures external dependencies (JDTLS LSP, Node.js, platform‑specific binaries) are installed and available before analysis starts.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.env.setup_environment",
-              "reference_file": "install.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.env.ToolInstaller",
-              "reference_file": "install.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.env.LanguageEnvironment",
-              "reference_file": "install.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.env.update_static_analysis_config",
+              "qualified_name": "codeboarding.provisioner",
               "reference_file": "install.py"
             }
           ],
@@ -151,27 +130,31 @@
             "install.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "402be36458e0b98e",
+          "component_id": "1779d99f6f09b9a8",
           "can_expand": true
         },
         {
-          "name": "Monitoring & Telemetry System",
-          "description": "Collects, processes, and persists runtime metrics, focusing on LLM usage, tool execution, and overall run statistics. Provides execution context and utilities for tracing and monitoring various parts of the system, essential for tracking performance, cost, and usage of LLM interactions and other tools.",
+          "name": "Job State Store",
+          "description": "Persists job status, metadata, and analysis results in DuckDB to enable recovery and cross‑session continuity.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.telemetry.TelemetryClient",
-              "reference_file": "monitoring/__init__.py"
-            },
+              "qualified_name": "codeboarding.state_store",
+              "reference_file": "duckdb_crud.py"
+            }
+          ],
+          "assigned_files": [
+            "duckdb_crud.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "3d9400105baecdea",
+          "can_expand": true
+        },
+        {
+          "name": "Execution Monitor",
+          "description": "Provides tracing infrastructure via decorators to track pipeline progress, capture timing, and emit structured execution events.",
+          "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.telemetry.LLMUsageTracker",
-              "reference_file": "monitoring/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.telemetry.MetricCollector",
-              "reference_file": "monitoring/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.telemetry.TraceContext",
+              "qualified_name": "codeboarding.monitor",
               "reference_file": "monitoring/__init__.py"
             }
           ],
@@ -181,31 +164,34 @@
             "monitoring/context.py",
             "monitoring/mixin.py",
             "monitoring/paths.py",
-            "monitoring/stats.py",
             "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "792360985a2b19a5",
+          "component_id": "658277df70a0d114",
           "can_expand": true
         },
         {
-          "name": "Analysis Data Model",
-          "description": "Defines standardized data structures for representing code analysis results, including metadata, components, relations, and a unified analysis JSON format. Facilitates consistent data exchange between different stages of the analysis and generation pipeline.",
+          "name": "Telemetry Tracker",
+          "description": "Captures real‑time statistics, including LLM token usage and tool performance metrics for observability.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.datamodel.AnalysisResult",
-              "reference_file": "diagram_analysis/analysis_json.py"
-            },
+              "qualified_name": "codeboarding.telemetry",
+              "reference_file": "monitoring/stats.py"
+            }
+          ],
+          "assigned_files": [
+            "monitoring/stats.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "de918467520340e3",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Schema Transformer",
+          "description": "Normalizes diverse raw analysis results into the UnifiedAnalysisJson schema for downstream documentation generation.",
+          "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.datamodel.CodeComponent",
-              "reference_file": "diagram_analysis/analysis_json.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.datamodel.Relationship",
-              "reference_file": "diagram_analysis/analysis_json.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.datamodel.to_json_format",
+              "qualified_name": "codeboarding.transformer",
               "reference_file": "diagram_analysis/analysis_json.py"
             }
           ],
@@ -213,273 +199,59 @@
             "diagram_analysis/analysis_json.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b5bd8d055d2739ee",
-          "can_expand": true
-        },
-        {
-          "name": "Analysis Processing & Documentation Generator",
-          "description": "Takes structured analysis data (conforming to the Analysis Data Model), processes it further (e.g., assigning IDs, extracting specific details), and transforms it into human‑readable documentation, typically in markdown format. This component implements the documentation generation aspect of the project.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "fa80d3fc807be36b",
-          "can_expand": false
-        },
-        {
-          "name": "Job Database",
-          "description": "Stores and manages the state and metadata of ongoing or completed analysis jobs using DuckDB. Provides CRUD operations for job information, enabling persistence and retrieval, supporting service‑oriented and pipeline architectures.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.jobdb.JobDatabase",
-              "reference_file": "duckdb_crud.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.jobdb.JobManager",
-              "reference_file": "duckdb_crud.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.jobdb.DuckDBConnector",
-              "reference_file": "duckdb_crud.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.jobdb.JobStatus",
-              "reference_file": "duckdb_crud.py"
-            }
-          ],
-          "assigned_files": [
-            "duckdb_crud.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "cb54cd00febf8be1",
-          "can_expand": true
-        },
-        {
-          "name": "System Health & VSCode Integration",
-          "description": "Monitors the system's operational health, sets up logging, and provides integration points and configuration management specifically for a VS Code extension, enhancing the user experience within the IDE.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.health.SystemMonitor",
-              "reference_file": "health_main.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.vscode.VSCodeExtensionManager",
-              "reference_file": "health_main.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.logging.setup_logging",
-              "reference_file": "health_main.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.vscode.ExtensionConfig",
-              "reference_file": "health_main.py"
-            }
-          ],
-          "assigned_files": [
-            "health_main.py",
-            "logging_config.py",
-            "vscode_constants.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "674be392f55512c3",
+          "component_id": "51b5d7e9b2e225d7",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "queries",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Configuration Manager",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "892c927991384d3e"
-        },
-        {
-          "relation": "provides",
-          "src_name": "Configuration Manager",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "892c927991384d3e",
-          "dst_id": "bbb45874eb523b48"
-        },
-        {
           "relation": "triggers",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Installation & Environment Setup",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "402be36458e0b98e"
+          "src_name": "Main Orchestrator",
+          "dst_name": "Environment Provisioner",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "1779d99f6f09b9a8"
         },
         {
-          "relation": "reports_status_to",
-          "src_name": "Installation & Environment Setup",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "402be36458e0b98e",
-          "dst_id": "bbb45874eb523b48"
+          "relation": "requests",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Repository Manager",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "defcdfd415214940"
         },
         {
-          "relation": "emits_events_to",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Monitoring & Telemetry System",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "792360985a2b19a5"
+          "relation": "utilizes",
+          "src_name": "Repository Manager",
+          "dst_name": "Incremental Change Detector",
+          "src_id": "defcdfd415214940",
+          "dst_id": "71c04ddb2b4869d7"
         },
         {
-          "relation": "records",
-          "src_name": "Monitoring & Telemetry System",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "792360985a2b19a5",
-          "dst_id": "bbb45874eb523b48"
+          "relation": "initializes/updates",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Job State Store",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "3d9400105baecdea"
         },
         {
-          "relation": "initiates",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Analysis Processing & Documentation Generator",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "fa80d3fc807be36b"
+          "relation": "wraps",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Execution Monitor",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "658277df70a0d114"
         },
         {
-          "relation": "provides_results_to",
-          "src_name": "Analysis Processing & Documentation Generator",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "fa80d3fc807be36b",
-          "dst_id": "bbb45874eb523b48"
+          "relation": "passes metadata to",
+          "src_name": "Execution Monitor",
+          "dst_name": "Telemetry Tracker",
+          "src_id": "658277df70a0d114",
+          "dst_id": "de918467520340e3"
         },
         {
-          "relation": "manages_jobs_via",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Job Database",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "cb54cd00febf8be1"
-        },
-        {
-          "relation": "stores_job_data_for",
-          "src_name": "Job Database",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "cb54cd00febf8be1",
-          "dst_id": "bbb45874eb523b48"
-        },
-        {
-          "relation": "reports_health_to",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "System Health & VSCode Integration",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "674be392f55512c3"
-        },
-        {
-          "relation": "provides_context_to",
-          "src_name": "System Health & VSCode Integration",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "674be392f55512c3",
-          "dst_id": "bbb45874eb523b48"
-        },
-        {
-          "relation": "supplies",
-          "src_name": "Configuration Manager",
-          "dst_name": "Installation & Environment Setup",
-          "src_id": "892c927991384d3e",
-          "dst_id": "402be36458e0b98e"
-        },
-        {
-          "relation": "consults",
-          "src_name": "Installation & Environment Setup",
-          "dst_name": "Configuration Manager",
-          "src_id": "402be36458e0b98e",
-          "dst_id": "892c927991384d3e"
-        },
-        {
-          "relation": "configures",
-          "src_name": "Configuration Manager",
-          "dst_name": "Monitoring & Telemetry System",
-          "src_id": "892c927991384d3e",
-          "dst_id": "792360985a2b19a5"
-        },
-        {
-          "relation": "reads_config_from",
-          "src_name": "Monitoring & Telemetry System",
-          "dst_name": "Configuration Manager",
-          "src_id": "792360985a2b19a5",
-          "dst_id": "892c927991384d3e"
-        },
-        {
-          "relation": "provides",
-          "src_name": "Configuration Manager",
-          "dst_name": "Analysis Processing & Documentation Generator",
-          "src_id": "892c927991384d3e",
-          "dst_id": "fa80d3fc807be36b"
-        },
-        {
-          "relation": "uses_config_from",
-          "src_name": "Analysis Processing & Documentation Generator",
-          "dst_name": "Configuration Manager",
-          "src_id": "fa80d3fc807be36b",
-          "dst_id": "892c927991384d3e"
-        },
-        {
-          "relation": "configures",
-          "src_name": "Configuration Manager",
-          "dst_name": "System Health & VSCode Integration",
-          "src_id": "892c927991384d3e",
-          "dst_id": "674be392f55512c3"
-        },
-        {
-          "relation": "retrieves_settings_from",
-          "src_name": "System Health & VSCode Integration",
-          "dst_name": "Configuration Manager",
-          "src_id": "674be392f55512c3",
-          "dst_id": "892c927991384d3e"
-        },
-        {
-          "relation": "emits_metrics_to",
-          "src_name": "Analysis Processing & Documentation Generator",
-          "dst_name": "Monitoring & Telemetry System",
-          "src_id": "fa80d3fc807be36b",
-          "dst_id": "792360985a2b19a5"
-        },
-        {
-          "relation": "tracks",
-          "src_name": "Monitoring & Telemetry System",
-          "dst_name": "Analysis Processing & Documentation Generator",
-          "src_id": "792360985a2b19a5",
-          "dst_id": "fa80d3fc807be36b"
-        },
-        {
-          "relation": "conforms_to",
-          "src_name": "Analysis Processing & Documentation Generator",
-          "dst_name": "Analysis Data Model",
-          "src_id": "fa80d3fc807be36b",
-          "dst_id": "b5bd8d055d2739ee"
-        },
-        {
-          "relation": "defines_structure_for",
-          "src_name": "Analysis Data Model",
-          "dst_name": "Analysis Processing & Documentation Generator",
-          "src_id": "b5bd8d055d2739ee",
-          "dst_id": "fa80d3fc807be36b"
-        },
-        {
-          "relation": "updates_job_status_in",
-          "src_name": "Analysis Processing & Documentation Generator",
-          "dst_name": "Job Database",
-          "src_id": "fa80d3fc807be36b",
-          "dst_id": "cb54cd00febf8be1"
-        },
-        {
-          "relation": "stores_analysis_data_for",
-          "src_name": "Job Database",
-          "dst_name": "Analysis Processing & Documentation Generator",
-          "src_id": "cb54cd00febf8be1",
-          "dst_id": "fa80d3fc807be36b"
-        },
-        {
-          "relation": "provides_job_metrics_to",
-          "src_name": "Job Database",
-          "dst_name": "Monitoring & Telemetry System",
-          "src_id": "cb54cd00febf8be1",
-          "dst_id": "792360985a2b19a5"
-        },
-        {
-          "relation": "monitors_job_status_in",
-          "src_name": "Monitoring & Telemetry System",
-          "dst_name": "Job Database",
-          "src_id": "792360985a2b19a5",
-          "dst_id": "cb54cd00febf8be1"
+          "relation": "invokes",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Analysis Schema Transformer",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "51b5d7e9b2e225d7"
         }
       ]
     },
@@ -2868,447 +2640,46 @@
       "can_expand": true,
       "components": [
         {
-          "name": "IncrementalUpdater",
-          "description": "Acts as the central orchestrator for the incremental analysis process, coordinating change detection, cache interactions, and targeted re-analysis of modified code sections.",
+          "name": "Incremental Update Orchestrator",
+          "description": "The central controller that coordinates the sequence of operations from change detection to final validation. It manages the high‑level workflow, ensuring that impact analysis, patching, and re‑analysis occur in the correct order.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater.run_update",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater._process_changes",
               "reference_file": "diagram_analysis/incremental/updater.py"
             }
           ],
           "assigned_files": [
             "diagram_analysis/incremental/updater.py",
             "diagram_analysis/incremental/__init__.py",
-            "diagram_analysis/incremental/component_checker.py",
-            "diagram_analysis/incremental/file_manager.py",
-            "diagram_analysis/incremental/impact_analyzer.py",
-            "diagram_analysis/incremental/io_utils.py",
             "diagram_analysis/incremental/models.py",
-            "diagram_analysis/incremental/path_patching.py",
-            "diagram_analysis/incremental/reexpansion.py",
-            "diagram_analysis/incremental/scoped_analysis.py",
-            "diagram_analysis/incremental/validation.py"
+            "diagram_analysis/incremental/scoped_analysis.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "a72ac0f87d6794be",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Incremental Update Orchestrator",
-              "description": "Acts as the central orchestrator for the incremental analysis process, coordinating change detection, cache interactions, and targeted re-analysis of modified code sections. It determines the overall strategy for an update.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.updater.IncrementalUpdater.run_update",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.updater.IncrementalUpdater.coordinate_pipeline",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.updater.IncrementalUpdater.determine_strategy",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/updater.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "606194d409797d62",
-              "can_expand": false
-            },
-            {
-              "name": "Analysis Data Store",
-              "description": "Manages persistence and retrieval of analysis results and manifest data, handling loading previous states and saving updates to enable incremental processing. It acts as the system's memory for past analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.io_utils.AnalysisCacheManager.load_manifest",
-                  "reference_file": "diagram_analysis/incremental/io_utils.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.io_utils.AnalysisCacheManager.save_results",
-                  "reference_file": "diagram_analysis/incremental/io_utils.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.io_utils.AnalysisCacheManager.get_component_data",
-                  "reference_file": "diagram_analysis/incremental/io_utils.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/io_utils.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "a1fc0845de8aefce",
-              "can_expand": false
-            },
-            {
-              "name": "File Change Manager",
-              "description": "Identifies, categorizes, and manages file changes (additions, deletions, renames) within components, ensuring correct assignment of new files and removal of deleted ones from analysis scope.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.file_manager.FileChangeDetector.detect_changes",
-                  "reference_file": "diagram_analysis/incremental/file_manager.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.file_manager.FileChangeDetector.categorize_changes",
-                  "reference_file": "diagram_analysis/incremental/file_manager.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.file_manager.FileChangeDetector.map_files_to_components",
-                  "reference_file": "diagram_analysis/incremental/file_manager.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/file_manager.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "046d2832b821d8b0",
-              "can_expand": false
-            },
-            {
-              "name": "Impact & State Analyzer",
-              "description": "Assesses the impact of code changes on component structure and relationships, determining affected components and required update actions (patch, re-analyze, full re-analysis). It also evaluates the nature of changes to decide if incremental patching is possible or if a full re-expansion is required.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer.assess_impact",
-                  "reference_file": "diagram_analysis/incremental/impact_analyzer.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer.determine_update_action",
-                  "reference_file": "diagram_analysis/incremental/impact_analyzer.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.component_checker.ComponentStateChecker.evaluate_component_changes",
-                  "reference_file": "diagram_analysis/incremental/component_checker.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.component_checker.ComponentStateChecker.is_incremental_possible",
-                  "reference_file": "diagram_analysis/incremental/component_checker.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/component_checker.py",
-                "diagram_analysis/incremental/impact_analyzer.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "1003beaa873e5bc2",
-              "can_expand": false
-            },
-            {
-              "name": "Analysis Execution Engine",
-              "description": "Executes targeted analysis for specific impacted components or subgraphs when full re-expansion is unnecessary, and manages full re-analysis of components that cannot be incrementally updated, orchestrating re-execution of the analysis pipeline.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.scoped_analysis.ScopedAnalysisExecutor.execute_scoped_analysis",
-                  "reference_file": "diagram_analysis/incremental/scoped_analysis.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.reexpansion.ComponentReexpansionEngine.run_full_reanalysis",
-                  "reference_file": "diagram_analysis/incremental/reexpansion.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.analysis_engine.AnalysisExecutionEngine.dispatch_analysis_task",
-                  "reference_file": "diagram_analysis/incremental/scoped_analysis.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/scoped_analysis.py",
-                "diagram_analysis/incremental/reexpansion.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "345a73a1dcf53d20",
-              "can_expand": false
-            },
-            {
-              "name": "Path Patching Processor",
-              "description": "Updates file paths within analysis results and manifest to reflect renames or moves, ensuring consistency after structural codebase changes.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.path_patching.PathPatcher.apply_path_updates",
-                  "reference_file": "diagram_analysis/incremental/path_patching.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.path_patching.PathPatcher.update_manifest_paths",
-                  "reference_file": "diagram_analysis/incremental/path_patching.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.path_patching.PathPatcher.adjust_result_paths",
-                  "reference_file": "diagram_analysis/incremental/path_patching.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/path_patching.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "30d60289af433ce7",
-              "can_expand": false
-            },
-            {
-              "name": "Incremental Models & Constants",
-              "description": "Defines data structures, enums (e.g., ChangeImpact, UpdateAction), and constants used across the subsystem, providing a common language and configuration.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.models.ChangeImpact",
-                  "reference_file": "diagram_analysis/incremental/models.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.models.UpdateAction",
-                  "reference_file": "diagram_analysis/incremental/models.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.models.AnalysisManifest",
-                  "reference_file": "diagram_analysis/incremental/models.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.models.IncrementalConfig",
-                  "reference_file": "diagram_analysis/incremental/models.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/models.py",
-                "diagram_analysis/incremental/__init__.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "593f3c704972a755",
-              "can_expand": false
-            },
-            {
-              "name": "Incremental Validation",
-              "description": "Validates the integrity and correctness of the incremental update process and its generated results, ensuring analysis remains accurate and consistent.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.validation.IncrementalValidator.validate_integrity",
-                  "reference_file": "diagram_analysis/incremental/validation.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.validation.IncrementalValidator.check_consistency",
-                  "reference_file": "diagram_analysis/incremental/validation.py"
-                },
-                {
-                  "qualified_name": "diagram_analysis.incremental.validation.IncrementalValidator.verify_results",
-                  "reference_file": "diagram_analysis/incremental/validation.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "c405de2c6fb5aa9d",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "coordinates with",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "File Change Manager",
-              "src_id": "606194d409797d62",
-              "dst_id": "046d2832b821d8b0"
-            },
-            {
-              "relation": "consults",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "Analysis Data Store",
-              "src_id": "606194d409797d62",
-              "dst_id": "a1fc0845de8aefce"
-            },
-            {
-              "relation": "directs",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "Impact & State Analyzer",
-              "src_id": "606194d409797d62",
-              "dst_id": "1003beaa873e5bc2"
-            },
-            {
-              "relation": "orchestrates execution via",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "Analysis Execution Engine",
-              "src_id": "606194d409797d62",
-              "dst_id": "345a73a1dcf53d20"
-            },
-            {
-              "relation": "engages",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "Path Patching Processor",
-              "src_id": "606194d409797d62",
-              "dst_id": "30d60289af433ce7"
-            },
-            {
-              "relation": "initiates",
-              "src_name": "Incremental Update Orchestrator",
-              "dst_name": "Incremental Validation",
-              "src_id": "606194d409797d62",
-              "dst_id": "c405de2c6fb5aa9d"
-            },
-            {
-              "relation": "provides historical data to",
-              "src_name": "Analysis Data Store",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "a1fc0845de8aefce",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "receives updated data from",
-              "src_name": "Analysis Data Store",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "a1fc0845de8aefce",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "supplies data to",
-              "src_name": "Analysis Data Store",
-              "dst_name": "Analysis Execution Engine",
-              "src_id": "a1fc0845de8aefce",
-              "dst_id": "345a73a1dcf53d20"
-            },
-            {
-              "relation": "accepts path updates from",
-              "src_name": "Analysis Data Store",
-              "dst_name": "Path Patching Processor",
-              "src_id": "a1fc0845de8aefce",
-              "dst_id": "30d60289af433ce7"
-            },
-            {
-              "relation": "provides data to",
-              "src_name": "Analysis Data Store",
-              "dst_name": "Incremental Validation",
-              "src_id": "a1fc0845de8aefce",
-              "dst_id": "c405de2c6fb5aa9d"
-            },
-            {
-              "relation": "informs",
-              "src_name": "File Change Manager",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "046d2832b821d8b0",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "provides raw change data to",
-              "src_name": "File Change Manager",
-              "dst_name": "Impact & State Analyzer",
-              "src_id": "046d2832b821d8b0",
-              "dst_id": "1003beaa873e5bc2"
-            },
-            {
-              "relation": "provides rename/move info to",
-              "src_name": "File Change Manager",
-              "dst_name": "Path Patching Processor",
-              "src_id": "046d2832b821d8b0",
-              "dst_id": "30d60289af433ce7"
-            },
-            {
-              "relation": "receives file change info from",
-              "src_name": "Impact & State Analyzer",
-              "dst_name": "File Change Manager",
-              "src_id": "1003beaa873e5bc2",
-              "dst_id": "046d2832b821d8b0"
-            },
-            {
-              "relation": "communicates update actions to",
-              "src_name": "Impact & State Analyzer",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "1003beaa873e5bc2",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "utilizes definitions from",
-              "src_name": "Impact & State Analyzer",
-              "dst_name": "Incremental Models & Constants",
-              "src_id": "1003beaa873e5bc2",
-              "dst_id": "593f3c704972a755"
-            },
-            {
-              "relation": "receives tasks from",
-              "src_name": "Analysis Execution Engine",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "345a73a1dcf53d20",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "stores results in",
-              "src_name": "Analysis Execution Engine",
-              "dst_name": "Analysis Data Store",
-              "src_id": "345a73a1dcf53d20",
-              "dst_id": "a1fc0845de8aefce"
-            },
-            {
-              "relation": "adheres to data structures from",
-              "src_name": "Analysis Execution Engine",
-              "dst_name": "Incremental Models & Constants",
-              "src_id": "345a73a1dcf53d20",
-              "dst_id": "593f3c704972a755"
-            },
-            {
-              "relation": "receives instructions from",
-              "src_name": "Path Patching Processor",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "30d60289af433ce7",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "applies modifications to data managed by",
-              "src_name": "Path Patching Processor",
-              "dst_name": "Analysis Data Store",
-              "src_id": "30d60289af433ce7",
-              "dst_id": "a1fc0845de8aefce"
-            },
-            {
-              "relation": "consumes rename/move info from",
-              "src_name": "Path Patching Processor",
-              "dst_name": "File Change Manager",
-              "src_id": "30d60289af433ce7",
-              "dst_id": "046d2832b821d8b0"
-            },
-            {
-              "relation": "provides shared structures to",
-              "src_name": "Incremental Models & Constants",
-              "dst_name": "Impact & State Analyzer",
-              "src_id": "593f3c704972a755",
-              "dst_id": "1003beaa873e5bc2"
-            },
-            {
-              "relation": "provides shared structures to",
-              "src_name": "Incremental Models & Constants",
-              "dst_name": "Analysis Execution Engine",
-              "src_id": "593f3c704972a755",
-              "dst_id": "345a73a1dcf53d20"
-            },
-            {
-              "relation": "provides shared structures to",
-              "src_name": "Incremental Models & Constants",
-              "dst_name": "Incremental Validation",
-              "src_id": "593f3c704972a755",
-              "dst_id": "c405de2c6fb5aa9d"
-            },
-            {
-              "relation": "reports status to",
-              "src_name": "Incremental Validation",
-              "dst_name": "Incremental Update Orchestrator",
-              "src_id": "c405de2c6fb5aa9d",
-              "dst_id": "606194d409797d62"
-            },
-            {
-              "relation": "accesses data from",
-              "src_name": "Incremental Validation",
-              "dst_name": "Analysis Data Store",
-              "src_id": "c405de2c6fb5aa9d",
-              "dst_id": "a1fc0845de8aefce"
-            },
-            {
-              "relation": "utilizes definitions from",
-              "src_name": "Incremental Validation",
-              "dst_name": "Incremental Models & Constants",
-              "src_id": "c405de2c6fb5aa9d",
-              "dst_id": "593f3c704972a755"
-            }
-          ]
+          "component_id": "afbb58f6d70ab30e",
+          "can_expand": true
         },
         {
-          "name": "AnalysisCache",
-          "description": "Persistently stores and retrieves static analysis results, preventing re-computation on unchanged code and supporting performance optimization.",
+          "name": "Analysis Cache Manager",
+          "description": "Manages the lifecycle of serialized artifacts (call graphs, hierarchies) and validates their integrity for reuse. It acts as the primary data provider for components that need historical analysis state.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.incremental.AnalysisCache",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisCache.load_artifacts",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisCache.invalidate_entry",
               "reference_file": "diagram_analysis/incremental/updater.py"
             }
           ],
@@ -3317,150 +2688,48 @@
             "static_analyzer/analysis_cache.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "dcdb0e29dc902660",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Analysis Cache",
-              "description": "Persistently stores and retrieves static analysis results, preventing re-computation on unchanged code and supporting performance optimization.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.incremental.AnalysisCache",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/updater.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "48fb4766612f6656",
-              "can_expand": false
-            },
-            {
-              "name": "Analysis Cache Manager",
-              "description": "Manages the lifecycle of the Analysis Cache. It handles serialization and deserialization of complex analysis objects, orchestrates their storage into and retrieval from the Analysis Cache, and implements cache invalidation strategies.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_cache.AnalysisCacheManager",
-                  "reference_file": "static_analyzer/analysis_cache.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/analysis_cache.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "3585dbf09a57decf",
-              "can_expand": false
-            },
-            {
-              "name": "Incremental Update Engine",
-              "description": "Orchestrates the process of detecting code changes, assessing their impact, and triggering selective re-analysis or updates. It relies on the Analysis Cache Manager to fetch existing analysis data and store new or updated results.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.updater.IncrementalUpdater",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/updater.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "f7034ffe9182fee7",
-              "can_expand": false
-            },
-            {
-              "name": "Static Analysis Engine",
-              "description": "The core component responsible for performing deep analysis of source code to extract structural, semantic, and behavioral information. It produces raw analysis artifacts that are then consumed by other components for storage or further processing.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "1ee86df57155fb9b",
-              "can_expand": false
-            },
-            {
-              "name": "Repository Manager",
-              "description": "Manages access to the project's source code repositories. It handles fetching code, tracking file changes, and providing the necessary code context to the analysis components.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "9cfe993e9615569e",
-              "can_expand": false
-            },
-            {
-              "name": "Output Generation Engine",
-              "description": "Transforms the analysis results into various user-consumable formats, such as interactive diagrams (e.g., Mermaid.js), documentation, or reports. It is the final step in presenting the insights derived from the code analysis.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "8901f0a4c89eb8dd",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "manages",
-              "src_name": "Analysis Cache Manager",
-              "dst_name": "Analysis Cache",
-              "src_id": "3585dbf09a57decf",
-              "dst_id": "48fb4766612f6656"
-            },
-            {
-              "relation": "uses",
-              "src_name": "Incremental Update Engine",
-              "dst_name": "Analysis Cache Manager",
-              "src_id": "f7034ffe9182fee7",
-              "dst_id": "3585dbf09a57decf"
-            },
-            {
-              "relation": "stores results via",
-              "src_name": "Static Analysis Engine",
-              "dst_name": "Analysis Cache Manager",
-              "src_id": "1ee86df57155fb9b",
-              "dst_id": "3585dbf09a57decf"
-            },
-            {
-              "relation": "retrieves cached data from",
-              "src_name": "Output Generation Engine",
-              "dst_name": "Analysis Cache Manager",
-              "src_id": "8901f0a4c89eb8dd",
-              "dst_id": "3585dbf09a57decf"
-            },
-            {
-              "relation": "orchestrates",
-              "src_name": "Incremental Update Engine",
-              "dst_name": "Static Analysis Engine",
-              "src_id": "f7034ffe9182fee7",
-              "dst_id": "1ee86df57155fb9b"
-            },
-            {
-              "relation": "informs of changes",
-              "src_name": "Repository Manager",
-              "dst_name": "Incremental Update Engine",
-              "src_id": "9cfe993e9615569e",
-              "dst_id": "f7034ffe9182fee7"
-            },
-            {
-              "relation": "processes incremental updates from",
-              "src_name": "Output Generation Engine",
-              "dst_name": "Incremental Update Engine",
-              "src_id": "8901f0a4c89eb8dd",
-              "dst_id": "f7034ffe9182fee7"
-            },
-            {
-              "relation": "accesses source code via",
-              "src_name": "Static Analysis Engine",
-              "dst_name": "Repository Manager",
-              "src_id": "1ee86df57155fb9b",
-              "dst_id": "9cfe993e9615569e"
-            }
-          ]
+          "component_id": "5fe41f53942e50ad",
+          "can_expand": true
         },
         {
-          "name": "ClusterChangeAnalyzer",
-          "description": "Identifies and analyzes logical code clusters that have been modified, providing precise information on which parts require re-analysis.",
+          "name": "Structural Impact Analyzer",
+          "description": "Evaluates code changes to identify \"dirty\" sub‑graphs and determines if changes cross architectural boundaries, necessitating broader re‑analysis.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer.detect_dirty_nodes",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer.check_boundary_violation",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/impact_analyzer.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1b70993b06b59ce6",
+          "can_expand": true
+        },
+        {
+          "name": "Cluster Change Analyzer",
+          "description": "Classifies the magnitude of architectural shifts (Small/Medium/Big) by comparing current and historical clustering data to detect significant drift.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer.calculate_similarity",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer.classify_shift",
               "reference_file": "diagram_analysis/incremental/updater.py"
             }
           ],
@@ -3469,148 +2738,203 @@
             "static_analyzer/cluster_change_analyzer.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "666bec470608bcfc",
-          "can_expand": true,
-          "components": [
+          "component_id": "e8a0aba49bb7450c",
+          "can_expand": true
+        },
+        {
+          "name": "Scoped Re‑expansion Engine",
+          "description": "Orchestrates LLM‑based agents to perform deep re‑analysis specifically on sub‑graphs flagged as dirty, ensuring AI interpretation stays in sync with code changes.",
+          "key_entities": [
             {
-              "name": "IncrementalUpdater",
-              "description": "Orchestrates the overall incremental update process for diagram analysis. It identifies affected components, applies necessary changes, and ensures that only modified parts trigger re-analysis, optimizing performance.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.incremental.updater.IncrementalUpdater",
-                  "reference_file": "diagram_analysis/incremental/updater.py"
-                }
-              ],
-              "assigned_files": [
-                "diagram_analysis/incremental/updater.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "12098c565768d7b0",
-              "can_expand": false
+              "qualified_name": "repos.codeboarding.incremental.ReExpansionEngine",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             },
             {
-              "name": "ClusterChangeAnalyzer",
-              "description": "The core engine for detecting, classifying, and quantifying structural changes within logical code clusters. It analyzes differences between code versions and identifies the nature of modifications.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer",
-                  "reference_file": "static_analyzer/cluster_change_analyzer.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/cluster_change_analyzer.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "1410270f537ce502",
-              "can_expand": false
+              "qualified_name": "repos.codeboarding.incremental.ReExpansionEngine.reanalyze_component",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             },
             {
-              "name": "ClusterChangeResult",
-              "description": "A data transfer object (DTO) that encapsulates the outcome of a cluster change analysis. It contains information such as matched clusters, classified changes, and associated quantitative metrics.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.cluster_change_analyzer.ClusterChangeResult",
-                  "reference_file": "static_analyzer/cluster_change_analyzer.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/cluster_change_analyzer.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "256b58baa17f03f5",
-              "can_expand": false
-            },
-            {
-              "name": "ChangeMetrics",
-              "description": "Responsible for calculating specific quantitative metrics related to code changes, such as node movement ratios. These metrics provide numerical insights into the extent and type of modifications.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.cluster_change_analyzer.ChangeMetrics",
-                  "reference_file": "static_analyzer/cluster_change_analyzer.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/cluster_change_analyzer.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "de9c4a0eed9826a2",
-              "can_expand": false
+              "qualified_name": "repos.codeboarding.incremental.MetaAgentOrchestrator",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             }
           ],
-          "components_relations": [
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/reexpansion.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "3a1590cab2eb431f",
+          "can_expand": true
+        },
+        {
+          "name": "File & Path Patching Manager",
+          "description": "Handles in‑place updates to the analysis manifest, such as file renames and component re‑assignments, without requiring a full re‑parse of the repository.",
+          "key_entities": [
             {
-              "relation": "uses",
-              "src_name": "IncrementalUpdater",
-              "dst_name": "ClusterChangeAnalyzer",
-              "src_id": "12098c565768d7b0",
-              "dst_id": "1410270f537ce502"
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             },
             {
-              "relation": "receives",
-              "src_name": "IncrementalUpdater",
-              "dst_name": "ClusterChangeResult",
-              "src_id": "12098c565768d7b0",
-              "dst_id": "256b58baa17f03f5"
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher.apply_renames",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             },
             {
-              "relation": "uses",
-              "src_name": "ClusterChangeAnalyzer",
-              "dst_name": "ChangeMetrics",
-              "src_id": "1410270f537ce502",
-              "dst_id": "de9c4a0eed9826a2"
-            },
-            {
-              "relation": "produces",
-              "src_name": "ClusterChangeAnalyzer",
-              "dst_name": "ClusterChangeResult",
-              "src_id": "1410270f537ce502",
-              "dst_id": "256b58baa17f03f5"
-            },
-            {
-              "relation": "creates",
-              "src_name": "ClusterChangeAnalyzer",
-              "dst_name": "ClusterChangeResult",
-              "src_id": "1410270f537ce502",
-              "dst_id": "256b58baa17f03f5"
-            },
-            {
-              "relation": "consumes",
-              "src_name": "IncrementalUpdater",
-              "dst_name": "ClusterChangeResult",
-              "src_id": "12098c565768d7b0",
-              "dst_id": "256b58baa17f03f5"
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher.update_assignments",
+              "reference_file": "diagram_analysis/incremental/updater.py"
             }
-          ]
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/file_manager.py",
+            "diagram_analysis/incremental/path_patching.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "34f527dd9ae1a4f6",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis I/O Manager",
+          "description": "Provides thread‑safe, locked access to the analysis store (DuckDB and file system) to ensure data consistency during concurrent incremental updates.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO.acquire_lock",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO.write_atomic",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/io_utils.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f84c13517b1b127a",
+          "can_expand": true
+        },
+        {
+          "name": "Update Integrity Validator",
+          "description": "Performs final consistency checks between the updated analysis state and the physical file system to ensure no orphaned nodes or broken references remain.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator.verify_filesystem_sync",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator.check_graph_consistency",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/component_checker.py",
+            "diagram_analysis/incremental/validation.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "bdd0300f74ebc83c",
+          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "initiates request to",
-          "src_name": "IncrementalUpdater",
-          "dst_name": "ClusterChangeAnalyzer",
-          "src_id": "a72ac0f87d6794be",
-          "dst_id": "666bec470608bcfc"
+          "relation": "triggers",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Structural Impact Analyzer",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "1b70993b06b59ce6"
         },
         {
-          "relation": "provides changed clusters list to",
-          "src_name": "ClusterChangeAnalyzer",
-          "dst_name": "IncrementalUpdater",
-          "src_id": "666bec470608bcfc",
-          "dst_id": "a72ac0f87d6794be"
+          "relation": "invokes",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Update Integrity Validator",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "bdd0300f74ebc83c"
         },
         {
-          "relation": "queries",
-          "src_name": "IncrementalUpdater",
-          "dst_name": "AnalysisCache",
-          "src_id": "a72ac0f87d6794be",
-          "dst_id": "dcdb0e29dc902660"
+          "relation": "sends dirty component lists to",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Scoped Re‑expansion Engine",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "3a1590cab2eb431f"
         },
         {
-          "relation": "stores results into",
-          "src_name": "IncrementalUpdater",
-          "dst_name": "AnalysisCache",
-          "src_id": "a72ac0f87d6794be",
-          "dst_id": "dcdb0e29dc902660"
+          "relation": "provides cached state to",
+          "src_name": "Analysis Cache Manager",
+          "dst_name": "Structural Impact Analyzer",
+          "src_id": "5fe41f53942e50ad",
+          "dst_id": "1b70993b06b59ce6"
+        },
+        {
+          "relation": "supplies historical clustering data to",
+          "src_name": "Analysis Cache Manager",
+          "dst_name": "Cluster Change Analyzer",
+          "src_id": "5fe41f53942e50ad",
+          "dst_id": "e8a0aba49bb7450c"
+        },
+        {
+          "relation": "flags dirty components back to",
+          "src_name": "Structural Impact Analyzer",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "1b70993b06b59ce6",
+          "dst_id": "afbb58f6d70ab30e"
+        },
+        {
+          "relation": "pulls historical cluster definitions from",
+          "src_name": "Cluster Change Analyzer",
+          "dst_name": "Analysis Cache Manager",
+          "src_id": "e8a0aba49bb7450c",
+          "dst_id": "5fe41f53942e50ad"
+        },
+        {
+          "relation": "receives dirty component lists from",
+          "src_name": "Scoped Re‑expansion Engine",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "3a1590cab2eb431f",
+          "dst_id": "afbb58f6d70ab30e"
+        },
+        {
+          "relation": "sends updated analysis results to",
+          "src_name": "Scoped Re‑expansion Engine",
+          "dst_name": "Analysis I/O Manager",
+          "src_id": "3a1590cab2eb431f",
+          "dst_id": "f84c13517b1b127a"
+        },
+        {
+          "relation": "delegates atomic manifest updates to",
+          "src_name": "File & Path Patching Manager",
+          "dst_name": "Analysis I/O Manager",
+          "src_id": "34f527dd9ae1a4f6",
+          "dst_id": "f84c13517b1b127a"
+        },
+        {
+          "relation": "manages concurrent write requests from",
+          "src_name": "Analysis I/O Manager",
+          "dst_name": "Scoped Re‑expansion Engine",
+          "src_id": "f84c13517b1b127a",
+          "dst_id": "3a1590cab2eb431f"
+        },
+        {
+          "relation": "manages manifest persistence for",
+          "src_name": "Analysis I/O Manager",
+          "dst_name": "File & Path Patching Manager",
+          "src_id": "f84c13517b1b127a",
+          "dst_id": "34f527dd9ae1a4f6"
+        },
+        {
+          "relation": "reports final validation status to",
+          "src_name": "Update Integrity Validator",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "bdd0300f74ebc83c",
+          "dst_id": "afbb58f6d70ab30e"
         }
       ]
     },

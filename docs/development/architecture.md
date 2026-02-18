@@ -440,42 +440,21 @@ Primary entry point for the CodeBoarding tool; parses CLI arguments, validates e
 
 ```mermaid
 graph LR
-    Application_Orchestrator_Repository_Manager["Application Orchestrator & Repository Manager"]
-    Configuration_Manager["Configuration Manager"]
-    Installation_Environment_Setup["Installation & Environment Setup"]
-    Monitoring_Telemetry_System["Monitoring & Telemetry System"]
-    Analysis_Data_Model["Analysis Data Model"]
-    Analysis_Processing_Documentation_Generator["Analysis Processing & Documentation Generator"]
-    Job_Database["Job Database"]
-    System_Health_VSCode_Integration["System Health & VSCode Integration"]
-    Application_Orchestrator_Repository_Manager -- "queries" --> Configuration_Manager
-    Configuration_Manager -- "provides" --> Application_Orchestrator_Repository_Manager
-    Application_Orchestrator_Repository_Manager -- "triggers" --> Installation_Environment_Setup
-    Installation_Environment_Setup -- "reports_status_to" --> Application_Orchestrator_Repository_Manager
-    Application_Orchestrator_Repository_Manager -- "emits_events_to" --> Monitoring_Telemetry_System
-    Monitoring_Telemetry_System -- "records" --> Application_Orchestrator_Repository_Manager
-    Application_Orchestrator_Repository_Manager -- "initiates" --> Analysis_Processing_Documentation_Generator
-    Analysis_Processing_Documentation_Generator -- "provides_results_to" --> Application_Orchestrator_Repository_Manager
-    Application_Orchestrator_Repository_Manager -- "manages_jobs_via" --> Job_Database
-    Job_Database -- "stores_job_data_for" --> Application_Orchestrator_Repository_Manager
-    Application_Orchestrator_Repository_Manager -- "reports_health_to" --> System_Health_VSCode_Integration
-    System_Health_VSCode_Integration -- "provides_context_to" --> Application_Orchestrator_Repository_Manager
-    Configuration_Manager -- "supplies" --> Installation_Environment_Setup
-    Installation_Environment_Setup -- "consults" --> Configuration_Manager
-    Configuration_Manager -- "configures" --> Monitoring_Telemetry_System
-    Monitoring_Telemetry_System -- "reads_config_from" --> Configuration_Manager
-    Configuration_Manager -- "provides" --> Analysis_Processing_Documentation_Generator
-    Analysis_Processing_Documentation_Generator -- "uses_config_from" --> Configuration_Manager
-    Configuration_Manager -- "configures" --> System_Health_VSCode_Integration
-    System_Health_VSCode_Integration -- "retrieves_settings_from" --> Configuration_Manager
-    Analysis_Processing_Documentation_Generator -- "emits_metrics_to" --> Monitoring_Telemetry_System
-    Monitoring_Telemetry_System -- "tracks" --> Analysis_Processing_Documentation_Generator
-    Analysis_Processing_Documentation_Generator -- "conforms_to" --> Analysis_Data_Model
-    Analysis_Data_Model -- "defines_structure_for" --> Analysis_Processing_Documentation_Generator
-    Analysis_Processing_Documentation_Generator -- "updates_job_status_in" --> Job_Database
-    Job_Database -- "stores_analysis_data_for" --> Analysis_Processing_Documentation_Generator
-    Job_Database -- "provides_job_metrics_to" --> Monitoring_Telemetry_System
-    Monitoring_Telemetry_System -- "monitors_job_status_in" --> Job_Database
+    Main_Orchestrator["Main Orchestrator"]
+    Repository_Manager["Repository Manager"]
+    Incremental_Change_Detector["Incremental Change Detector"]
+    Environment_Provisioner["Environment Provisioner"]
+    Job_State_Store["Job State Store"]
+    Execution_Monitor["Execution Monitor"]
+    Telemetry_Tracker["Telemetry Tracker"]
+    Analysis_Schema_Transformer["Analysis Schema Transformer"]
+    Main_Orchestrator -- "triggers" --> Environment_Provisioner
+    Main_Orchestrator -- "requests" --> Repository_Manager
+    Repository_Manager -- "utilizes" --> Incremental_Change_Detector
+    Main_Orchestrator -- "initializes/updates" --> Job_State_Store
+    Main_Orchestrator -- "wraps" --> Execution_Monitor
+    Execution_Monitor -- "passes metadata to" --> Telemetry_Tracker
+    Main_Orchestrator -- "invokes" --> Analysis_Schema_Transformer
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -484,95 +463,76 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Application Orchestrator & Repository Manager
-Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools. This component acts as the central coordinator, initiating and managing the sequence of operations.
+### Main Orchestrator
+Central entry point handling CLI arguments, global configuration, and coordinating the high-level execution flow of the analysis pipeline.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.main.main`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.RepositoryManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.ChangeDetector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.orchestrator.Orchestrator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.cli.parse_arguments`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`codeboarding.main:main`</a>
 
 
-### Configuration Manager
-Centralizes the management and retrieval of application‑wide configuration settings. Provides default configurations and allows for dynamic updates, ensuring consistent behavior across all components, including LLM providers, analysis tools, and output formats.
+### Repository Manager
+Manages git operations (cloning, checkout) and applies file filtering via .gitignore and .codeboardingignore.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingconstants.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.Config`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingconstants.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.load_configuration`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingconstants.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.LLMProviderSettings`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingconstants.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.get_setting`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`codeboarding.repo_utils.change_detector:RepositoryManager`</a>
 
 
-### Installation & Environment Setup
-Ensures necessary external tools, binaries (e.g., npm, JDTLS, VCPP redistributable), and language-specific environments are correctly installed and configured for static analysis and other operations. Updates static analysis configurations, acting as a critical prerequisite for a multi-language code analysis tool.
+### Incremental Change Detector
+Analyzes git diffs to identify added or modified files, enabling partial re‑analysis of the codebase.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.env.setup_environment`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.env.ToolInstaller`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.env.LanguageEnvironment`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.env.update_static_analysis_config`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`codeboarding.repo_utils.change_detector:IncrementalChangeDetector`</a>
 
 
-### Monitoring & Telemetry System
-Collects, processes, and persists runtime metrics, focusing on LLM usage, tool execution, and overall run statistics. Provides execution context and utilities for tracing and monitoring various parts of the system, essential for tracking performance, cost, and usage of LLM interactions and other tools.
+### Environment Provisioner
+Ensures external dependencies (JDTLS LSP, Node.js, platform‑specific binaries) are installed and available before analysis starts.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.telemetry.TelemetryClient`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.telemetry.LLMUsageTracker`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.telemetry.MetricCollector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.telemetry.TraceContext`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`codeboarding.provisioner`</a>
 
 
-### Analysis Data Model
-Defines standardized data structures for representing code analysis results, including metadata, components, relations, and a unified analysis JSON format. Facilitates consistent data exchange between different stages of the analysis and generation pipeline.
+### Job State Store
+Persists job status, metadata, and analysis results in DuckDB to enable recovery and cross‑session continuity.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.datamodel.AnalysisResult`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.datamodel.CodeComponent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.datamodel.Relationship`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.datamodel.to_json_format`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`codeboarding.state_store`</a>
 
 
-### Analysis Processing & Documentation Generator
-Takes structured analysis data (conforming to the Analysis Data Model), processes it further (e.g., assigning IDs, extracting specific details), and transforms it into human‑readable documentation, typically in markdown format. This component implements the documentation generation aspect of the project.
-
-
-**Related Classes/Methods**: _None_
-
-### Job Database
-Stores and manages the state and metadata of ongoing or completed analysis jobs using DuckDB. Provides CRUD operations for job information, enabling persistence and retrieval, supporting service‑oriented and pipeline architectures.
+### Execution Monitor
+Provides tracing infrastructure via decorators to track pipeline progress, capture timing, and emit structured execution events.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.jobdb.JobDatabase`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.jobdb.JobManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.jobdb.DuckDBConnector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.jobdb.JobStatus`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/__init__.py" target="_blank" rel="noopener noreferrer">`codeboarding.monitor`</a>
 
 
-### System Health & VSCode Integration
-Monitors the system's operational health, sets up logging, and provides integration points and configuration management specifically for a VS Code extension, enhancing the user experience within the IDE.
+### Telemetry Tracker
+Captures real‑time statistics, including LLM token usage and tool performance metrics for observability.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.health.SystemMonitor`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.vscode.VSCodeExtensionManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.logging.setup_logging`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.vscode.ExtensionConfig`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmonitoring/stats.py" target="_blank" rel="noopener noreferrer">`codeboarding.telemetry`</a>
+
+
+### Analysis Schema Transformer
+Normalizes diverse raw analysis results into the UnifiedAnalysisJson schema for downstream documentation generation.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`codeboarding.transformer`</a>
 
 
 
@@ -1468,16 +1428,27 @@ Validates the integrity and correctness of the incremental update process and it
 
 ```mermaid
 graph LR
-    IncrementalUpdater["IncrementalUpdater"]
-    AnalysisCache["AnalysisCache"]
-    ClusterChangeAnalyzer["ClusterChangeAnalyzer"]
-    IncrementalUpdater -- "initiates request to" --> ClusterChangeAnalyzer
-    ClusterChangeAnalyzer -- "provides changed clusters list to" --> IncrementalUpdater
-    IncrementalUpdater -- "queries" --> AnalysisCache
-    IncrementalUpdater -- "stores results into" --> AnalysisCache
-    click IncrementalUpdater href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/IncrementalUpdater.md" "Details"
-    click AnalysisCache href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AnalysisCache.md" "Details"
-    click ClusterChangeAnalyzer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/ClusterChangeAnalyzer.md" "Details"
+    Incremental_Update_Orchestrator["Incremental Update Orchestrator"]
+    Analysis_Cache_Manager["Analysis Cache Manager"]
+    Structural_Impact_Analyzer["Structural Impact Analyzer"]
+    Cluster_Change_Analyzer["Cluster Change Analyzer"]
+    Scoped_Re_expansion_Engine["Scoped Re‑expansion Engine"]
+    File_Path_Patching_Manager["File & Path Patching Manager"]
+    Analysis_I_O_Manager["Analysis I/O Manager"]
+    Update_Integrity_Validator["Update Integrity Validator"]
+    Incremental_Update_Orchestrator -- "triggers" --> Structural_Impact_Analyzer
+    Incremental_Update_Orchestrator -- "invokes" --> Update_Integrity_Validator
+    Incremental_Update_Orchestrator -- "sends dirty component lists to" --> Scoped_Re_expansion_Engine
+    Analysis_Cache_Manager -- "provides cached state to" --> Structural_Impact_Analyzer
+    Analysis_Cache_Manager -- "supplies historical clustering data to" --> Cluster_Change_Analyzer
+    Structural_Impact_Analyzer -- "flags dirty components back to" --> Incremental_Update_Orchestrator
+    Cluster_Change_Analyzer -- "pulls historical cluster definitions from" --> Analysis_Cache_Manager
+    Scoped_Re_expansion_Engine -- "receives dirty component lists from" --> Incremental_Update_Orchestrator
+    Scoped_Re_expansion_Engine -- "sends updated analysis results to" --> Analysis_I_O_Manager
+    File_Path_Patching_Manager -- "delegates atomic manifest updates to" --> Analysis_I_O_Manager
+    Analysis_I_O_Manager -- "manages concurrent write requests from" --> Scoped_Re_expansion_Engine
+    Analysis_I_O_Manager -- "manages manifest persistence for" --> File_Path_Patching_Manager
+    Update_Integrity_Validator -- "reports final validation status to" --> Incremental_Update_Orchestrator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1486,31 +1457,92 @@ graph LR
 
 Optimizes analysis performance by managing the caching of static analysis results and orchestrating re-analysis only for changed parts of the codebase, ensuring efficiency and speed.
 
-### IncrementalUpdater [[Expand]](./IncrementalUpdater.md)
-Acts as the central orchestrator for the incremental analysis process, coordinating change detection, cache interactions, and targeted re-analysis of modified code sections.
+### Incremental Update Orchestrator
+The central controller that coordinates the sequence of operations from change detection to final validation. It manages the high‑level workflow, ensuring that impact analysis, patching, and re‑analysis occur in the correct order.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IncrementalUpdater`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IncrementalUpdater.run_update`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IncrementalUpdater._process_changes`</a>
 
 
-### AnalysisCache [[Expand]](./AnalysisCache.md)
-Persistently stores and retrieves static analysis results, preventing re-computation on unchanged code and supporting performance optimization.
+### Analysis Cache Manager
+Manages the lifecycle of serialized artifacts (call graphs, hierarchies) and validates their integrity for reuse. It acts as the primary data provider for components that need historical analysis state.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisCache`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisCache.load_artifacts`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisCache.invalidate_entry`</a>
 
 
-### ClusterChangeAnalyzer [[Expand]](./ClusterChangeAnalyzer.md)
-Identifies and analyzes logical code clusters that have been modified, providing precise information on which parts require re-analysis.
+### Structural Impact Analyzer
+Evaluates code changes to identify "dirty" sub‑graphs and determines if changes cross architectural boundaries, necessitating broader re‑analysis.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ImpactAnalyzer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ImpactAnalyzer.detect_dirty_nodes`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ImpactAnalyzer.check_boundary_violation`</a>
+
+
+### Cluster Change Analyzer
+Classifies the magnitude of architectural shifts (Small/Medium/Big) by comparing current and historical clustering data to detect significant drift.
 
 
 **Related Classes/Methods**:
 
 - <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ClusterChangeAnalyzer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ClusterChangeAnalyzer.calculate_similarity`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ClusterChangeAnalyzer.classify_shift`</a>
+
+
+### Scoped Re‑expansion Engine
+Orchestrates LLM‑based agents to perform deep re‑analysis specifically on sub‑graphs flagged as dirty, ensuring AI interpretation stays in sync with code changes.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ReExpansionEngine`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ReExpansionEngine.reanalyze_component`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.MetaAgentOrchestrator`</a>
+
+
+### File & Path Patching Manager
+Handles in‑place updates to the analysis manifest, such as file renames and component re‑assignments, without requiring a full re‑parse of the repository.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ManifestPatcher`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ManifestPatcher.apply_renames`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ManifestPatcher.update_assignments`</a>
+
+
+### Analysis I/O Manager
+Provides thread‑safe, locked access to the analysis store (DuckDB and file system) to ensure data consistency during concurrent incremental updates.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisIO`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisIO.acquire_lock`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisIO.write_atomic`</a>
+
+
+### Update Integrity Validator
+Performs final consistency checks between the updated analysis state and the physical file system to ensure no orphaned nodes or broken references remain.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IntegrityValidator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IntegrityValidator.verify_filesystem_sync`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IntegrityValidator.check_graph_consistency`</a>
 
 
 
