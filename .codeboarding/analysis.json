@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-18T09:42:54.564854+00:00",
+    "generated_at": "2026-02-18T16:55:12.209317+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
     "file_coverage_summary": {
@@ -61,68 +61,83 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Main Orchestrator",
-          "description": "Central entry point handling CLI arguments, global configuration, and coordinating the high-level execution flow of the analysis pipeline.",
+          "name": "Application Orchestrator",
+          "description": "The central control plane that manages the application lifecycle. It validates environment variables, processes CLI arguments, and sequences the execution flow between local and remote repository analysis.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.main:main",
+              "qualified_name": "codeboarding.main",
               "reference_file": "main.py"
             }
           ],
           "assigned_files": [
             "main.py",
-            "constants.py",
-            "health_main.py",
-            "logging_config.py",
-            "utils.py",
-            "vscode_constants.py"
+            "constants.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b31b6826ba3631a9",
+          "component_id": "bab486ce1131be53",
           "can_expand": true
         },
         {
           "name": "Repository Manager",
-          "description": "Manages git operations (cloning, checkout) and applies file filtering via .gitignore and .codeboardingignore.",
+          "description": "Handles low-level Git operations, including cloning remote repositories, checking out specific commits, and normalizing file paths for cross‑platform consistency.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.repo_utils.change_detector:RepositoryManager",
+              "qualified_name": "codeboarding.repo_utils.change_detector",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
             "repo_utils/change_detector.py",
-            "repo_utils/__init__.py",
-            "repo_utils/errors.py",
-            "repo_utils/ignore.py"
+            "repo_utils/errors.py"
           ],
           "source_cluster_ids": [],
           "component_id": "defcdfd415214940",
           "can_expand": true
         },
         {
-          "name": "Incremental Change Detector",
-          "description": "Analyzes git diffs to identify added or modified files, enabling partial re‑analysis of the codebase.",
+          "name": "Change & Filter Engine",
+          "description": "A deterministic layer that identifies structural modifications between commits and applies exclusion rules (e.g., .gitignore) to ensure only relevant source files are analyzed.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.repo_utils.change_detector:IncrementalChangeDetector",
+              "qualified_name": "codeboarding.repo_utils.change_detector.ChangeDetector",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "codeboarding.repo_utils.change_detector.RepoIgnoreManager",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
             "repo_utils/change_detector.py",
-            "repo_utils/git_diff.py"
+            "repo_utils/git_diff.py",
+            "repo_utils/ignore.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "71c04ddb2b4869d7",
+          "component_id": "3c32a1cbd8e8557f",
+          "can_expand": true
+        },
+        {
+          "name": "Job & State Manager",
+          "description": "Manages the persistence of analysis metadata and incremental state using DuckDB. It allows the system to resume interrupted jobs and perform delta‑updates.",
+          "key_entities": [
+            {
+              "qualified_name": "codeboarding.duckdb_crud",
+              "reference_file": "duckdb_crud.py"
+            }
+          ],
+          "assigned_files": [
+            "duckdb_crud.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "b1182b5f8844c314",
           "can_expand": true
         },
         {
           "name": "Environment Provisioner",
-          "description": "Ensures external dependencies (JDTLS LSP, Node.js, platform‑specific binaries) are installed and available before analysis starts.",
+          "description": "Automates the setup of the execution environment by installing and verifying external dependencies like LSP binaries (e.g., JDTLS) and Node.js.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.provisioner",
+              "qualified_name": "codeboarding.environment_provisioner",
               "reference_file": "install.py"
             }
           ],
@@ -134,124 +149,121 @@
           "can_expand": true
         },
         {
-          "name": "Job State Store",
-          "description": "Persists job status, metadata, and analysis results in DuckDB to enable recovery and cross‑session continuity.",
-          "key_entities": [
-            {
-              "qualified_name": "codeboarding.state_store",
-              "reference_file": "duckdb_crud.py"
-            }
-          ],
+          "name": "Analysis Modeler",
+          "description": "Transforms raw analysis data into a structured UnifiedAnalysisJson schema, handling recursive component extraction and generating human‑readable Markdown documentation.",
+          "key_entities": [],
           "assigned_files": [
-            "duckdb_crud.py"
+            "utils.py",
+            "repo_utils/__init__.py",
+            "diagram_analysis/analysis_json.py",
+            "main.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "3d9400105baecdea",
+          "source_cluster_ids": [
+            6,
+            9
+          ],
+          "component_id": "ab14a1ce76da81a6",
           "can_expand": true
         },
         {
-          "name": "Execution Monitor",
-          "description": "Provides tracing infrastructure via decorators to track pipeline progress, capture timing, and emit structured execution events.",
-          "key_entities": [
-            {
-              "qualified_name": "codeboarding.monitor",
-              "reference_file": "monitoring/__init__.py"
-            }
-          ],
+          "name": "Monitoring & Observability",
+          "description": "A cross‑cutting suite that tracks LLM token usage, tool execution latency, and provides step‑by‑step execution traces for debugging agentic workflows.",
+          "key_entities": [],
           "assigned_files": [
-            "monitoring/__init__.py",
+            "monitoring/mixin.py",
+            "monitoring/writers.py",
             "monitoring/callbacks.py",
             "monitoring/context.py",
-            "monitoring/mixin.py",
-            "monitoring/paths.py",
-            "monitoring/writers.py"
+            "monitoring/stats.py",
+            "logging_config.py",
+            "monitoring/__init__.py",
+            "monitoring/paths.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "658277df70a0d114",
+          "source_cluster_ids": [
+            4,
+            5,
+            12,
+            13,
+            14,
+            15
+          ],
+          "component_id": "d367a9f6bc42b9d6",
           "can_expand": true
         },
         {
-          "name": "Telemetry Tracker",
-          "description": "Captures real‑time statistics, including LLM token usage and tool performance metrics for observability.",
+          "name": "System Integration Handler",
+          "description": "Manages host‑specific configurations, such as VS Code extension settings and system health checks, to ensure the tool is compatible with the user's environment.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.telemetry",
-              "reference_file": "monitoring/stats.py"
+              "qualified_name": "codeboarding.system_integration_handler",
+              "reference_file": "health_main.py"
             }
           ],
           "assigned_files": [
-            "monitoring/stats.py"
+            "health_main.py",
+            "vscode_constants.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "de918467520340e3",
-          "can_expand": true
-        },
-        {
-          "name": "Analysis Schema Transformer",
-          "description": "Normalizes diverse raw analysis results into the UnifiedAnalysisJson schema for downstream documentation generation.",
-          "key_entities": [
-            {
-              "qualified_name": "codeboarding.transformer",
-              "reference_file": "diagram_analysis/analysis_json.py"
-            }
-          ],
-          "assigned_files": [
-            "diagram_analysis/analysis_json.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "51b5d7e9b2e225d7",
+          "component_id": "3f8ac348f66316ff",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers",
-          "src_name": "Main Orchestrator",
+          "relation": "orchestrates provisioning of",
+          "src_name": "Application Orchestrator",
           "dst_name": "Environment Provisioner",
-          "src_id": "b31b6826ba3631a9",
+          "src_id": "bab486ce1131be53",
           "dst_id": "1779d99f6f09b9a8"
         },
         {
-          "relation": "requests",
-          "src_name": "Main Orchestrator",
+          "relation": "queries state from",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Job & State Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "b1182b5f8844c314"
+        },
+        {
+          "relation": "provides configuration to",
+          "src_name": "System Integration Handler",
+          "dst_name": "Application Orchestrator",
+          "src_id": "3f8ac348f66316ff",
+          "dst_id": "bab486ce1131be53"
+        },
+        {
+          "relation": "triggers cloning in",
+          "src_name": "Application Orchestrator",
           "dst_name": "Repository Manager",
-          "src_id": "b31b6826ba3631a9",
+          "src_id": "bab486ce1131be53",
           "dst_id": "defcdfd415214940"
         },
         {
-          "relation": "utilizes",
+          "relation": "feeds diffs to",
           "src_name": "Repository Manager",
-          "dst_name": "Incremental Change Detector",
+          "dst_name": "Change & Filter Engine",
           "src_id": "defcdfd415214940",
-          "dst_id": "71c04ddb2b4869d7"
+          "dst_id": "3c32a1cbd8e8557f"
         },
         {
-          "relation": "initializes/updates",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Job State Store",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "3d9400105baecdea"
+          "relation": "passes filtered files to",
+          "src_name": "Change & Filter Engine",
+          "dst_name": "Analysis Modeler",
+          "src_id": "3c32a1cbd8e8557f",
+          "dst_id": "ab14a1ce76da81a6"
         },
         {
-          "relation": "wraps",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Execution Monitor",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "658277df70a0d114"
+          "relation": "persists results to",
+          "src_name": "Analysis Modeler",
+          "dst_name": "Job & State Manager",
+          "src_id": "ab14a1ce76da81a6",
+          "dst_id": "b1182b5f8844c314"
         },
         {
-          "relation": "passes metadata to",
-          "src_name": "Execution Monitor",
-          "dst_name": "Telemetry Tracker",
-          "src_id": "658277df70a0d114",
-          "dst_id": "de918467520340e3"
-        },
-        {
-          "relation": "invokes",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Analysis Schema Transformer",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "51b5d7e9b2e225d7"
+          "relation": "sends telemetry to",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Monitoring & Observability",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "d367a9f6bc42b9d6"
         }
       ]
     },
