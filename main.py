@@ -11,8 +11,10 @@ from tqdm import tqdm
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
-from diagram_analysis.incremental.io_utils import load_analysis, save_sub_analysis
+from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
+from monitoring import monitor_execution
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -29,8 +31,6 @@ from utils import (
     remove_temp_repo_folder,
     sanitize,
 )
-from monitoring import monitor_execution
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -162,25 +162,36 @@ def partial_update(
     )
     generator.pre_analysis()
 
-    # Load the analysis from the unified analysis.json
-    analysis = load_analysis(output_dir)
-    if analysis is None:
+    # Load the full unified analysis (root + all sub-analyses)
+    full_analysis = load_full_analysis(output_dir)
+    if full_analysis is None:
         logger.error(f"No analysis.json found in '{output_dir}'. Please ensure the file exists.")
         return
 
-    # Find and update the component by ID
-    component_to_update = None
-    for component in analysis.components:
+    root_analysis, sub_analyses = full_analysis
+
+    # Search root components first, then all nested sub-analysis components
+    component_to_analyze = None
+    for component in root_analysis.components:
         if component.component_id == component_id:
             logger.info(f"Updating analysis for component: {component.name}")
-            component_to_update = component
+            component_to_analyze = component
             break
+    if component_to_analyze is None:
+        for sub_analysis in sub_analyses.values():
+            for component in sub_analysis.components:
+                if component.component_id == component_id:
+                    logger.info(f"Updating analysis for component: {component.name}")
+                    component_to_analyze = component
+                    break
+            if component_to_analyze is not None:
+                break
 
-    if component_to_update is None:
+    if component_to_analyze is None:
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    comp_id, sub_analysis, new_components = generator.process_component(component_to_update)
+    comp_id, sub_analysis, new_components = generator.process_component(component_to_analyze)
 
     if sub_analysis:
         save_sub_analysis(sub_analysis, output_dir, component_id)
