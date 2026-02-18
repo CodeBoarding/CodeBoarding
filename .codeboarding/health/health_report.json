@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-18T18:19:45.611983+00:00",
-  "overall_score": 0.9681836488119211,
+  "timestamp": "2026-02-18T21:55:37.313731+00:00",
+  "overall_score": 0.9666666666666667,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 746,
+      "total_entities_checked": 747,
       "findings_count": 4,
       "warning_count": 4,
-      "score": 0.9946380697050938,
+      "score": 0.9946452476572959,
       "finding_groups": [
         {
           "severity": "warning",
@@ -53,10 +53,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 746,
+      "total_entities_checked": 747,
       "findings_count": 3,
       "warning_count": 3,
-      "score": 0.9959785522788204,
+      "score": 0.9959839357429718,
       "finding_groups": [
         {
           "severity": "warning",
@@ -92,10 +92,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 746,
+      "total_entities_checked": 747,
       "findings_count": 5,
       "warning_count": 5,
-      "score": 0.9932975871313673,
+      "score": 0.9933065595716198,
       "finding_groups": [
         {
           "severity": "warning",
@@ -211,9 +211,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 65,
-      "findings_count": 65,
-      "warning_count": 65,
+      "total_entities_checked": 69,
+      "findings_count": 69,
+      "warning_count": 69,
       "score": 0.0,
       "finding_groups": [
         {
@@ -352,6 +352,13 @@
               "file_path": "monitoring/callbacks.py",
               "line_start": 91,
               "line_end": 91,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 0,
+              "line_end": 0,
               "metric_value": 0.0
             },
             {
@@ -537,6 +544,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 8,
@@ -689,6 +703,20 @@
               "line_start": 77,
               "line_end": 77,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
             }
           ]
         }
@@ -751,7 +779,19 @@
       "composite_risk_score": 60.0
     },
     {
+      "file_path": "agents/prompts/prompt_factory.py",
+      "total_findings": 3,
+      "warning_findings": 3,
+      "composite_risk_score": 45.0
+    },
+    {
       "file_path": "install.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
+      "file_path": "monitoring/paths.py",
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
@@ -770,12 +810,6 @@
     },
     {
       "file_path": "agents/agent_responses.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
-    },
-    {
-      "file_path": "agents/prompts/prompt_factory.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0

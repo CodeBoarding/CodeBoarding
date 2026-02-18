@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-18T18:24:56.969220+00:00",
+    "generated_at": "2026-02-18T21:57:44.447421+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
     "file_coverage_summary": {
@@ -316,226 +316,213 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Workflow Orchestrator",
-          "description": "The central brain of the subsystem. It manages the state machine of the analysis process, coordinates the sequence of agent invocations, and handles the logic for retrying failed analysis steps when validation fails.",
-          "key_entities": [],
-          "assigned_files": [],
-          "source_cluster_ids": [],
-          "component_id": "1bdb6022d5a30d65",
-          "can_expand": false
-        },
-        {
-          "name": "Specialized Reasoning Agents",
-          "description": "A suite of task‑specific LLM agents that decompose the complex problem of code understanding into manageable phases: context gathering, planning, high‑level abstraction, and detailed component analysis.",
+          "name": "Agent Orchestrator",
+          "description": "Central controller (CodeBoardingAgent) that manages the analysis lifecycle, maintains shared state, and sequences agent execution.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.agents.MetaAgent",
-              "reference_file": "agents/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.agents.PlannerAgent",
-              "reference_file": "agents/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.agents.AbstractionAgent",
-              "reference_file": "agents/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.agents.DetailsAgent",
-              "reference_file": "agents/__init__.py"
+              "qualified_name": "agents.prompts.gemini_flash_prompts.CodeBoardingAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
             }
           ],
           "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
             "agents/__init__.py",
-            "agents/abstraction_agent.py",
-            "agents/agent.py",
-            "agents/constants.py",
-            "agents/details_agent.py",
+            "agents/agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f9361d9913ef4906",
+          "can_expand": true
+        },
+        {
+          "name": "Context & Strategy Engine",
+          "description": "Combines metadata extraction (MetaAgent) and recursive planning (PlannerAgent) to determine analysis scope and priorities.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.MetaAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PlannerAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
             "agents/meta_agent.py",
             "agents/planner_agent.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "8c8a3b220039937e",
+          "component_id": "88b5a9fbb02328bf",
           "can_expand": true
         },
         {
-          "name": "Prompt Engineering Framework",
-          "description": "A provider‑agnostic layer that manages the complex templates required for different LLMs. It ensures that reasoning agents receive the correct system instructions and context formatting regardless of the underlying model (Claude, GPT, Gemini).",
+          "name": "Architectural Synthesizer",
+          "description": "AbstractionAgent responsible for grouping files and clusters into high‑level logical components based on CFG patterns.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.prompts.PromptFactory",
-              "reference_file": "agents/prompts/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.prompts.PromptGenerator",
-              "reference_file": "agents/prompts/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.agents.prompts.gemini_flash_prompts",
-              "reference_file": "agents/prompts/__init__.py"
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AbstractionAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
             }
           ],
           "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/abstraction_agent.py",
+            "agents/cluster_methods_mixin.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "b02a6f005f9122a8",
+          "can_expand": true
+        },
+        {
+          "name": "Functional Analyzer",
+          "description": "DetailsAgent that performs deep‑dives into specific subgraphs to extract implementation details and class/function relationships.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.DetailsAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/details_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "c86d129f15b871ef",
+          "can_expand": true
+        },
+        {
+          "name": "Structural Verifier",
+          "description": "ValidationEngine that cross‑references LLM insights against raw CFG data to ensure architectural claims match the actual call graph.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.ValidationEngine",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/validation.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "388f7440ab962595",
+          "can_expand": true
+        },
+        {
+          "name": "Prompt Management System",
+          "description": "PromptRegistry that provides model‑specific templates (Claude, GPT, Gemini) to ensure consistent LLM interactions.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PromptRegistry",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/__init__.py",
             "agents/prompts/abstract_prompt_factory.py",
             "agents/prompts/claude_prompts.py",
             "agents/prompts/deepseek_prompts.py",
-            "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/glm_prompts.py",
             "agents/prompts/gpt_prompts.py",
             "agents/prompts/kimi_prompts.py",
             "agents/prompts/prompt_factory.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "61004d54c28f7085",
+          "component_id": "db4a86ad3c9c99dc",
           "can_expand": true
         },
         {
-          "name": "Integrity & Validation Engine",
-          "description": "The \"ground‑truth\" gatekeeper. It compares the semantic components proposed by LLMs against the hard static analysis data (CFG clusters) to ensure no code is left unanalyzed and that the architecture is technically sound.",
+          "name": "Provider Configuration",
+          "description": "Manages LLM initialization, provider‑specific settings (Ollama, Bedrock, etc.), and system‑wide constants.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.validation.IntegrityChecker",
-              "reference_file": "agents/validation.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.validation.IntegrityChecker.verify_cluster_coverage",
-              "reference_file": "agents/validation.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.validation.IntegrityChecker.validate_schema_conformity",
-              "reference_file": "agents/validation.py"
+              "qualified_name": "agents.prompts.gemini_flash_prompts.ProviderConfig",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
             }
           ],
           "assigned_files": [
-            "agents/validation.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "0b6140a3160eb197",
-          "can_expand": true
-        },
-        {
-          "name": "Semantic Data Models",
-          "description": "Pydantic‑based schemas that define the \"language\" of the subsystem. These models enforce strict typing on LLM outputs, ensuring that downstream components receive predictable data structures.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.models.AnalysisInsights",
-              "reference_file": "agents/agent_responses.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.models.Component",
-              "reference_file": "agents/agent_responses.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.models.Relation",
-              "reference_file": "agents/agent_responses.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/agent_responses.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "b75d3ae021c47a35",
-          "can_expand": true
-        },
-        {
-          "name": "Analysis Support Mixins",
-          "description": "Utility layers that bridge the gap between raw static analysis data and LLM‑friendly text. They handle the heavy lifting of mapping CFG nodes to source files and cleaning data for prompt inclusion.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.mixins.ClusterMethodsMixin",
-              "reference_file": "agents/cluster_methods_mixin.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.mixins.ClusterMethodsMixin.get_cluster_context",
-              "reference_file": "agents/cluster_methods_mixin.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.utils.DataSanitizer",
-              "reference_file": "agents/cluster_methods_mixin.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/cluster_methods_mixin.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "fa7bf3c122723004",
-          "can_expand": true
-        },
-        {
-          "name": "LLM Infrastructure Layer",
-          "description": "Manages the lifecycle and configuration of LLM connections. It abstracts the complexities of different API providers (OpenAI, Anthropic, Gemini) and provides a unified interface for the agents.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.infrastructure.LLMProviderManager",
-              "reference_file": "agents/llm_config.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.infrastructure.ChatModelFactory",
-              "reference_file": "agents/llm_config.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.config.LLMSettings",
-              "reference_file": "agents/llm_config.py"
-            }
-          ],
-          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/constants.py",
             "agents/llm_config.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "0c52eeee0f524911",
+          "component_id": "6d1da4c50afd395e",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Data Schema",
+          "description": "Pydantic ResponseModels (e.g., AnalysisInsights) used for type‑safe communication between agents.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AnalysisInsights",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/agent_responses.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "66a424c3c4405f53",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "delegates specific analysis phases to",
-          "src_name": "Workflow Orchestrator",
-          "dst_name": "Specialized Reasoning Agents",
-          "src_id": "1bdb6022d5a30d65",
-          "dst_id": "8c8a3b220039937e"
+          "relation": "initiates analysis by requesting project grounding and a prioritized inspection plan",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Context & Strategy Engine",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "88b5a9fbb02328bf"
         },
         {
-          "relation": "requests model-specific prompt templates from",
-          "src_name": "Specialized Reasoning Agents",
-          "dst_name": "Prompt Engineering Framework",
-          "src_id": "8c8a3b220039937e",
-          "dst_id": "61004d54c28f7085"
+          "relation": "supplies project‑level bias and metadata for grouping clusters into logical components",
+          "src_name": "Context & Strategy Engine",
+          "dst_name": "Architectural Synthesizer",
+          "src_id": "88b5a9fbb02328bf",
+          "dst_id": "b02a6f005f9122a8"
         },
         {
-          "relation": "executes reasoning tasks by sending formatted prompts to",
-          "src_name": "Specialized Reasoning Agents",
-          "dst_name": "LLM Infrastructure Layer",
-          "src_id": "8c8a3b220039937e",
-          "dst_id": "0c52eeee0f524911"
+          "relation": "passes high‑level mental model to guide deep‑dive analysis of specific implementation details",
+          "src_name": "Architectural Synthesizer",
+          "dst_name": "Functional Analyzer",
+          "src_id": "b02a6f005f9122a8",
+          "dst_id": "c86d129f15b871ef"
         },
         {
-          "relation": "uses mixins to transform raw CFG data into structured context for",
-          "src_name": "Workflow Orchestrator",
-          "dst_name": "Analysis Support Mixins",
-          "src_id": "1bdb6022d5a30d65",
-          "dst_id": "fa7bf3c122723004"
+          "relation": "submits extracted implementation insights for validation against the ground‑truth CFG",
+          "src_name": "Functional Analyzer",
+          "dst_name": "Structural Verifier",
+          "src_id": "c86d129f15b871ef",
+          "dst_id": "388f7440ab962595"
         },
         {
-          "relation": "submits aggregated agent findings for verification to",
-          "src_name": "Workflow Orchestrator",
-          "dst_name": "Integrity & Validation Engine",
-          "src_id": "1bdb6022d5a30d65",
-          "dst_id": "0b6140a3160eb197"
+          "relation": "returns validated, high‑fidelity insights to be integrated into the final repository documentation",
+          "src_name": "Structural Verifier",
+          "dst_name": "Agent Orchestrator",
+          "src_id": "388f7440ab962595",
+          "dst_id": "f9361d9913ef4906"
         },
         {
-          "relation": "returns validation errors or missing cluster reports to",
-          "src_name": "Integrity & Validation Engine",
-          "dst_name": "Workflow Orchestrator",
-          "src_id": "0b6140a3160eb197",
-          "dst_id": "1bdb6022d5a30d65"
+          "relation": "retrieves specialized prompt templates tailored to the specific LLM provider being used",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Prompt Management System",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "db4a86ad3c9c99dc"
         },
         {
-          "relation": "instantiates structured Pydantic objects from LLM outputs for",
-          "src_name": "Specialized Reasoning Agents",
-          "dst_name": "Semantic Data Models",
-          "src_id": "8c8a3b220039937e",
-          "dst_id": "b75d3ae021c47a35"
+          "relation": "requests configured LLM client instances with appropriate temperature and token limits",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Provider Configuration",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "6d1da4c50afd395e"
+        },
+        {
+          "relation": "utilizes structured Pydantic models to format implementation details for downstream consumption",
+          "src_name": "Functional Analyzer",
+          "dst_name": "Analysis Data Schema",
+          "src_id": "c86d129f15b871ef",
+          "dst_id": "66a424c3c4405f53"
         }
       ]
     },
