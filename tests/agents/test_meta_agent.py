@@ -41,6 +41,31 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
 
+    @patch("agents.meta_agent.create_react_agent")
+    @patch("agents.agent.create_react_agent")
+    def test_meta_agent_uses_external_deps_tool(self, mock_base_create_react_agent, mock_meta_create_react_agent):
+        # MetaAgent should use readExternalDeps and not rely on getPackageDependencies
+        mock_base_create_react_agent.return_value = MagicMock()
+        mock_meta_create_react_agent.return_value = MagicMock()
+
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        MetaAgent(
+            repo_dir=self.repo_dir,
+            project_name=self.project_name,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        call_args = mock_meta_create_react_agent.call_args
+        self.assertIsNotNone(call_args)
+        tools = call_args.kwargs["tools"]
+        tool_names = {tool.name for tool in tools}
+
+        self.assertIn("readDocs", tool_names)
+        self.assertIn("readExternalDeps", tool_names)
+        self.assertNotIn("getPackageDependencies", tool_names)
+
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata(self, mock_parse_invoke):
         # Test analyze_project_metadata

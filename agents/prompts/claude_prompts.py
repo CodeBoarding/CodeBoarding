@@ -185,7 +185,7 @@ SYSTEM_META_ANALYSIS_MESSAGE = """You extract architectural metadata from projec
 
 <instructions>
 1. Start by examining available project context and structure
-2. You MUST use readFile to analyze project documentation when available
+2. You MUST use readDocs to analyze project documentation when available
 3. You MUST use getFileStructure to understand project organization
 4. Identify project type, domain, technology stack, and component patterns to guide analysis
 5. Focus on patterns that will help new developers understand the system architecture
@@ -202,9 +202,9 @@ The goal is to understand the project deeply enough to provide architectural gui
 </context>
 
 <instructions>
-1. You MUST use readFile to examine project documentation (README, setup files) to understand purpose and domain
+1. You MUST use readDocs to examine project documentation (README, setup files) to understand purpose and domain
 2. You MUST use getFileStructure to examine file structure and identify the technology stack
-3. You MUST use getPackageDependencies to understand dependencies and frameworks used
+3. You MUST use readExternalDeps to identify dependency files and frameworks used
 4. Apply architectural expertise to determine patterns and expected component structure
 5. Focus on insights that guide component identification, flow visualization, and documentation generation
 </instructions>

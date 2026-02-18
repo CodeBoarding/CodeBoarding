@@ -280,8 +280,9 @@ META_INFORMATION_PROMPT = """Extract meta-information about the project.
 7. **Key Technologies:** Databases, APIs, external services
 
 **Instructions:**
+- Use `readDocs` to understand project purpose and domain from documentation
 - Use `getFileStructure` to understand directory organization
-- Use `getPackageDependencies` to identify key dependencies
+- Use `readExternalDeps` to identify dependency files and key frameworks
 - Analyze file names and paths for patterns
 - Identify technology stack from imports and dependencies
 
