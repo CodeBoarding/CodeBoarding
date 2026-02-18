@@ -387,7 +387,7 @@ class TestMonitoringIntegration:
                     mock_static_analysis.package_relations = {}
                     mock_static_analysis.references = []
 
-                    with patch("agents.agent.create_react_agent"):
+                    with patch("agents.agent.create_agent"):
                         agent = CodeBoardingAgent(
                             repo_dir=Path(tmpdir),
                             static_analysis=mock_static_analysis,
