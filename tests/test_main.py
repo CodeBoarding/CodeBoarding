@@ -40,6 +40,18 @@ class TestValidateEnvVars(unittest.TestCase):
             validate_env_vars()
         self.assertEqual(cm.exception.code, 2)
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "key1", "ANTHROPIC_API_KEY": "key2"}, clear=True)
+    def test_validate_env_vars_multiple_keys_redacts_values_from_logs(self):
+        with self.assertLogs("main", level="ERROR") as cm_logs:
+            with self.assertRaises(SystemExit):
+                validate_env_vars()
+
+        logs = "\n".join(cm_logs.output)
+        self.assertIn("OPENAI_API_KEY", logs)
+        self.assertIn("ANTHROPIC_API_KEY", logs)
+        self.assertNotIn("key1", logs)
+        self.assertNotIn("key2", logs)
+
     @patch.dict(os.environ, {"GOOGLE_API_KEY": "test_key"}, clear=True)
     def test_validate_env_vars_google_key(self):
         # Test with Google API key
