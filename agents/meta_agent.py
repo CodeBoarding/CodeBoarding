@@ -10,17 +10,26 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.outputs import Generation
 from langchain_core.prompts import PromptTemplate
 from langgraph.prebuilt import create_react_agent
+from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
+from agents.dependency_discovery import discover_dependency_files
 from monitoring import trace
-from repo_utils import get_repo_state_hash
+from repo_utils import NO_COMMIT_HASH, Repo, get_git_commit_hash, require_git_import
+from repo_utils.change_detector import detect_changes_from_commit, detect_uncommitted_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
 type JsonScalar = str | int | float | bool | None
+
+
+class MetaCacheRecord(BaseModel):
+    meta: MetaAnalysisInsights
+    base_commit: str
+    dep_files: list[str]
 
 
 class MetaAgent(CodeBoardingAgent):
@@ -42,7 +51,12 @@ class MetaAgent(CodeBoardingAgent):
 
         self.agent = create_react_agent(
             model=agent_llm,
-            tools=[self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure],
+            tools=[
+                self.toolkit.read_docs,
+                self.toolkit.read_file,
+                self.toolkit.external_deps,
+                self.toolkit.read_file_structure,
+            ],
         )
 
     @trace
@@ -108,21 +122,18 @@ class MetaAgent(CodeBoardingAgent):
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def _meta_cache_prompt(self, repo_state_hash: str | None = None) -> str:
+    def _meta_cache_prompt(self) -> str:
         """Build deterministic prompt-side cache key payload."""
-        if repo_state_hash is None:
-            repo_state_hash = get_repo_state_hash(self.repo_dir)
         payload = {
-            "kind": "meta_agent_cache_v1",
+            "kind": "meta_agent_cache_v2",
             "project_name": self.project_name,
-            "repo_state_hash": repo_state_hash,
             "prompt_version": self._meta_prompt_signature(),
         }
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
-    def construct_cache_keys(self, repo_state_hash: str) -> tuple[str, str]:
+    def construct_cache_keys(self) -> tuple[str, str]:
         """Return prompt and llm cache keys for metadata context lookup."""
-        return self._meta_cache_prompt(repo_state_hash), self._meta_cache_llm_string()
+        return self._meta_cache_prompt(), self._meta_cache_llm_string()
 
     def _lookup_cached_generation(self, cache: SQLiteCache, prompt_key: str, llm_key: str) -> Generation | None:
         """Lookup cached generations and normalize to expected output type."""
@@ -135,45 +146,116 @@ class MetaAgent(CodeBoardingAgent):
 
         return raw_generations[0]
 
-    def _load_cached_meta(self, cached_generation: Generation | None) -> MetaAnalysisInsights | None:
-        """Decode cached LLM generations to typed meta insights."""
+    def _load_cached_record(self, cached_generation: Generation | None) -> MetaCacheRecord | None:
+        """Decode cached generations into typed metadata cache records."""
         if cached_generation is None:
             return None
         text = cached_generation.text
         if not text:
             return None
         try:
-            return MetaAnalysisInsights.model_validate_json(text)
+            return MetaCacheRecord.model_validate_json(text)
         except Exception:
             return None
+
+    def _save_cached_record(
+        self,
+        cache: SQLiteCache,
+        prompt_key: str,
+        llm_key: str,
+        meta: MetaAnalysisInsights,
+        base_commit: str,
+        dep_files: list[str],
+    ) -> None:
+        """Persist a metadata cache record envelope."""
+        record = MetaCacheRecord(meta=meta, base_commit=base_commit, dep_files=dep_files)
+        cache.update(prompt_key, llm_key, [Generation(text=record.model_dump_json())])
+
+    def _changes_intersect_dep_files(self, changed_paths: set[str], dep_files: set[str]) -> bool:
+        """Return True when any changed file path intersects the watched dependency files."""
+        return bool(changed_paths & dep_files)
+
+    @require_git_import(default=[])
+    def _discover_dep_files(self) -> list[str]:
+        """Discover tracked dependency files relevant for metadata invalidation."""
+        try:
+            repo = Repo(self.repo_dir)
+            tracked_files = set(repo.git.ls_files().splitlines())
+        except Exception as e:
+            logger.warning("Unable to discover tracked files for meta cache dependencies: %s", e)
+            return []
+
+        dep_files: set[str] = set()
+        for file_path in discover_dependency_files(self.repo_dir, self.ignore_manager):
+            relative_path = file_path.relative_to(self.repo_dir).as_posix()
+            if relative_path in tracked_files:
+                dep_files.add(relative_path)
+
+        return sorted(dep_files)
+
+    @require_git_import(default=True)
+    def _deps_changed_since(self, base_commit: str, dep_files: list[str]) -> bool:
+        """Return True if tracked dependency files changed since base_commit."""
+        if not dep_files:
+            return False
+        if not base_commit:
+            return True
+
+        dep_files_set = set(dep_files)
+        try:
+            committed_changes = detect_changes_from_commit(self.repo_dir, base_commit)
+            committed_paths = committed_changes.all_affected_files | committed_changes.all_old_paths
+            if bool(committed_paths & dep_files_set):
+                return True
+
+            uncommitted_changes = detect_uncommitted_changes(self.repo_dir)
+            uncommitted_paths = uncommitted_changes.all_affected_files | uncommitted_changes.all_old_paths
+            if bool(uncommitted_paths & dep_files_set):
+                return True
+        except Exception as e:
+            logger.warning("Failed to evaluate dependency diff for meta cache: %s", e)
+            return True
+
+        return False
 
     def get_meta_context(
         self,
         refresh: bool = False,
     ) -> MetaAnalysisInsights:
         """Return cached metadata context or recompute and persist it."""
-
-        repo_state_hash = get_repo_state_hash(self.repo_dir)
-        if repo_state_hash == "NoRepoStateHash":
-            logger.info("Meta cache disabled for non-git repository state; recomputing metadata analysis")
-            return self.analyze_project_metadata()
-
-        prompt_key, llm_key = self.construct_cache_keys(repo_state_hash, self.agent_llm, self.parsing_llm)
         cache = self._open_meta_cache()
+
         if cache is None:
+            logger.info("Meta cache unavailable; recomputing metadata analysis")
             return self.analyze_project_metadata()
 
         if refresh:
             cache.clear()
             logger.info("Meta cache cleared due to refresh request")
 
+        prompt_key, llm_key = self.construct_cache_keys()
         cached_generation = self._lookup_cached_generation(cache, prompt_key, llm_key)
-
-        cached = self._load_cached_meta(cached_generation)
-        if cached is not None:
-            logger.info("Meta cache hit; reusing metadata analysis")
-            return cached
+        cached_record = self._load_cached_record(cached_generation)
+        if cached_record is None:
+            logger.info("Meta cache miss; recomputing metadata analysis")
+        else:
+            if not self._deps_changed_since(cached_record.base_commit, cached_record.dep_files):
+                logger.info("Meta cache hit; reusing metadata analysis")
+                return cached_record.meta
+            logger.info("Meta cache invalidated by dependency changes; recomputing metadata analysis")
 
         computed_meta = self.analyze_project_metadata()
-        cache.update(prompt_key, llm_key, [Generation(text=computed_meta.model_dump_json())])
+        base_commit = get_git_commit_hash(str(self.repo_dir))
+        if base_commit == NO_COMMIT_HASH:
+            logger.warning("Unable to resolve current commit for meta cache")
+            base_commit = ""
+        dep_files = self._discover_dep_files()
+        self._save_cached_record(
+            cache=cache,
+            prompt_key=prompt_key,
+            llm_key=llm_key,
+            meta=computed_meta,
+            base_commit=base_commit,
+            dep_files=dep_files,
+        )
         return computed_meta

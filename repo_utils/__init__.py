@@ -11,6 +11,8 @@ from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
+NO_REPO_STATE_HASH = "NoRepoStateHash"
+NO_COMMIT_HASH = "NoCommitHash"
 
 # Handle the case where git is not installed on the system
 try:
@@ -173,7 +175,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
     origin.push()
 
 
-@require_git_import(default="NoCommitHash")
+@require_git_import(default=NO_COMMIT_HASH)
 def get_git_commit_hash(repo_dir: str) -> str:
     """
     Get the latest commit hash of the repository.
@@ -189,7 +191,7 @@ def is_repo_dirty(repo_dir: str) -> bool:
     return repo.is_dirty(untracked_files=True)
 
 
-@require_git_import(default="NoRepoStateHash")
+@require_git_import(default=NO_REPO_STATE_HASH)
 def get_repo_state_hash(repo_dir: str | Path) -> str:
     """
     Get a hash that represents the exact state of the repository,

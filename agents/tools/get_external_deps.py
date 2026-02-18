@@ -1,8 +1,9 @@
 import logging
-from typing import Optional, List
+from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel
 from agents.tools.base import BaseRepoTool
+from agents.dependency_discovery import DEPENDENCY_FILES, discover_dependency_files
 
 logger = logging.getLogger(__name__)
 
@@ -23,30 +24,8 @@ class ExternalDepsTool(BaseRepoTool):
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
 
-    # Common dependency file patterns to search for
-    DEPENDENCY_FILES: List[str] = [
-        "requirements.txt",
-        "requirements-dev.txt",
-        "requirements-test.txt",
-        "dev-requirements.txt",
-        "test-requirements.txt",
-        "setup.py",
-        "setup.cfg",
-        "Pipfile",
-        "environment.yml",
-        "environment.yaml",
-        "conda.yml",
-        "conda.yaml",
-        "pixi.toml",
-        "uv.lock",
-        # Node.js / TypeScript specific
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
-        "pnpm-lock.yaml",
-        "bun.lockb",
-        "tsconfig.json",  # TypeScript compiler configuration (not dependencies, but relevant)
-    ]
+    # Compatibility alias for callers that may still read this class constant.
+    DEPENDENCY_FILES: tuple[str, ...] = DEPENDENCY_FILES
 
     def _run(self) -> str:
         """
@@ -54,26 +33,7 @@ class ExternalDepsTool(BaseRepoTool):
         """
         logger.info("[ExternalDeps Tool] Searching for dependency files")
 
-        found_files = []
-
-        # Search for dependency files in the repository root
-        for dep_file in self.DEPENDENCY_FILES:
-            file_path = self.repo_dir / dep_file
-            if file_path.exists() and file_path.is_file():
-                if not self.ignore_manager.should_ignore(file_path):
-                    found_files.append(file_path)
-
-        # Also search for requirements files in common subdirectories
-        for subdir in ("requirements", "deps", "dependencies", "env"):
-            subdir_path = self.repo_dir / subdir
-            if subdir_path.exists() and subdir_path.is_dir():
-                if self.ignore_manager.should_ignore(subdir_path):
-                    continue
-
-                for pattern in ("*.txt", "*.yml", "*.yaml", "*.toml"):
-                    for file_path in subdir_path.glob(pattern):
-                        if file_path.is_file() and not self.ignore_manager.should_ignore(file_path):
-                            found_files.append(file_path)
+        found_files = discover_dependency_files(self.repo_dir, self.ignore_manager)
 
         if not found_files:
             logger.warning("[ExternalDeps Tool] No dependency files found in the repository.")

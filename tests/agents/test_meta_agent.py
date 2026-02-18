@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, patch
 from langchain_community.cache import SQLiteCache
 from langchain_core.outputs import Generation
 
-from agents.meta_agent import MetaAgent
 from agents.agent_responses import MetaAnalysisInsights
+from agents.meta_agent import MetaAgent
+from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -44,41 +45,24 @@ class TestMetaAgent(unittest.TestCase):
         llm.model_name = model_name
         return llm
 
-    def test_init(self):
-        # Test initialization
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
+    def _build_agent(self, model_name: str = "meta-model-v1", parser_name: str = "parse-model-v1") -> MetaAgent:
+        return MetaAgent(
             repo_dir=self.repo_dir,
             project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
+            agent_llm=self._mock_llm(model_name),
+            parsing_llm=self._mock_llm(parser_name),
         )
 
+    def test_init(self):
+        agent = self._build_agent()
         self.assertEqual(agent.project_name, self.project_name)
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
 
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata(self, mock_parse_invoke):
-        # Test analyze_project_metadata
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
-        mock_meta_insights = MetaAnalysisInsights(
-            project_type="library",
-            domain="software development",
-            architectural_patterns=["modular architecture"],
-            expected_components=["core", "testing"],
-            technology_stack=["Python", "pytest"],
-            architectural_bias="Focus on modularity and testability",
-        )
+        agent = self._build_agent()
+        mock_meta_insights = self._meta_insights("library")
         mock_parse_invoke.return_value = mock_meta_insights
 
         result = agent.analyze_project_metadata()
@@ -92,16 +76,7 @@ class TestMetaAgent(unittest.TestCase):
 
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata_application(self, mock_parse_invoke):
-        # Test analyze_project_metadata for an application
-        mock_llm = MagicMock()
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
+        agent = self._build_agent()
         mock_meta_insights = MetaAnalysisInsights(
             project_type="web application",
             domain="web development",
@@ -121,73 +96,57 @@ class TestMetaAgent(unittest.TestCase):
         mock_parse_invoke.assert_called_once()
 
     def test_get_meta_context_cache_miss_then_hit(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
+        agent = self._build_agent()
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
         with (
-            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
+            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent, "_deps_changed_since", return_value=False) as deps_changed_mock,
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
-            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_first = agent.get_meta_context()
+            loaded_second = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 1)
+        self.assertEqual(deps_changed_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), first.model_dump())
 
-    def test_get_meta_context_invalidates_when_repo_state_hash_changes(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
+    def test_get_meta_context_invalidates_when_dep_files_change(self):
+        agent = self._build_agent()
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
         with (
-            patch("agents.meta_agent.get_repo_state_hash", side_effect=["state-a", "state-b"]),
+            patch("agents.meta_agent.get_git_commit_hash", side_effect=["commit-a", "commit-b"]),
+            patch.object(agent, "_discover_dep_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
+            patch.object(agent, "_deps_changed_since", return_value=True) as deps_changed_mock,
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
-            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_first = agent.get_meta_context()
+            loaded_second = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 2)
+        self.assertEqual(deps_changed_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
     def test_get_meta_context_refresh_recomputes(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = MagicMock()
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
-
+        agent = self._build_agent()
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
         with (
-            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch("agents.meta_agent.get_git_commit_hash", side_effect=["commit-a", "commit-b"]),
+            patch.object(agent, "_discover_dep_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
+            patch.object(agent, "_deps_changed_since", return_value=False),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
-            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
-            loaded_second = agent.get_meta_context(agent_llm=mock_llm, refresh=True)
-            loaded_third = agent.get_meta_context(agent_llm=mock_llm)
+            loaded_first = agent.get_meta_context()
+            loaded_second = agent.get_meta_context(refresh=True)
+            loaded_third = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
@@ -195,69 +154,52 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_third.model_dump(), second.model_dump())
 
     def test_get_meta_context_corrupt_cache_falls_back_to_recompute(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = self._mock_llm("parse-model-v1")
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+        agent = self._build_agent()
+        prompt_key = agent._meta_cache_prompt()
+        llm_string = agent._meta_cache_llm_string()
+        cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
+        cache.update(prompt_key, llm_string, [Generation(text="not-json")])
 
-        with patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"):
-            prompt_key = agent._meta_cache_prompt()
-            llm_string = agent._meta_cache_llm_string(mock_llm, mock_parsing_llm)
-            cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
-            cache.update(prompt_key, llm_string, [Generation(text="not-json")])
-
-            recomputed = self._meta_insights("library")
-            with patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock:
-                loaded = agent.get_meta_context(agent_llm=mock_llm)
+        recomputed = self._meta_insights("library")
+        with (
+            patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
+            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
+        ):
+            loaded = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
 
-    def test_get_meta_context_non_git_repo_bypasses_cache(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = self._mock_llm("parse-model-v1")
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+    def test_get_meta_context_legacy_payload_is_cache_miss(self):
+        agent = self._build_agent()
+        prompt_key = agent._meta_cache_prompt()
+        llm_string = agent._meta_cache_llm_string()
+        cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
 
-        first = self._meta_insights("library")
-        second = self._meta_insights("web application")
-
-        with (
-            patch("agents.meta_agent.get_repo_state_hash", return_value="NoRepoStateHash"),
-            patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
-        ):
-            loaded_first = agent.get_meta_context(agent_llm=mock_llm)
-            loaded_second = agent.get_meta_context(agent_llm=mock_llm)
-
-        self.assertEqual(analyze_mock.call_count, 2)
-        self.assertEqual(loaded_first.model_dump(), first.model_dump())
-        self.assertEqual(loaded_second.model_dump(), second.model_dump())
-
-    def test_get_meta_context_cache_init_failure_falls_back_to_recompute(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = self._mock_llm("parse-model-v1")
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+        legacy_meta = self._meta_insights("legacy")
+        cache.update(prompt_key, llm_string, [Generation(text=legacy_meta.model_dump_json())])
 
         recomputed = self._meta_insights("library")
         with (
-            patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"),
+            patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
+            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
+        ):
+            loaded = agent.get_meta_context()
+
+        self.assertEqual(analyze_mock.call_count, 1)
+        self.assertEqual(loaded.model_dump(), recomputed.model_dump())
+
+    def test_get_meta_context_cache_init_failure_falls_back_to_recompute(self):
+        agent = self._build_agent()
+        recomputed = self._meta_insights("library")
+
+        with (
             patch.object(agent, "_meta_cache_path", side_effect=PermissionError("read-only")),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
         ):
-            loaded = agent.get_meta_context(agent_llm=mock_llm)
+            loaded = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
@@ -283,30 +225,103 @@ class TestMetaAgent(unittest.TestCase):
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
-        with patch("agents.meta_agent.get_repo_state_hash", return_value="state-a"):
-            with patch.object(agent_a, "analyze_project_metadata", return_value=first) as analyze_a:
-                loaded_first = agent_a.get_meta_context(agent_llm=agent_llm)
-            with patch.object(agent_b, "analyze_project_metadata", return_value=second) as analyze_b:
-                loaded_second = agent_b.get_meta_context(agent_llm=agent_llm)
+        with (
+            patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
+            patch.object(agent_a, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent_b, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent_a, "analyze_project_metadata", return_value=first) as analyze_a,
+            patch.object(agent_b, "analyze_project_metadata", return_value=second) as analyze_b,
+        ):
+            loaded_first = agent_a.get_meta_context()
+            loaded_second = agent_b.get_meta_context()
 
         self.assertEqual(analyze_a.call_count, 1)
         self.assertEqual(analyze_b.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
-    def test_get_meta_context_rejects_different_agent_llm_instance(self):
-        mock_llm = self._mock_llm("meta-model-v1")
-        mock_parsing_llm = self._mock_llm("parse-model-v1")
-        override_llm = self._mock_llm("meta-model-v2")
-        agent = MetaAgent(
-            repo_dir=self.repo_dir,
-            project_name=self.project_name,
-            agent_llm=mock_llm,
-            parsing_llm=mock_parsing_llm,
-        )
+    def test_get_meta_context_recomputes_when_gitpython_unavailable(self):
+        agent = self._build_agent()
+        first = self._meta_insights("library")
+        second = self._meta_insights("web application")
 
-        with self.assertRaises(ValueError):
-            agent.get_meta_context(agent_llm=override_llm)
+        with (
+            patch("repo_utils.GIT_AVAILABLE", False),
+            patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
+        ):
+            loaded_first = agent.get_meta_context()
+            loaded_second = agent.get_meta_context()
+
+        self.assertEqual(analyze_mock.call_count, 2)
+        self.assertEqual(loaded_first.model_dump(), first.model_dump())
+        self.assertEqual(loaded_second.model_dump(), second.model_dump())
+
+    def test_discover_dep_files_returns_only_tracked_candidates(self):
+        agent = self._build_agent()
+        (self.repo_dir / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
+        (self.repo_dir / "package.json").write_text('{"name":"x"}\n', encoding="utf-8")
+        requirements_dir = self.repo_dir / "requirements"
+        requirements_dir.mkdir(exist_ok=True)
+        (requirements_dir / "base.txt").write_text("pytest\n", encoding="utf-8")
+
+        repo_mock = MagicMock()
+        repo_mock.git.ls_files.return_value = "setup.py\nrequirements/base.txt\n"
+        with (
+            patch("agents.meta_agent.Repo", return_value=repo_mock),
+            patch.object(agent.ignore_manager, "should_ignore", return_value=False),
+        ):
+            dep_files = agent._discover_dep_files()
+
+        self.assertEqual(dep_files, ["requirements/base.txt", "setup.py"])
+
+    def test_deps_changed_since_returns_false_for_empty_dep_list(self):
+        agent = self._build_agent()
+        self.assertFalse(agent._deps_changed_since("commit-a", []))
+
+    def test_deps_changed_since_returns_true_for_missing_base_commit(self):
+        agent = self._build_agent()
+        self.assertTrue(agent._deps_changed_since("", ["pyproject.toml"]))
+
+    def test_deps_changed_since_detects_uncommitted_changes(self):
+        agent = self._build_agent()
+        with (
+            patch(
+                "agents.meta_agent.detect_changes_from_commit",
+                return_value=ChangeSet(changes=[]),
+            ) as committed_mock,
+            patch(
+                "agents.meta_agent.detect_uncommitted_changes",
+                return_value=ChangeSet(
+                    changes=[DetectedChange(change_type=ChangeType.MODIFIED, file_path="pyproject.toml")]
+                ),
+            ) as uncommitted_mock,
+        ):
+            changed = agent._deps_changed_since("commit-a", ["pyproject.toml"])
+
+        self.assertTrue(changed)
+        committed_mock.assert_called_once_with(self.repo_dir, "commit-a")
+        uncommitted_mock.assert_called_once_with(self.repo_dir)
+
+    def test_deps_changed_since_returns_true_on_git_error(self):
+        agent = self._build_agent()
+        with patch("agents.meta_agent.detect_changes_from_commit", side_effect=RuntimeError("git error")):
+            changed = agent._deps_changed_since("commit-a", ["pyproject.toml"])
+
+        self.assertTrue(changed)
+
+    def test_get_meta_context_normalizes_missing_commit_hash_before_cache_save(self):
+        agent = self._build_agent()
+        recomputed = self._meta_insights("library")
+        with (
+            patch("agents.meta_agent.get_git_commit_hash", return_value="NoCommitHash"),
+            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent, "analyze_project_metadata", return_value=recomputed),
+            patch.object(agent, "_save_cached_record") as save_mock,
+        ):
+            loaded = agent.get_meta_context()
+
+        self.assertEqual(loaded.model_dump(), recomputed.model_dump())
+        self.assertEqual(save_mock.call_args.kwargs["base_commit"], "")
 
 
 if __name__ == "__main__":
