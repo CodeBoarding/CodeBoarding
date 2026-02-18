@@ -4,9 +4,9 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-from agents.agent_responses import ClusterAnalysis, AnalysisInsights, ComponentFiles
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
-from static_analyzer.graph import ClusterResult, CallGraph
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +270,50 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     logger.warning(f"[Validation] File classification issues: {len(feedback_messages)} problems found")
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def validate_relation_component_names(result: AnalysisInsights, _context: ValidationContext) -> ValidationResult:
+    """
+    Validate that every src_name and dst_name in components_relations refers to an existing component.
+
+    When a relation references a component name that does not exist, assign_component_ids will
+    leave src_id or dst_id as an empty string, producing broken references in the output JSON.
+
+    Args:
+        result: AnalysisInsights containing components and components_relations
+        context: ValidationContext (not used but kept for interface consistency)
+
+    Returns:
+        ValidationResult with feedback listing every relation whose src_name or dst_name is unknown
+    """
+    known_names = {component.name for component in result.components}
+
+    invalid_relations: list[str] = []
+    for relation in result.components_relations:
+        unknown: list[str] = []
+        if relation.src_name not in known_names:
+            unknown.append(f"src_name='{relation.src_name}'")
+        if relation.dst_name not in known_names:
+            unknown.append(f"dst_name='{relation.dst_name}'")
+        if unknown:
+            invalid_relations.append(
+                f"({relation.src_name} -{relation.relation}-> {relation.dst_name}): {', '.join(unknown)}"
+            )
+
+    if not invalid_relations:
+        logger.info("[Validation] All relation component names refer to existing components")
+        return ValidationResult(is_valid=True)
+
+    invalid_str = "; ".join(invalid_relations)
+    known_str = ", ".join(sorted(known_names)) if known_names else "<none>"
+    feedback = (
+        f"The following relations reference component names that do not exist: {invalid_str}. "
+        f"Known component names are: {known_str}. "
+        f"Please ensure that src_name and dst_name in every relation match an existing component name exactly."
+    )
+
+    logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
 def _build_cluster_edge_lookup(
