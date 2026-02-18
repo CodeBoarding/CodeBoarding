@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from agents.tools.external_deps import ExternalDepsTool
+from agents.tools.get_external_deps import ExternalDepsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 
