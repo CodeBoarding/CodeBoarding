@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from core import get_registries
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.cohesion import check_component_cohesion
 from health.checks.coupling import check_fan_in, check_fan_out
@@ -23,7 +24,6 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from core import get_registries
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)

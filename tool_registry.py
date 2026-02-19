@@ -21,7 +21,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -175,12 +175,14 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
         if dep.kind is ToolKind.NATIVE:
             binary_path = bin_dir / f"{dep.binary_name}{native_ext}"
             if binary_path.exists():
-                config[dep.config_section][dep.key]["command"][0] = str(binary_path)
+                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.NODE:
             binary_path = base_dir / "node_modules" / ".bin" / f"{dep.binary_name}{node_ext}"
             if binary_path.exists():
-                config[dep.config_section][dep.key]["command"][0] = str(binary_path)
+                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
@@ -199,8 +201,9 @@ def resolve_config_from_path() -> dict[str, Any]:
     for dep in TOOL_REGISTRY:
         if dep.kind in (ToolKind.NATIVE, ToolKind.NODE):
             path = shutil.which(dep.binary_name)
-            if path:
-                config[dep.config_section][dep.key]["command"][0] = path
+        if path:
+            cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+            cmd[0] = path
 
     return config
 
