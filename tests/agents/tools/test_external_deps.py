@@ -45,17 +45,17 @@ class TestExternalDepsTool(unittest.TestCase):
         self.assertIn("package-lock.json", result)
 
     def test_find_in_subdirectories(self):
-        # Create subdirectory with requirements
-        req_dir = self.temp_dir / "requirements"
-        req_dir.mkdir()
-        (req_dir / "dev.txt").touch()
-        (req_dir / "test.txt").touch()
+        sub = self.temp_dir / "backend"
+        sub.mkdir()
+        (sub / "requirements.txt").touch()
+        (sub / "pyproject.toml").touch()
 
         tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
-        self.assertIn("Found", result)
-        self.assertIn("requirements", result)
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("requirements.txt", result)
+        self.assertIn("pyproject.toml", result)
 
     def test_no_deps_found(self):
         # Test with empty directory
@@ -65,6 +65,50 @@ class TestExternalDepsTool(unittest.TestCase):
         self.assertIn("No dependency files found", result)
         self.assertIn("requirements.txt", result)
         self.assertIn("pyproject.toml", result)
+
+    def test_find_go_deps(self):
+        (self.temp_dir / "go.mod").touch()
+        (self.temp_dir / "go.sum").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("go.mod", result)
+        self.assertIn("go.sum", result)
+
+    def test_find_java_deps(self):
+        (self.temp_dir / "pom.xml").touch()
+        (self.temp_dir / "gradle.properties").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("pom.xml", result)
+        self.assertIn("gradle.properties", result)
+
+    def test_find_php_deps(self):
+        (self.temp_dir / "composer.json").touch()
+        (self.temp_dir / "composer.lock").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("composer.json", result)
+        self.assertIn("composer.lock", result)
+
+    def test_find_rust_deps(self):
+        (self.temp_dir / "Cargo.toml").touch()
+        (self.temp_dir / "Cargo.lock").touch()
+
+        tool = ExternalDepsTool(context=self.context)
+        result = tool._run()
+
+        self.assertIn("Found 2 dependency file(s)", result)
+        self.assertIn("Cargo.toml", result)
+        self.assertIn("Cargo.lock", result)
 
     def test_mixed_dependency_files(self):
         # Create various dependency files

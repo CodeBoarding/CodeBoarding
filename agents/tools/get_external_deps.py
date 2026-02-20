@@ -33,22 +33,21 @@ class ExternalDepsTool(BaseRepoTool):
         """
         logger.info("[ExternalDeps Tool] Searching for dependency files")
 
-        found_files = discover_dependency_files(self.repo_dir, self.ignore_manager)
+        discovered = discover_dependency_files(self.repo_dir, self.ignore_manager)
 
-        if not found_files:
+        if not discovered:
             logger.warning("[ExternalDeps Tool] No dependency files found in the repository.")
             return "No dependency files found in this repository. Searched for common files like requirements.txt, pyproject.toml, setup.py, environment.yml, Pipfile, etc."
 
-        # Format the output to make it easy to use with readFile tool
-        summary = f"Found {len(found_files)} dependency file(s):\n\n"
+        summary = f"Found {len(discovered)} dependency file(s):\n\n"
 
-        # List files with suggestions for using readFile
-        for i, file_path_item in enumerate(found_files, 1):
-            relative_path = file_path_item.relative_to(self.repo_dir)
+        for i, item in enumerate(discovered, 1):
+            relative_path = item.path.relative_to(self.repo_dir)
             summary += f'{i}. {relative_path}\n   To read this file: Use the readFile tool with file_path="{relative_path}" and line_number=0\n\n'
 
         logger.info(
-            f"[ExternalDeps Tool] Found {len(found_files)} dependency file(s): {', '.join(str(f.relative_to(self.repo_dir)) for f in found_files)}"
+            f"[ExternalDeps Tool] Found {len(discovered)} dependency file(s): "
+            f"{', '.join(str(d.path.relative_to(self.repo_dir)) for d in discovered)}"
         )
 
         return summary

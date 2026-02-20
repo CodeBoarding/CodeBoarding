@@ -7,13 +7,12 @@ from langchain_core.outputs import Generation
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.meta_agent import MetaAgent
-from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
+from caching.meta_cache import MetaCacheRecord
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class TestMetaAgent(unittest.TestCase):
     def setUp(self):
-        # Create mock static analysis
         self.mock_static_analysis = MagicMock(spec=StaticAnalysisResults)
         self.mock_static_analysis.get_languages.return_value = ["python"]
 
@@ -22,6 +21,7 @@ class TestMetaAgent(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.repo_dir = Path(self.temp_dir) / "test_repo"
         self.repo_dir.mkdir(parents=True, exist_ok=True)
+        (self.repo_dir / "pyproject.toml").write_text('[project]\nname = "test-repo"\n', encoding="utf-8")
         self.project_name = "test_project"
 
     def tearDown(self):
@@ -58,6 +58,9 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(agent.project_name, self.project_name)
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
+        self.assertIsNotNone(agent._cache)
+        expected_cache_file = self.repo_dir / ".codeboarding" / "cache" / "meta_agent_llm.sqlite"
+        self.assertEqual(agent._cache.file_path, expected_cache_file)
 
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_analyze_project_metadata(self, mock_parse_invoke):
@@ -102,34 +105,34 @@ class TestMetaAgent(unittest.TestCase):
 
         with (
             patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
-            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
-            patch.object(agent, "_deps_changed_since", return_value=False) as deps_changed_mock,
+            patch.object(agent._cache, "discover_watch_files", return_value=["pyproject.toml"]),
+            patch.object(agent._cache, "is_stale", return_value=False) as is_stale_mock,
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
             loaded_first = agent.get_meta_context()
             loaded_second = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 1)
-        self.assertEqual(deps_changed_mock.call_count, 1)
+        self.assertEqual(is_stale_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), first.model_dump())
 
-    def test_get_meta_context_invalidates_when_dep_files_change(self):
+    def test_get_meta_context_invalidates_when_watch_files_change(self):
         agent = self._build_agent()
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
 
         with (
             patch("agents.meta_agent.get_git_commit_hash", side_effect=["commit-a", "commit-b"]),
-            patch.object(agent, "_discover_dep_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
-            patch.object(agent, "_deps_changed_since", return_value=True) as deps_changed_mock,
+            patch.object(agent._cache, "discover_watch_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
+            patch.object(agent._cache, "is_stale", return_value=True) as is_stale_mock,
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
             loaded_first = agent.get_meta_context()
             loaded_second = agent.get_meta_context()
 
         self.assertEqual(analyze_mock.call_count, 2)
-        self.assertEqual(deps_changed_mock.call_count, 1)
+        self.assertEqual(is_stale_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
@@ -140,8 +143,8 @@ class TestMetaAgent(unittest.TestCase):
 
         with (
             patch("agents.meta_agent.get_git_commit_hash", side_effect=["commit-a", "commit-b"]),
-            patch.object(agent, "_discover_dep_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
-            patch.object(agent, "_deps_changed_since", return_value=False),
+            patch.object(agent._cache, "discover_watch_files", side_effect=[["pyproject.toml"], ["pyproject.toml"]]),
+            patch.object(agent._cache, "is_stale", return_value=False),
             patch.object(agent, "analyze_project_metadata", side_effect=[first, second]) as analyze_mock,
         ):
             loaded_first = agent.get_meta_context()
@@ -155,15 +158,15 @@ class TestMetaAgent(unittest.TestCase):
 
     def test_get_meta_context_corrupt_cache_falls_back_to_recompute(self):
         agent = self._build_agent()
-        prompt_key = agent._meta_cache_prompt()
-        llm_string = agent._meta_cache_llm_string()
-        cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
-        cache.update(prompt_key, llm_string, [Generation(text="not-json")])
+        prompt_key = agent._cache._prompt_key
+        llm_key = agent._cache._llm_key
+        cache = SQLiteCache(database_path=str(agent._cache.file_path))
+        cache.update(prompt_key, llm_key, [Generation(text="not-json")])
 
         recomputed = self._meta_insights("library")
         with (
             patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
-            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent._cache, "discover_watch_files", return_value=["pyproject.toml"]),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
         ):
             loaded = agent.get_meta_context()
@@ -173,17 +176,17 @@ class TestMetaAgent(unittest.TestCase):
 
     def test_get_meta_context_legacy_payload_is_cache_miss(self):
         agent = self._build_agent()
-        prompt_key = agent._meta_cache_prompt()
-        llm_string = agent._meta_cache_llm_string()
-        cache = SQLiteCache(database_path=str(agent._meta_cache_path()))
+        prompt_key = agent._cache._prompt_key
+        llm_key = agent._cache._llm_key
+        cache = SQLiteCache(database_path=str(agent._cache.file_path))
 
         legacy_meta = self._meta_insights("legacy")
-        cache.update(prompt_key, llm_string, [Generation(text=legacy_meta.model_dump_json())])
+        cache.update(prompt_key, llm_key, [Generation(text=legacy_meta.model_dump_json())])
 
         recomputed = self._meta_insights("library")
         with (
             patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
-            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent._cache, "discover_watch_files", return_value=["pyproject.toml"]),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
         ):
             loaded = agent.get_meta_context()
@@ -196,7 +199,7 @@ class TestMetaAgent(unittest.TestCase):
         recomputed = self._meta_insights("library")
 
         with (
-            patch.object(agent, "_meta_cache_path", side_effect=PermissionError("read-only")),
+            patch.object(agent._cache, "_open_sqlite", return_value=None),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed) as analyze_mock,
         ):
             loaded = agent.get_meta_context()
@@ -227,8 +230,8 @@ class TestMetaAgent(unittest.TestCase):
 
         with (
             patch("agents.meta_agent.get_git_commit_hash", return_value="commit-a"),
-            patch.object(agent_a, "_discover_dep_files", return_value=["pyproject.toml"]),
-            patch.object(agent_b, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent_a._cache, "discover_watch_files", return_value=["pyproject.toml"]),
+            patch.object(agent_b._cache, "discover_watch_files", return_value=["pyproject.toml"]),
             patch.object(agent_a, "analyze_project_metadata", return_value=first) as analyze_a,
             patch.object(agent_b, "analyze_project_metadata", return_value=second) as analyze_b,
         ):
@@ -256,72 +259,157 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
-    def test_discover_dep_files_returns_only_tracked_candidates(self):
+    def test_discover_watch_files_includes_manifests_and_configs(self):
+        agent = self._build_agent()
+        (self.repo_dir / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
+        (self.repo_dir / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+
+        repo_mock = MagicMock()
+        repo_mock.git.ls_files.return_value = "setup.py\ntsconfig.json\n"
+        with (
+            patch("caching.meta_cache.Repo", return_value=repo_mock),
+            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
+        ):
+            watch = agent._cache.discover_watch_files()
+
+        self.assertIn("setup.py", watch)
+        self.assertIn("tsconfig.json", watch)
+
+    def test_discover_watch_files_excludes_lock_files(self):
+        agent = self._build_agent()
+        (self.repo_dir / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        (self.repo_dir / "uv.lock").write_text("...", encoding="utf-8")
+        (self.repo_dir / "poetry.lock").write_text("...", encoding="utf-8")
+
+        repo_mock = MagicMock()
+        repo_mock.git.ls_files.return_value = "pyproject.toml\nuv.lock\npoetry.lock\n"
+        with (
+            patch("caching.meta_cache.Repo", return_value=repo_mock),
+            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
+        ):
+            watch = agent._cache.discover_watch_files()
+
+        self.assertIn("pyproject.toml", watch)
+        self.assertNotIn("uv.lock", watch)
+        self.assertNotIn("poetry.lock", watch)
+
+    def test_discover_watch_files_includes_readme(self):
+        agent = self._build_agent()
+        (self.repo_dir / "README.md").write_text("# My Project\n", encoding="utf-8")
+
+        repo_mock = MagicMock()
+        repo_mock.git.ls_files.return_value = "README.md\n"
+        with (
+            patch("caching.meta_cache.Repo", return_value=repo_mock),
+            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
+        ):
+            watch = agent._cache.discover_watch_files()
+
+        self.assertIn("README.md", watch)
+
+    def test_discover_watch_files_only_tracked_files(self):
         agent = self._build_agent()
         (self.repo_dir / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
         (self.repo_dir / "package.json").write_text('{"name":"x"}\n', encoding="utf-8")
-        requirements_dir = self.repo_dir / "requirements"
-        requirements_dir.mkdir(exist_ok=True)
-        (requirements_dir / "base.txt").write_text("pytest\n", encoding="utf-8")
 
         repo_mock = MagicMock()
-        repo_mock.git.ls_files.return_value = "setup.py\nrequirements/base.txt\n"
+        repo_mock.git.ls_files.return_value = "setup.py\n"
         with (
-            patch("agents.meta_agent.Repo", return_value=repo_mock),
-            patch.object(agent.ignore_manager, "should_ignore", return_value=False),
+            patch("caching.meta_cache.Repo", return_value=repo_mock),
+            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
         ):
-            dep_files = agent._discover_dep_files()
+            watch = agent._cache.discover_watch_files()
 
-        self.assertEqual(dep_files, ["requirements/base.txt", "setup.py"])
+        self.assertIn("setup.py", watch)
+        self.assertNotIn("package.json", watch)
 
-    def test_deps_changed_since_returns_false_for_empty_dep_list(self):
+    def test_is_stale_returns_false_for_empty_watch_list(self):
         agent = self._build_agent()
-        self.assertFalse(agent._deps_changed_since("commit-a", []))
+        record = MetaCacheRecord(meta=self._meta_insights("library"), base_commit="commit-a", watch_files=[])
+        self.assertFalse(agent._cache.is_stale(record))
 
-    def test_deps_changed_since_returns_true_for_missing_base_commit(self):
+    def test_is_stale_returns_false_for_matching_watch_fingerprint(self):
         agent = self._build_agent()
-        self.assertTrue(agent._deps_changed_since("", ["pyproject.toml"]))
+        watch_files = ["pyproject.toml"]
+        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        self.assertIsNotNone(watch_state_hash)
 
-    def test_deps_changed_since_detects_uncommitted_changes(self):
+        record = MetaCacheRecord(
+            meta=self._meta_insights("library"),
+            base_commit="commit-a",
+            watch_files=watch_files,
+            watch_state_hash=watch_state_hash,
+        )
+        self.assertFalse(agent._cache.is_stale(record))
+
+    def test_is_stale_returns_true_for_legacy_record_without_fingerprint(self):
         agent = self._build_agent()
-        with (
-            patch(
-                "agents.meta_agent.detect_changes_from_commit",
-                return_value=ChangeSet(changes=[]),
-            ) as committed_mock,
-            patch(
-                "agents.meta_agent.detect_uncommitted_changes",
-                return_value=ChangeSet(
-                    changes=[DetectedChange(change_type=ChangeType.MODIFIED, file_path="pyproject.toml")]
-                ),
-            ) as uncommitted_mock,
-        ):
-            changed = agent._deps_changed_since("commit-a", ["pyproject.toml"])
+        record = MetaCacheRecord(
+            meta=self._meta_insights("library"), base_commit="commit-a", watch_files=["pyproject.toml"]
+        )
+        self.assertTrue(agent._cache.is_stale(record))
 
-        self.assertTrue(changed)
-        committed_mock.assert_called_once_with(self.repo_dir, "commit-a")
-        uncommitted_mock.assert_called_once_with(self.repo_dir)
-
-    def test_deps_changed_since_returns_true_on_git_error(self):
+    def test_is_stale_detects_watch_file_content_change(self):
         agent = self._build_agent()
-        with patch("agents.meta_agent.detect_changes_from_commit", side_effect=RuntimeError("git error")):
-            changed = agent._deps_changed_since("commit-a", ["pyproject.toml"])
+        watch_files = ["pyproject.toml"]
+        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        self.assertIsNotNone(watch_state_hash)
 
-        self.assertTrue(changed)
+        record = MetaCacheRecord(
+            meta=self._meta_insights("library"),
+            base_commit="commit-a",
+            watch_files=watch_files,
+            watch_state_hash=watch_state_hash,
+        )
+        (self.repo_dir / "pyproject.toml").write_text('[project]\nname = "changed"\n', encoding="utf-8")
+        self.assertTrue(agent._cache.is_stale(record))
 
-    def test_get_meta_context_normalizes_missing_commit_hash_before_cache_save(self):
+    def test_is_stale_detects_watch_file_set_change(self):
+        agent = self._build_agent()
+        watch_files = ["pyproject.toml"]
+        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        self.assertIsNotNone(watch_state_hash)
+
+        record = MetaCacheRecord(
+            meta=self._meta_insights("library"),
+            base_commit="commit-a",
+            watch_files=watch_files,
+            watch_state_hash=watch_state_hash,
+        )
+        with patch.object(agent._cache, "discover_watch_files", return_value=["pyproject.toml", "README.md"]):
+            self.assertTrue(agent._cache.is_stale(record))
+
+    def test_is_stale_returns_true_when_watch_file_missing(self):
+        agent = self._build_agent()
+        watch_files = ["pyproject.toml"]
+        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        self.assertIsNotNone(watch_state_hash)
+
+        record = MetaCacheRecord(
+            meta=self._meta_insights("library"),
+            base_commit="commit-a",
+            watch_files=watch_files,
+            watch_state_hash=watch_state_hash,
+        )
+        (self.repo_dir / "pyproject.toml").unlink()
+        self.assertTrue(agent._cache.is_stale(record))
+
+    def test_get_meta_context_stores_when_commit_hash_unavailable(self):
         agent = self._build_agent()
         recomputed = self._meta_insights("library")
         with (
             patch("agents.meta_agent.get_git_commit_hash", return_value="NoCommitHash"),
-            patch.object(agent, "_discover_dep_files", return_value=["pyproject.toml"]),
+            patch.object(agent._cache, "discover_watch_files", return_value=["pyproject.toml"]),
             patch.object(agent, "analyze_project_metadata", return_value=recomputed),
-            patch.object(agent, "_save_cached_record") as save_mock,
+            patch.object(agent._cache, "store") as store_mock,
         ):
             loaded = agent.get_meta_context()
 
         self.assertEqual(loaded.model_dump(), recomputed.model_dump())
-        self.assertEqual(save_mock.call_args.kwargs["base_commit"], "")
+        store_mock.assert_called_once()
+        saved_record = store_mock.call_args.args[0]
+        self.assertEqual(saved_record.base_commit, "NoCommitHash")
+        self.assertIsNotNone(saved_record.watch_state_hash)
 
 
 if __name__ == "__main__":
