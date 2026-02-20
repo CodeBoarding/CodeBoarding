@@ -3,29 +3,23 @@ from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel
 from agents.tools.base import BaseRepoTool
-from agents.dependency_discovery import DEPENDENCY_FILES, discover_dependency_files
+from agents.dependency_discovery import discover_dependency_files
 
 logger = logging.getLogger(__name__)
 
 
 class ExternalDepsInput(BaseModel):
-    """Input for ExternalDepsTool - no arguments needed."""
-
     pass
 
 
 class ExternalDepsTool(BaseRepoTool):
     name: str = "readExternalDeps"
     description: str = (
-        "Identifies project dependency files in the repository. "
-        "Automatically detects common dependency files like requirements.txt, pyproject.toml, tsconfig.json, and others. "
-        "Returns a list of found dependency files that can be examined with the readFile tool."
+        "Scans the current repository to find common dependency files."
+        "Returns a list of file paths that can be examined with the readFile tool."
     )
     args_schema: Optional[ArgsSchema] = ExternalDepsInput
     return_direct: bool = False
-
-    # Compatibility alias for callers that may still read this class constant.
-    DEPENDENCY_FILES: tuple[str, ...] = DEPENDENCY_FILES
 
     def _run(self) -> str:
         """

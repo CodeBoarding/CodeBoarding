@@ -15,6 +15,7 @@ from agents.dependency_discovery import FileRole, discover_dependency_files
 from caching.cache import BaseCache
 from repo_utils import Repo, require_git_import
 from repo_utils.ignore import RepoIgnoreManager
+from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ _README_PATTERNS: tuple[str, ...] = (
 )
 
 _CACHE_WATCH_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole.CONFIG})
-_META_CACHE_DIR = Path(".codeboarding") / "cache"
 
 
 class MetaCacheRecord(BaseModel):
@@ -57,7 +57,7 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         parsing_llm: BaseChatModel,
         prompt_material: str,
     ):
-        super().__init__("meta_agent_llm.sqlite", cache_dir=repo_dir / _META_CACHE_DIR)
+        super().__init__("meta_agent_llm.sqlite", cache_dir=get_cache_dir(repo_dir))
         self._repo_dir = repo_dir
         self._ignore_manager = ignore_manager
         self._prompt_key = self._build_prompt_key(project_name, prompt_material)
@@ -88,7 +88,7 @@ class MetaCache(BaseCache[MetaCacheRecord]):
     def _build_prompt_key(self, project_name: str, prompt_material: str) -> str:
         prompt_hash = hashlib.sha256(prompt_material.encode("utf-8")).hexdigest()
         payload = {
-            "kind": "meta_agent_cache_v2",
+            "kind": "meta_agent_cache",
             "project_name": project_name,
             "prompt_version": prompt_hash,
         }
@@ -96,7 +96,7 @@ class MetaCache(BaseCache[MetaCacheRecord]):
 
     def _build_llm_key(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> str:
         payload = {
-            "kind": "meta_agent_llm_cache_v2",
+            "kind": "meta_agent_llm_cache",
             "agent": self._llm_signature(agent_llm),
             "parser": self._llm_signature(parsing_llm),
         }

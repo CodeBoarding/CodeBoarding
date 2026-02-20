@@ -35,6 +35,10 @@ def caching_enabled():
     return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
+def get_cache_dir(repo_dir: Path) -> Path:
+    return repo_dir / ".codeboarding" / "cache"
+
+
 def get_project_root() -> Path:
     project_root_env = os.getenv("PROJECT_ROOT")
     if project_root_env:

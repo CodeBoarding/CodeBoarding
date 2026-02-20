@@ -15,10 +15,6 @@ class Ecosystem(StrEnum):
     GO = "go"
     JAVA = "java"
     PHP = "php"
-    RUST = "rust"
-    RUBY = "ruby"
-    DOTNET = "dotnet"
-    DART = "dart"
 
 
 class FileRole(StrEnum):
@@ -91,19 +87,6 @@ DEPENDENCY_REGISTRY: tuple[DependencyFileSpec, ...] = (
     DependencyFileSpec("symfony.lock", Ecosystem.PHP, FileRole.LOCK),
     DependencyFileSpec("phive.xml", Ecosystem.PHP, FileRole.MANIFEST),
     DependencyFileSpec("package.xml", Ecosystem.PHP, FileRole.MANIFEST),
-    # ── Rust ──
-    DependencyFileSpec("Cargo.toml", Ecosystem.RUST, FileRole.MANIFEST),
-    DependencyFileSpec("Cargo.lock", Ecosystem.RUST, FileRole.LOCK),
-    # ── Ruby ──
-    DependencyFileSpec("Gemfile", Ecosystem.RUBY, FileRole.MANIFEST),
-    DependencyFileSpec("Gemfile.lock", Ecosystem.RUBY, FileRole.LOCK),
-    # ── .NET ──
-    DependencyFileSpec("Directory.Build.props", Ecosystem.DOTNET, FileRole.CONFIG),
-    DependencyFileSpec("Directory.Packages.props", Ecosystem.DOTNET, FileRole.CONFIG),
-    DependencyFileSpec("global.json", Ecosystem.DOTNET, FileRole.CONFIG),
-    # ── Dart / Flutter ──
-    DependencyFileSpec("pubspec.yaml", Ecosystem.DART, FileRole.MANIFEST),
-    DependencyFileSpec("pubspec.lock", Ecosystem.DART, FileRole.LOCK),
 )
 
 DEPENDENCY_FILES: tuple[str, ...] = tuple(spec.filename for spec in DEPENDENCY_REGISTRY)

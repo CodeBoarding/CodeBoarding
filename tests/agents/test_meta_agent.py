@@ -9,6 +9,7 @@ from agents.agent_responses import MetaAnalysisInsights
 from agents.meta_agent import MetaAgent
 from caching.meta_cache import MetaCacheRecord
 from static_analyzer.analysis_result import StaticAnalysisResults
+from utils import get_cache_dir
 
 
 class TestMetaAgent(unittest.TestCase):
@@ -59,7 +60,7 @@ class TestMetaAgent(unittest.TestCase):
         self.assertIsNotNone(agent.meta_analysis_prompt)
         self.assertIsNotNone(agent.agent)
         self.assertIsNotNone(agent._cache)
-        expected_cache_file = self.repo_dir / ".codeboarding" / "cache" / "meta_agent_llm.sqlite"
+        expected_cache_file = get_cache_dir(self.repo_dir) / "meta_agent_llm.sqlite"
         self.assertEqual(agent._cache.file_path, expected_cache_file)
 
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
