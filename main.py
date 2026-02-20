@@ -489,7 +489,6 @@ Examples:
     # Setup logging first, before any operations that might log
     log_dir: Path | None = args.output_dir if args.output_dir else None
     setup_logging(log_dir=log_dir)
-    load_plugins(get_registries())
     logger.info("Starting CodeBoarding documentation generation...")
 
     # Load environment from .env file if it exists
@@ -497,6 +496,8 @@ Examples:
     if args.load_env_variables:
         load_dotenv()
         validate_env_vars()
+
+    load_plugins(get_registries())
 
     if args.binary_location:
         update_config(args.binary_location)

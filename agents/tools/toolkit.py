@@ -11,7 +11,7 @@ from .get_method_invocations import MethodInvocationsTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .external_deps import ExternalDepsTool
-from core import get_registries
+from core import load_plugin_tools
 from .read_git_diff import ReadDiffTool, FileChange
 
 logger = logging.getLogger(__name__)
@@ -115,10 +115,5 @@ class CodeBoardingToolkit:
             self.read_docs,
             self.external_deps,
         ]
-        for name, factory in get_registries().tools.all().items():
-            try:
-                plugin_tools = factory(self.context)
-                tools.extend(plugin_tools)
-            except Exception:
-                logger.warning(f"Plugin tool factory '{name}' failed", exc_info=True)
+        tools.extend(load_plugin_tools(self.context))
         return tools

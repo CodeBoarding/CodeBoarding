@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 if TYPE_CHECKING:
+    from agents.tools.base import BaseRepoTool, RepoContext
     from health.models import (
         CircularDependencyCheck,
         HealthCheckConfig,
@@ -22,6 +23,5 @@ HealthCheckFunc = Callable[
 ]
 
 # A tool factory: given a RepoContext, returns a list of BaseRepoTool instances.
-# Uses Any to avoid circular dependency with agents/ package.
 # Plugin authors import RepoContext and BaseRepoTool from agents.tools.base directly.
-ToolFactory = Callable[[Any], list[Any]]
+ToolFactory = Callable[["RepoContext"], "list[BaseRepoTool]"]

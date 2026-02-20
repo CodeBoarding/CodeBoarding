@@ -52,11 +52,10 @@ def _make_sub_analysis(component_name: str) -> AnalysisInsights:
     )
 
 
-def _worker_save_sub_analysis(output_dir: str, component_name: str, component_id: str, barrier_parties: int) -> None:
+def _worker_save_sub_analysis(output_dir: str, component_name: str, component_id: str) -> None:
     """Worker function that runs in a separate process.
 
-    Uses a Barrier so all workers attempt save_sub_analysis at roughly the same time,
-    maximizing the chance of lock contention.
+    Multiple processes call save_sub_analysis concurrently, maximizing the chance of lock contention.
     """
     # Recreate the sub-analysis in this process (can't pickle AnalysisInsights reliably across processes)
     sub_analysis = _make_sub_analysis(component_name)
@@ -150,7 +149,7 @@ class TestConcurrentSaveSubAnalysis:
         for name in component_names:
             p = multiprocessing.Process(
                 target=_worker_save_sub_analysis,
-                args=(str(output_dir), name, NAME_TO_ID[name], len(component_names)),
+                args=(str(output_dir), name, NAME_TO_ID[name]),
             )
             processes.append(p)
 

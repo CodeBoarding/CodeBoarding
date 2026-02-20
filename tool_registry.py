@@ -25,6 +25,8 @@ from typing import Any, cast
 
 import requests
 
+from vscode_constants import VSCODE_CONFIG
+
 logger = logging.getLogger(__name__)
 
 GITHUB_REPO = "CodeBoarding/CodeBoarding"
@@ -108,7 +110,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         npm_packages=["pyright"],
     ),
     ToolDependency(
-        key="typescript",
+        key="typescript",  # javascript uses the same LSP as typescript
         binary_name="typescript-language-server",
         kind=ToolKind.NODE,
         config_section=ConfigSection.LSP_SERVERS,
@@ -163,13 +165,10 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
     The returned dict has the same shape as VSCODE_CONFIG ("lsp_servers" + "tools")
     with command paths resolved to absolute paths under base_dir.
     """
-    from vscode_constants import VSCODE_CONFIG
-
     config = deepcopy(VSCODE_CONFIG)
     bin_dir = platform_bin_dir(base_dir)
-    is_win = platform.system() == "Windows"
-    native_ext = ".exe" if is_win else ""
-    node_ext = ".cmd" if is_win else ""
+    native_ext = exe_suffix()
+    node_ext = ".cmd" if platform.system() == "Windows" else ""
 
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
@@ -194,11 +193,10 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
 def resolve_config_from_path() -> dict[str, Any]:
     """Discover tools on the system PATH and return a config dict."""
-    from vscode_constants import VSCODE_CONFIG
-
     config = deepcopy(VSCODE_CONFIG)
 
     for dep in TOOL_REGISTRY:
+        path = None
         if dep.kind in (ToolKind.NATIVE, ToolKind.NODE):
             path = shutil.which(dep.binary_name)
         if path:
@@ -213,12 +211,16 @@ def has_required_tools(base_dir: Path) -> bool:
     if not base_dir.exists():
         return False
     bin_dir = platform_bin_dir(base_dir)
-    is_win = platform.system() == "Windows"
-    tokei = bin_dir / ("tokei.exe" if is_win else "tokei")
+    tokei = bin_dir / f"tokei{exe_suffix()}"
     return tokei.exists()
 
 
 # -- Install helpers (used by install.py for granular control) -----------------
+
+
+def exe_suffix() -> str:
+    """Return the platform-specific executable suffix ('.exe' on Windows, '' elsewhere)."""
+    return ".exe" if platform.system() == "Windows" else ""
 
 
 def platform_bin_dir(base: Path) -> Path:
@@ -268,15 +270,16 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Could not determine latest release")
         return
 
-    is_win = system == "Windows"
     for dep in deps:
         assert dep.github_asset_template, f"{dep.key}: github_asset_template required for native tools"
+        binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
+        if binary_path.exists():
+            logger.info("  %s: already installed, skipping", dep.binary_name)
+            continue
         asset_name = dep.github_asset_template.format(platform_suffix=suffix)
-        ext = ".exe" if is_win else ""
-        binary_path = bin_dir / (dep.binary_name + ext)
         try:
             if download_asset(tag, asset_name, binary_path):
-                if not is_win:
+                if system != "Windows":
                     os.chmod(binary_path, 0o755)
                 logger.info("  %s: downloaded successfully", dep.binary_name)
             else:
@@ -303,13 +306,12 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         return
 
     logger.info("Installing Node.js packages: %s", all_packages)
-    original_cwd = os.getcwd()
     try:
-        os.chdir(target_dir)
-        if not Path("package.json").exists():
-            subprocess.run([npm_path, "init", "-y"], check=True, capture_output=True, text=True)
+        if not (target_dir / "package.json").exists():
+            subprocess.run([npm_path, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True)
         subprocess.run(
             [npm_path, "install", *all_packages],
+            cwd=target_dir,
             check=True,
             capture_output=True,
             text=True,
@@ -319,8 +321,6 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Node.js package installation failed")
     except Exception:
         logger.exception("Node.js package installation failed")
-    finally:
-        os.chdir(original_cwd)
 
 
 def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:

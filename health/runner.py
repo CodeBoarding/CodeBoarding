@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core import get_registries
+from core import run_plugin_health_checks
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.cohesion import check_component_cohesion
 from health.checks.coupling import check_fan_in, check_fan_out
@@ -117,12 +117,7 @@ def _collect_checks_for_language(
     summaries.append(check_unused_code_diagnostics(collector, config))
 
     # Run plugin-provided health checks
-    for name, check_func in get_registries().health_checks.all().items():
-        try:
-            plugin_summaries = check_func(static_analysis, language, config)
-            summaries.extend(plugin_summaries)
-        except Exception:
-            logger.exception(f"Plugin health check '{name}' failed for language '{language}'")
+    summaries.extend(run_plugin_health_checks(static_analysis, language, config))
 
     # Apply .healthignore exclusion patterns across all check findings
     _apply_exclude_patterns(summaries, exclude_patterns)
