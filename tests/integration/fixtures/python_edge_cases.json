@@ -1,0 +1,149 @@
+{
+  "language": "Python",
+  "sample_references": [
+    "core.base.animal",
+    "core.base.dog",
+    "core.base.cat",
+    "core.base.duck",
+    "core.base.swimmingmixin",
+    "core.base.swim",
+    "core.base.speak",
+    "core.base.__init__",
+    "core.base.__str__",
+    "core.base.__repr__",
+    "core.base.fetch",
+    "core.base.create",
+    "core.base.actions",
+    "core.models.userprofile",
+    "core.models.config",
+    "core.models.address",
+    "core.models.get_summary",
+    "core.models.set_address",
+    "core.models.full_address",
+    "core.models.__eq__",
+    "core.models.__hash__",
+    "core.services.create_dog",
+    "core.services.compute",
+    "core.services.build_profile",
+    "core.services.process_animals",
+    "core.services.make_multiplier",
+    "core.services.apply_config",
+    "core.services.log_call",
+    "core.services.wrapper",
+    "core.services.multiplier",
+    "core.pipeline.dispatch",
+    "core.pipeline.build_query",
+    "core.pipeline.get_profile_city",
+    "core.pipeline.double",
+    "core.pipeline.is_positive",
+    "core.pipeline.transform_list",
+    "core.pipeline.create_profile",
+    "core.pipeline.create_and_summarize",
+    "core.pipeline.generate_animals",
+    "core.pipeline.animal_names",
+    "core.pipeline.pipeline",
+    "core.pipeline.compute_nested",
+    "core.pipeline.conditional_dispatch",
+    "core.pipeline.querybuilder",
+    "core.pipeline._handle_dog",
+    "core.pipeline._handle_cat",
+    "core.pipeline._handle_default",
+    "utils.helpers.add",
+    "utils.helpers.subtract",
+    "utils.helpers.clamp",
+    "utils.helpers.format_name",
+    "utils.helpers.max_value",
+    "utils.helpers.min_value",
+    "utils.helpers.default_name",
+    "unused.dead_code.orphanclass",
+    "unused.dead_code.orphan_method",
+    "unused.dead_code.never_called",
+    "unused.dead_code.unused_constant",
+    "main.main"
+  ],
+  "sample_classes": [
+    "core.base.Animal",
+    "core.base.Dog",
+    "core.base.Cat",
+    "core.base.Duck",
+    "core.base.SwimmingMixin",
+    "core.models.UserProfile",
+    "core.models.Address",
+    "core.models.Config",
+    "core.pipeline.QueryBuilder",
+    "unused.dead_code.OrphanClass"
+  ],
+  "sample_hierarchy": {
+    "core.base.Dog": {
+      "superclasses_contain": ["core.base.Animal"]
+    },
+    "core.base.Cat": {
+      "superclasses_contain": ["core.base.Animal"]
+    },
+    "core.base.Duck": {
+      "superclasses_contain": ["core.base.Animal", "core.base.SwimmingMixin"]
+    },
+    "core.base.SwimmingMixin": {
+      "subclasses_contain": ["core.base.Duck"]
+    }
+  },
+  "sample_edges": [
+    ["main.main", "core.services.create_dog"],
+    ["main.main", "core.base.Cat"],
+    ["main.main", "core.base.Duck"],
+    ["main.main", "core.models.Config"],
+    ["main.main", "core.services.process_animals"],
+    ["main.main", "core.services.build_profile"],
+    ["main.main", "core.services.compute"],
+    ["main.main", "core.services.make_multiplier"],
+    ["main.main", "core.services.apply_config"],
+    ["main.main", "core.pipeline.dispatch"],
+    ["main.main", "core.pipeline.build_query"],
+    ["main.main", "core.pipeline.get_profile_city"],
+    ["main.main", "core.pipeline.transform_list"],
+    ["main.main", "core.pipeline.create_and_summarize"],
+    ["main.main", "core.pipeline.pipeline"],
+    ["main.main", "core.pipeline.compute_nested"],
+    ["main.main", "core.pipeline.conditional_dispatch"],
+    ["core.base.__repr__", "core.base.__str__"],
+    ["core.base.actions", "core.base.speak"],
+    ["core.base.actions", "core.base.swim"],
+    ["core.models.get_summary", "core.models.full_address"],
+    ["core.models.set_address", "core.models.Address"],
+    ["core.services.log_call", "core.services.wrapper"],
+    ["core.services.wrapper", "core.services.func"],
+    ["core.services.make_multiplier", "core.services.multiplier"],
+    ["core.pipeline.build_query", "core.pipeline.QueryBuilder"],
+    ["core.pipeline.build_query", "core.pipeline.where"],
+    ["core.pipeline.build_query", "core.pipeline.order_by"],
+    ["core.pipeline.build_query", "core.pipeline.limit"],
+    ["core.pipeline.build_query", "core.pipeline.build"],
+    ["core.pipeline.conditional_dispatch", "core.pipeline.dispatch"],
+    ["core.pipeline.create_and_summarize", "core.pipeline.create_profile"],
+    ["core.pipeline.pipeline", "core.pipeline.generate_animals"],
+    ["core.pipeline.pipeline", "core.pipeline.animal_names"]
+  ],
+  "sample_package_deps": {
+    "core": {
+      "imports_contain": ["utils"]
+    },
+    "main": {
+      "imports_contain": ["core"]
+    },
+    "utils": {
+      "imported_by_contain": ["core"]
+    }
+  },
+  "expected_source_files_contain": [
+    "core/__init__.py",
+    "core/base.py",
+    "core/models.py",
+    "core/pipeline.py",
+    "core/services.py",
+    "main.py",
+    "unused/__init__.py",
+    "unused/dead_code.py",
+    "utils/__init__.py",
+    "utils/helpers.py"
+  ]
+}
