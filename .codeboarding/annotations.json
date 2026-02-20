@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "annotations": {
+    "c051e21b04b765ed": "The main flow here is that we start with Scanner.py which will detect which programming languages are used in the repo. Then with that informaiton we would instantiate an LSP Client (for some tech stacks we have a custom impementation).\n\nEach of the LSP clients collects Control Flow Grpah data as well as symbols data, class information and generally we scan with find references.\nThen all this information is collected in a custom Graph implementation.\n\nAfter that information is collected we clusterize the CFG Graph."
+  }
+}
