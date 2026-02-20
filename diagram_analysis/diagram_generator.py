@@ -291,7 +291,9 @@ class DiagramGenerator:
                     total=max(1, submitted_components),
                     desc="Frontier",
                     unit="comp",
-                    disable=not sys.stderr.isatty(),
+                    file=sys.stdout,
+                    disable=False,
+                    dynamic_ncols=sys.stdout.isatty(),
                 )
 
                 try:
