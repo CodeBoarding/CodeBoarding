@@ -60,6 +60,25 @@ EDGE_CASE_PROJECTS = [
         stability_runs=2,
     ),
     EdgeCaseProject(
+        name="javascript_edge_cases",
+        project_dir="javascript_edge_cases_project",
+        language="JavaScript",
+        fixture_file="javascript_edge_cases.json",
+    ),
+    EdgeCaseProject(
+        name="go_edge_cases",
+        project_dir="go_edge_cases_project",
+        language="Go",
+        fixture_file="go_edge_cases.json",
+    ),
+    EdgeCaseProject(
+        name="javascript_scaled",
+        project_dir="javascript_scaled_project",
+        language="JavaScript",
+        fixture_file="javascript_scaled.json",
+        stability_runs=2,
+    ),
+    EdgeCaseProject(
         name="typescript_edge_cases",
         project_dir="typescript_edge_cases_project",
         language="TypeScript",
@@ -71,6 +90,18 @@ EDGE_CASE_PROJECTS = [
         language="TypeScript",
         fixture_file="typescript_scaled.json",
         stability_runs=2,
+    ),
+    EdgeCaseProject(
+        name="java_edge_cases",
+        project_dir="java_edge_cases_project",
+        language="Java",
+        fixture_file="java_edge_cases.json",
+    ),
+    EdgeCaseProject(
+        name="php_edge_cases",
+        project_dir="php_edge_cases_project",
+        language="PHP",
+        fixture_file="php_edge_cases.json",
     ),
 ]
 
