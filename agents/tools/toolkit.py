@@ -10,7 +10,7 @@ from .read_cfg import GetCFGTool
 from .get_method_invocations import MethodInvocationsTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
-from .external_deps import ExternalDepsTool
+from .get_external_deps import ExternalDepsTool
 from core import load_plugin_tools
 from .read_git_diff import ReadDiffTool, FileChange
 

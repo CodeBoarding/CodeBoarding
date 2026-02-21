@@ -425,6 +425,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 depth_level=1,
                 monitoring_enabled=False,
+                force_full=False,
             )
             self.assertTrue(output_dir.exists())
 

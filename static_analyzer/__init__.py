@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from utils import get_cache_dir
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -322,7 +323,7 @@ def get_static_analysis(
     # Determine actual cache directory to use
     if cache_dir is None:
         # Default behavior: use standard cache location
-        actual_cache_dir = repo_path / ".codeboarding" / "cache"
+        actual_cache_dir = get_cache_dir(repo_path)
     else:
         actual_cache_dir = cache_dir
 
