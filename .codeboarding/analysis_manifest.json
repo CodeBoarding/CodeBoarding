@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "repo_state_hash": "3e36d2b_01ba4719",
-  "base_commit": "3e36d2ba3fe21267dbbbd04119ca3f6f7ee5e339",
+  "repo_state_hash": "97cfa24_01ba4719",
+  "base_commit": "97cfa248b2c8c80530cf09eca0c98783e3e51fec",
   "file_to_component": {
     "repo_utils/change_detector.py": "6d573da2150dc64e",
     "health_main.py": "6d573da2150dc64e",
@@ -85,7 +85,6 @@
     "agents/tools/read_git_diff.py": "c85caa2c0bcf0ad7",
     "agents/tools/read_file.py": "c85caa2c0bcf0ad7",
     "agents/tools/read_packages.py": "c85caa2c0bcf0ad7",
-    "agents/tools/external_deps.py": "c85caa2c0bcf0ad7",
     "agents/tools/read_cfg.py": "c85caa2c0bcf0ad7",
     "agents/tools/toolkit.py": "c85caa2c0bcf0ad7",
     "agents/tools/__init__.py": "c85caa2c0bcf0ad7",
@@ -115,7 +114,9 @@
     "diagram_analysis/version.py": "3c839c8909bb966e",
     "output_generators/__init__.py": "3c839c8909bb966e",
     "output_generators/html_template.py": "3c839c8909bb966e",
-    "tool_registry.py": "6d573da2150dc64e"
+    "tool_registry.py": "6d573da2150dc64e",
+    "agents/dependency_discovery.py": "d517849a598c661e",
+    "agents/tools/get_external_deps.py": "c85caa2c0bcf0ad7"
   },
   "expanded_components": [
     "d517849a598c661e",

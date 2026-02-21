@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-02-21T00:52:22.322734+00:00",
+  "generated_at": "2026-02-21T15:12:02.842886+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -8,6 +8,7 @@
     "agents/agent_responses.py",
     "agents/cluster_methods_mixin.py",
     "agents/constants.py",
+    "agents/dependency_discovery.py",
     "agents/details_agent.py",
     "agents/llm_config.py",
     "agents/meta_agent.py",
@@ -23,7 +24,7 @@
     "agents/prompts/prompt_factory.py",
     "agents/tools/__init__.py",
     "agents/tools/base.py",
-    "agents/tools/external_deps.py",
+    "agents/tools/get_external_deps.py",
     "agents/tools/get_method_invocations.py",
     "agents/tools/read_cfg.py",
     "agents/tools/read_docs.py",
@@ -35,6 +36,9 @@
     "agents/tools/read_structure.py",
     "agents/tools/toolkit.py",
     "agents/validation.py",
+    "caching/__init__.py",
+    "caching/cache.py",
+    "caching/meta_cache.py",
     "constants.py",
     "core/__init__.py",
     "core/plugin_loader.py",
@@ -123,7 +127,7 @@
   "not_analyzed_files": [],
   "summary": {
     "total_files": 0,
-    "analyzed": 117,
+    "analyzed": 121,
     "not_analyzed": 0,
     "not_analyzed_by_reason": {}
   }

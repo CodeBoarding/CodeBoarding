@@ -1,20 +1,22 @@
 ```mermaid
 graph LR
-    CLI_Orchestration_Engine["CLI & Orchestration Engine"]
-    Analysis_Core_Engine["Analysis Core Engine"]
-    Analysis_Data_Store_Manifest_Management["Analysis Data Store/Manifest Management"]
-    Output_Generation_Formatting["Output Generation & Formatting"]
-    GitHub_Action_Integration["GitHub Action Integration"]
-    CLI_Orchestration_Engine -- "initiates" --> Analysis_Core_Engine
-    CLI_Orchestration_Engine -- "triggers" --> Output_Generation_Formatting
-    Analysis_Core_Engine -- "stores data in" --> Analysis_Data_Store_Manifest_Management
-    Analysis_Core_Engine -- "retrieves data from" --> Analysis_Data_Store_Manifest_Management
-    Analysis_Data_Store_Manifest_Management -- "provides data to" --> Analysis_Core_Engine
-    Analysis_Data_Store_Manifest_Management -- "provides data to" --> Output_Generation_Formatting
-    Output_Generation_Formatting -- "reads data from" --> Analysis_Data_Store_Manifest_Management
-    Output_Generation_Formatting -- "receives trigger from" --> CLI_Orchestration_Engine
-    GitHub_Action_Integration -- "orchestrates" --> Analysis_Core_Engine
-    GitHub_Action_Integration -- "orchestrates" --> Output_Generation_Formatting
+    Execution_Controller["Execution Controller"]
+    Analysis_Orchestrator["Analysis Orchestrator"]
+    Manifest_Manager["Manifest Manager"]
+    Coverage_Tracker["Coverage Tracker"]
+    Markdown_Generator["Markdown Generator"]
+    HTML_Generator["HTML Generator"]
+    Sphinx_Generator["Sphinx Generator"]
+    MDX_Generator["MDX Generator"]
+    Execution_Controller -- "triggers start of analysis pipeline and passes configuration parameters" --> Analysis_Orchestrator
+    Analysis_Orchestrator -- "queries existing component mappings and persists newly discovered architectural entities" --> Manifest_Manager
+    Analysis_Orchestrator -- "requests file status to determine which parts of the codebase need fresh analysis" --> Coverage_Tracker
+    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> Markdown_Generator
+    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> HTML_Generator
+    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> Sphinx_Generator
+    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> MDX_Generator
+    Coverage_Tracker -- "synchronizes file‑level changes with the component‑level manifest to maintain state consistency" --> Manifest_Manager
+    Manifest_Manager -- "provides the ground truth of previously analyzed components to avoid redundant AI interpretation" --> Analysis_Orchestrator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -23,55 +25,86 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### CLI & Orchestration Engine
-Serves as the primary interface and control center for the tool. It handles command-line argument parsing, environment variable validation, and orchestrates the entire workflow, from initiating repository processing to triggering analysis and output generation.
+### Execution Controller
+The subsystem entry point that validates the environment, parses configuration, and triggers the high-level analysis and rendering pipeline. It acts as the bridge between the user (CLI/GitHub Actions) and the internal logic.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.generate_analysis`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.partial_update`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main.process_local_repository`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinggithub_action.py" target="_blank" rel="noopener noreferrer">`github_action`</a>
 
 
-### Analysis Core Engine
-Executes static code analysis, builds file coverage data, and generates detailed analysis results. It interprets code structure, relationships, and handles incremental updates to the analysis data.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.diagram_generator.analyze_repository`</a>
-
-
-### Analysis Data Store/Manifest Management
-Manages the persistent state and metadata of the analysis. It stores the manifest and file coverage information, providing mechanisms for loading, saving, and updating these critical analysis results.
+### Analysis Orchestrator
+The central coordinator that manages the analysis lifecycle. It handles the transition from raw repository data to structured architectural models and coordinates incremental updates.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.manifest`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`diagram_analysis.file_coverage`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.DiagramGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`DiagramGenerator.generate`</a>
 
 
-### Output Generation & Formatting
-Transforms the processed analysis data into various user‑friendly documentation formats (HTML, Markdown, MDX, reStructuredText). This component integrates templating capabilities to ensure consistent styling and structure across all generated outputs, encapsulating all format‑specific generators and the common templating engine.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx.DiagramGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.sphinx.MarkdownOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`output_generators.mdx.MDXOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`output_generators.template_utils.TemplateEngine`</a>
-
-
-### GitHub Action Integration
-Provides specific entry points and orchestration logic tailored for execution within GitHub Actions CI/CD pipelines. It handles loading existing analyses and triggering documentation generation within an automated workflow context.
+### Manifest Manager
+Maintains the persistent mapping between source code files and discovered architectural components. It ensures that the analysis is reproducible and consistent across runs.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinggithub_action.py" target="_blank" rel="noopener noreferrer">`output_generators.github_actions.run_analysis`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py#L24-L67" target="_blank" rel="noopener noreferrer">`AnalysisManifest`:24-67</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py" target="_blank" rel="noopener noreferrer">`AnalysisManifest.load`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py" target="_blank" rel="noopener noreferrer">`AnalysisManifest.save`</a>
+
+
+### Coverage Tracker
+Handles change detection and tracks which files require re-analysis. It provides the granularity needed for performance‑optimized incremental builds.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py#L23-L212" target="_blank" rel="noopener noreferrer">`FileCoverage`:23-212</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`FileCoverage.get_status`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`FileCoverage.update`</a>
+
+
+### Markdown Generator
+Transforms the internal analysis model into static Markdown files, primarily utilizing Mermaid.js for architectural diagrams.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.MarkdownOutputGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`MarkdownOutputGenerator.render`</a>
+
+
+### HTML Generator
+Produces interactive documentation using Cytoscape.js for dynamic, browser‑based architectural visualizations.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`HTMLOutputGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`HTMLOutputGenerator.render`</a>
+
+
+### Sphinx Generator
+Generates reStructuredText (RST) files specifically designed for integration into the Sphinx documentation ecosystem.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`SphinxOutputGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`SphinxOutputGenerator.render`</a>
+
+
+### MDX Generator
+Emits React‑compatible documentation (MDX) with metadata front‑matter for modern web‑based documentation platforms (e.g., Docusaurus).
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`MDXOutputGenerator`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`MDXOutputGenerator.render`</a>
 
 
 
