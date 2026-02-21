@@ -33,6 +33,13 @@ class TestValidateEnvVars(unittest.TestCase):
             validate_env_vars()
         self.assertEqual(cm.exception.code, 1)
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "   "}, clear=True)
+    def test_validate_env_vars_empty_key_value(self):
+        # Should treat empty/whitespace key values as unset
+        with self.assertRaises(SystemExit) as cm:
+            validate_env_vars()
+        self.assertEqual(cm.exception.code, 1)
+
     @patch.dict(os.environ, {"OPENAI_API_KEY": "key1", "ANTHROPIC_API_KEY": "key2"}, clear=True)
     def test_validate_env_vars_multiple_keys(self):
         # Should exit when multiple keys are set
@@ -160,16 +167,15 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
 
 class TestPartialUpdate(unittest.TestCase):
     @patch("main.save_sub_analysis")
-    @patch("main.load_analysis")
+    @patch("main.load_full_analysis")
     @patch("main.DiagramGenerator")
-    def test_partial_update_success(self, mock_generator_class, mock_load_analysis, mock_save_sub_analysis):
-        # Test successful partial update
+    def test_partial_update_success(self, mock_generator_class, mock_load_full, mock_save_sub_analysis):
+        # Test successful partial update for a root-level component
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
 
-        # Mock process_component to return a valid tuple
         mock_sub_analysis = AnalysisInsights(
             description="test sub-analysis",
             components=[
@@ -183,22 +189,21 @@ class TestPartialUpdate(unittest.TestCase):
             components_relations=[],
         )
         mock_generator.process_component.return_value = (
-            "TestComponent",
+            "test_comp_id",
             mock_sub_analysis,
             [],
         )
 
-        mock_load_analysis.return_value = AnalysisInsights(
-            description="test",
-            components=[
-                Component(
-                    name="TestComponent",
-                    description="Test",
-                    key_entities=[],
-                    source_cluster_ids=[],
-                )
-            ],
-            components_relations=[],
+        root_component = Component(
+            name="TestComponent",
+            component_id="test_comp_id",
+            description="Test",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        mock_load_full.return_value = (
+            AnalysisInsights(description="test", components=[root_component], components_relations=[]),
+            {},
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -211,21 +216,84 @@ class TestPartialUpdate(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="test_comp_id",
                 depth_level=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once()
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "TestComponent")
+            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
 
-    @patch("main.load_analysis")
+    @patch("main.save_sub_analysis")
+    @patch("main.load_full_analysis")
     @patch("main.DiagramGenerator")
-    def test_partial_update_file_not_found(self, mock_generator_class, mock_load_analysis):
+    def test_partial_update_nested_component_success(
+        self, mock_generator_class, mock_load_full, mock_save_sub_analysis
+    ):
+        # Test that partial_update finds components nested inside sub-analyses
+        from agents.agent_responses import AnalysisInsights, Component
+
+        mock_generator = MagicMock()
+        mock_generator_class.return_value = mock_generator
+
+        mock_sub_analysis_result = AnalysisInsights(
+            description="nested sub-analysis result",
+            components=[],
+            components_relations=[],
+        )
+        mock_generator.process_component.return_value = (
+            "nested_comp_id",
+            mock_sub_analysis_result,
+            [],
+        )
+
+        root_component = Component(
+            name="RootComponent",
+            component_id="root_comp_id",
+            description="Root",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        nested_component = Component(
+            name="NestedComponent",
+            component_id="nested_comp_id",
+            description="Nested",
+            key_entities=[],
+            source_cluster_ids=[],
+        )
+        sub_analysis_of_root = AnalysisInsights(
+            description="sub of root",
+            components=[nested_component],
+            components_relations=[],
+        )
+        mock_load_full.return_value = (
+            AnalysisInsights(description="root", components=[root_component], components_relations=[]),
+            {"root_comp_id": sub_analysis_of_root},
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            partial_update(
+                repo_path=repo_path,
+                output_dir=output_dir,
+                project_name="test_project",
+                component_id="nested_comp_id",
+                depth_level=1,
+            )
+
+            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.process_component.assert_called_once_with(nested_component)
+            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
+
+    @patch("main.DiagramGenerator")
+    def test_partial_update_file_not_found(self, mock_generator_class):
         # Test when analysis.json doesn't exist
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
-        mock_load_analysis.return_value = None
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -238,7 +306,7 @@ class TestPartialUpdate(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="TestComponent",
                 depth_level=1,
             )
 
@@ -374,14 +442,14 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 depth_level=2,
-                component_name="TestComponent",
+                component_id="TestComponent",
             )
 
             mock_partial_update.assert_called_once_with(
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_name="TestComponent",
+                component_id="TestComponent",
                 depth_level=2,
             )
 
@@ -416,7 +484,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -429,7 +497,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = "test"
-        args.partial_component = "Component1"
+        args.partial_component_id = "test_comp_id"
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
@@ -442,7 +510,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.project_name = "test"
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
@@ -455,7 +523,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = None
 
         validate_arguments(args, parser, is_local=False)
@@ -468,7 +536,7 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.project_name = None
-        args.partial_component = None
+        args.partial_component_id = None
         args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)

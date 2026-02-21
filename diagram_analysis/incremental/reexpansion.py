@@ -35,7 +35,7 @@ class ReexpansionContext:
 
 
 def reexpand_single_component(
-    component_name: str,
+    component_id: str,
     details_agent: DetailsAgent,
     context: ReexpansionContext,
 ) -> str | None:
@@ -45,26 +45,26 @@ def reexpand_single_component(
     """
     # Find the component in analysis
     component = next(
-        (c for c in context.analysis.components if c.name == component_name),
+        (c for c in context.analysis.components if c.component_id == component_id),
         None,
     )
     if not component:
-        logger.warning(f"Component '{component_name}' not found for re-expansion")
+        logger.warning(f"Component '{component_id}' not found for re-expansion")
         return None
 
     try:
         # Check if we can patch the existing sub-analysis instead of re-running
-        existing_sub_analysis = load_sub_analysis(context.output_dir, component_name)
+        existing_sub_analysis = load_sub_analysis(context.output_dir, component_id)
 
         if existing_sub_analysis and context.impact:
             # Check if changes within this component are just renames
             if subcomponent_has_only_renames(
-                component_name,
+                component_id,
                 existing_sub_analysis,
                 context.impact,
             ):
                 logger.info(
-                    f"Component '{component_name}' sub-analysis has only renames, patching instead of re-expanding"
+                    f"Component '{component_id}' sub-analysis has only renames, patching instead of re-expanding"
                 )
 
                 # Patch the sub-analysis
@@ -73,29 +73,29 @@ def reexpand_single_component(
                     context.impact.deleted_files if context.impact else [],
                     context.impact.renames if context.impact else {},
                 ):
-                    save_sub_analysis(existing_sub_analysis, context.output_dir, component_name)
-                    logger.info(f"Patched component '{component_name}' sub-analysis")
-                    return component_name
+                    save_sub_analysis(existing_sub_analysis, context.output_dir, component_id)
+                    logger.info(f"Patched component '{component_id}' sub-analysis")
+                    return component_id
 
         # If patching wasn't possible or changes are structural, re-run DetailsAgent
-        logger.info(f"Re-expanding component: {component_name}")
+        logger.info(f"Re-expanding component: {component_id}")
 
         # Run DetailsAgent to regenerate sub-analysis
         sub_analysis, _ = details_agent.run(component)
 
         # Save sub-analysis into the unified file
-        save_sub_analysis(sub_analysis, context.output_dir, component_name)
+        save_sub_analysis(sub_analysis, context.output_dir, component_id)
 
-        logger.info(f"Re-expanded component '{component_name}'")
-        return component_name
+        logger.info(f"Re-expanded component '{component_id}'")
+        return component_id
 
     except Exception as e:
-        logger.error(f"Failed to re-expand component '{component_name}': {e}")
+        logger.error(f"Failed to re-expand component '{component_id}': {e}")
         return None
 
 
 def reexpand_components(
-    component_names: set[str],
+    component_ids: set[str],
     repo_dir: Path,
     context: ReexpansionContext,
 ) -> list[str]:
@@ -103,10 +103,10 @@ def reexpand_components(
 
     Processes components in parallel for efficiency.
     """
-    if not component_names:
+    if not component_ids:
         return []
 
-    logger.info(f"Re-expanding {len(component_names)} components: {component_names}")
+    logger.info(f"Re-expanding {len(component_ids)} components: {component_ids}")
 
     if not context.static_analysis:
         logger.error("No static analysis available for re-expansion")
@@ -141,11 +141,11 @@ def reexpand_components(
         future_to_component = {
             executor.submit(
                 reexpand_single_component,
-                component_name,
+                component_id,
                 details_agent,
                 context,
-            ): component_name
-            for component_name in component_names
+            ): component_id
+            for component_id in component_ids
         }
 
         # Collect results as they complete
@@ -154,13 +154,13 @@ def reexpand_components(
             total=len(future_to_component),
             desc="Re-expanding components",
         ):
-            component_name = future_to_component[future]
+            component_id = future_to_component[future]
             try:
                 result = future.result()
                 if result:
                     reexpanded.append(result)
             except Exception as exc:
-                logger.error(f"Component {component_name} generated an exception: {exc}")
+                logger.error(f"Component {component_id} generated an exception: {exc}")
 
-    logger.info(f"Successfully re-expanded {len(reexpanded)}/{len(component_names)} components")
+    logger.info(f"Successfully re-expanded {len(reexpanded)}/{len(component_ids)} components")
     return reexpanded

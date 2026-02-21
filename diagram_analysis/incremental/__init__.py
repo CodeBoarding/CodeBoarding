@@ -16,23 +16,24 @@ Usage:
         success = updater.execute()
 """
 
+from diagram_analysis.incremental.impact_analyzer import analyze_impact
+from diagram_analysis.incremental.io_utils import (
+    load_full_analysis,
+    load_root_analysis,
+    load_sub_analysis,
+    save_analysis,
+    save_sub_analysis,
+)
 from diagram_analysis.incremental.models import (
+    MAX_DIRTY_COMPONENTS_FOR_INCREMENTAL,
+    STRUCTURAL_CHANGE_THRESHOLD,
     ChangeImpact,
     UpdateAction,
-    STRUCTURAL_CHANGE_THRESHOLD,
-    MAX_DIRTY_COMPONENTS_FOR_INCREMENTAL,
 )
-from diagram_analysis.incremental.impact_analyzer import analyze_impact
 from diagram_analysis.incremental.path_patching import (
     patch_paths_in_analysis,
     patch_paths_in_manifest,
     patch_sub_analysis,
-)
-from diagram_analysis.incremental.io_utils import (
-    load_analysis,
-    save_analysis,
-    load_sub_analysis,
-    save_sub_analysis,
 )
 from diagram_analysis.incremental.updater import IncrementalUpdater
 from diagram_analysis.incremental.validation import validate_incremental_update
@@ -50,7 +51,8 @@ __all__ = [
     "patch_paths_in_manifest",
     "patch_sub_analysis",
     # I/O Utilities
-    "load_analysis",
+    "load_root_analysis",
+    "load_full_analysis",
     "save_analysis",
     "load_sub_analysis",
     "save_sub_analysis",

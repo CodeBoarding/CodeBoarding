@@ -5,6 +5,8 @@ from agents.agent_responses import (
     Relation,
     Component,
     AnalysisInsights,
+    ROOT_PARENT_ID,
+    hash_component_id,
 )
 
 
@@ -203,3 +205,24 @@ class TestAnalysisInsights(unittest.TestCase):
         # Should work with non-empty list
         component = Component(name="Test", description="Test component", key_entities=[ref])
         self.assertEqual(len(component.key_entities), 1)
+
+
+class TestComponentIds(unittest.TestCase):
+
+    def test_hash_component_id_is_deterministic(self):
+        component_id_a = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+        component_id_b = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+
+        self.assertEqual(component_id_a, component_id_b)
+
+    def test_hash_component_id_format_is_16_hex_chars(self):
+        component_id = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+
+        self.assertEqual(len(component_id), 16)
+        self.assertRegex(component_id, r"^[0-9a-f]{16}$")
+
+    def test_hash_component_id_uses_sibling_index(self):
+        first = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=0)
+        second = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=1)
+
+        self.assertNotEqual(first, second)

@@ -4,8 +4,9 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-from agents.agent_responses import ClusterAnalysis, AnalysisInsights, ComponentFiles
-from static_analyzer.graph import ClusterResult, CallGraph
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
+from repo_utils import normalize_path
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,11 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
 
         # Check if any cluster pair has an edge
         has_edge = _check_edge_between_cluster_sets(
-            src_clusters, dst_clusters, context.cluster_results, context.cfg_graphs, cluster_edge_lookup
+            src_clusters,
+            dst_clusters,
+            context.cluster_results,
+            context.cfg_graphs,
+            cluster_edge_lookup,
         )
 
         if not has_edge:
@@ -225,24 +230,16 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     feedback_messages = []
 
-    def _normalize_path(path: str) -> str:
-        if context.repo_dir and os.path.isabs(path):
-            path = os.path.relpath(path, context.repo_dir)
-        path = os.path.normpath(path)
-        if os.sep != "/":
-            path = path.replace(os.sep, "/")
-        return path
-
     # Get classified file paths from result
-    classified_files = {_normalize_path(fc.file_path) for fc in result.file_paths}
+    classified_files = {normalize_path(fc.file_path, context.repo_dir) for fc in result.file_paths}
 
     # Normalize paths for comparison
-    expected_files_normalized = {_normalize_path(file_path) for file_path in context.expected_files}
+    expected_files_normalized = {normalize_path(file_path, context.repo_dir) for file_path in context.expected_files}
 
     # Check 1: Are all unassigned files classified?
     missing_files = expected_files_normalized - classified_files
     if missing_files:
-        missing_list = sorted(missing_files)[:10]
+        missing_list = sorted(str(f) for f in missing_files)[:10]
         missing_str = ", ".join(missing_list)
         more_msg = f" and {len(missing_files) - 10} more" if len(missing_files) > 10 else ""
         feedback_messages.append(
@@ -273,6 +270,50 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
 
     logger.warning(f"[Validation] File classification issues: {len(feedback_messages)} problems found")
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def validate_relation_component_names(result: AnalysisInsights, _context: ValidationContext) -> ValidationResult:
+    """
+    Validate that every src_name and dst_name in components_relations refers to an existing component.
+
+    When a relation references a component name that does not exist, assign_component_ids will
+    leave src_id or dst_id as an empty string, producing broken references in the output JSON.
+
+    Args:
+        result: AnalysisInsights containing components and components_relations
+        context: ValidationContext (not used but kept for interface consistency)
+
+    Returns:
+        ValidationResult with feedback listing every relation whose src_name or dst_name is unknown
+    """
+    known_names = {component.name for component in result.components}
+
+    invalid_relations: list[str] = []
+    for relation in result.components_relations:
+        unknown: list[str] = []
+        if relation.src_name not in known_names:
+            unknown.append(f"src_name='{relation.src_name}'")
+        if relation.dst_name not in known_names:
+            unknown.append(f"dst_name='{relation.dst_name}'")
+        if unknown:
+            invalid_relations.append(
+                f"({relation.src_name} -{relation.relation}-> {relation.dst_name}): {', '.join(unknown)}"
+            )
+
+    if not invalid_relations:
+        logger.info("[Validation] All relation component names refer to existing components")
+        return ValidationResult(is_valid=True)
+
+    invalid_str = "; ".join(invalid_relations)
+    known_str = ", ".join(sorted(known_names)) if known_names else "<none>"
+    feedback = (
+        f"The following relations reference component names that do not exist: {invalid_str}. "
+        f"Known component names are: {known_str}. "
+        f"Please ensure that src_name and dst_name in every relation match an existing component name exactly."
+    )
+
+    logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
 def _build_cluster_edge_lookup(

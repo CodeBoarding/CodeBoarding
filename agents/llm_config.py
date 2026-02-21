@@ -1,18 +1,18 @@
-import os
 import logging
+import os
 from dataclasses import dataclass, field
-from typing import Type, Any
+from typing import Any, Type
 
-from agents.prompts.prompt_factory import initialize_global_factory
-from langchain_core.language_models import BaseChatModel
-from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
+from langchain_core.language_models import BaseChatModel
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
-from agents.prompts.prompt_factory import LLMType
+from agents.constants import LLMDefaults
+from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
 # Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
@@ -43,8 +43,8 @@ class LLMConfig:
     agent_model: str
     parsing_model: str
     llm_type: LLMType
-    agent_temperature: float = 0.1
-    parsing_temperature: float = 0
+    agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
+    parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
 
@@ -85,7 +85,7 @@ LLM_PROVIDERS = {
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
-        agent_model="google/gemini-2.5-flash",
+        agent_model="google/gemini-3-flash",
         parsing_model="openai/gpt-oss-120b",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
         llm_type=LLMType.GEMINI_FLASH,
         alt_env_vars=["VERCEL_BASE_URL"],
@@ -111,8 +111,8 @@ LLM_PROVIDERS = {
     "google": LLMConfig(
         chat_class=ChatGoogleGenerativeAI,
         api_key_env="GOOGLE_API_KEY",
-        agent_model="gemini-2.5-flash",
-        parsing_model="gemini-2.5-flash",
+        agent_model="gemini-3-flash",
+        parsing_model="gemini-3-flash",
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,

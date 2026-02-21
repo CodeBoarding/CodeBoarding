@@ -56,7 +56,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         current_stats.reset(self.token)
 
     @patch("agents.llm_config.LLM_PROVIDERS")
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_init_with_openai(self, mock_create_agent, mock_providers):
         # Test initialization with OpenAI
         mock_llm = Mock(spec=BaseChatModel)
@@ -79,7 +79,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(agent.static_analysis, self.mock_analysis)
         self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_init_direct(self, mock_create_agent):
         # Test direct initialization with mocked LLMs
         mock_llm = Mock(spec=BaseChatModel)
@@ -96,7 +96,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsNotNone(agent)
         self.assertEqual(agent.parsing_llm, mock_parsing_llm)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_invoke_success(self, mock_create_agent):
         # Test successful invocation
         mock_agent_executor = Mock()
@@ -120,7 +120,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(result, "Test response")
         mock_agent_executor.invoke.assert_called_once()
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_invoke_with_list_content(self, mock_create_agent):
         # Test invocation with list content response
         mock_agent_executor = Mock()
@@ -143,7 +143,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         self.assertEqual(result, "Part 1Part 2")
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     @patch("time.sleep")
     def test_invoke_with_retry(self, mock_sleep, mock_create_agent):
         # Test invocation with retry on ResourceExhausted
@@ -175,7 +175,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(mock_agent_executor.invoke.call_count, 2)
         mock_sleep.assert_called_with(30)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     @patch("time.sleep")
     def test_invoke_max_retries(self, mock_sleep, mock_create_agent):
         # Test max retries reached
@@ -200,7 +200,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIn("Could not get response", result)
         self.assertEqual(mock_agent_executor.invoke.call_count, 5)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_invoke_with_callbacks(self, mock_create_agent):
         # Test invocation with callbacks
         mock_agent_executor = Mock()
@@ -228,7 +228,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(len(config["callbacks"]), 2)
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     @patch("agents.agent.create_extractor")
     def test_parse_invoke(self, mock_extractor, mock_create_agent):
         # Test parse_invoke method
@@ -259,7 +259,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "test_value")
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_get_monitoring_results_no_callback(self, mock_create_agent):
         # Test getting monitoring results when no callback exists
         mock_create_agent.return_value = Mock()
@@ -281,7 +281,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(results["token_usage"]["input_tokens"], 0)
         self.assertEqual(results["token_usage"]["output_tokens"], 0)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_get_monitoring_results_with_callback(self, mock_create_agent):
         # Test getting monitoring results with callback
         mock_create_agent.return_value = Mock()
@@ -312,7 +312,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIn("tool_usage", results)
         self.assertEqual(results["tool_usage"]["counts"]["tool1"], 5)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     @patch("agents.agent.create_extractor")
     @patch("time.sleep")
     def test_parse_response_with_retry(self, mock_sleep, mock_extractor, mock_create_agent):
@@ -342,7 +342,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "success")
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_tools_initialized(self, mock_create_agent):
         # Test that all required tools are initialized
         mock_create_agent.return_value = Mock()
@@ -367,7 +367,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsNotNone(agent.read_docs)
         self.assertIsNotNone(agent.external_deps_tool)
 
-    @patch("agents.agent.create_react_agent")
+    @patch("agents.agent.create_agent")
     def test_agent_created_with_tools(self, mock_create_agent):
         # Test that agent is created with correct tools
         mock_create_agent.return_value = Mock()
@@ -381,7 +381,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        # Verify create_react_agent was called with tools
+        # Verify create_agent was called with tools
         call_args = mock_create_agent.call_args
         self.assertIn("tools", call_args[1])
         tools = call_args[1]["tools"]

@@ -19,6 +19,7 @@ dependencies = [
     "email-validator==2.2.0",
     "exceptiongroup==1.2.2",
     "fastapi==0.115.14",
+    "filelock==3.12",
     "gcloud==0.18.3",
     "gitpython==3.1.44",
     "google-cloud==0.34.0",
@@ -75,7 +76,8 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["agents", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer"]
+packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "diagram_analysis.incremental", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.lsp_client"]
+py-modules = ["utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "health_main", "tool_registry"]
 include-package-data = true
 
 [project.scripts]

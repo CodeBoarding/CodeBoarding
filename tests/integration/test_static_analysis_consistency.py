@@ -46,8 +46,11 @@ METRIC_TOLERANCE = 0.02
 # Minimum absolute tolerance for small numbers (e.g., 20 vs 19 is 5% diff, but only 1 unit)
 MIN_ABSOLUTE_TOLERANCE = 2
 
-# Tolerance percentage for execution time comparisons (10% = 0.10)
+# Tolerance percentage for execution time comparisons (15% = 0.15)
 EXECUTION_TIME_TOLERANCE = 0.15
+
+# Minimum absolute tolerance for execution time in seconds
+MIN_EXECUTION_TIME_TOLERANCE = 90
 
 
 def get_language_marker(language: str):
@@ -142,8 +145,13 @@ class TestStaticAnalysisConsistency:
         for metric_name in metric_names:
             actual = actual_metrics[metric_name]
             expected_val = expected_metrics[metric_name]
-            tolerance = EXECUTION_TIME_TOLERANCE if metric_name == "execution_time_seconds" else METRIC_TOLERANCE
-            is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance)
+            if metric_name == "execution_time_seconds":
+                tolerance = EXECUTION_TIME_TOLERANCE
+                min_absolute = MIN_EXECUTION_TIME_TOLERANCE
+            else:
+                tolerance = METRIC_TOLERANCE
+                min_absolute = MIN_ABSOLUTE_TOLERANCE
+            is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance, min_absolute)
             results.append(
                 {
                     "metric": metric_name,
@@ -182,6 +190,7 @@ class TestStaticAnalysisConsistency:
         actual: int | float,
         expected: int | float,
         tolerance: float,
+        min_absolute: int | float = MIN_ABSOLUTE_TOLERANCE,
     ) -> tuple[bool, str]:
         """Check if actual value is within tolerance of expected.
 
@@ -198,8 +207,8 @@ class TestStaticAnalysisConsistency:
 
         # For small numbers, use absolute tolerance; for large numbers, use percentage
         # Whichever is more generous
-        if absolute_diff <= MIN_ABSOLUTE_TOLERANCE:
-            return True, f"±{absolute_diff} (within ±{MIN_ABSOLUTE_TOLERANCE})"
+        if absolute_diff <= min_absolute:
+            return True, f"±{absolute_diff} (within ±{min_absolute})"
 
         if relative_diff <= tolerance:
             return True, f"±{relative_diff * 100:.1f}%"

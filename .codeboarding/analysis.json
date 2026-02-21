@@ -1,1900 +1,244 @@
 {
-  "version": 2,
   "metadata": {
-    "generated_at": "2026-02-10T21:12:38.863094+00:00",
+    "generated_at": "2026-02-21T00:52:22.314162+00:00",
     "repo_name": "CodeBoarding",
-    "depth_level": 3
+    "depth_level": 2,
+    "file_coverage_summary": {
+      "total_files": 0,
+      "analyzed": 0,
+      "not_analyzed": 0,
+      "not_analyzed_by_reason": {}
+    }
   },
-  "description": "The CodeBoarding platform orchestrates repository interaction, static analysis, data management, LLM‑driven agents, and reporting. The Application Orchestration component initiates change detection, runs the Static Analysis Engine, stores results in Analysis Data Management, and coordinates agents. Agents obtain processed analysis data, request prompts and configurations from the LLM Prompt & Configuration Management component, and use specialized tools to interact with the codebase. Finally, reporting generates diagrams, health diagnostics, and other output formats for architectural understanding and monitoring.",
+  "description": "The CodeBoarding system orchestrates a comprehensive code analysis and documentation generation workflow. It begins with the Application Orchestrator & Repository Manager initializing projects, managing code repositories, and detecting changes. This orchestrator leverages the Incremental Analysis Engine to optimize performance by caching and re-analyzing only modified code. The core intelligence resides in the LLM Agent Core, which uses large language models to interpret code and analysis results. The agent interacts with the codebase and static analysis data through the Agent Tooling Interface, which in turn queries the Static Code Analyzer for deep structural and behavioral insights. Finally, the LLM Agent's findings are passed to the Documentation & Diagram Generator to produce user-friendly documentation and visual architectural diagrams.",
   "components": [
     {
-      "name": "LLM Prompt & Configuration Management",
-      "description": "This component is responsible for the dynamic generation, management, and configuration of prompts for various Large Language Models (LLMs) used throughout the system. It also handles the configuration and initialization of the LLMs themselves, including API key management.",
+      "name": "Application Orchestrator & Repository Manager",
+      "description": "Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.",
       "key_entities": [
         {
-          "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-          "reference_file": "agents/prompts/prompt_factory.py"
-        },
-        {
-          "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-          "reference_file": "agents/prompts/abstract_prompt_factory.py"
-        },
-        {
-          "qualified_name": "agents.llm_config.LLMConfig",
-          "reference_file": "agents/llm_config.py"
-        },
-        {
-          "qualified_name": "agents.prompts.gemini_prompts.GeminiPromptFactory",
-          "reference_file": "agents/prompts/gemini_flash_prompts.py"
-        }
-      ],
-      "assigned_files": [
-        "agents/prompts/gemini_flash_prompts.py",
-        "agents/prompts/prompt_factory.py",
-        "agents/prompts/glm_prompts.py",
-        "agents/prompts/gpt_prompts.py",
-        "repos/CodeBoarding/agents/llm_config.py",
-        "agents/prompts/kimi_prompts.py",
-        "repos/CodeBoarding/agents/prompts/prompt_factory.py",
-        "repos/CodeBoarding/agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/deepseek_prompts.py",
-        "agents/prompts/claude_prompts.py",
-        "agents/llm_config.py",
-        "agents/prompts/__init__.py",
-        "agents/prompts/abstract_prompt_factory.py"
-      ],
-      "source_cluster_ids": [
-        1,
-        6,
-        20
-      ],
-      "can_expand": true,
-      "components": [
-        {
-          "name": "Prompt Factory Interface",
-          "description": "Defines the abstract contract for creating various types of LLM prompts, ensuring a standardized and extensible approach aligned with the Abstract Factory pattern.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-              "reference_file": "agents/prompts/abstract_prompt_factory.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/prompts/abstract_prompt_factory.py",
-            "agents/prompts/__init__.py",
-            "agents/prompts/abstract_prompt_factory.py",
-            "agents/prompts/claude_prompts.py",
-            "agents/prompts/deepseek_prompts.py",
-            "agents/prompts/glm_prompts.py",
-            "agents/prompts/gpt_prompts.py",
-            "agents/prompts/kimi_prompts.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Prompt Factory Interface",
-              "description": "Defines the abstract contract for creating various types of LLM prompts, ensuring a standardized and extensible approach aligned with the Abstract Factory pattern. It decouples client code from concrete prompt factories and supports easy addition of new prompt types.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-                  "reference_file": "agents/prompts/abstract_prompt_factory.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/prompts/abstract_prompt_factory.py",
-                "agents/prompts/__init__.py",
-                "agents/prompts/abstract_prompt_factory.py",
-                "agents/prompts/claude_prompts.py",
-                "agents/prompts/deepseek_prompts.py",
-                "agents/prompts/glm_prompts.py",
-                "agents/prompts/gpt_prompts.py",
-                "agents/prompts/kimi_prompts.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "2e415478-d8d9-461a-85d0-83c29e643f70"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "defines interface for",
-              "src_name": "Prompt Factory Interface",
-              "dst_name": "Concrete Prompt Factories"
-            },
-            {
-              "relation": "utilized by",
-              "src_name": "Client Components",
-              "dst_name": "Prompt Factory Interface"
-            }
-          ],
-          "component_id": "5baf75d9-8a9e-4dd7-8b27-1a12882dde46"
-        },
-        {
-          "name": "Generic Prompt Factory",
-          "description": "Concrete implementation of the Prompt Factory Interface providing a general mechanism for constructing LLM prompts, serving as a default factory when no specific LLM factory is required.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-              "reference_file": "agents/prompts/prompt_factory.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/prompts/prompt_factory.py",
-            "agents/prompts/prompt_factory.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Generic Prompt Factory",
-              "description": "Concrete implementation of a prompt factory interface that builds LLM prompts from various inputs, serving as the default fallback mechanism for prompt generation within the agents.prompts subsystem.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-                  "reference_file": "agents/prompts/prompt_factory.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/prompts/prompt_factory.py",
-                "agents/prompts/prompt_factory.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "6176ca92-cf7b-4719-af82-31b92ab27138"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "ef0c3878-c129-4be9-a210-4d5da853fe66"
-        },
-        {
-          "name": "Gemini Prompt Factory",
-          "description": "Specialized concrete factory implementing the Prompt Factory Interface for generating prompts optimized for the Gemini family of LLMs.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiPromptFactory",
-              "reference_file": "agents/prompts/gemini_flash_prompts.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/prompts/gemini_flash_prompts.py",
-            "agents/prompts/gemini_flash_prompts.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Gemini Prompt Factory",
-              "description": "A concrete factory implementation that produces prompts tailored for the Gemini family of LLMs, adhering to the Prompt Factory Interface.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiPromptFactory",
-                  "reference_file": "agents/prompts/gemini_flash_prompts.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/prompts/gemini_flash_prompts.py",
-                "agents/prompts/gemini_flash_prompts.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "eaa736bc-5879-48d2-98ed-9a110547fd45"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "implements",
-              "src_name": "Gemini Prompt Factory",
-              "dst_name": "Prompt Factory Interface"
-            },
-            {
-              "relation": "provides",
-              "src_name": "Gemini Prompt Factory",
-              "dst_name": "LLM Orchestrator / Agent"
-            }
-          ],
-          "component_id": "4f999896-9b0f-46d6-87e7-4955e0f88e13"
-        },
-        {
-          "name": "LLM Configuration Manager",
-          "description": "Responsible for loading, storing, and providing configuration details for various LLMs, including API keys and model‑specific settings.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.llm_config.LLMConfig",
-              "reference_file": "agents/llm_config.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/llm_config.py",
-            "agents/llm_config.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LLM Configuration Manager",
-              "description": "Responsible for loading, storing, and providing configuration details for various Large Language Models (LLMs), including API keys and model-specific settings. Acts as a central repository ensuring consistent access and management of sensitive and operational parameters.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.llm_config.LLMConfig",
-                  "reference_file": "agents/llm_config.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/llm_config.py",
-                "agents/llm_config.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "46a8a529-bc3d-47a8-bf40-10a7fd46720b"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "424fbc8b-828d-4f3f-a858-1f1b4a80e5dc"
-        }
-      ],
-      "components_relations": [
-        {
-          "relation": "Implemented by",
-          "src_name": "Prompt Factory Interface",
-          "dst_name": "Generic Prompt Factory"
-        },
-        {
-          "relation": "Implemented by",
-          "src_name": "Prompt Factory Interface",
-          "dst_name": "Gemini Prompt Factory"
-        },
-        {
-          "relation": "Provides configuration to",
-          "src_name": "LLM Configuration Manager",
-          "dst_name": "Generic Prompt Factory"
-        },
-        {
-          "relation": "Provides configuration to",
-          "src_name": "LLM Configuration Manager",
-          "dst_name": "Gemini Prompt Factory"
-        }
-      ],
-      "component_id": "cb2bc7c3-a48b-454b-9a6c-2da52376cb01"
-    },
-    {
-      "name": "Agent Core & Tooling",
-      "description": "This component encapsulates the core logic of the CodeBoarding agents and the specialized tools they use to interact with the codebase and its analysis results. It defines the structured response formats for agent outputs and acts as the central intelligence and orchestration unit.",
-      "key_entities": [
-        {
-          "qualified_name": "agents.agent.CodeBoardingAgent",
-          "reference_file": "agents/agent.py"
-        },
-        {
-          "qualified_name": "agents.tools.file_content_tool.FileContentTool",
-          "reference_file": "agents/tools/read_file.py"
-        },
-        {
-          "qualified_name": "agents.agent_responses.AnalysisInsights",
-          "reference_file": "agents/agent_responses.py"
-        },
-        {
-          "qualified_name": "agents.tools.cfg_tool.CFGTool",
-          "reference_file": "agents/tools/read_file.py"
-        }
-      ],
-      "assigned_files": [
-        "agents/tools/read_file.py",
-        "repos/CodeBoarding/agents/agent.py",
-        "agents/tools/read_docs.py",
-        "agents/agent_responses.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/toolkit.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/read_structure.py",
-        "agents/agent.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_cfg.py",
-        "repos/CodeBoarding/agents/agent_responses.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_source.py",
-        "agents/__init__.py",
-        "agents/abstraction_agent.py",
-        "agents/cluster_methods_mixin.py",
-        "agents/details_agent.py",
-        "agents/meta_agent.py",
-        "agents/planner_agent.py",
-        "agents/tools/__init__.py",
-        "agents/tools/base.py",
-        "agents/validation.py"
-      ],
-      "source_cluster_ids": [
-        4,
-        7,
-        9
-      ],
-      "can_expand": true,
-      "components": [
-        {
-          "name": "CodeBoardingAgent",
-          "description": "Central intelligence and orchestration unit that drives analysis, makes decisions, and synthesizes findings using various tools.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.agent.CodeBoardingAgent",
-              "reference_file": "agents/agent.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/agent.py",
-            "agents/__init__.py",
-            "agents/abstraction_agent.py",
-            "agents/agent.py",
-            "agents/cluster_methods_mixin.py",
-            "agents/details_agent.py",
-            "agents/meta_agent.py",
-            "agents/planner_agent.py",
-            "agents/tools/__init__.py",
-            "agents/tools/base.py",
-            "agents/tools/external_deps.py",
-            "agents/tools/read_docs.py",
-            "agents/tools/read_file_structure.py",
-            "agents/tools/read_git_diff.py",
-            "agents/tools/read_packages.py",
-            "agents/tools/read_source.py",
-            "agents/tools/read_structure.py",
-            "agents/tools/toolkit.py",
-            "agents/validation.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Agent Orchestrator",
-              "description": "Central control unit embodied by the CodeBoardingAgent class. It interprets high‑level goals, manages workflow, and orchestrates internal components, handling overall control flow, task decomposition, decision‑making, and coordination.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent.run",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent._decide_next_action",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py",
-                "agents/__init__.py",
-                "agents/abstraction_agent.py",
-                "agents/agent.py",
-                "agents/cluster_methods_mixin.py",
-                "agents/details_agent.py",
-                "agents/meta_agent.py",
-                "agents/validation.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "a0f1268a-4851-4ebd-9bfe-1c373890b974"
-            },
-            {
-              "name": "Reasoning Module",
-              "description": "Analytical component that processes contextual information, generates strategic plans, and determines the next best action based on the current state and objectives. It leverages language models and prompt engineering for intelligent decision‑making.",
-              "key_entities": [
-                {
-                  "qualified_name": "langchain_core.language_models.llms.BaseLLM",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "langchain_core.prompts.PromptTemplate",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "langgraph.graph.Graph",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent._plan_action",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py",
-                "agents/planner_agent.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "30bde957-22cf-4c50-8aec-839250050649"
-            },
-            {
-              "name": "Tool Executor",
-              "description": "Manages selection, invocation, and execution of external tools or functions, acting as the interface between the agent's internal logic and its available toolset.",
-              "key_entities": [
-                {
-                  "qualified_name": "langchain_core.tools.BaseTool",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "langchain.agents.AgentExecutor",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.tools.get_available_tools",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent._execute_tool",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py",
-                "agents/tools/__init__.py",
-                "agents/tools/base.py",
-                "agents/tools/external_deps.py",
-                "agents/tools/read_docs.py",
-                "agents/tools/read_file_structure.py",
-                "agents/tools/read_git_diff.py",
-                "agents/tools/read_packages.py",
-                "agents/tools/read_source.py",
-                "agents/tools/read_structure.py",
-                "agents/tools/toolkit.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "8bfdef2a-8470-4721-b2bb-1996a6dfe5db"
-            },
-            {
-              "name": "Context Manager",
-              "description": "Maintains and provides access to the agent's operational context, including conversational history, intermediate results, and relevant state information, ensuring coherent understanding of ongoing tasks.",
-              "key_entities": [
-                {
-                  "qualified_name": "langchain_core.memory.BaseMemory",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "langchain_core.messages.BaseMessage",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent.state",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py",
-                "repos/CodeBoarding/static_analyzer/analysis_result.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "2e17340c-d9cf-4add-91c9-24145a9bf11b"
-            },
-            {
-              "name": "Input/Output Handler",
-              "description": "Facilitates communication between the CodeBoardingAgent and external entities, handling reception of initial requests and delivery of final or intermediate responses.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent.invoke",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "langchain_core.runnables.Runnable",
-                  "reference_file": "agents/agent.py"
-                },
-                {
-                  "qualified_name": "agents.agent.CodeBoardingAgent._format_output",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "4ca1b289-f061-4b47-9cbc-49ad1bcbb73c"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "uses",
-              "src_name": "Agent Orchestrator",
-              "dst_name": "Reasoning Module"
-            },
-            {
-              "relation": "informs",
-              "src_name": "Reasoning Module",
-              "dst_name": "Agent Orchestrator"
-            },
-            {
-              "relation": "delegates tasks to",
-              "src_name": "Agent Orchestrator",
-              "dst_name": "Tool Executor"
-            },
-            {
-              "relation": "performs actions on behalf of",
-              "src_name": "Tool Executor",
-              "dst_name": "Agent Orchestrator"
-            },
-            {
-              "relation": "manages state through",
-              "src_name": "Agent Orchestrator",
-              "dst_name": "Context Manager"
-            },
-            {
-              "relation": "provides historical and current context to",
-              "src_name": "Context Manager",
-              "dst_name": "Agent Orchestrator"
-            },
-            {
-              "relation": "receives external input for",
-              "src_name": "Input/Output Handler",
-              "dst_name": "Agent Orchestrator"
-            },
-            {
-              "relation": "delivers results via",
-              "src_name": "Agent Orchestrator",
-              "dst_name": "Input/Output Handler"
-            }
-          ],
-          "component_id": "b93f3c15-ae48-4d79-93e6-3a3a6a380d1a"
-        },
-        {
-          "name": "FileContentTool",
-          "description": "Utility that enables the agent to retrieve and read the content of specific files within the project's codebase.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.tools.read_file.FileContentTool",
-              "reference_file": "agents/tools/read_file.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/tools/read_file.py",
-            "agents/tools/read_file.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "FileContentTool",
-              "description": "Primary interface for agents to access and read the content of files within the project's codebase. It encapsulates the logic for handling file read requests and interacting with the underlying file system.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_file.FileContentTool",
-                  "reference_file": "agents/tools/read_file.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/tools/read_file.py",
-                "agents/tools/read_file.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "21e0a597-b2c4-4678-909c-bf21d702ce0e"
-            },
-            {
-              "name": "Agent",
-              "description": "Intelligent entity that utilizes various tools, including FileContentTool, to perform tasks. It initiates requests for file content as part of its operational workflow.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent.Agent",
-                  "reference_file": "agents/agent.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "244e4a9f-71d2-4f3e-9193-9cc667353552"
-            },
-            {
-              "name": "File System Access",
-              "description": "Foundational component responsible for low‑level operations of interacting directly with the file system to retrieve file data. It provides the actual mechanism for reading file contents.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_file.FileSystemAccess",
-                  "reference_file": "agents/tools/read_file.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/tools/read_file.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "751a809b-3dc4-4a87-83f9-cf89b4678912"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "provides file content to",
-              "src_name": "FileContentTool",
-              "dst_name": "Agent"
-            },
-            {
-              "relation": "requests file content from",
-              "src_name": "Agent",
-              "dst_name": "FileContentTool"
-            },
-            {
-              "relation": "requests file content from",
-              "src_name": "FileContentTool",
-              "dst_name": "File System Access"
-            },
-            {
-              "relation": "provides file content to",
-              "src_name": "File System Access",
-              "dst_name": "FileContentTool"
-            }
-          ],
-          "component_id": "1766807a-bfec-457d-97a3-1b50f519db4d"
-        },
-        {
-          "name": "CFGTool",
-          "description": "Utility that provides the agent with the capability to analyze and extract information from Control Flow Graphs of the codebase.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.tools.read_file.CFGTool",
-              "reference_file": "agents/tools/read_file.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/tools/read_file.py",
-            "agents/tools/get_method_invocations.py",
-            "agents/tools/read_cfg.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "CFGTool",
-              "description": "Utility for analyzing and extracting information from Control Flow Graphs (CFGs) of the codebase.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.tools.read_file.CFGTool",
-                  "reference_file": "agents/tools/read_file.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/tools/read_file.py",
-                "agents/tools/get_method_invocations.py",
-                "agents/tools/read_cfg.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "20b0e78a-c471-4c1c-91b5-365559d8d698"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "2bc03c90-d755-42e3-a9df-3a3ada246a90"
-        },
-        {
-          "name": "AnalysisInsights",
-          "description": "Standardized data structure and format for the analytical findings, conclusions, and recommendations produced by the agent.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.agent_responses.AnalysisInsights",
-              "reference_file": "agents/agent_responses.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/agents/agent_responses.py",
-            "agents/agent_responses.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "AnalysisInsights",
-              "description": "Provides a standardized data structure and format for encapsulating analytical findings, conclusions, and recommendations generated by an agent, ensuring consistency across the system.",
-              "key_entities": [
-                {
-                  "qualified_name": "agents.agent_responses.AnalysisInsights",
-                  "reference_file": "agents/agent_responses.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/agents/agent_responses.py",
-                "agents/agent_responses.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "fb6fc143-c612-4201-8b45-7cc63de751e2"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "produced by",
-              "src_name": "Agent",
-              "dst_name": "AnalysisInsights"
-            },
-            {
-              "relation": "consumed by",
-              "src_name": "AnalysisInsights",
-              "dst_name": "Reporting"
-            },
-            {
-              "relation": "consumed by",
-              "src_name": "AnalysisInsights",
-              "dst_name": "Visualization"
-            }
-          ],
-          "component_id": "b5758483-bcf0-4394-a052-76345b7b1317"
-        }
-      ],
-      "components_relations": [
-        {
-          "relation": "invokes",
-          "src_name": "CodeBoardingAgent",
-          "dst_name": "FileContentTool"
-        },
-        {
-          "relation": "returns file content to",
-          "src_name": "FileContentTool",
-          "dst_name": "CodeBoardingAgent"
-        },
-        {
-          "relation": "utilizes",
-          "src_name": "CodeBoardingAgent",
-          "dst_name": "CFGTool"
-        },
-        {
-          "relation": "provides CFG analysis results to",
-          "src_name": "CFGTool",
-          "dst_name": "CodeBoardingAgent"
-        },
-        {
-          "relation": "constructs and populates",
-          "src_name": "CodeBoardingAgent",
-          "dst_name": "AnalysisInsights"
-        }
-      ],
-      "component_id": "5dfd4c93-dbf7-4151-aee8-61101b905c8d"
-    },
-    {
-      "name": "Static Analysis Engine",
-      "description": "This component provides the foundational capabilities for performing static analysis on various programming languages, primarily through Language Server Protocol (LSP) clients and language-specific configurations. It handles communication with LSP servers to extract code information.",
-      "key_entities": [
-        {
-          "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-          "reference_file": "static_analyzer/lsp_client/client.py"
-        },
-        {
-          "qualified_name": "static_analyzer.lsp_client.java_client.JavaLSPClient",
-          "reference_file": "static_analyzer/lsp_client/java_client.py"
-        },
-        {
-          "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-          "reference_file": "static_analyzer/programming_language.py"
-        },
-        {
-          "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-          "reference_file": "static_analyzer/java_config_scanner.py"
-        }
-      ],
-      "assigned_files": [
-        "repos/CodeBoarding/static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/java_config_scanner.py",
-        "static_analyzer/lsp_client/client.py",
-        "static_analyzer/programming_language.py",
-        "repos/CodeBoarding/static_analyzer/java_config_scanner.py",
-        "static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/lsp_client/typescript_client.py",
-        "repos/CodeBoarding/static_analyzer/programming_language.py",
-        "repos/CodeBoarding/static_analyzer/lsp_client/client.py",
-        "static_analyzer/reference_resolve_mixin.py",
-        "static_analyzer/__init__.py",
-        "static_analyzer/constants.py",
-        "static_analyzer/git_diff_analyzer.py",
-        "static_analyzer/incremental_orchestrator.py",
-        "static_analyzer/java_utils.py",
-        "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/lsp_client/diagnostics.py",
-        "static_analyzer/lsp_client/language_settings.py",
-        "static_analyzer/scanner.py",
-        "static_analyzer/typescript_config_scanner.py"
-      ],
-      "source_cluster_ids": [
-        3,
-        12,
-        13,
-        14,
-        19
-      ],
-      "can_expand": true,
-      "components": [
-        {
-          "name": "LSPClient",
-          "description": "Abstract base class for all LSP client implementations, defining the generic interface and common functionalities required to establish and maintain communication with any LSP server.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-              "reference_file": "static_analyzer/lsp_client/client.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/lsp_client/client.py",
-            "static_analyzer/__init__.py",
-            "static_analyzer/constants.py",
-            "static_analyzer/git_diff_analyzer.py",
-            "static_analyzer/incremental_orchestrator.py",
-            "static_analyzer/lsp_client/__init__.py",
-            "static_analyzer/lsp_client/client.py",
-            "static_analyzer/lsp_client/diagnostics.py",
-            "static_analyzer/lsp_client/language_settings.py",
-            "static_analyzer/lsp_client/typescript_client.py",
-            "static_analyzer/reference_resolve_mixin.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LSPClient",
-              "description": "Abstract base class for all LSP client implementations, defining the generic interface and common functionalities required to establish and maintain communication with any LSP server.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.lsp_client.client.LSPClient",
-                  "reference_file": "static_analyzer/lsp_client/client.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/lsp_client/client.py",
-                "static_analyzer/__init__.py",
-                "static_analyzer/constants.py",
-                "static_analyzer/git_diff_analyzer.py",
-                "static_analyzer/incremental_orchestrator.py",
-                "static_analyzer/lsp_client/__init__.py",
-                "static_analyzer/lsp_client/client.py",
-                "static_analyzer/lsp_client/diagnostics.py",
-                "static_analyzer/lsp_client/language_settings.py",
-                "static_analyzer/reference_resolve_mixin.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "afeaecde-5cb9-44f1-a960-1c9f5a1e78db"
-            },
-            {
-              "name": "TypeScriptClient",
-              "description": "Concrete implementation of LSPClient specifically tailored to interact with TypeScript Language Servers, handling serialization, deserialization, and language‑specific initialization/shutdown.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient",
-                  "reference_file": "static_analyzer/lsp_client/typescript_client.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/lsp_client/typescript_client.py",
-                "static_analyzer/lsp_client/typescript_client.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "676992c0-6bee-4484-b93f-5543080d8dcd"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "is-a (inherits from)",
-              "src_name": "LSPClient",
-              "dst_name": "TypeScriptClient"
-            }
-          ],
-          "component_id": "47538e5a-fdc2-43fc-93a9-067e19995a61"
-        },
-        {
-          "name": "JavaLSPClient",
-          "description": "Concrete LSP client implementation for Java language servers, extending LSPClient to handle Java-specific LSP messages, capabilities, and configurations.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.lsp_client.java_client.JavaLSPClient",
-              "reference_file": "static_analyzer/lsp_client/java_client.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/lsp_client/java_client.py",
-            "static_analyzer/java_utils.py",
-            "static_analyzer/lsp_client/java_client.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "JavaLSPClient",
-              "description": "Concrete LSP client implementation for Java language servers, extending LSPClient to handle Java-specific LSP messages, capabilities, and configurations.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.lsp_client.java_client.JavaLSPClient",
-                  "reference_file": "static_analyzer/lsp_client/java_client.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/lsp_client/java_client.py",
-                "static_analyzer/java_utils.py",
-                "static_analyzer/lsp_client/java_client.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "1788031c-d8e2-456d-9e35-cf9646d79163"
-            },
-            {
-              "name": "LSPClient",
-              "description": "Abstract base class defining common functionalities for any LSP client, handling generic LSP communication, request/response IDs, and the core LSP lifecycle.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "16e3a2b0-8986-43f4-86ab-33ab2be03b63"
-            },
-            {
-              "name": "LanguageServerProcessManager",
-              "description": "Manages the lifecycle of the external language server process, including start, health monitoring, and graceful shutdown, abstracting OS‑specific details.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "bc010687-0f69-43f1-8855-4f74fc9e5556"
-            },
-            {
-              "name": "LSPProtocolHandler",
-              "description": "Handles low‑level LSP communication details, including JSON‑RPC serialization/deserialization and transport layer framing with content‑length headers.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "0a7abb27-b5ef-4331-9328-25f03046ffc2"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "inherits from",
-              "src_name": "JavaLSPClient",
-              "dst_name": "LSPClient"
-            },
-            {
-              "relation": "requests",
-              "src_name": "LSPClient",
-              "dst_name": "LanguageServerProcessManager"
-            },
-            {
-              "relation": "sends messages to",
-              "src_name": "LSPClient",
-              "dst_name": "LSPProtocolHandler"
-            },
-            {
-              "relation": "receives messages from",
-              "src_name": "LSPClient",
-              "dst_name": "LSPProtocolHandler"
-            },
-            {
-              "relation": "notifies",
-              "src_name": "LanguageServerProcessManager",
-              "dst_name": "LSPClient"
-            },
-            {
-              "relation": "provides I/O streams to",
-              "src_name": "LanguageServerProcessManager",
-              "dst_name": "LSPProtocolHandler"
-            },
-            {
-              "relation": "delivers parsed messages to",
-              "src_name": "LSPProtocolHandler",
-              "dst_name": "LSPClient"
-            },
-            {
-              "relation": "receives messages from",
-              "src_name": "LSPProtocolHandler",
-              "dst_name": "LSPClient"
-            },
-            {
-              "relation": "uses I/O streams from",
-              "src_name": "LSPProtocolHandler",
-              "dst_name": "LanguageServerProcessManager"
-            }
-          ],
-          "component_id": "0c01a7bc-50f5-4d05-95ee-3773a6aa44ea"
-        },
-        {
-          "name": "ProgrammingLanguage",
-          "description": "Encapsulates definitions and configurations for supported programming languages, providing metadata such as file extensions, syntax rules, and LSP server initiation details.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-              "reference_file": "static_analyzer/programming_language.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/programming_language.py",
-            "static_analyzer/programming_language.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "ProgrammingLanguage",
-              "description": "Encapsulates definitions and configurations for supported programming languages, providing metadata such as file extensions, syntax rules, and LSP server initiation details. Acts as a central registry or configuration store for language-specific information within the static analysis framework.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.programming_language.ProgrammingLanguage",
-                  "reference_file": "static_analyzer/programming_language.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/programming_language.py",
-                "static_analyzer/programming_language.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "a709f082-2abb-45c6-8221-5d4f787968b5"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "4fc88146-9f63-466d-bfe3-992fbaeac5df"
-        },
-        {
-          "name": "JavaConfigScanner",
-          "description": "Scans Java projects to identify and extract configuration details (e.g., build systems, project structure) needed by JavaLSPClient for accurate, context‑aware static analysis.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-              "reference_file": "static_analyzer/java_config_scanner.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/java_config_scanner.py",
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/scanner.py",
-            "static_analyzer/typescript_config_scanner.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "UserProvisioningService",
-              "description": "Handles user account creation, registration, profile management, and initiates the provisioning of a coding environment for new users. It acts as the entry point for user onboarding.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "b22482f9-a2c4-4d93-a0f1-fde08c5b4340"
-            },
-            {
-              "name": "EnvironmentOrchestrator",
-              "description": "Manages the lifecycle of isolated coding environments (containers/VMs). It creates, scales, monitors, and tears down environments, mounts user code, and forwards execution requests.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "7e857301-9407-4ebf-bdec-3ad6f475a3ca"
-            },
-            {
-              "name": "CodeExecutionEngine",
-              "description": "Securely runs user-submitted code within a provisioned environment, capturing output and resource usage. It focuses on the safe and controlled execution of user code.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "cb4c5ea9-e68e-4bbe-ad0c-39c59886d99c"
-            },
-            {
-              "name": "ChallengeManagementService",
-              "description": "Stores and retrieves coding challenges, test cases, and reference solutions. It serves as the content repository for all challenge-related data.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "2c518a0e-390a-4059-a720-8d7df90e6576"
-            },
-            {
-              "name": "CollaborationService",
-              "description": "Enables real-time multi-user editing, synchronizing changes and requesting shared environments. It facilitates interactive coding experiences.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "d04539a4-426b-4400-b753-de5fe1c01d58"
-            },
-            {
-              "name": "AssessmentService",
-              "description": "Evaluates submitted code against challenge test cases, producing feedback, performance metrics, and hints. It is responsible for grading and progress tracking.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "d55c8fc4-9b38-4812-b9e4-eee94aec5786"
-            },
-            {
-              "name": "CodeStorageService",
-              "description": "Provides persistent storage for user code, project files, and version history. It acts as the central repository for all code assets.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "cfb4e536-ad35-4698-914f-64bda322659f"
-            },
-            {
-              "name": "JavaConfigScanner",
-              "description": "Scans Java projects to identify and extract configuration details (e.g., build systems, project structure) needed by JavaLSPClient for accurate, context‑aware static analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/java_config_scanner.py",
-                "static_analyzer/java_config_scanner.py",
-                "static_analyzer/scanner.py",
-                "static_analyzer/typescript_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "9aa90dff-724d-4752-8567-8d797d71e570"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "triggers",
-              "src_name": "UserProvisioningService",
-              "dst_name": "EnvironmentOrchestrator"
-            },
-            {
-              "relation": "receives updates from",
-              "src_name": "UserProvisioningService",
-              "dst_name": "AssessmentService"
-            },
-            {
-              "relation": "manages environments for",
-              "src_name": "EnvironmentOrchestrator",
-              "dst_name": "UserProvisioningService"
-            },
-            {
-              "relation": "manages environments for",
-              "src_name": "EnvironmentOrchestrator",
-              "dst_name": "CollaborationService"
-            },
-            {
-              "relation": "accesses",
-              "src_name": "EnvironmentOrchestrator",
-              "dst_name": "CodeStorageService"
-            },
-            {
-              "relation": "delegates to",
-              "src_name": "EnvironmentOrchestrator",
-              "dst_name": "CodeExecutionEngine"
-            },
-            {
-              "relation": "accesses",
-              "src_name": "CodeExecutionEngine",
-              "dst_name": "CodeStorageService"
-            },
-            {
-              "relation": "provides results to",
-              "src_name": "CodeExecutionEngine",
-              "dst_name": "AssessmentService"
-            },
-            {
-              "relation": "provides data to",
-              "src_name": "ChallengeManagementService",
-              "dst_name": "AssessmentService"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "CollaborationService",
-              "dst_name": "CodeStorageService"
-            },
-            {
-              "relation": "requests environments from",
-              "src_name": "CollaborationService",
-              "dst_name": "EnvironmentOrchestrator"
-            },
-            {
-              "relation": "consumes data from",
-              "src_name": "AssessmentService",
-              "dst_name": "ChallengeManagementService"
-            },
-            {
-              "relation": "processes outcomes from",
-              "src_name": "AssessmentService",
-              "dst_name": "CodeExecutionEngine"
-            },
-            {
-              "relation": "updates",
-              "src_name": "AssessmentService",
-              "dst_name": "UserProvisioningService"
-            },
-            {
-              "relation": "supports",
-              "src_name": "CodeStorageService",
-              "dst_name": "CodeExecutionEngine"
-            },
-            {
-              "relation": "facilitates",
-              "src_name": "CodeStorageService",
-              "dst_name": "CollaborationService"
-            },
-            {
-              "relation": "provides code for",
-              "src_name": "CodeStorageService",
-              "dst_name": "EnvironmentOrchestrator"
-            }
-          ],
-          "component_id": "a5569dc4-f9ac-44bd-adb1-7f020c20fec2"
-        }
-      ],
-      "components_relations": [
-        {
-          "relation": "inherits from",
-          "src_name": "JavaLSPClient",
-          "dst_name": "LSPClient"
-        },
-        {
-          "relation": "uses",
-          "src_name": "LSPClient",
-          "dst_name": "ProgrammingLanguage"
-        },
-        {
-          "relation": "uses",
-          "src_name": "JavaLSPClient",
-          "dst_name": "ProgrammingLanguage"
-        },
-        {
-          "relation": "provides configuration to",
-          "src_name": "JavaConfigScanner",
-          "dst_name": "JavaLSPClient"
-        },
-        {
-          "relation": "uses",
-          "src_name": "JavaConfigScanner",
-          "dst_name": "ProgrammingLanguage"
-        }
-      ],
-      "component_id": "7fbd53a5-e6a0-4627-89da-a9238e3e91f1"
-    },
-    {
-      "name": "Analysis Data Management",
-      "description": "This component is responsible for processing, storing, caching, and analyzing the results generated by the static analysis engine. It defines data structures for call graphs, manages a central repository for analysis results, and handles caching and cluster change analysis.",
-      "key_entities": [
-        {
-          "qualified_name": "static_analyzer.graph.CallGraph",
-          "reference_file": "static_analyzer/graph.py"
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
-          "reference_file": "static_analyzer/analysis_result.py"
-        },
-        {
-          "qualified_name": "static_analyzer.analysis_cache.AnalysisCache",
-          "reference_file": "static_analyzer/analysis_cache.py"
-        },
-        {
-          "qualified_name": "static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer",
-          "reference_file": "static_analyzer/cluster_change_analyzer.py"
-        }
-      ],
-      "assigned_files": [
-        "static_analyzer/analysis_result.py",
-        "static_analyzer/graph.py",
-        "repos/CodeBoarding/static_analyzer/graph.py",
-        "repos/CodeBoarding/static_analyzer/analysis_result.py",
-        "repos/CodeBoarding/static_analyzer/analysis_cache.py",
-        "repos/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
-        "static_analyzer/cluster_change_analyzer.py",
-        "static_analyzer/analysis_cache.py",
-        "static_analyzer/cluster_helpers.py"
-      ],
-      "source_cluster_ids": [
-        5,
-        10,
-        11,
-        16
-      ],
-      "can_expand": true,
-      "components": [
-        {
-          "name": "CallGraph",
-          "description": "Defines the data structures and methods for representing the call graph generated by the static analysis engine, encapsulating nodes (functions, methods) and edges (calls) that illustrate execution flow.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.graph.CallGraph",
-              "reference_file": "static_analyzer/graph.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/graph.py",
-            "static_analyzer/graph.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "CallGraph",
-              "description": "Defines the data structures and methods for representing the call graph generated by the static analysis engine, encapsulating nodes (functions, methods) and edges (calls) that illustrate execution flow. It serves as the core data model for static analysis results related to function calls.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.graph.CallGraph",
-                  "reference_file": "static_analyzer/graph.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/graph.py",
-                "static_analyzer/graph.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "938705f7-9af9-4fbc-a4ea-4745154db076"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "d7a7dedc-dbb2-47b7-8039-27b87b69f04c"
-        },
-        {
-          "name": "AnalysisResult",
-          "description": "Serves as the central repository for all static analysis outcomes, aggregating processed results, including references to CallGraph instances and other relevant metrics.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
-              "reference_file": "static_analyzer/analysis_result.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/analysis_result.py",
-            "static_analyzer/analysis_result.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "AnalysisResult",
-              "description": "Serves as the central repository for all static analysis outcomes, aggregating processed results, including references to CallGraph instances and other relevant metrics. It acts as a data container for the final output of the static analysis process.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_result.AnalysisResult",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/analysis_result.py",
-                "static_analyzer/analysis_result.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "4f43d3ca-34b2-40c5-8723-da730c06ca72"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "contains",
-              "src_name": "AnalysisResult",
-              "dst_name": "CallGraph"
-            }
-          ],
-          "component_id": "22c01986-8e4c-42f6-83d2-417960327611"
-        },
-        {
-          "name": "AnalysisCache",
-          "description": "Optimizes performance by caching previously computed analysis results, managing storage and retrieval of AnalysisResult objects to prevent redundant computations.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.analysis_cache.AnalysisCache",
-              "reference_file": "static_analyzer/analysis_cache.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/analysis_cache.py",
-            "static_analyzer/analysis_cache.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "AnalysisCache",
-              "description": "Optimizes performance by caching previously computed analysis results, managing storage and retrieval of `AnalysisResult` objects to prevent redundant computations. It serves as a persistent store for analysis outcomes, ensuring that the same analysis is not re‑computed unnecessarily.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_cache.AnalysisCache",
-                  "reference_file": "static_analyzer/analysis_cache.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/analysis_cache.py",
-                "static_analyzer/analysis_cache.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "c0171ed4-5cd1-4514-969c-999dcc14aa3c"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "cfa6e7ed-2920-40e2-888e-97d17a8bffd0"
-        },
-        {
-          "name": "ClusterChangeAnalyzer",
-          "description": "Specializes in detecting and analyzing changes within code clusters based on stored AnalysisResult data, comparing different versions to identify significant structural or behavioral shifts.",
-          "key_entities": [
-            {
-              "qualified_name": "static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer",
-              "reference_file": "static_analyzer/cluster_change_analyzer.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
-            "static_analyzer/cluster_change_analyzer.py",
-            "static_analyzer/cluster_helpers.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "ClusterChangeAnalyzer",
-              "description": "Specializes in detecting and analyzing changes within code clusters based on stored AnalysisResult data, comparing different versions to identify significant structural or behavioral shifts.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.cluster_change_analyzer.ClusterChangeAnalyzer",
-                  "reference_file": "static_analyzer/cluster_change_analyzer.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
-                "static_analyzer/cluster_change_analyzer.py",
-                "static_analyzer/cluster_helpers.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "cd59c3b0-c6e0-4549-b194-ced92bdd6c81"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "reads",
-              "src_name": "ClusterChangeAnalyzer",
-              "dst_name": "AnalysisResult"
-            },
-            {
-              "relation": "produces",
-              "src_name": "ClusterChangeAnalyzer",
-              "dst_name": "ChangeAnalysisReport"
-            }
-          ],
-          "component_id": "5a52bc88-8f89-4a11-866a-90b1d6274050"
-        }
-      ],
-      "components_relations": [
-        {
-          "relation": "is contained within",
-          "src_name": "CallGraph",
-          "dst_name": "AnalysisResult"
-        },
-        {
-          "relation": "provides data to",
-          "src_name": "AnalysisResult",
-          "dst_name": "AnalysisCache"
-        },
-        {
-          "relation": "provides data to",
-          "src_name": "AnalysisResult",
-          "dst_name": "ClusterChangeAnalyzer"
-        },
-        {
-          "relation": "stores",
-          "src_name": "AnalysisCache",
-          "dst_name": "AnalysisResult"
-        },
-        {
-          "relation": "serves",
-          "src_name": "AnalysisCache",
-          "dst_name": "ClusterChangeAnalyzer"
-        },
-        {
-          "relation": "accesses",
-          "src_name": "ClusterChangeAnalyzer",
-          "dst_name": "AnalysisResult"
-        },
-        {
-          "relation": "queries",
-          "src_name": "ClusterChangeAnalyzer",
-          "dst_name": "AnalysisCache"
-        }
-      ],
-      "component_id": "e48aa8cd-40b7-4f97-aef5-716780912a1b"
-    },
-    {
-      "name": "Repository Change Detection",
-      "description": "This component is solely focused on detecting and categorizing changes within a Git repository, providing a structured representation of modifications (added, modified, deleted, renamed files) for further analysis.",
-      "key_entities": [
-        {
-          "qualified_name": "repo_utils.change_detector.ChangeDetector",
-          "reference_file": "repo_utils/change_detector.py"
-        },
-        {
-          "qualified_name": "repo_utils.change_detector.ChangeSet",
-          "reference_file": "repo_utils/change_detector.py"
-        }
-      ],
-      "assigned_files": [
-        "repos/CodeBoarding/repo_utils/change_detector.py",
-        "repo_utils/change_detector.py",
-        "repo_utils/errors.py",
-        "repo_utils/git_diff.py"
-      ],
-      "source_cluster_ids": [
-        8
-      ],
-      "can_expand": true,
-      "components": [
-        {
-          "name": "ChangeDetector",
-          "description": "Active agent that interacts with the Git repository to detect file changes (added, modified, deleted, renamed), parses Git output, and populates a ChangeSet with structured results.",
-          "key_entities": [
-            {
-              "qualified_name": "repo_utils.change_detector.ChangeDetector",
-              "reference_file": "repo_utils/change_detector.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/repo_utils/change_detector.py",
-            "repo_utils/change_detector.py",
-            "repo_utils/errors.py",
-            "repo_utils/git_diff.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "ChangeDetector",
-              "description": "Core component responsible for orchestrating detection of file changes within a Git repository. Executes Git commands, parses output, and populates a structured ChangeSet.",
-              "key_entities": [
-                {
-                  "qualified_name": "repo_utils.change_detector.ChangeDetector",
-                  "reference_file": "repo_utils/change_detector.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/repo_utils/change_detector.py",
-                "repo_utils/change_detector.py",
-                "repo_utils/errors.py",
-                "repo_utils/git_diff.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "a393f7e8-878a-4a2e-a8cf-0dbb158a1b4b"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "0c077a54-4853-4b67-9ef8-021366cfcfb2"
-        },
-        {
-          "name": "ChangeSet",
-          "description": "Data structure that holds the categorized results of change detection, providing accessors for added, modified, deleted, and renamed files, and serving as an immutable DTO.",
-          "key_entities": [
-            {
-              "qualified_name": "repo_utils.change_detector.ChangeSet",
-              "reference_file": "repo_utils/change_detector.py"
-            }
-          ],
-          "assigned_files": [
-            "repos/CodeBoarding/repo_utils/change_detector.py"
-          ],
-          "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "ChangeSet",
-              "description": "An immutable DTO that stores and categorizes the results of a change‑detection operation (added, modified, deleted, renamed files). It provides read‑only accessors for each category and serves as the standardized output of the change‑detection process.",
-              "key_entities": [
-                {
-                  "qualified_name": "repo_utils.change_detector.ChangeSet",
-                  "reference_file": "repo_utils/change_detector.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/repo_utils/change_detector.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "cbe9cb1b-1cc4-42ef-8e7a-93751348ca29"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "receives from",
-              "src_name": "ChangeDetector (or equivalent detection logic)",
-              "dst_name": "ChangeSet"
-            },
-            {
-              "relation": "provides to",
-              "src_name": "ChangeSet",
-              "dst_name": "Downstream components (e.g., build systems, deployment pipelines, reporting tools)"
-            }
-          ],
-          "component_id": "8a327b63-089b-4ea2-90e6-e8a7edeb793a"
-        }
-      ],
-      "components_relations": [
-        {
-          "relation": "Creates/Populates",
-          "src_name": "ChangeDetector",
-          "dst_name": "ChangeSet"
-        },
-        {
-          "relation": "Data Storage",
-          "src_name": "ChangeSet",
-          "dst_name": "ChangeDetector"
-        }
-      ],
-      "component_id": "63412c21-3839-41e9-b74d-1a82849f6141"
-    },
-    {
-      "name": "Application Orchestration & Reporting",
-      "description": "This comprehensive component manages the overall execution flow of the CodeBoarding application. It includes main entry points, job management, health checks, monitoring of operations, and generating various output formats for documentation and visualization. It also handles initial repository setup like cloning and ignore file management.",
-      "key_entities": [
-        {
-          "qualified_name": "main.main",
+          "qualified_name": "repos.codeboarding.main.main",
           "reference_file": "main.py"
         },
         {
-          "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py"
+          "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+          "reference_file": "repo_utils/change_detector.py"
         },
         {
-          "qualified_name": "output_generators.html_output_generator.HTMLOutputGenerator",
-          "reference_file": "diagram_analysis/diagram_generator.py"
-        },
-        {
-          "qualified_name": "monitoring.callbacks.LLMUsageCallback",
-          "reference_file": "monitoring/callbacks.py"
-        },
-        {
-          "qualified_name": "health.checks.unused_code_diagnostics.UnusedCodeDiagnostics",
-          "reference_file": "health/checks/unused_code_diagnostics.py"
+          "qualified_name": "repos.codeboarding.repository.ChangeDetector",
+          "reference_file": "repo_utils/change_detector.py"
         }
       ],
       "assigned_files": [
-        "diagram_analysis/diagram_generator.py",
-        "repos/CodeBoarding/health/checks/unused_code_diagnostics.py",
-        "repos/CodeBoarding/main.py",
-        "local_app.py",
-        "output_generators/markdown.py",
+        "repo_utils/change_detector.py",
+        "health_main.py",
+        "monitoring/context.py",
         "logging_config.py",
+        "repo_utils/ignore.py",
+        "install.py",
+        "vscode_constants.py",
+        "monitoring/paths.py",
         "main.py",
-        "health/checks/unused_code_diagnostics.py",
-        "monitoring/callbacks.py",
-        "health/config.py",
         "repo_utils/__init__.py",
         "utils.py",
-        "health_main.py",
-        "output_generators/html.py",
-        "vscode_constants.py",
-        "output_generators/sphinx.py",
-        "repo_utils/ignore.py",
-        "repos/CodeBoarding/monitoring/callbacks.py",
-        "monitoring/writers.py",
-        "repos/CodeBoarding/diagram_analysis/diagram_generator.py",
-        "monitoring/paths.py",
-        "github_action.py",
-        "duckdb_crud.py",
-        "diagram_analysis/__init__.py",
         "diagram_analysis/analysis_json.py",
-        "diagram_analysis/incremental/__init__.py",
-        "diagram_analysis/incremental/component_checker.py",
-        "diagram_analysis/incremental/file_manager.py",
-        "diagram_analysis/incremental/impact_analyzer.py",
-        "diagram_analysis/incremental/io_utils.py",
-        "diagram_analysis/incremental/models.py",
-        "diagram_analysis/incremental/path_patching.py",
-        "diagram_analysis/incremental/reexpansion.py",
-        "diagram_analysis/incremental/scoped_analysis.py",
-        "diagram_analysis/incremental/updater.py",
-        "diagram_analysis/incremental/validation.py",
-        "diagram_analysis/manifest.py",
-        "diagram_analysis/version.py",
-        "health/__init__.py",
-        "health/checks/__init__.py",
-        "health/checks/circular_deps.py",
-        "health/checks/cohesion.py",
-        "health/checks/coupling.py",
-        "health/checks/function_size.py",
-        "health/checks/god_class.py",
-        "health/checks/inheritance.py",
-        "health/checks/instability.py",
-        "health/models.py",
-        "health/runner.py",
-        "install.py",
+        "constants.py",
+        "duckdb_crud.py",
         "monitoring/__init__.py",
-        "monitoring/context.py",
+        "monitoring/callbacks.py",
         "monitoring/mixin.py",
         "monitoring/stats.py",
-        "output_generators/__init__.py",
-        "output_generators/html_template.py",
-        "output_generators/mdx.py"
+        "monitoring/writers.py",
+        "repo_utils/errors.py",
+        "repo_utils/git_diff.py",
+        "tool_registry.py"
       ],
       "source_cluster_ids": [
-        2,
-        15,
-        17,
-        18
+        3,
+        9,
+        11
       ],
+      "component_id": "6d573da2150dc64e",
       "can_expand": true,
       "components": [
         {
           "name": "Application Orchestrator",
-          "description": "Serves as the main entry point for the CodeBoarding application, managing the overall execution flow and coordinating stages from repository setup to analysis, monitoring, and report generation.",
+          "description": "The central brain of the system. It handles CLI entry points, validates the environment (API keys, paths), and coordinates the execution flow between full scans and incremental updates.",
           "key_entities": [
             {
-              "qualified_name": "main.main",
+              "qualified_name": "repos.codeboarding.main.main",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.orchestrator.PipelineManager",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.config.EnvironmentValidator",
               "reference_file": "main.py"
             }
           ],
           "assigned_files": [
-            "repos/CodeBoarding/main.py",
-            "duckdb_crud.py",
-            "github_action.py",
-            "install.py",
-            "local_app.py",
-            "logging_config.py",
             "main.py",
-            "repo_utils/__init__.py",
-            "repo_utils/ignore.py",
+            "constants.py",
             "utils.py",
             "vscode_constants.py"
           ],
           "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Application Orchestrator",
-              "description": "Serves as the main entry point for the CodeBoarding application, managing the overall execution flow and coordinating stages from repository setup to analysis, monitoring, and report generation.",
-              "key_entities": [
-                {
-                  "qualified_name": "main.main",
-                  "reference_file": "main.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/main.py",
-                "duckdb_crud.py",
-                "github_action.py",
-                "install.py",
-                "local_app.py",
-                "logging_config.py",
-                "main.py",
-                "repo_utils/__init__.py",
-                "repo_utils/ignore.py",
-                "utils.py",
-                "vscode_constants.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "9a7d5bb0-7134-4464-b153-d2d573de2157"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "f2b6e627-a8f2-4936-a8a1-d0b5ba55bdf1"
+          "component_id": "bab486ce1131be53",
+          "can_expand": true
         },
         {
-          "name": "Diagram Generator",
-          "description": "Transforms analysis results into visual diagrams, processing structured data for rendering by specific output generators.",
+          "name": "Repository State Manager",
+          "description": "Manages the physical lifecycle of the target codebase. It handles cloning, branch switching, and generates unique state hashes to ensure analysis reproducibility.",
           "key_entities": [
             {
-              "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-              "reference_file": "diagram_analysis/diagram_generator.py"
+              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+              "reference_file": "repo_utils/errors.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.StateHasher",
+              "reference_file": "repo_utils/errors.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.ErrorHandler",
+              "reference_file": "repo_utils/errors.py"
             }
           ],
           "assigned_files": [
-            "repos/CodeBoarding/diagram_analysis/diagram_generator.py",
-            "diagram_analysis/__init__.py",
-            "diagram_analysis/analysis_json.py",
-            "diagram_analysis/diagram_generator.py",
-            "diagram_analysis/incremental/__init__.py",
-            "diagram_analysis/incremental/component_checker.py",
-            "diagram_analysis/incremental/file_manager.py",
-            "diagram_analysis/incremental/impact_analyzer.py",
-            "diagram_analysis/incremental/io_utils.py",
-            "diagram_analysis/incremental/models.py",
-            "diagram_analysis/incremental/path_patching.py",
-            "diagram_analysis/incremental/reexpansion.py",
-            "diagram_analysis/incremental/scoped_analysis.py",
-            "diagram_analysis/incremental/updater.py",
-            "diagram_analysis/incremental/validation.py",
-            "diagram_analysis/manifest.py",
-            "diagram_analysis/version.py",
-            "output_generators/markdown.py",
-            "output_generators/mdx.py",
-            "output_generators/sphinx.py"
+            "repo_utils/errors.py",
+            "repo_utils/__init__.py"
           ],
           "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "DiagramGenerator",
-              "description": "Processes structured analysis results and prepares data for rendering as visual diagrams.",
-              "key_entities": [
-                {
-                  "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-                  "reference_file": "diagram_analysis/diagram_generator.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/diagram_analysis/diagram_generator.py",
-                "diagram_analysis/__init__.py",
-                "diagram_analysis/analysis_json.py",
-                "diagram_analysis/diagram_generator.py",
-                "diagram_analysis/incremental/__init__.py",
-                "diagram_analysis/incremental/component_checker.py",
-                "diagram_analysis/incremental/file_manager.py",
-                "diagram_analysis/incremental/impact_analyzer.py",
-                "diagram_analysis/incremental/io_utils.py",
-                "diagram_analysis/incremental/models.py",
-                "diagram_analysis/incremental/path_patching.py",
-                "diagram_analysis/incremental/reexpansion.py",
-                "diagram_analysis/incremental/scoped_analysis.py",
-                "diagram_analysis/incremental/updater.py",
-                "diagram_analysis/incremental/validation.py",
-                "diagram_analysis/manifest.py",
-                "diagram_analysis/version.py",
-                "output_generators/markdown.py",
-                "output_generators/mdx.py",
-                "output_generators/sphinx.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "6e3e5cc1-4e9a-44a5-871c-dcafe7950cdb"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "be3181f0-d3c3-47c7-a63e-f3c79a74c8ee"
+          "component_id": "a6166cb519012e2a",
+          "can_expand": true
         },
         {
-          "name": "HTML Output Generator",
-          "description": "Generates HTML format output, rendering processed data into web-viewable reports or visualizations.",
+          "name": "Incremental Change Detector",
+          "description": "Optimizes performance by identifying what has changed since the last run. It compares git commit hashes and file-level diffs to determine the minimal set of files requiring re-analysis.",
           "key_entities": [
             {
-              "qualified_name": "output_generators.html_output_generator.HTMLOutputGenerator",
-              "reference_file": "diagram_analysis/diagram_generator.py"
+              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.DiffEngine",
+              "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
-            "repos/CodeBoarding/diagram_analysis/diagram_generator.py",
-            "output_generators/__init__.py",
-            "output_generators/html.py",
-            "output_generators/html_template.py"
+            "repo_utils/change_detector.py",
+            "repo_utils/git_diff.py"
           ],
           "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "HTML Output Generator",
-              "description": "Responsible for generating HTML output from processed data, rendering it into web-viewable reports or visualizations.",
-              "key_entities": [
-                {
-                  "qualified_name": "output_generators.html_output_generator.HTMLOutputGenerator",
-                  "reference_file": "diagram_analysis/diagram_generator.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/diagram_analysis/diagram_generator.py",
-                "output_generators/__init__.py",
-                "output_generators/html.py",
-                "output_generators/html_template.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "8f581784-002f-4c27-9546-1ceb65f2c442"
-            }
-          ],
-          "components_relations": [],
-          "component_id": "2faf5244-b041-4c71-8c59-f8bcaf243720"
+          "component_id": "71c04ddb2b4869d7",
+          "can_expand": true
         },
         {
-          "name": "Monitoring Callback Handler",
-          "description": "Monitors operational aspects such as LLM usage, providing callback mechanisms to capture and process runtime metrics and events.",
+          "name": "Tool Environment Registry",
+          "description": "Acts as a package manager for the analysis engine. It discovers, installs, and resolves paths for external binaries like LSP servers (Python/TypeScript) and Tokei across different OS platforms.",
           "key_entities": [
             {
-              "qualified_name": "monitoring.callbacks.LLMUsageCallback",
-              "reference_file": "monitoring/callbacks.py"
+              "qualified_name": "repos.codeboarding.tools.Registry",
+              "reference_file": "install.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.tools.BinaryInstaller",
+              "reference_file": "install.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.tools.PathResolver",
+              "reference_file": "install.py"
             }
           ],
           "assigned_files": [
-            "repos/CodeBoarding/monitoring/callbacks.py",
+            "install.py",
+            "tool_registry.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1030ac6c33b348b6",
+          "can_expand": true
+        },
+        {
+          "name": "Scope & Exclusion Manager",
+          "description": "Defines the \"effective analysis area\" by parsing `.codeboardingignore` files. It filters out noise such as build artifacts, node_modules, and test suites.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.scope.IgnoreManager",
+              "reference_file": "repo_utils/ignore.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.scope.PathFilter",
+              "reference_file": "repo_utils/ignore.py"
+            }
+          ],
+          "assigned_files": [
+            "repo_utils/ignore.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "c81f42310d22e241",
+          "can_expand": true
+        },
+        {
+          "name": "Job Persistence Manager",
+          "description": "The system's memory. It uses DuckDB to store job metadata, execution status, and links repository versions to specific analysis results for historical tracking.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.persistence.DuckDBClient",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.persistence.JobStore",
+              "reference_file": "duckdb_crud.py"
+            }
+          ],
+          "assigned_files": [
+            "duckdb_crud.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "fec3aab143858427",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Aggregator",
+          "description": "A transformation layer that takes raw output from various static analysis tools and maps them into a `UnifiedAnalysisJson` model, preparing the data for LLM consumption.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.aggregator.DataSynthesizer",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.models.UnifiedAnalysisJson",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/analysis_json.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "4f1548909e8d640d",
+          "can_expand": true
+        },
+        {
+          "name": "Observability Engine",
+          "description": "Monitors the health and costs of the pipeline. It tracks LLM token usage, tool execution latency, and provides telemetry for the agentic workflows.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.observability.MetricsCollector",
+              "reference_file": "health_main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.observability.MonitoringMixin",
+              "reference_file": "health_main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.observability.TelemetryStreamer",
+              "reference_file": "health_main.py"
+            }
+          ],
+          "assigned_files": [
+            "health_main.py",
+            "logging_config.py",
             "monitoring/__init__.py",
             "monitoring/callbacks.py",
             "monitoring/context.py",
@@ -1904,58 +248,542 @@
             "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LLMUsageCallback",
-              "description": "A callback handler that monitors and captures operational metrics related to LLM usage, processing raw event data into structured metrics for storage and analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "monitoring.callbacks.LLMUsageCallback",
-                  "reference_file": "monitoring/callbacks.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/monitoring/callbacks.py",
-                "monitoring/__init__.py",
-                "monitoring/callbacks.py",
-                "monitoring/context.py",
-                "monitoring/mixin.py",
-                "monitoring/paths.py",
-                "monitoring/stats.py",
-                "monitoring/writers.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "0dc7e9a8-c600-4d9e-b746-88ded7e0052c"
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "receives",
-              "src_name": "LLM Interaction Components",
-              "dst_name": "LLMUsageCallback"
-            },
-            {
-              "relation": "sends",
-              "src_name": "LLMUsageCallback",
-              "dst_name": "Metrics Storage/Reporting System"
-            }
-          ],
-          "component_id": "a5969ada-1dac-4e05-b380-1b56da363d4f"
+          "component_id": "bdc7ed34513a369c",
+          "can_expand": true
+        }
+      ],
+      "components_relations": [
+        {
+          "relation": "triggers environment setup and binary verification",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Tool Environment Registry",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "1030ac6c33b348b6"
         },
         {
-          "name": "Health Diagnostics",
-          "description": "Performs diagnostic checks to assess codebase health and quality, e.g., identifying unused code.",
+          "relation": "requests a specific repository state (clone/checkout) to begin the pipeline",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Repository State Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "a6166cb519012e2a"
+        },
+        {
+          "relation": "provides the current and previous commit hashes to calculate the analysis delta",
+          "src_name": "Repository State Manager",
+          "dst_name": "Incremental Change Detector",
+          "src_id": "a6166cb519012e2a",
+          "dst_id": "71c04ddb2b4869d7"
+        },
+        {
+          "relation": "passes raw file changes to be filtered against exclusion rules",
+          "src_name": "Incremental Change Detector",
+          "dst_name": "Scope & Exclusion Manager",
+          "src_id": "71c04ddb2b4869d7",
+          "dst_id": "c81f42310d22e241"
+        },
+        {
+          "relation": "sends raw tool outputs to be synthesized into the final unified model",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Analysis Aggregator",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "4f1548909e8d640d"
+        },
+        {
+          "relation": "updates job status and saves metadata upon pipeline completion",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Job Persistence Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "fec3aab143858427"
+        },
+        {
+          "relation": "wraps execution steps to capture latency and token usage metrics",
+          "src_name": "Observability Engine",
+          "dst_name": "Application Orchestrator",
+          "src_id": "bdc7ed34513a369c",
+          "dst_id": "bab486ce1131be53"
+        }
+      ]
+    },
+    {
+      "name": "LLM Agent Core",
+      "description": "The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.",
+      "key_entities": [
+        {
+          "qualified_name": "repos.codeboarding.agent.CodeBoardingAgent",
+          "reference_file": "agents/prompts/gemini_flash_prompts.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.prompts.PromptGenerator",
+          "reference_file": "agents/prompts/gemini_flash_prompts.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.models.AnalysisInsights",
+          "reference_file": "agents/prompts/gemini_flash_prompts.py"
+        }
+      ],
+      "assigned_files": [
+        "agents/prompts/gemini_flash_prompts.py",
+        "agents/prompts/prompt_factory.py",
+        "agents/prompts/claude_prompts.py",
+        "agents/prompts/glm_prompts.py",
+        "agents/prompts/gpt_prompts.py",
+        "agents/prompts/abstract_prompt_factory.py",
+        "agents/prompts/deepseek_prompts.py",
+        "agents/prompts/kimi_prompts.py",
+        "agents/agent.py",
+        "agents/prompts/__init__.py",
+        "agents/agent_responses.py",
+        "agents/__init__.py",
+        "agents/abstraction_agent.py",
+        "agents/cluster_methods_mixin.py",
+        "agents/constants.py",
+        "agents/details_agent.py",
+        "agents/llm_config.py",
+        "agents/meta_agent.py",
+        "agents/planner_agent.py",
+        "agents/validation.py"
+      ],
+      "source_cluster_ids": [
+        1,
+        7,
+        8,
+        10
+      ],
+      "component_id": "d517849a598c661e",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "Agent Orchestrator",
+          "description": "Central controller (CodeBoardingAgent) that manages the analysis lifecycle, maintains shared state, and sequences agent execution.",
           "key_entities": [
             {
-              "qualified_name": "health.checks.unused_code_diagnostics.UnusedCodeDiagnostics",
-              "reference_file": "health/checks/unused_code_diagnostics.py"
+              "qualified_name": "agents.prompts.gemini_flash_prompts.CodeBoardingAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
             }
           ],
           "assigned_files": [
-            "repos/CodeBoarding/health/checks/unused_code_diagnostics.py",
-            "health/__init__.py",
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/__init__.py",
+            "agents/agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f9361d9913ef4906",
+          "can_expand": true
+        },
+        {
+          "name": "Context & Strategy Engine",
+          "description": "Combines metadata extraction (MetaAgent) and recursive planning (PlannerAgent) to determine analysis scope and priorities.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.MetaAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            },
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PlannerAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/meta_agent.py",
+            "agents/planner_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "88b5a9fbb02328bf",
+          "can_expand": true
+        },
+        {
+          "name": "Architectural Synthesizer",
+          "description": "AbstractionAgent responsible for grouping files and clusters into high‑level logical components based on CFG patterns.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AbstractionAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/abstraction_agent.py",
+            "agents/cluster_methods_mixin.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "b02a6f005f9122a8",
+          "can_expand": true
+        },
+        {
+          "name": "Functional Analyzer",
+          "description": "DetailsAgent that performs deep‑dives into specific subgraphs to extract implementation details and class/function relationships.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.DetailsAgent",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/details_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "c86d129f15b871ef",
+          "can_expand": true
+        },
+        {
+          "name": "Structural Verifier",
+          "description": "ValidationEngine that cross‑references LLM insights against raw CFG data to ensure architectural claims match the actual call graph.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.ValidationEngine",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/validation.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "388f7440ab962595",
+          "can_expand": true
+        },
+        {
+          "name": "Prompt Management System",
+          "description": "PromptRegistry that provides model‑specific templates (Claude, GPT, Gemini) to ensure consistent LLM interactions.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.PromptRegistry",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/prompts/__init__.py",
+            "agents/prompts/abstract_prompt_factory.py",
+            "agents/prompts/claude_prompts.py",
+            "agents/prompts/deepseek_prompts.py",
+            "agents/prompts/glm_prompts.py",
+            "agents/prompts/gpt_prompts.py",
+            "agents/prompts/kimi_prompts.py",
+            "agents/prompts/prompt_factory.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "db4a86ad3c9c99dc",
+          "can_expand": true
+        },
+        {
+          "name": "Provider Configuration",
+          "description": "Manages LLM initialization, provider‑specific settings (Ollama, Bedrock, etc.), and system‑wide constants.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.ProviderConfig",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/constants.py",
+            "agents/llm_config.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "6d1da4c50afd395e",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Data Schema",
+          "description": "Pydantic ResponseModels (e.g., AnalysisInsights) used for type‑safe communication between agents.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.gemini_flash_prompts.AnalysisInsights",
+              "reference_file": "agents/prompts/gemini_flash_prompts.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/prompts/gemini_flash_prompts.py",
+            "agents/agent_responses.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "66a424c3c4405f53",
+          "can_expand": true
+        }
+      ],
+      "components_relations": [
+        {
+          "relation": "initiates analysis by requesting project grounding and a prioritized inspection plan",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Context & Strategy Engine",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "88b5a9fbb02328bf"
+        },
+        {
+          "relation": "supplies project‑level bias and metadata for grouping clusters into logical components",
+          "src_name": "Context & Strategy Engine",
+          "dst_name": "Architectural Synthesizer",
+          "src_id": "88b5a9fbb02328bf",
+          "dst_id": "b02a6f005f9122a8"
+        },
+        {
+          "relation": "passes high‑level mental model to guide deep‑dive analysis of specific implementation details",
+          "src_name": "Architectural Synthesizer",
+          "dst_name": "Functional Analyzer",
+          "src_id": "b02a6f005f9122a8",
+          "dst_id": "c86d129f15b871ef"
+        },
+        {
+          "relation": "submits extracted implementation insights for validation against the ground‑truth CFG",
+          "src_name": "Functional Analyzer",
+          "dst_name": "Structural Verifier",
+          "src_id": "c86d129f15b871ef",
+          "dst_id": "388f7440ab962595"
+        },
+        {
+          "relation": "returns validated, high‑fidelity insights to be integrated into the final repository documentation",
+          "src_name": "Structural Verifier",
+          "dst_name": "Agent Orchestrator",
+          "src_id": "388f7440ab962595",
+          "dst_id": "f9361d9913ef4906"
+        },
+        {
+          "relation": "retrieves specialized prompt templates tailored to the specific LLM provider being used",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Prompt Management System",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "db4a86ad3c9c99dc"
+        },
+        {
+          "relation": "requests configured LLM client instances with appropriate temperature and token limits",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Provider Configuration",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "6d1da4c50afd395e"
+        },
+        {
+          "relation": "utilizes structured Pydantic models to format implementation details for downstream consumption",
+          "src_name": "Functional Analyzer",
+          "dst_name": "Analysis Data Schema",
+          "src_id": "c86d129f15b871ef",
+          "dst_id": "66a424c3c4405f53"
+        }
+      ]
+    },
+    {
+      "name": "Static Code Analyzer",
+      "description": "Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.",
+      "key_entities": [
+        {
+          "qualified_name": "repos.codeboarding.static_analysis.LSPClient",
+          "reference_file": "static_analyzer/java_config_scanner.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.static_analysis.CallGraphBuilder",
+          "reference_file": "static_analyzer/java_config_scanner.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisResults",
+          "reference_file": "static_analyzer/java_config_scanner.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.static_analysis.UnusedCodeAnalyzer",
+          "reference_file": "static_analyzer/java_config_scanner.py"
+        }
+      ],
+      "assigned_files": [
+        "static_analyzer/java_config_scanner.py",
+        "health/checks/unused_code_diagnostics.py",
+        "static_analyzer/graph.py",
+        "static_analyzer/lsp_client/typescript_client.py",
+        "static_analyzer/lsp_client/client.py",
+        "static_analyzer/lsp_client/java_client.py",
+        "static_analyzer/programming_language.py",
+        "static_analyzer/analysis_result.py",
+        "health/__init__.py",
+        "health/checks/__init__.py",
+        "health/checks/circular_deps.py",
+        "health/checks/cohesion.py",
+        "health/checks/coupling.py",
+        "health/checks/function_size.py",
+        "health/checks/god_class.py",
+        "health/checks/inheritance.py",
+        "health/checks/instability.py",
+        "health/config.py",
+        "health/constants.py",
+        "health/models.py",
+        "health/runner.py",
+        "static_analyzer/__init__.py",
+        "static_analyzer/cluster_helpers.py",
+        "static_analyzer/constants.py",
+        "static_analyzer/git_diff_analyzer.py",
+        "static_analyzer/incremental_orchestrator.py",
+        "static_analyzer/java_utils.py",
+        "static_analyzer/lsp_client/__init__.py",
+        "static_analyzer/lsp_client/diagnostics.py",
+        "static_analyzer/lsp_client/language_settings.py",
+        "static_analyzer/reference_resolve_mixin.py",
+        "static_analyzer/scanner.py",
+        "static_analyzer/typescript_config_scanner.py"
+      ],
+      "source_cluster_ids": [
+        2,
+        6,
+        13,
+        15,
+        16,
+        17,
+        18
+      ],
+      "component_id": "c051e21b04b765ed",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "Static Analysis Façade",
+          "description": "Primary entry point; coordinates discovery, extraction, and modeling phases while persisting unified metadata.",
+          "key_entities": [
+            {
+              "qualified_name": "StaticAnalyzer",
+              "reference_file": "static_analyzer/__init__.py",
+              "reference_start_line": 109,
+              "reference_end_line": 294
+            },
+            {
+              "qualified_name": "StaticAnalysisResults",
+              "reference_file": "static_analyzer/analysis_result.py",
+              "reference_start_line": 53,
+              "reference_end_line": 269
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/__init__.py",
+            "static_analyzer/analysis_result.py",
+            "static_analyzer/constants.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e0af9ad54478384c",
+          "can_expand": true
+        },
+        {
+          "name": "Discovery & Environment Manager",
+          "description": "Scans the repository to identify project structures (Maven/Gradle) and filters files based on Git changes.",
+          "key_entities": [
+            {
+              "qualified_name": "ProjectScanner",
+              "reference_file": "static_analyzer/scanner.py",
+              "reference_start_line": 13,
+              "reference_end_line": 95
+            },
+            {
+              "qualified_name": "JavaConfigScanner",
+              "reference_file": "static_analyzer/java_config_scanner.py",
+              "reference_start_line": 33,
+              "reference_end_line": 218
+            },
+            {
+              "qualified_name": "GitDiffAnalyzer",
+              "reference_file": "static_analyzer/git_diff_analyzer.py",
+              "reference_start_line": 16,
+              "reference_end_line": 224
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/git_diff_analyzer.py",
+            "static_analyzer/java_config_scanner.py",
+            "static_analyzer/java_utils.py",
+            "static_analyzer/programming_language.py",
+            "static_analyzer/scanner.py",
+            "static_analyzer/typescript_config_scanner.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "d3696baabaef2ed7",
+          "can_expand": true
+        },
+        {
+          "name": "LSP Orchestration Engine",
+          "description": "Manages the lifecycle of language servers; handles JSON‑RPC communication and aggregates raw symbol diagnostics.",
+          "key_entities": [
+            {
+              "qualified_name": "LSPClient",
+              "reference_file": "static_analyzer/lsp_client/client.py",
+              "reference_start_line": 64,
+              "reference_end_line": 1642
+            },
+            {
+              "qualified_name": "JavaClient",
+              "reference_file": "static_analyzer/lsp_client/java_client.py",
+              "reference_start_line": 26,
+              "reference_end_line": 517
+            },
+            {
+              "qualified_name": "TypeScriptClient",
+              "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+              "reference_start_line": 10,
+              "reference_end_line": 235
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/lsp_client/__init__.py",
+            "static_analyzer/lsp_client/client.py",
+            "static_analyzer/lsp_client/diagnostics.py",
+            "static_analyzer/lsp_client/java_client.py",
+            "static_analyzer/lsp_client/language_settings.py",
+            "static_analyzer/lsp_client/typescript_client.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "c47b41310d40c1b7",
+          "can_expand": true
+        },
+        {
+          "name": "Semantic Reference Resolver",
+          "description": "Resolves ambiguous symbols and links call sites to definitions across module boundaries to create a unified symbol map.",
+          "key_entities": [
+            {
+              "qualified_name": "ReferenceResolverMixin",
+              "reference_file": "static_analyzer/reference_resolve_mixin.py",
+              "reference_start_line": 13,
+              "reference_end_line": 166
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/reference_resolve_mixin.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1aae13505a3a6d25",
+          "can_expand": true
+        },
+        {
+          "name": "Architectural Modeling Engine",
+          "description": "Constructs the global CallGraph and applies community detection (Louvain/Leiden) for high‑level module discovery.",
+          "key_entities": [
+            {
+              "qualified_name": "CallGraphBuilder",
+              "reference_file": "static_analyzer/cluster_helpers.py"
+            },
+            {
+              "qualified_name": "AdaptiveClusteringEngine",
+              "reference_file": "static_analyzer/cluster_helpers.py"
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/cluster_helpers.py",
+            "static_analyzer/graph.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "827578ec274bd7c6",
+          "can_expand": true
+        },
+        {
+          "name": "Static Quality Check Suite",
+          "description": "Implements structural analysis routines to detect \"God Classes,\" unused code, and topological imbalances.",
+          "key_entities": [
+            {
+              "qualified_name": "UnusedCodeAnalyzer",
+              "reference_file": "health/checks/__init__.py"
+            },
+            {
+              "qualified_name": "CohesionMetrics",
+              "reference_file": "health/checks/__init__.py"
+            },
+            {
+              "qualified_name": "CouplingMetrics",
+              "reference_file": "health/checks/__init__.py"
+            }
+          ],
+          "assigned_files": [
             "health/checks/__init__.py",
             "health/checks/circular_deps.py",
             "health/checks/cohesion.py",
@@ -1964,177 +792,955 @@
             "health/checks/god_class.py",
             "health/checks/inheritance.py",
             "health/checks/instability.py",
-            "health/checks/unused_code_diagnostics.py",
-            "health/config.py",
-            "health/models.py",
-            "health/runner.py",
-            "health_main.py"
+            "health/checks/unused_code_diagnostics.py"
           ],
           "source_cluster_ids": [],
-          "can_expand": true,
-          "components": [
+          "component_id": "4a91c42a45a03260",
+          "can_expand": true
+        },
+        {
+          "name": "Health & Quality Orchestrator",
+          "description": "Drives the diagnostic pipeline; configures and executes specific health checks based on the architectural model.",
+          "key_entities": [
             {
-              "name": "UnusedCodeDiagnostics",
-              "description": "Orchestrates and executes diagnostic checks to identify unreferenced or unused code elements across the project's codebase. It drives the analysis process, aggregates findings, and prepares them for reporting.",
-              "key_entities": [
-                {
-                  "qualified_name": "health.checks.unused_code_diagnostics.UnusedCodeDiagnostics",
-                  "reference_file": "health/checks/unused_code_diagnostics.py"
-                },
-                {
-                  "qualified_name": "health.checks.unused_code_diagnostics.UnusedCodeChecker",
-                  "reference_file": "health/checks/unused_code_diagnostics.py"
-                },
-                {
-                  "qualified_name": "health.checks.unused_code_diagnostics.DiagnosticAggregator",
-                  "reference_file": "health/checks/unused_code_diagnostics.py"
-                }
-              ],
-              "assigned_files": [
-                "repos/CodeBoarding/health/checks/unused_code_diagnostics.py",
-                "health/__init__.py",
-                "health/checks/__init__.py",
-                "health/checks/circular_deps.py",
-                "health/checks/cohesion.py",
-                "health/checks/coupling.py",
-                "health/checks/function_size.py",
-                "health/checks/god_class.py",
-                "health/checks/inheritance.py",
-                "health/checks/instability.py",
-                "health/checks/unused_code_diagnostics.py",
-                "health/config.py",
-                "health/models.py",
-                "health/runner.py",
-                "health_main.py"
-              ],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "2d10ff4d-4045-4f18-8f2e-b0decbec3c9a"
+              "qualified_name": "HealthRunner",
+              "reference_file": "health/__init__.py"
             },
             {
-              "name": "CodebaseAnalyzer",
-              "description": "Parses the project's source code, builds an Abstract Syntax Tree (AST) and/or symbol table or call graph, and provides a structured representation of the code for analysis by diagnostic components.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "81d24145-b79a-4db6-9d4c-faa36aef6bf4"
+              "qualified_name": "HealthModels",
+              "reference_file": "health/__init__.py"
             },
             {
-              "name": "DiagnosticReporter",
-              "description": "Formats and presents the diagnostic findings generated by UnusedCodeDiagnostics. It can output reports to the console, generate structured data (e.g., JSON), or integrate with other reporting dashboards.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "can_expand": false,
-              "component_id": "13469323-09cb-414d-ab0b-ab10c96a6815"
+              "qualified_name": "HealthConfig",
+              "reference_file": "health/constants.py",
+              "reference_start_line": 4,
+              "reference_end_line": 19
             }
           ],
-          "components_relations": [
+          "assigned_files": [
+            "health/__init__.py",
+            "health/config.py",
+            "health/constants.py",
+            "health/models.py",
+            "health/runner.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "db7d10842f5d9a95",
+          "can_expand": true
+        },
+        {
+          "name": "Incremental Analysis Manager",
+          "description": "Manages stateful analysis by comparing current repository deltas with cached results to minimize redundant processing.",
+          "key_entities": [
             {
-              "relation": "requests code structure from",
-              "src_name": "UnusedCodeDiagnostics",
-              "dst_name": "CodebaseAnalyzer"
-            },
-            {
-              "relation": "provides code structure to",
-              "src_name": "CodebaseAnalyzer",
-              "dst_name": "UnusedCodeDiagnostics"
-            },
-            {
-              "relation": "submits diagnostic findings to",
-              "src_name": "UnusedCodeDiagnostics",
-              "dst_name": "DiagnosticReporter"
-            },
-            {
-              "relation": "consumes diagnostic findings from",
-              "src_name": "DiagnosticReporter",
-              "dst_name": "UnusedCodeDiagnostics"
+              "qualified_name": "StateStore",
+              "reference_file": "static_analyzer/incremental_orchestrator.py"
             }
           ],
-          "component_id": "dff8cdaa-6a17-48e8-8480-6b4bb99212ad"
+          "assigned_files": [
+            "static_analyzer/incremental_orchestrator.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "18b2851d4a245abe",
+          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "initiates tasks for",
-          "src_name": "Application Orchestrator",
-          "dst_name": "Diagram Generator"
+          "relation": "Requests a filtered list of files and environment parameters to define the analysis scope.",
+          "src_name": "Static Analysis Façade",
+          "dst_name": "Discovery & Environment Manager",
+          "src_id": "e0af9ad54478384c",
+          "dst_id": "d3696baabaef2ed7"
         },
         {
-          "relation": "triggers checks by",
-          "src_name": "Application Orchestrator",
-          "dst_name": "Health Diagnostics"
+          "relation": "Provides configuration metadata and file paths required to bootstrap language‑specific servers.",
+          "src_name": "Discovery & Environment Manager",
+          "dst_name": "LSP Orchestration Engine",
+          "src_id": "d3696baabaef2ed7",
+          "dst_id": "c47b41310d40c1b7"
         },
         {
-          "relation": "integrates with",
-          "src_name": "Application Orchestrator",
-          "dst_name": "Monitoring Callback Handler"
+          "relation": "Streams raw symbol data and location references for cross‑file linking.",
+          "src_name": "LSP Orchestration Engine",
+          "dst_name": "Semantic Reference Resolver",
+          "src_id": "c47b41310d40c1b7",
+          "dst_id": "1aae13505a3a6d25"
         },
         {
-          "relation": "utilizes",
-          "src_name": "Diagram Generator",
-          "dst_name": "HTML Output Generator"
+          "relation": "Supplies resolved symbol edges to populate the structural CallGraph.",
+          "src_name": "Semantic Reference Resolver",
+          "dst_name": "Architectural Modeling Engine",
+          "src_id": "1aae13505a3a6d25",
+          "dst_id": "827578ec274bd7c6"
         },
         {
-          "relation": "provides results to",
-          "src_name": "Health Diagnostics",
-          "dst_name": "Application Orchestrator"
+          "relation": "Provides the complete graph topology for executing depth‑first searches and metric calculations.",
+          "src_name": "Architectural Modeling Engine",
+          "dst_name": "Static Quality Check Suite",
+          "src_id": "827578ec274bd7c6",
+          "dst_id": "4a91c42a45a03260"
         },
         {
-          "relation": "reports events to",
-          "src_name": "Monitoring Callback Handler",
-          "dst_name": "Application Orchestrator"
+          "relation": "Forwards detected quality issues and unused code findings to be standardized into health reports.",
+          "src_name": "Static Quality Check Suite",
+          "dst_name": "Health & Quality Orchestrator",
+          "src_id": "4a91c42a45a03260",
+          "dst_id": "db7d10842f5d9a95"
+        },
+        {
+          "relation": "Queries for previous analysis states to determine which modules require re‑processing.",
+          "src_name": "Static Analysis Façade",
+          "dst_name": "Incremental Analysis Manager",
+          "src_id": "e0af9ad54478384c",
+          "dst_id": "18b2851d4a245abe"
+        },
+        {
+          "relation": "Uses Git diff data to invalidate specific cache entries in the state store.",
+          "src_name": "Incremental Analysis Manager",
+          "dst_name": "Discovery & Environment Manager",
+          "src_id": "18b2851d4a245abe",
+          "dst_id": "d3696baabaef2ed7"
+        }
+      ]
+    },
+    {
+      "name": "Agent Tooling Interface",
+      "description": "Provides a set of specialized tools that allow the LLM Agent Core to interact with the codebase, query static analysis results, and perform specific actions within the project context.",
+      "key_entities": [
+        {
+          "qualified_name": "repos.codeboarding.tools.ReadFileTool",
+          "reference_file": "agents/tools/read_source.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.tools.GetCFGTool",
+          "reference_file": "agents/tools/read_source.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.tools.CodeStructureTool",
+          "reference_file": "agents/tools/read_source.py"
         }
       ],
-      "component_id": "d24ecae6-7c57-451c-a848-f985c36d3ba8"
+      "assigned_files": [
+        "agents/tools/read_source.py",
+        "agents/tools/read_file_structure.py",
+        "agents/tools/read_docs.py",
+        "agents/tools/get_method_invocations.py",
+        "agents/tools/read_structure.py",
+        "agents/tools/read_git_diff.py",
+        "agents/tools/read_file.py",
+        "agents/tools/read_packages.py",
+        "agents/tools/external_deps.py",
+        "agents/tools/read_cfg.py",
+        "agents/tools/toolkit.py",
+        "agents/tools/__init__.py",
+        "agents/tools/base.py"
+      ],
+      "source_cluster_ids": [
+        4
+      ],
+      "component_id": "c85caa2c0bcf0ad7",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "Toolkit Registry",
+          "description": "Acts as the central factory and lifecycle manager for the subsystem; it discovers available tools and provides a unified get_all_tools interface for external agent orchestration.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.registry.ToolkitRegistry",
+              "reference_file": "agents/tools/__init__.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/__init__.py",
+            "agents/tools/toolkit.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f9f1df0f4af664fa",
+          "can_expand": true
+        },
+        {
+          "name": "Repository Context Manager",
+          "description": "Provides the foundational state and shared logic for all tools, including filesystem pathing, ignore‑file management, and result caching.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.base.RepoContext",
+              "reference_file": "agents/tools/base.py"
+            },
+            {
+              "qualified_name": "agents.tools.base.BaseRepoTool",
+              "reference_file": "agents/tools/base.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/base.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8f80fe6db117abfa",
+          "can_expand": true
+        },
+        {
+          "name": "Static Analysis Provider",
+          "description": "Interfaces with the static analysis engine to extract high‑level architectural data, including Control Flow Graphs (CFGs), class hierarchies, and method invocation chains.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.read_source.GetCFGTool",
+              "reference_file": "agents/tools/read_source.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_source.CodeStructureTool",
+              "reference_file": "agents/tools/read_source.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_source.py",
+            "agents/tools/get_method_invocations.py",
+            "agents/tools/read_cfg.py",
+            "agents/tools/read_structure.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "6d2fa77bc1be3387",
+          "can_expand": true
+        },
+        {
+          "name": "Source Content Retriever",
+          "description": "Performs granular retrieval of raw code and documentation; it can read entire files or extract specific code blocks based on fully‑qualified identifiers.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.read_source.ReadFileTool",
+              "reference_file": "agents/tools/read_source.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_source.CodeReferenceReader",
+              "reference_file": "agents/tools/read_source.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_source.py",
+            "agents/tools/read_docs.py",
+            "agents/tools/read_file.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8efdc13106aa9993",
+          "can_expand": true
+        },
+        {
+          "name": "Project Topology Mapper",
+          "description": "Maps the physical and logical layout of the project, generating directory trees and identifying package‑level relationships and imports.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.read_source.FileStructureTool",
+              "reference_file": "agents/tools/read_source.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_source.PackageRelationsTool",
+              "reference_file": "agents/tools/read_source.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_source.py",
+            "agents/tools/read_file_structure.py",
+            "agents/tools/read_packages.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "db8794d253b2e103",
+          "can_expand": true
+        },
+        {
+          "name": "Change Context Provider",
+          "description": "Wraps Git operations to provide incremental change data, allowing agents to focus their analysis on modified code sections rather than the entire codebase.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.git_tools.ReadDiffTool",
+              "reference_file": "agents/tools/read_git_diff.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_git_diff.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "cadc2fdd5bbfc2aa",
+          "can_expand": true
+        },
+        {
+          "name": "Dependency Analyzer",
+          "description": "Scans and parses project manifests (e.g., pyproject.toml) to identify external libraries and the broader ecosystem the project relies on.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.dependency_tools.DependencyAnalyzer",
+              "reference_file": "agents/tools/external_deps.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/external_deps.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "ab8e34b62850835f",
+          "can_expand": true
+        }
+      ],
+      "components_relations": [
+        {
+          "relation": "Injects the shared RepoContext into every tool instance during initialization.",
+          "src_name": "Toolkit Registry",
+          "dst_name": "Repository Context Manager",
+          "src_id": "f9f1df0f4af664fa",
+          "dst_id": "8f80fe6db117abfa"
+        },
+        {
+          "relation": "Triggers the retriever to fetch specific code blocks identified during structural analysis for deeper inspection.",
+          "src_name": "Static Analysis Provider",
+          "dst_name": "Source Content Retriever",
+          "src_id": "6d2fa77bc1be3387",
+          "dst_id": "8efdc13106aa9993"
+        },
+        {
+          "relation": "Utilizes the centralized directory walking and ignore‑file utilities to generate accurate project maps.",
+          "src_name": "Project Topology Mapper",
+          "dst_name": "Repository Context Manager",
+          "src_id": "db8794d253b2e103",
+          "dst_id": "8f80fe6db117abfa"
+        },
+        {
+          "relation": "Retrieves the validated repository root path to execute localized Git commands.",
+          "src_name": "Change Context Provider",
+          "dst_name": "Repository Context Manager",
+          "src_id": "cadc2fdd5bbfc2aa",
+          "dst_id": "8f80fe6db117abfa"
+        },
+        {
+          "relation": "Inherits base filesystem utilities to ensure consistent file access and adherence to project‑specific ignore rules.",
+          "src_name": "Source Content Retriever",
+          "dst_name": "Repository Context Manager",
+          "src_id": "8efdc13106aa9993",
+          "dst_id": "8f80fe6db117abfa"
+        },
+        {
+          "relation": "Manages the instantiation and registration of tools that transform raw static analysis data into agent‑consumable formats.",
+          "src_name": "Toolkit Registry",
+          "dst_name": "Static Analysis Provider",
+          "src_id": "f9f1df0f4af664fa",
+          "dst_id": "6d2fa77bc1be3387"
+        }
+      ]
+    },
+    {
+      "name": "Incremental Analysis Engine",
+      "description": "Optimizes analysis performance by managing the caching of static analysis results and orchestrating re-analysis only for changed parts of the codebase, ensuring efficiency and speed.",
+      "key_entities": [
+        {
+          "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater",
+          "reference_file": "diagram_analysis/incremental/updater.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.incremental.AnalysisCache",
+          "reference_file": "diagram_analysis/incremental/updater.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer",
+          "reference_file": "diagram_analysis/incremental/updater.py"
+        }
+      ],
+      "assigned_files": [
+        "diagram_analysis/incremental/updater.py",
+        "static_analyzer/analysis_cache.py",
+        "static_analyzer/cluster_change_analyzer.py",
+        "diagram_analysis/incremental/io_utils.py",
+        "diagram_analysis/incremental/__init__.py",
+        "diagram_analysis/incremental/component_checker.py",
+        "diagram_analysis/incremental/file_manager.py",
+        "diagram_analysis/incremental/impact_analyzer.py",
+        "diagram_analysis/incremental/models.py",
+        "diagram_analysis/incremental/path_patching.py",
+        "diagram_analysis/incremental/reexpansion.py",
+        "diagram_analysis/incremental/scoped_analysis.py",
+        "diagram_analysis/incremental/validation.py"
+      ],
+      "source_cluster_ids": [
+        12,
+        14,
+        19,
+        20
+      ],
+      "component_id": "f7200458cf2523d7",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "Incremental Update Orchestrator",
+          "description": "The central controller that coordinates the sequence of operations from change detection to final validation. It manages the high‑level workflow, ensuring that impact analysis, patching, and re‑analysis occur in the correct order.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater.run_update",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IncrementalUpdater._process_changes",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/__init__.py",
+            "diagram_analysis/incremental/models.py",
+            "diagram_analysis/incremental/scoped_analysis.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "afbb58f6d70ab30e",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Cache Manager",
+          "description": "Manages the lifecycle of serialized artifacts (call graphs, hierarchies) and validates their integrity for reuse. It acts as the primary data provider for components that need historical analysis state.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisCache",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisCache.load_artifacts",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisCache.invalidate_entry",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "static_analyzer/analysis_cache.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "5fe41f53942e50ad",
+          "can_expand": true
+        },
+        {
+          "name": "Structural Impact Analyzer",
+          "description": "Evaluates code changes to identify \"dirty\" sub‑graphs and determines if changes cross architectural boundaries, necessitating broader re‑analysis.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer.detect_dirty_nodes",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ImpactAnalyzer.check_boundary_violation",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/impact_analyzer.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1b70993b06b59ce6",
+          "can_expand": true
+        },
+        {
+          "name": "Cluster Change Analyzer",
+          "description": "Classifies the magnitude of architectural shifts (Small/Medium/Big) by comparing current and historical clustering data to detect significant drift.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer.calculate_similarity",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ClusterChangeAnalyzer.classify_shift",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "static_analyzer/cluster_change_analyzer.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e8a0aba49bb7450c",
+          "can_expand": true
+        },
+        {
+          "name": "Scoped Re‑expansion Engine",
+          "description": "Orchestrates LLM‑based agents to perform deep re‑analysis specifically on sub‑graphs flagged as dirty, ensuring AI interpretation stays in sync with code changes.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.ReExpansionEngine",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ReExpansionEngine.reanalyze_component",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.MetaAgentOrchestrator",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/reexpansion.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "3a1590cab2eb431f",
+          "can_expand": true
+        },
+        {
+          "name": "File & Path Patching Manager",
+          "description": "Handles in‑place updates to the analysis manifest, such as file renames and component re‑assignments, without requiring a full re‑parse of the repository.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher.apply_renames",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.ManifestPatcher.update_assignments",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/file_manager.py",
+            "diagram_analysis/incremental/path_patching.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "34f527dd9ae1a4f6",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis I/O Manager",
+          "description": "Provides thread‑safe, locked access to the analysis store (DuckDB and file system) to ensure data consistency during concurrent incremental updates.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO.acquire_lock",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.AnalysisIO.write_atomic",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/io_utils.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f84c13517b1b127a",
+          "can_expand": true
+        },
+        {
+          "name": "Update Integrity Validator",
+          "description": "Performs final consistency checks between the updated analysis state and the physical file system to ensure no orphaned nodes or broken references remain.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator.verify_filesystem_sync",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.incremental.IntegrityValidator.check_graph_consistency",
+              "reference_file": "diagram_analysis/incremental/updater.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/incremental/updater.py",
+            "diagram_analysis/incremental/component_checker.py",
+            "diagram_analysis/incremental/validation.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "bdd0300f74ebc83c",
+          "can_expand": true
+        }
+      ],
+      "components_relations": [
+        {
+          "relation": "triggers",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Structural Impact Analyzer",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "1b70993b06b59ce6"
+        },
+        {
+          "relation": "invokes",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Update Integrity Validator",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "bdd0300f74ebc83c"
+        },
+        {
+          "relation": "sends dirty component lists to",
+          "src_name": "Incremental Update Orchestrator",
+          "dst_name": "Scoped Re‑expansion Engine",
+          "src_id": "afbb58f6d70ab30e",
+          "dst_id": "3a1590cab2eb431f"
+        },
+        {
+          "relation": "provides cached state to",
+          "src_name": "Analysis Cache Manager",
+          "dst_name": "Structural Impact Analyzer",
+          "src_id": "5fe41f53942e50ad",
+          "dst_id": "1b70993b06b59ce6"
+        },
+        {
+          "relation": "supplies historical clustering data to",
+          "src_name": "Analysis Cache Manager",
+          "dst_name": "Cluster Change Analyzer",
+          "src_id": "5fe41f53942e50ad",
+          "dst_id": "e8a0aba49bb7450c"
+        },
+        {
+          "relation": "flags dirty components back to",
+          "src_name": "Structural Impact Analyzer",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "1b70993b06b59ce6",
+          "dst_id": "afbb58f6d70ab30e"
+        },
+        {
+          "relation": "pulls historical cluster definitions from",
+          "src_name": "Cluster Change Analyzer",
+          "dst_name": "Analysis Cache Manager",
+          "src_id": "e8a0aba49bb7450c",
+          "dst_id": "5fe41f53942e50ad"
+        },
+        {
+          "relation": "receives dirty component lists from",
+          "src_name": "Scoped Re‑expansion Engine",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "3a1590cab2eb431f",
+          "dst_id": "afbb58f6d70ab30e"
+        },
+        {
+          "relation": "sends updated analysis results to",
+          "src_name": "Scoped Re‑expansion Engine",
+          "dst_name": "Analysis I/O Manager",
+          "src_id": "3a1590cab2eb431f",
+          "dst_id": "f84c13517b1b127a"
+        },
+        {
+          "relation": "delegates atomic manifest updates to",
+          "src_name": "File & Path Patching Manager",
+          "dst_name": "Analysis I/O Manager",
+          "src_id": "34f527dd9ae1a4f6",
+          "dst_id": "f84c13517b1b127a"
+        },
+        {
+          "relation": "manages concurrent write requests from",
+          "src_name": "Analysis I/O Manager",
+          "dst_name": "Scoped Re‑expansion Engine",
+          "src_id": "f84c13517b1b127a",
+          "dst_id": "3a1590cab2eb431f"
+        },
+        {
+          "relation": "manages manifest persistence for",
+          "src_name": "Analysis I/O Manager",
+          "dst_name": "File & Path Patching Manager",
+          "src_id": "f84c13517b1b127a",
+          "dst_id": "34f527dd9ae1a4f6"
+        },
+        {
+          "relation": "reports final validation status to",
+          "src_name": "Update Integrity Validator",
+          "dst_name": "Incremental Update Orchestrator",
+          "src_id": "bdd0300f74ebc83c",
+          "dst_id": "afbb58f6d70ab30e"
+        }
+      ]
+    },
+    {
+      "name": "Documentation & Diagram Generator",
+      "description": "Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.",
+      "key_entities": [
+        {
+          "qualified_name": "repos.codeboarding.output.DiagramGenerator",
+          "reference_file": "output_generators/sphinx.py"
+        },
+        {
+          "qualified_name": "repos.codeboarding.output.MarkdownOutputGenerator",
+          "reference_file": "output_generators/sphinx.py"
+        }
+      ],
+      "assigned_files": [
+        "output_generators/sphinx.py",
+        "output_generators/mdx.py",
+        "output_generators/html.py",
+        "github_action.py",
+        "output_generators/markdown.py",
+        "diagram_analysis/diagram_generator.py",
+        "main.py",
+        "diagram_analysis/__init__.py",
+        "diagram_analysis/file_coverage.py",
+        "diagram_analysis/manifest.py",
+        "diagram_analysis/version.py",
+        "output_generators/__init__.py",
+        "output_generators/html_template.py"
+      ],
+      "source_cluster_ids": [
+        5
+      ],
+      "component_id": "3c839c8909bb966e",
+      "can_expand": true,
+      "components": [
+        {
+          "name": "CLI & Orchestration Engine",
+          "description": "Serves as the primary interface and control center for the tool. It handles command-line argument parsing, environment variable validation, and orchestrates the entire workflow, from initiating repository processing to triggering analysis and output generation.",
+          "key_entities": [
+            {
+              "qualified_name": "main.generate_analysis",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "main.partial_update",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "main.process_local_repository",
+              "reference_file": "main.py"
+            }
+          ],
+          "assigned_files": [
+            "main.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "7c2c60b49b98b962",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Core Engine",
+          "description": "Executes static code analysis, builds file coverage data, and generates detailed analysis results. It interprets code structure, relationships, and handles incremental updates to the analysis data.",
+          "key_entities": [
+            {
+              "qualified_name": "diagram_analysis.diagram_generator.analyze_repository",
+              "reference_file": "diagram_analysis/diagram_generator.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/diagram_generator.py",
+            "diagram_analysis/__init__.py",
+            "diagram_analysis/version.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e195fd92dbda7ac4",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Data Store/Manifest Management",
+          "description": "Manages the persistent state and metadata of the analysis. It stores the manifest and file coverage information, providing mechanisms for loading, saving, and updating these critical analysis results.",
+          "key_entities": [
+            {
+              "qualified_name": "diagram_analysis.manifest",
+              "reference_file": "diagram_analysis/manifest.py"
+            },
+            {
+              "qualified_name": "diagram_analysis.file_coverage",
+              "reference_file": "diagram_analysis/file_coverage.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/file_coverage.py",
+            "diagram_analysis/manifest.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "4937fdc16a209515",
+          "can_expand": true
+        },
+        {
+          "name": "Output Generation & Formatting",
+          "description": "Transforms the processed analysis data into various user‑friendly documentation formats (HTML, Markdown, MDX, reStructuredText). This component integrates templating capabilities to ensure consistent styling and structure across all generated outputs, encapsulating all format‑specific generators and the common templating engine.",
+          "key_entities": [
+            {
+              "qualified_name": "output_generators.sphinx.DiagramGenerator",
+              "reference_file": "output_generators/sphinx.py"
+            },
+            {
+              "qualified_name": "output_generators.sphinx.MarkdownOutputGenerator",
+              "reference_file": "output_generators/sphinx.py"
+            },
+            {
+              "qualified_name": "output_generators.mdx.MDXOutputGenerator",
+              "reference_file": "output_generators/mdx.py"
+            },
+            {
+              "qualified_name": "output_generators.template_utils.TemplateEngine",
+              "reference_file": "output_generators/sphinx.py"
+            }
+          ],
+          "assigned_files": [
+            "output_generators/sphinx.py",
+            "output_generators/mdx.py",
+            "output_generators/__init__.py",
+            "output_generators/html.py",
+            "output_generators/html_template.py",
+            "output_generators/markdown.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e7be04f632756d1d",
+          "can_expand": true
+        },
+        {
+          "name": "GitHub Action Integration",
+          "description": "Provides specific entry points and orchestration logic tailored for execution within GitHub Actions CI/CD pipelines. It handles loading existing analyses and triggering documentation generation within an automated workflow context.",
+          "key_entities": [
+            {
+              "qualified_name": "output_generators.github_actions.run_analysis",
+              "reference_file": "github_action.py"
+            }
+          ],
+          "assigned_files": [
+            "github_action.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "ba4b70278ec19d88",
+          "can_expand": true
+        }
+      ],
+      "components_relations": [
+        {
+          "relation": "initiates",
+          "src_name": "CLI & Orchestration Engine",
+          "dst_name": "Analysis Core Engine",
+          "src_id": "7c2c60b49b98b962",
+          "dst_id": "e195fd92dbda7ac4"
+        },
+        {
+          "relation": "triggers",
+          "src_name": "CLI & Orchestration Engine",
+          "dst_name": "Output Generation & Formatting",
+          "src_id": "7c2c60b49b98b962",
+          "dst_id": "e7be04f632756d1d"
+        },
+        {
+          "relation": "stores data in",
+          "src_name": "Analysis Core Engine",
+          "dst_name": "Analysis Data Store/Manifest Management",
+          "src_id": "e195fd92dbda7ac4",
+          "dst_id": "4937fdc16a209515"
+        },
+        {
+          "relation": "retrieves data from",
+          "src_name": "Analysis Core Engine",
+          "dst_name": "Analysis Data Store/Manifest Management",
+          "src_id": "e195fd92dbda7ac4",
+          "dst_id": "4937fdc16a209515"
+        },
+        {
+          "relation": "provides data to",
+          "src_name": "Analysis Data Store/Manifest Management",
+          "dst_name": "Analysis Core Engine",
+          "src_id": "4937fdc16a209515",
+          "dst_id": "e195fd92dbda7ac4"
+        },
+        {
+          "relation": "provides data to",
+          "src_name": "Analysis Data Store/Manifest Management",
+          "dst_name": "Output Generation & Formatting",
+          "src_id": "4937fdc16a209515",
+          "dst_id": "e7be04f632756d1d"
+        },
+        {
+          "relation": "reads data from",
+          "src_name": "Output Generation & Formatting",
+          "dst_name": "Analysis Data Store/Manifest Management",
+          "src_id": "e7be04f632756d1d",
+          "dst_id": "4937fdc16a209515"
+        },
+        {
+          "relation": "receives trigger from",
+          "src_name": "Output Generation & Formatting",
+          "dst_name": "CLI & Orchestration Engine",
+          "src_id": "e7be04f632756d1d",
+          "dst_id": "7c2c60b49b98b962"
+        },
+        {
+          "relation": "orchestrates",
+          "src_name": "GitHub Action Integration",
+          "dst_name": "Analysis Core Engine",
+          "src_id": "ba4b70278ec19d88",
+          "dst_id": "e195fd92dbda7ac4"
+        },
+        {
+          "relation": "orchestrates",
+          "src_name": "GitHub Action Integration",
+          "dst_name": "Output Generation & Formatting",
+          "src_id": "ba4b70278ec19d88",
+          "dst_id": "e7be04f632756d1d"
+        }
+      ]
     }
   ],
   "components_relations": [
     {
-      "relation": "Delegates repository change detection tasks.",
-      "src_name": "Application Orchestration & Reporting",
-      "dst_name": "Repository Change Detection"
+      "relation": "Orchestrator initiates analysis workflow, leveraging incremental updates based on detected code changes.",
+      "src_name": "Application Orchestrator & Repository Manager",
+      "dst_name": "Incremental Analysis Engine",
+      "src_id": "6d573da2150dc64e",
+      "dst_id": "f7200458cf2523d7"
     },
     {
-      "relation": "Triggers static code analysis for a given repository.",
-      "src_name": "Application Orchestration & Reporting",
-      "dst_name": "Static Analysis Engine"
+      "relation": "Orchestrator passes project context and triggers the main analysis workflow for the LLM Agent.",
+      "src_name": "Application Orchestrator & Repository Manager",
+      "dst_name": "LLM Agent Core",
+      "src_id": "6d573da2150dc64e",
+      "dst_id": "d517849a598c661e"
     },
     {
-      "relation": "Retrieves processed analysis data for final reporting and diagram generation.",
-      "src_name": "Application Orchestration & Reporting",
-      "dst_name": "Analysis Data Management"
+      "relation": "Incremental engine requests static analysis for specific code segments (new or changed).",
+      "src_name": "Incremental Analysis Engine",
+      "dst_name": "Static Code Analyzer",
+      "src_id": "f7200458cf2523d7",
+      "dst_id": "c051e21b04b765ed"
     },
     {
-      "relation": "Orchestrates agent execution and receives analysis insights.",
-      "src_name": "Application Orchestration & Reporting",
-      "dst_name": "Agent Core & Tooling"
+      "relation": "Static analyzer provides analysis results to the incremental engine for caching.",
+      "src_name": "Static Code Analyzer",
+      "dst_name": "Incremental Analysis Engine",
+      "src_id": "c051e21b04b765ed",
+      "dst_id": "f7200458cf2523d7"
     },
     {
-      "relation": "Provides raw static analysis data for processing and storage.",
-      "src_name": "Static Analysis Engine",
-      "dst_name": "Analysis Data Management"
+      "relation": "LLM Agent invokes specialized tools to interact with the codebase and analysis data.",
+      "src_name": "LLM Agent Core",
+      "dst_name": "Agent Tooling Interface",
+      "src_id": "d517849a598c661e",
+      "dst_id": "c85caa2c0bcf0ad7"
     },
     {
-      "relation": "Supplies processed analysis results (e.g., CFGs, call graphs) to the agents.",
-      "src_name": "Analysis Data Management",
-      "dst_name": "Agent Core & Tooling"
+      "relation": "Agent tools query the static analysis engine for detailed code insights.",
+      "src_name": "Agent Tooling Interface",
+      "dst_name": "Static Code Analyzer",
+      "src_id": "c85caa2c0bcf0ad7",
+      "dst_id": "c051e21b04b765ed"
     },
     {
-      "relation": "Requests LLM prompts and configurations for agent tasks.",
-      "src_name": "Agent Core & Tooling",
-      "dst_name": "LLM Prompt & Configuration Management"
+      "relation": "Static analysis engine provides requested data to the agent tools.",
+      "src_name": "Static Code Analyzer",
+      "dst_name": "Agent Tooling Interface",
+      "src_id": "c051e21b04b765ed",
+      "dst_id": "c85caa2c0bcf0ad7"
     },
     {
-      "relation": "Provides configured LLMs and generated prompts to the agents.",
-      "src_name": "LLM Prompt & Configuration Management",
-      "dst_name": "Agent Core & Tooling"
-    },
-    {
-      "relation": "Accesses repository change information via its specialized tools.",
-      "src_name": "Agent Core & Tooling",
-      "dst_name": "Repository Change Detection"
+      "relation": "LLM Agent delivers structured analysis insights for documentation and diagram generation.",
+      "src_name": "LLM Agent Core",
+      "dst_name": "Documentation & Diagram Generator",
+      "src_id": "d517849a598c661e",
+      "dst_id": "3c839c8909bb966e"
     }
   ]
 }

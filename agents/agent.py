@@ -10,7 +10,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 from trustcall import create_extractor
 
@@ -50,7 +51,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
         self.toolkit = CodeBoardingToolkit(context=context)
 
-        self.agent = create_react_agent(
+        self.agent: CompiledStateGraph = create_agent(
             model=agent_llm,
             tools=self.toolkit.get_agent_tools(),
         )

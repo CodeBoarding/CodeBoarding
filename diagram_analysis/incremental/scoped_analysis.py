@@ -47,9 +47,9 @@ def analyze_expanded_component_impacts(
 
     component_impacts: dict[str, ChangeImpact] = {}
 
-    for component_name in manifest.expanded_components:
+    for component_id in manifest.expanded_components:
         # Collect the files currently assigned to this component
-        component_files = {f for f, comp in manifest.file_to_component.items() if comp == component_name}
+        component_files = {f for f, comp in manifest.file_to_component.items() if comp == component_id}
 
         if not component_files:
             continue
@@ -63,11 +63,11 @@ def analyze_expanded_component_impacts(
         scoped_manifest = AnalysisManifest(
             repo_state_hash=manifest.repo_state_hash,
             base_commit=manifest.base_commit,
-            file_to_component={f: component_name for f in component_files},
-            expanded_components=[component_name],
+            file_to_component={f: component_id for f in component_files},
+            expanded_components=[component_id],
         )
 
-        component_impacts[component_name] = analyze_impact(
+        component_impacts[component_id] = analyze_impact(
             scoped_changes,
             scoped_manifest,
             static_analysis,
@@ -77,7 +77,7 @@ def analyze_expanded_component_impacts(
 
 
 def handle_scoped_component_update(
-    component_name: str,
+    component_id: str,
     impact: ChangeImpact,
     changes: ChangeSet,
     analysis: AnalysisInsights,
@@ -90,7 +90,7 @@ def handle_scoped_component_update(
 
     Patches paths for renames or re-runs DetailsAgent for component updates.
     """
-    sub_analysis = load_sub_analysis(output_dir, component_name)
+    sub_analysis = load_sub_analysis(output_dir, component_id)
     if not sub_analysis:
         return
 
@@ -100,18 +100,18 @@ def handle_scoped_component_update(
     # If action is only PATCH_PATHS, persist and exit
     if impact.action == UpdateAction.PATCH_PATHS:
         if changed:
-            save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)
+            save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
         return
 
     # For UPDATE_COMPONENTS, re-run DetailsAgent scoped to this component
     if impact.action == UpdateAction.UPDATE_COMPONENTS:
         # Build a scoped manifest for this component's files
-        component_files = set(manifest.get_files_for_component(component_name))
+        component_files = set(manifest.get_files_for_component(component_id))
         scoped_manifest = AnalysisManifest(
             repo_state_hash=manifest.repo_state_hash,
             base_commit=manifest.base_commit,
-            file_to_component={f: component_name for f in component_files},
-            expanded_components=[component_name],
+            file_to_component={f: component_id for f in component_files},
+            expanded_components=[component_id],
         )
 
         # Detect additional changes inside the component scope
@@ -120,12 +120,12 @@ def handle_scoped_component_update(
 
         # If nothing to do, just persist patches
         if scoped_impact.action == UpdateAction.PATCH_PATHS and changed:
-            save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)
+            save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
             return
 
         if scoped_impact.action == UpdateAction.NONE:
             if changed:
-                save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)
+                save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
             return
 
         # Re-run DetailsAgent on this component using the existing static analysis
@@ -153,25 +153,25 @@ def handle_scoped_component_update(
         )
 
         # Find the component object in the main analysis to preserve metadata
-        component_obj = next((c for c in analysis.components if c.name == component_name), None)
+        component_obj = next((c for c in analysis.components if c.component_id == component_id), None)
         if not component_obj:
             return
 
         subgraph_analysis, subgraph_clusters = details_agent.run(component_obj)
 
         # Save refreshed sub-analysis
-        save_sub_analysis(subgraph_analysis, output_dir, component_name, manifest.expanded_components)
+        save_sub_analysis(subgraph_analysis, output_dir, component_id, manifest.expanded_components)
 
         # Update manifest slice with any new file assignments from the sub-analysis
         new_files: set[str] = set()
         for sub_comp in subgraph_analysis.components:
             for f in sub_comp.assigned_files:
                 new_files.add(f)
-                manifest.add_file(f, component_name)
+                manifest.add_file(f, component_id)
 
         # Ensure parent analysis assigned_files reflect any new files
         for comp in analysis.components:
-            if comp.name == component_name:
+            if comp.component_id == component_id:
                 for f in new_files:
                     if f not in comp.assigned_files:
                         comp.assigned_files.append(f)
@@ -216,7 +216,7 @@ def run_scoped_component_impacts(
         # If scoped impact wants component updates, trigger deeper handling.
         if impact.action in {UpdateAction.UPDATE_COMPONENTS, UpdateAction.PATCH_PATHS}:
             handle_scoped_component_update(
-                component_name=component,
+                component_id=component,
                 impact=impact,
                 changes=changes,
                 analysis=analysis,

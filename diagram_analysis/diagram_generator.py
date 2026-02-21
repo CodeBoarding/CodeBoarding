@@ -2,36 +2,44 @@ import json
 import logging
 import os
 import time
-from typing import Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import Component, AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import plan_analysis
-from agents.llm_config import initialize_llms
-from diagram_analysis.analysis_json import build_unified_analysis_json
+from diagram_analysis.analysis_json import (
+    FileCoverageReport,
+    FileCoverageSummary,
+    NotAnalyzedFile,
+)
+from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
+from diagram_analysis.incremental.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
-    save_manifest,
     manifest_exists,
+    save_manifest,
 )
-from diagram_analysis.incremental import IncrementalUpdater, UpdateAction
 from diagram_analysis.version import Version
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from health.config import initialize_health_dir, load_health_config
+from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
-from health.runner import run_health_checks
-from health.config import initialize_health_dir, load_health_config
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +71,7 @@ class DiagramGenerator:
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
+        self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -82,7 +91,7 @@ class DiagramGenerator:
             # Get new components to analyze (deterministic, no LLM)
             new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
 
-            return component.name, analysis, new_components
+            return component.component_id, analysis, new_components
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -94,7 +103,10 @@ class DiagramGenerator:
         health_config = load_health_config(health_config_dir)
 
         health_report = run_health_checks(
-            static_analysis, self.repo_name, config=health_config, repo_path=self.repo_location
+            static_analysis,
+            self.repo_name,
+            config=health_config,
+            repo_path=self.repo_location,
         )
         if health_report is not None:
             health_path = os.path.join(self.output_dir, "health", "health_report.json")
@@ -103,6 +115,35 @@ class DiagramGenerator:
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
         else:
             logger.warning("Health checks skipped: no languages found in static analysis results")
+
+    def _build_file_coverage(self, scanner: ProjectScanner, static_analysis: StaticAnalysisResults) -> dict:
+        """Build file coverage data comparing all text files against analyzed files."""
+        ignore_manager = RepoIgnoreManager(self.repo_location)
+        coverage = FileCoverage(self.repo_location, ignore_manager)
+
+        # Convert to Path objects for set operations
+        all_files = {Path(f) for f in scanner.all_text_files}
+        analyzed_files = {Path(f) for f in static_analysis.get_all_source_files()}
+
+        return coverage.build(all_files, analyzed_files)
+
+    def _write_file_coverage(self) -> None:
+        """Write file_coverage.json to output directory."""
+        if not self.file_coverage_data:
+            return
+
+        report = FileCoverageReport(
+            version=1,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            analyzed_files=self.file_coverage_data["analyzed_files"],
+            not_analyzed_files=[NotAnalyzedFile(**entry) for entry in self.file_coverage_data["not_analyzed_files"]],
+            summary=FileCoverageSummary(**self.file_coverage_data["summary"]),
+        )
+
+        coverage_path = os.path.join(self.output_dir, "file_coverage.json")
+        with open(coverage_path, "w") as f:
+            f.write(report.model_dump_json(indent=2, exclude_none=True))
+        logger.info(f"File coverage report written to {coverage_path}")
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -142,6 +183,9 @@ class DiagramGenerator:
                 "lines_of_code": loc_by_language.get(language, 0),
             }
 
+        # Build file coverage data from scanner's all_text_files and analyzed files
+        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+
         self._run_health_report(static_analysis)
 
         self.details_agent = DetailsAgent(
@@ -167,7 +211,8 @@ class DiagramGenerator:
         with open(version_file, "w") as f:
             f.write(
                 Version(
-                    commit_hash=get_git_commit_hash(self.repo_location), code_boarding_version="0.2.0"
+                    commit_hash=get_git_commit_hash(self.repo_location),
+                    code_boarding_version="0.2.0",
                 ).model_dump_json(indent=2)
             )
 
@@ -224,9 +269,9 @@ class DiagramGenerator:
             max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
 
             # Track components that were actually expanded (have sub-analysis)
-            expanded_components: list[Component] = []
+            actually_expanded: list[Component] = []
 
-            # Collect all sub-analyses: component_name -> (AnalysisInsights, expandable_sub_components)
+            # Collect all sub-analyses: component_id -> (AnalysisInsights, expandable_sub_components)
             all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
 
             # Process each level of components in parallel
@@ -247,14 +292,16 @@ class DiagramGenerator:
 
                     # Use tqdm for a progress bar
                     for future in tqdm(
-                        as_completed(future_to_component), total=len(future_to_component), desc=f"Level {level}"
+                        as_completed(future_to_component),
+                        total=len(future_to_component),
+                        desc=f"Level {level}",
                     ):
                         component = future_to_component[future]
                         try:
-                            comp_name, sub_analysis, new_components = future.result()
-                            if comp_name and sub_analysis:
-                                all_sub_analyses[comp_name] = (sub_analysis, new_components)
-                                expanded_components.append(component)
+                            comp_id, sub_analysis, new_components = future.result()
+                            if comp_id and sub_analysis:
+                                all_sub_analyses[comp_id] = (sub_analysis, new_components)
+                                actually_expanded.append(component)
                             if new_components:
                                 next_level_components.extend(new_components)
                         except Exception as exc:
@@ -263,23 +310,45 @@ class DiagramGenerator:
                 logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
                 current_level_components = next_level_components
 
-            # Write a single unified analysis.json
-            analysis_path = os.path.join(self.output_dir, "analysis.json")
-            with open(analysis_path, "w") as f:
-                f.write(
-                    build_unified_analysis_json(
-                        analysis=analysis,
-                        expandable_components=expanded_components,
-                        repo_name=self.repo_name,
-                        sub_analyses=all_sub_analyses,
-                    )
+                # Save intermediate progress after each completed level so results survive crashes
+                logger.info(f"Saving intermediate analysis after level {level}")
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
                 )
+
+            # Build file coverage summary for metadata
+            file_coverage_summary = None
+            if self.file_coverage_data:
+                s = self.file_coverage_data["summary"]
+                file_coverage_summary = FileCoverageSummary(
+                    total_files=s["total_files"],
+                    analyzed=s["analyzed"],
+                    not_analyzed=s["not_analyzed"],
+                    not_analyzed_by_reason=s["not_analyzed_by_reason"],
+                )
+
+            # Final write of unified analysis.json
+            analysis_path = str(
+                save_analysis(
+                    analysis=analysis,
+                    output_dir=Path(self.output_dir),
+                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
+                    repo_name=self.repo_name,
+                    file_coverage_summary=file_coverage_summary,
+                )
+            )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             print("Generated analysis file: %s", os.path.abspath(analysis_path))
 
+            # Write file_coverage.json
+            self._write_file_coverage()
+
             # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
+            self._save_manifest(analysis, actually_expanded)
 
             return [analysis_path]
 
@@ -289,7 +358,7 @@ class DiagramGenerator:
             repo_state_hash = get_repo_state_hash(self.repo_location)
             base_commit = get_git_commit_hash(self.repo_location)
 
-            expanded_names = [c.name for c in expanded_components]
+            expanded_names = [c.component_id for c in expanded_components]
 
             manifest = build_manifest_from_analysis(
                 analysis=analysis,
@@ -359,6 +428,19 @@ class DiagramGenerator:
 
         if updater.execute():
             logger.info("Incremental update completed successfully")
+
+            # Update file coverage incrementally
+            if static_analysis:
+                scanner = ProjectScanner(self.repo_location)
+                current_analyzed = {Path(f) for f in static_analysis.get_all_source_files()}
+                all_text_files = {Path(f) for f in scanner.all_text_files}
+
+                self.file_coverage_data = updater.update_file_coverage(
+                    current_analyzed_files=current_analyzed,
+                    all_text_files=all_text_files,
+                )
+                self._write_file_coverage()
+
             return [str(self.output_dir / "analysis.json")]
 
         # Incremental update failed or not possible

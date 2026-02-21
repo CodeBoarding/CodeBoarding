@@ -5,25 +5,35 @@ These tests simulate real-world scenarios with git operations.
 
 import json
 import os
-import pytest
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from diagram_analysis.manifest import (
-    AnalysisManifest,
-    save_manifest,
-    load_manifest,
-    MANIFEST_FILENAME,
+import pytest
+
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    SourceCodeReference,
 )
 from diagram_analysis.incremental import (
     IncrementalUpdater,
     UpdateAction,
-    load_analysis,
+    load_root_analysis,
     save_analysis,
 )
-from repo_utils.change_detector import detect_changes, detect_changes_from_commit, get_current_commit
-from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
+from diagram_analysis.manifest import (
+    MANIFEST_FILENAME,
+    AnalysisManifest,
+    load_manifest,
+    save_manifest,
+)
+from repo_utils.change_detector import (
+    detect_changes,
+    detect_changes_from_commit,
+    get_current_commit,
+)
 
 
 def run_git(repo_dir: Path, *args: str) -> str:
@@ -228,7 +238,7 @@ class TestIncrementalUpdaterIntegration:
         assert result is True
 
         # Verify the analysis was patched
-        updated_analysis = load_analysis(output_dir)
+        updated_analysis = load_root_analysis(output_dir)
         assert updated_analysis is not None
 
         # Check ComponentA has the renamed file
@@ -347,7 +357,7 @@ class TestEndToEndScenarios:
         assert success
 
         # Verify results
-        analysis = load_analysis(output_dir)
+        analysis = load_root_analysis(output_dir)
         assert analysis is not None
         comp_a = next(c for c in analysis.components if c.name == "ComponentA")
         assert "src/component_a.py" in comp_a.assigned_files

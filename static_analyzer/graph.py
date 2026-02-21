@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import Language
+from static_analyzer.constants import ClusteringConfig, NodeType, Language, Node
 
 logger = logging.getLogger(__name__)
 
@@ -32,132 +32,6 @@ class ClusterResult:
         return self.clusters.get(cluster_id, set())
 
 
-class ClusteringConfig:
-    """Configuration constants for graph clustering algorithms.
-
-    These values are based on empirical testing with codebases ranging from
-    100-10,000 nodes. They balance clustering quality with computational efficiency.
-    """
-
-    # Default clustering parameters - chosen to work well for typical codebases (500-2000 nodes)
-    DEFAULT_TARGET_CLUSTERS = 20  # Sweet spot for human comprehension and LLM context
-    DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
-
-    # Quality thresholds for determining "good" clustering
-    MIN_COVERAGE_RATIO = 0.75  # At least 75% of nodes should be in meaningful clusters
-    MAX_SINGLETON_RATIO = 0.6  # No more than 60% singleton clusters (indicates poor clustering)
-    MIN_CLUSTER_COUNT_RATIO = 6  # Minimum clusters = target_clusters // 6 (avoid too few clusters)
-    MAX_CLUSTER_COUNT_MULTIPLIER = 2  # Maximum clusters = target_clusters * 2
-
-    # Cluster size constraints
-    SMALL_GRAPH_MAX_CLUSTER_RATIO = 0.6  # For graphs < 50 nodes, max cluster can be 60% of total
-    LARGE_GRAPH_MAX_CLUSTER_RATIO = 0.4  # For larger graphs, max cluster should be 40% of total
-    MAX_SIZE_TO_AVG_RATIO = 8  # Largest cluster shouldn't be more than 8x average size
-    SMALL_GRAPH_THRESHOLD = 50  # Threshold between "small" and "large" graphs
-
-    # Cluster balancing parameters
-    MIN_CLUSTER_SIZE_MULTIPLIER = 3  # When merging, stop at min_size * 3 to avoid oversized clusters
-    MAX_CLUSTER_SIZE_MULTIPLIER = 3  # Max cluster size = (total_nodes // target_clusters) * 3
-    MIN_MAX_CLUSTER_SIZE = 10  # Absolute minimum for max cluster size
-
-    # Display limits
-    MAX_DISPLAY_CLUSTERS = 25  # Maximum clusters to show in output (readability limit)
-
-    # Language-specific delimiters for qualified names
-    DEFAULT_DELIMITER = "."  # Works for Python, Java, C#
-    DELIMITER_MAP = {
-        Language.PYTHON: ".",
-        Language.GO: ".",
-        Language.PHP: "\\",  # PHP uses backslash for namespaces
-        Language.TYPESCRIPT: ".",
-        Language.JAVASCRIPT: ".",
-        Language.JAVA: ".",
-    }
-
-
-class Node:
-    # LSP SymbolKind constants
-    CLASS_TYPE = 5
-    METHOD_TYPE = 6
-    PROPERTY_TYPE = 7
-    FIELD_TYPE = 8
-    FUNCTION_TYPE = 12
-    VARIABLE_TYPE = 13
-    CONSTANT_TYPE = 14
-
-    # Sets for easy filtering
-    CALLABLE_TYPES = {METHOD_TYPE, FUNCTION_TYPE}
-    CLASS_TYPES = {CLASS_TYPE}
-    DATA_TYPES = {PROPERTY_TYPE, FIELD_TYPE, VARIABLE_TYPE, CONSTANT_TYPE}
-
-    _ENTITY_LABELS = {
-        CLASS_TYPE: "Class",
-        METHOD_TYPE: "Method",
-        PROPERTY_TYPE: "Property",
-        FIELD_TYPE: "Field",
-        FUNCTION_TYPE: "Function",
-        VARIABLE_TYPE: "Variable",
-        CONSTANT_TYPE: "Constant",
-    }
-
-    def __init__(
-        self,
-        fully_qualified_name: str,
-        node_type: int,
-        file_path: str,
-        line_start: int,
-        line_end: int,
-    ) -> None:
-        self.fully_qualified_name = fully_qualified_name
-        self.file_path = file_path
-        self.line_start = line_start
-        self.line_end = line_end
-        self.type = node_type
-        self.methods_called_by_me: set[str] = set()
-
-    def entity_label(self) -> str:
-        """Return human-readable label based on LSP SymbolKind."""
-        return self._ENTITY_LABELS.get(self.type, "Function")
-
-    def is_callable(self) -> bool:
-        """Return True if this node represents a callable entity (function or method)."""
-        return self.type in self.CALLABLE_TYPES
-
-    def is_class(self) -> bool:
-        """Return True if this node represents a class."""
-        return self.type in self.CLASS_TYPES
-
-    def is_data(self) -> bool:
-        """Return True if this node represents a data entity (property, field, variable, constant)."""
-        return self.type in self.DATA_TYPES
-
-    # Patterns indicating callback or anonymous function nodes from LSP
-    _CALLBACK_PATTERNS = (") callback", "<function>", "<arrow")
-
-    def is_callback_or_anonymous(self) -> bool:
-        """Return True if this node represents a callback or anonymous function.
-
-        LSP servers often report inline callbacks (e.g. `.forEach() callback`,
-        `.find() callback`) and anonymous functions (e.g. `<function>`, `<arrow`)
-        as separate symbols. These are typically not independently callable and
-        should be excluded from certain health checks like unused code detection.
-        """
-        name = self.fully_qualified_name
-        return any(pattern in name for pattern in self._CALLBACK_PATTERNS)
-
-    def added_method_called_by_me(self, node: "Node") -> None:
-        if isinstance(node, Node):
-            self.methods_called_by_me.add(node.fully_qualified_name)
-        else:
-            raise ValueError("Expected a Node instance.")
-
-    def __hash__(self) -> int:
-        return hash(self.fully_qualified_name)
-
-    def __repr__(self) -> str:
-        return f"Node({self.fully_qualified_name}, {self.file_path}, {self.line_start}-{self.line_end})"
-
-
 class Edge:
     def __init__(self, src_node: Node, dst_node: Node) -> None:
         self.src_node = src_node
@@ -174,9 +48,6 @@ class Edge:
 
 
 class CallGraph:
-    # Deterministic seed for clustering algorithms
-    CLUSTERING_SEED = 42
-
     def __init__(
         self,
         nodes: dict[str, Node] | None = None,
@@ -535,17 +406,17 @@ class CallGraph:
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
         # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
         if algorithm == "louvain":
-            return list(nx_comm.louvain_communities(graph, seed=self.CLUSTERING_SEED))
+            return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
         elif algorithm == "leiden":
             if hasattr(nx_comm, "leiden_communities"):
-                return list(nx_comm.leiden_communities(graph, seed=self.CLUSTERING_SEED))
+                return list(nx_comm.leiden_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
             logger.warning(
                 "leiden_communities not available in this networkx version, "
                 "falling back to asynchronous label propagation"
             )
-            return list(nx_comm.asyn_lpa_communities(graph, seed=self.CLUSTERING_SEED))
+            return list(nx_comm.asyn_lpa_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         else:
             logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
             return list(nx.community.greedy_modularity_communities(graph))
@@ -830,7 +701,7 @@ class CallGraph:
         for _, node in self.nodes.items():
             if node in skip_nodes:
                 continue
-            if node.type == Node.METHOD_TYPE and node.methods_called_by_me:
+            if node.type == NodeType.METHOD_TYPE and node.methods_called_by_me:
                 parts = node.fully_qualified_name.split(self.delimiter)
                 if len(parts) > 1:
                     class_name = self.delimiter.join(parts[:-1])

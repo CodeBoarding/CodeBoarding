@@ -51,9 +51,9 @@ def assign_new_files(
 
         if best_component:
             best_component.assigned_files.append(file_path)
-            manifest.add_file(file_path, best_component.name)
+            manifest.add_file(file_path, best_component.component_id)
             assigned_count += 1
-            components_with_new_files.add(best_component.name)
+            components_with_new_files.add(best_component.component_id)
             logger.debug(f"Assigned new file '{file_path}' to component '{best_component.name}'")
         else:
             logger.debug(f"Could not assign new file '{file_path}' to any component")
@@ -69,23 +69,23 @@ def remove_deleted_files(
 ) -> None:
     """Remove deleted files from analysis and manifest."""
     for file_path in deleted_files:
-        # Remove from manifest
-        component_name = manifest.remove_file(file_path)
+        # Remove from manifest (returns component_id)
+        component_id = manifest.remove_file(file_path)
 
-        if component_name:
+        if component_id:
             # Remove from component's assigned_files
             for component in analysis.components:
-                if component.name == component_name:
+                if component.component_id == component_id:
                     component.assigned_files = [f for f in component.assigned_files if f != file_path]
                     # Also remove from key_entities if referenced
                     component.key_entities = [e for e in component.key_entities if e.reference_file != file_path]
                     break
 
-            logger.info(f"Removed deleted file '{file_path}' from component '{component_name}'")
+            logger.info(f"Removed deleted file '{file_path}' from component '{component_id}'")
 
 
 def classify_new_files_in_component(
-    component_name: str,
+    component_id: str,
     new_files: list[str],
     analysis: AnalysisInsights,
     manifest: AnalysisManifest,
@@ -100,27 +100,27 @@ def classify_new_files_in_component(
     """
     # Find the component in the main analysis
     component = next(
-        (c for c in analysis.components if c.name == component_name),
+        (c for c in analysis.components if c.component_id == component_id),
         None,
     )
     if not component:
-        logger.warning(f"Component '{component_name}' not found for new file classification")
+        logger.warning(f"Component '{component_id}' not found for new file classification")
         return False
 
     # Load existing sub-analysis
-    sub_analysis = load_sub_analysis(output_dir, component_name)
+    sub_analysis = load_sub_analysis(output_dir, component_id)
     if not sub_analysis:
-        logger.warning(f"No sub-analysis found for component '{component_name}', cannot classify new files")
+        logger.warning(f"No sub-analysis found for component '{component_id}', cannot classify new files")
         return False
 
-    logger.info(f"Running targeted file classification for {len(new_files)} new files in '{component_name}'")
+    logger.info(f"Running targeted file classification for {len(new_files)} new files in '{component_id}'")
 
     # Create subgraph cluster results for this component
     # This mirrors what DetailsAgent.run() does in step 1
     cluster_results = create_component_cluster_results(component, static_analysis, repo_dir)
 
     if not cluster_results:
-        logger.warning(f"Could not create cluster results for '{component_name}', skipping targeted classification")
+        logger.warning(f"Could not create cluster results for '{component_id}', skipping targeted classification")
         return False
 
     agent_llm, parsing_llm = initialize_llms()
@@ -143,11 +143,11 @@ def classify_new_files_in_component(
         agent.classify_files(sub_analysis, cluster_results, list(component_files))
 
         # Save the updated sub-analysis
-        save_sub_analysis(sub_analysis, output_dir, component_name, manifest.expanded_components)
+        save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
         return True
 
     except Exception as e:
-        logger.error(f"Failed to classify new files in '{component_name}': {e}")
+        logger.error(f"Failed to classify new files in '{component_id}': {e}")
         return False
 
 
@@ -186,14 +186,14 @@ def create_component_cluster_results(
 
 
 def get_new_files_for_component(
-    component_name: str,
+    component_id: str,
     added_files: list[str],
     analysis: AnalysisInsights,
 ) -> list[str]:
     """Get new files that belong to a specific component."""
     # Find the component
     component = next(
-        (c for c in analysis.components if c.name == component_name),
+        (c for c in analysis.components if c.component_id == component_id),
         None,
     )
     if not component:
