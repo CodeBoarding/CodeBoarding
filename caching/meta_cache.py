@@ -106,8 +106,6 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         """Return the composite cache key identifying this configuration."""
         return self._prompt_key + "|" + self._llm_key
 
-    # ── SQLite storage ───────────────────────────────────────
-
     def _open_sqlite(self) -> SQLiteCache | None:
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +132,7 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         cache = self._open_sqlite()
         if cache is None:
             return
+        cache.clear()
         cache.update(self._prompt_key, self._llm_key, [Generation(text=data.model_dump_json())])
 
     def clear(self) -> None:
@@ -141,11 +140,9 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         if cache is not None:
             cache.clear()
 
-    # ── Watch-file policy ────────────────────────────────────
-
     @require_git_import(default=[])
     def discover_watch_files(self) -> list[str]:
-        """Return tracked files whose changes should invalidate this cache.
+        """Return git-known files whose changes should invalidate this cache.
 
         Includes dependency manifests and configs (not locks) and root-level
         README files that the meta agent reads for project context.
@@ -153,19 +150,25 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         try:
             repo = Repo(self._repo_dir)
             tracked_files = set(repo.git.ls_files().splitlines())
+            untracked_files = {
+                Path(path).as_posix()
+                for path in repo.untracked_files
+                if not self._ignore_manager.should_ignore(Path(path))
+            }
+            git_known_files = tracked_files | untracked_files
         except Exception as e:
-            logger.warning("Unable to discover tracked files for meta cache watch list: %s", e)
+            logger.warning("Unable to discover git file set for meta cache watch list: %s", e)
             return []
 
         watch: set[str] = set()
 
         for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_WATCH_ROLES):
             relative_path = discovered.path.relative_to(self._repo_dir).as_posix()
-            if relative_path in tracked_files:
+            if relative_path in git_known_files:
                 watch.add(relative_path)
 
         for pattern in _README_PATTERNS:
-            if (self._repo_dir / pattern).is_file() and pattern in tracked_files:
+            if (self._repo_dir / pattern).is_file() and pattern in git_known_files:
                 watch.add(pattern)
 
         return sorted(watch)

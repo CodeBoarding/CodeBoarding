@@ -267,6 +267,7 @@ class TestMetaAgent(unittest.TestCase):
 
         repo_mock = MagicMock()
         repo_mock.git.ls_files.return_value = "setup.py\ntsconfig.json\n"
+        repo_mock.untracked_files = []
         with (
             patch("caching.meta_cache.Repo", return_value=repo_mock),
             patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
@@ -284,6 +285,7 @@ class TestMetaAgent(unittest.TestCase):
 
         repo_mock = MagicMock()
         repo_mock.git.ls_files.return_value = "pyproject.toml\nuv.lock\npoetry.lock\n"
+        repo_mock.untracked_files = []
         with (
             patch("caching.meta_cache.Repo", return_value=repo_mock),
             patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
@@ -300,6 +302,7 @@ class TestMetaAgent(unittest.TestCase):
 
         repo_mock = MagicMock()
         repo_mock.git.ls_files.return_value = "README.md\n"
+        repo_mock.untracked_files = []
         with (
             patch("caching.meta_cache.Repo", return_value=repo_mock),
             patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
@@ -308,13 +311,15 @@ class TestMetaAgent(unittest.TestCase):
 
         self.assertIn("README.md", watch)
 
-    def test_discover_watch_files_only_tracked_files(self):
+    def test_discover_watch_files_includes_untracked_watch_files(self):
         agent = self._build_agent()
         (self.repo_dir / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
         (self.repo_dir / "package.json").write_text('{"name":"x"}\n', encoding="utf-8")
+        (self.repo_dir / "README.md").write_text("# My Project\n", encoding="utf-8")
 
         repo_mock = MagicMock()
         repo_mock.git.ls_files.return_value = "setup.py\n"
+        repo_mock.untracked_files = ["package.json", "README.md", "notes.txt"]
         with (
             patch("caching.meta_cache.Repo", return_value=repo_mock),
             patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
@@ -322,7 +327,9 @@ class TestMetaAgent(unittest.TestCase):
             watch = agent._cache.discover_watch_files()
 
         self.assertIn("setup.py", watch)
-        self.assertNotIn("package.json", watch)
+        self.assertIn("package.json", watch)
+        self.assertIn("README.md", watch)
+        self.assertNotIn("notes.txt", watch)
 
     def test_is_stale_returns_false_for_empty_watch_list(self):
         agent = self._build_agent()
