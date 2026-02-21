@@ -49,6 +49,7 @@
 //   NewDog  → SetType  (cross-file: calls Entity.SetType from base.go)
 //   NewCat  → SetType
 //   NewDuck → SetType
+//   NewTask → SetType
 //   GetLabel → FormatLabel (cross-package: calls utils.FormatLabel)
 //   FindBy   → GetAll
 //

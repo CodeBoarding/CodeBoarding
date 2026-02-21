@@ -45,6 +45,7 @@
 //   main → Task.IsOverdue
 //   main → Task.Dispose
 //   main → Task.IsDisposed
+//   main → Entity.GetType (via Task embedding — promoted method)
 //
 // Corner cases:
 //   - Interface variable (Speaker) calling concrete method

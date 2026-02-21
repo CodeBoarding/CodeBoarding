@@ -8,8 +8,10 @@
 //          EventEmitter, dispatch, buildQuery, processTask, processTaskChain,
 //          summarizeTasks, applyMultiplier, computeNested, double,
 //          isHighPriority, safeGetLabel, getTaskInfo, describeTask,
-//          filterEntities, setupEventProcessing, createMultiplier,
-//          compose, formatLabel, identity
+//          filterEntities, setupEventProcessing,
+//          add (Repository), count (Repository),
+//          addRule (Validator), validate (Validator),
+//          createMultiplier, compose, formatLabel, identity
 // ---
 
 import {

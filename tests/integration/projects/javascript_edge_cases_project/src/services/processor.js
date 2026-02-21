@@ -14,6 +14,8 @@
 //   applyMultiplier → createMultiplier
 //   createTask → Task
 //   processTask → getLabel (from entities)
+//   processTaskChain → isHighPriority, processTask
+//   summarizeTasks → isHighPriority
 //   safeGetLabel → getLabel (from entities)
 //   describeTask → getLabel (from entities)
 //   setupEventProcessing → on, emit (from EventEmitter)

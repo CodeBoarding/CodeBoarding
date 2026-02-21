@@ -41,6 +41,8 @@
 //   SafeGetLabel    → Task.GetLabel
 //   DescribeTask    → Task.GetLabel
 //   SetupEventProcessing → EventEmitter.On, EventEmitter.Emit
+//   ProcessTaskChain → IsHighPriority, ProcessTask (intra-file)
+//   SummarizeTasks   → IsHighPriority (intra-file)
 //   DefaultHandler  → utils.Add
 //
 // Corner cases:

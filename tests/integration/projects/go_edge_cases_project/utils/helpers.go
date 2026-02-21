@@ -14,7 +14,7 @@
 //   utils.helpers.formatlabel
 //   utils.helpers.createmultiplier
 //   utils.helpers.compose
-//   utils.helpers.isnonnilhandlerfunc
+//   utils.helpers.isnonnil
 //   utils.helpers.identity
 //   utils.helpers.handlerfunc
 //
