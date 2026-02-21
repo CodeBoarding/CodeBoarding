@@ -9,6 +9,7 @@ from agents.agent_responses import (
     Component,
     Relation,
     SourceCodeReference,
+    assign_component_ids,
 )
 from output_generators.mdx import (
     component_header,
@@ -60,7 +61,8 @@ class TestMDXOutput(unittest.TestCase):
             components_relations=[self.relation],
         )
 
-        self.expanded_components = {"Component1", "Component2"}
+        assign_component_ids(self.analysis)
+        self.expanded_components = {self.component1.component_id, self.component2.component_id}
         self.repo_ref = "https://github.com/user/repo/blob/main"
         self.project = "test_project"
 
@@ -118,7 +120,7 @@ class TestMDXOutput(unittest.TestCase):
 
     def test_component_header_with_link(self):
         # Test component header with link
-        result = component_header("Component1", self.expanded_components, demo=True)
+        result = component_header("Component1", self.component1.component_id, self.expanded_components, demo=True)
 
         self.assertIn("Component1", result)
         self.assertIn("Expand", result)
@@ -126,14 +128,14 @@ class TestMDXOutput(unittest.TestCase):
 
     def test_component_header_without_link(self):
         # Test component header without link
-        result = component_header("Component1", self.expanded_components, demo=False)
+        result = component_header("Component1", self.component1.component_id, self.expanded_components, demo=False)
 
         self.assertIn("Component1", result)
         self.assertNotIn("Expand", result)
 
     def test_component_header_no_linked_files(self):
         # Test component header when component not in expanded components
-        result = component_header("UnlinkedComponent", self.expanded_components, demo=True)
+        result = component_header("UnlinkedComponent", "nonexistent_id", self.expanded_components, demo=True)
 
         self.assertIn("UnlinkedComponent", result)
         self.assertNotIn("Expand", result)

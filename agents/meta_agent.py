@@ -3,7 +3,7 @@ from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
@@ -30,9 +30,14 @@ class MetaAgent(CodeBoardingAgent):
             template=get_meta_information_prompt(), input_variables=["project_name"]
         )
 
-        self.agent = create_react_agent(
+        self.agent = create_agent(
             model=agent_llm,
-            tools=[self.toolkit.read_docs, self.toolkit.external_deps, self.toolkit.read_file_structure],
+            tools=[
+                self.toolkit.read_docs,
+                self.toolkit.external_deps,
+                self.toolkit.read_file_structure,
+                self.toolkit.read_file,
+            ],
         )
 
     @trace

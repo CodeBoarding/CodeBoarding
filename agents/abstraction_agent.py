@@ -9,6 +9,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
     MetaAnalysisInsights,
+    assign_component_ids,
 )
 from agents.prompts import (
     get_system_message,
@@ -22,6 +23,7 @@ from agents.validation import (
     validate_component_relationships,
     validate_key_entities,
     validate_cluster_ids_populated,
+    validate_relation_component_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -114,7 +116,12 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         return self._validation_invoke(
             prompt,
             AnalysisInsights,
-            validators=[validate_component_relationships, validate_key_entities, validate_cluster_ids_populated],
+            validators=[
+                validate_relation_component_names,
+                validate_component_relationships,
+                validate_key_entities,
+                validate_cluster_ids_populated,
+            ],
             context=context,
         )
 
@@ -137,5 +144,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._ensure_unique_key_entities(analysis)
         # Step 7: Ensure unique file assignments across components
         self._ensure_unique_file_assignments(analysis)
+        # Step 8: Assign deterministic component IDs
+        assign_component_ids(analysis)
 
         return analysis, cluster_results

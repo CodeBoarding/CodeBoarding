@@ -25,19 +25,18 @@ import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
 from agents.agent_responses import AnalysisInsights, Component
-from diagram_analysis.incremental import load_analysis
-from diagram_analysis.incremental.updater import IncrementalUpdater
+from diagram_analysis.incremental import load_root_analysis
 from diagram_analysis.incremental.models import UpdateAction
+from diagram_analysis.incremental.updater import IncrementalUpdater
 from diagram_analysis.manifest import AnalysisManifest, load_manifest
-from repo_utils.change_detector import detect_changes
 from output_generators.markdown import sanitize
+from repo_utils.change_detector import detect_changes
 from static_analyzer import get_static_analysis
-
 
 # Commits for testing different scenarios
 REPO_ROOT = Path(__file__).parent.parent.parent  # repository under test (outer repo)
@@ -90,7 +89,7 @@ def mock_llm_provider():
         {"OPENAI_API_KEY": "test_key_sk-1234567890", "PARSING_MODEL": "gpt-4o-mini"},
         clear=False,
     ):
-        with patch("agents.agent.create_react_agent") as mock_create_agent:
+        with patch("agents.agent.create_agent") as mock_create_agent:
             with patch("agents.llm_config.ChatOpenAI") as mock_chat_openai:
                 with patch("agents.llm_config.ChatAnthropic"):
                     with patch("agents.llm_config.ChatGoogleGenerativeAI"):
@@ -230,7 +229,7 @@ def _validate_subanalyses(output_dir: Path, manifest: AnalysisManifest, root_ana
 
 def validate_outputs(output_dir: Path, expected_base_commit: str) -> tuple[AnalysisManifest, AnalysisInsights]:
     manifest = load_manifest(output_dir)
-    analysis = load_analysis(output_dir)
+    analysis = load_root_analysis(output_dir)
 
     assert manifest is not None, "Manifest must exist"
     assert analysis is not None, "Analysis must exist"

@@ -9,8 +9,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import requests
-import tarfile
 import yaml
+
+from tool_registry import (
+    TOOL_REGISTRY,
+    ToolKind,
+    install_archive_tool,
+    install_native_tools,
+    install_node_tools,
+    platform_bin_dir,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,121 +171,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_platform_bin_subdir() -> str:
-    """Return OS-specific binary folder name used by the extension."""
-    subdirs = {"windows": "win", "darwin": "macos", "linux": "linux"}
-    system = platform.system().lower()
-    if system not in subdirs:
-        raise RuntimeError(f"Unsupported platform: {system}")
-    return subdirs[system]
-
-
 def get_platform_bin_dir(servers_dir: Path) -> Path:
     """Return static_analyzer/servers/bin/<os> directory."""
-    return servers_dir / "bin" / get_platform_bin_subdir()
+    return platform_bin_dir(servers_dir)
 
 
 def install_node_servers():
     """Install Node.js based servers (TypeScript, Pyright) using npm in the servers directory."""
     print("Step: Node.js servers installation started")
-
     servers_dir = Path("static_analyzer/servers")
     servers_dir.mkdir(parents=True, exist_ok=True)
 
-    original_cwd = os.getcwd()
-    try:
-        # Change to the servers directory
-        os.chdir(servers_dir)
+    node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
+    install_node_tools(servers_dir, node_deps)
 
-        npm_path = shutil.which("npm")
+    # Verify the installation
+    ts_lsp_path = servers_dir / "node_modules" / ".bin" / "typescript-language-server"
+    py_lsp_path = servers_dir / "node_modules" / ".bin" / "pyright-langserver"
+    php_lsp_path = servers_dir / "node_modules" / ".bin" / "intelephense"
 
-        if npm_path:
-            # Initialize package.json if it doesn't exist
-            if not Path("package.json").exists():
-                subprocess.run([npm_path, "init", "-y"], check=True, capture_output=True, text=True)
-
-            # Install typescript-language-server, typescript, pyright, and intelephense
-            subprocess.run(
-                [npm_path, "install", "typescript-language-server", "typescript", "pyright", "intelephense"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-        # Verify the installation
-        ts_lsp_path = Path("./node_modules/.bin/typescript-language-server")
-        py_lsp_path = Path("./node_modules/.bin/pyright-langserver")
-        php_lsp_path = Path("./node_modules/.bin/intelephense")
-
-        success = True
-        if ts_lsp_path.exists():
-            print("Step: TypeScript Language Server installation finished: success")
+    success = True
+    for name, path in [
+        ("TypeScript Language Server", ts_lsp_path),
+        ("Pyright Language Server", py_lsp_path),
+        ("Intelephense", php_lsp_path),
+    ]:
+        if path.exists():
+            print(f"Step: {name} installation finished: success")
         else:
-            print("Step: TypeScript Language Server installation finished: warning - Binary not found")
+            print(f"Step: {name} installation finished: warning - Binary not found")
             success = False
 
-        if py_lsp_path.exists():
-            print("Step: Pyright Language Server installation finished: success")
-        else:
-            print("Step: Pyright Language Server installation finished: warning - Binary not found")
-            success = False
-
-        if php_lsp_path.exists():
-            print("Step: Intelephense installation finished: success")
-        else:
-            print("Step: Intelephense installation finished: warning - Binary not found")
-            success = False
-
-        return success
-
-    except subprocess.CalledProcessError as e:
-        print(f"Step: Node.js servers installation finished: failure - {e}")
-        return False
-    except Exception as e:
-        print(f"Step: Node.js servers installation finished: failure - {e}")
-        return False
-    finally:
-        # Always return to original directory
-        os.chdir(original_cwd)
+    return success
 
 
 VCREDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
 STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 unsigned
-GITHUB_REPO = "CodeBoarding/CodeBoarding"
-
-
-def get_latest_release_tag() -> str:
-    """Get the latest release tag from GitHub using gh CLI or the API."""
-    response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=30)
-    response.raise_for_status()
-    return response.json()["tag_name"]
-
-
-def download_github_release_asset(tag: str, asset_name: str, destination: Path) -> bool:
-    """Download a release asset from GitHub.
-
-    Tries gh CLI first (handles authentication automatically), falls back to requests.
-
-    Args:
-        tag: The release tag (e.g., "v0.7.1")
-        asset_name: Name of the asset file (e.g., "tokei-macos")
-        destination: Local path to save the file
-
-    Returns:
-        True if download was successful
-    """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
-    url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
-    response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
-    response.raise_for_status()
-
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(chunk_size=32768):
-            if chunk:
-                f.write(chunk)
-
-    return destination.exists() and destination.stat().st_size > 0
 
 
 def verify_binary(binary_path: Path) -> bool:
@@ -407,131 +336,54 @@ def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
 def download_binaries(auto_install_vcpp: bool = False):
     """Download tokei and gopls binaries from the latest GitHub release."""
     print("Step: Binary download started")
-
-    system = platform.system()
-    platform_suffix_map = {
-        "Darwin": "macos",
-        "Windows": "windows.exe",
-        "Linux": "linux",
-    }
-
-    if system not in platform_suffix_map:
-        print(f"Step: Binary download finished: failure - Unsupported OS: {system}")
-        return
-
-    suffix = platform_suffix_map[system]
-    binaries = {
-        "tokei": f"tokei-{suffix}",
-        "gopls": f"gopls-{suffix}",
-    }
-
     servers_dir = Path("static_analyzer/servers")
-    servers_dir.mkdir(parents=True, exist_ok=True)
-    platform_bin_dir = get_platform_bin_dir(servers_dir)
-    platform_bin_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        tag = get_latest_release_tag()
-        print(f"  Using release: {tag}")
-    except Exception as e:
-        print(f"Step: Binary download finished: failure - Could not determine latest release: {e}")
-        return
-
-    success_count = 0
-    for local_name, asset_name in binaries.items():
-        ext = ".exe" if system == "Windows" else ""
-        binary_path = platform_bin_dir / (local_name + ext)
-
-        try:
-            if binary_path.exists():
-                binary_path.unlink()
-
-            success = download_github_release_asset(tag, asset_name, binary_path)
-
-            if success:
-                if system != "Windows":
-                    os.chmod(binary_path, 0o755)
-                success_count += 1
-                print(f"  {local_name}: downloaded successfully")
-            else:
-                print(f"  {local_name}: download failed (empty file)")
-                binary_path.unlink(missing_ok=True)
-
-        except Exception as e:
-            print(f"  {local_name}: download failed - {e}")
-            binary_path.unlink(missing_ok=True)
-
-    if success_count == len(binaries):
-        print("Step: Binary download finished: success")
-    elif success_count > 0:
-        print(f"Step: Binary download finished: partial success ({success_count}/{len(binaries)} binaries)")
-    else:
-        print("Step: Binary download finished: failure - No binaries downloaded")
+    native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
+    install_native_tools(servers_dir, native_deps)
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
-    if system == "Windows" and success_count > 0:
-        vcpp_resolved = False
+    system = platform.system()
+    if system == "Windows":
+        platform_bin_dir = get_platform_bin_dir(servers_dir)
         needs_vcpp = False
-        for local_name in binaries:
-            binary_path = platform_bin_dir / f"{local_name}.exe"
+        for dep in native_deps:
+            binary_path = platform_bin_dir / f"{dep.binary_name}.exe"
             if not binary_path.exists():
                 continue
-
             if not verify_binary(binary_path):
-                print(f"  {local_name}: verification failed - missing Visual C++ runtime")
+                print(f"  {dep.binary_name}: verification failed - missing Visual C++ runtime")
                 needs_vcpp = True
             else:
-                print(f"  {local_name}: verification passed")
+                print(f"  {dep.binary_name}: verification passed")
 
         if needs_vcpp:
             vcpp_resolved = resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp)
             if vcpp_resolved:
-                for local_name in binaries:
-                    binary_path = platform_bin_dir / f"{local_name}.exe"
+                for dep in native_deps:
+                    binary_path = platform_bin_dir / f"{dep.binary_name}.exe"
                     if binary_path.exists() and verify_binary(binary_path):
-                        print(f"  {local_name}: verification passed after VC++ install")
+                        print(f"  {dep.binary_name}: verification passed after VC++ install")
+
+    print("Step: Binary download finished")
 
 
 def download_jdtls():
     """Download and extract JDTLS from the latest GitHub release."""
     print("Step: JDTLS download started")
-
     servers_dir = Path("static_analyzer/servers")
-    jdtls_dir = servers_dir / "bin" / "jdtls"
+    archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
+    for dep in archive_deps:
+        install_archive_tool(servers_dir, dep)
 
-    if jdtls_dir.exists() and (jdtls_dir / "plugins").exists():
-        print("Step: JDTLS download finished: already exists")
-        return True
-
-    jdtls_dir.mkdir(parents=True, exist_ok=True)
-    jdtls_archive = servers_dir / "bin" / "jdtls.tar.gz"
-
-    try:
-        tag = get_latest_release_tag()
-        print(f"  Downloading JDTLS from GitHub release {tag}...")
-
-        success = download_github_release_asset(tag, "jdtls.tar.gz", jdtls_archive)
-        if not success:
-            print("Step: JDTLS download finished: failure - Download returned empty file")
-            return False
-
-        print("  Extracting JDTLS...")
-        with tarfile.open(jdtls_archive, "r:gz") as tar:
-            tar.extractall(path=jdtls_dir, filter="tar")
-
-        jdtls_archive.unlink()
-
-        print("Step: JDTLS download finished: success")
-        return True
-
-    except Exception as e:
-        print(f"Step: JDTLS download finished: failure - {e}")
-        jdtls_archive.unlink(missing_ok=True)
-        return False
+    print("Step: JDTLS download finished")
+    return True
 
 
 def update_static_analysis_config():
-    """Update static_analysis_config.yml with correct paths to binaries."""
+    """Update static_analysis_config.yml with correct paths to binaries.
+
+    Iterates the TOOL_REGISTRY to resolve binary paths under static_analyzer/servers/,
+    then writes the updated config back to disk.
+    """
     print("Step: Configuration update started")
 
     config_path = Path("static_analysis_config.yml")
@@ -539,66 +391,50 @@ def update_static_analysis_config():
         print("Step: Configuration update finished: failure - static_analysis_config.yml not found")
         return
 
-    # Read the current configuration
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    # Get the absolute path to the project root
     project_root = Path.cwd().resolve()
     servers_dir = project_root / "static_analyzer" / "servers"
-    platform_bin_dir = get_platform_bin_dir(servers_dir)
+    bin_dir = platform_bin_dir(servers_dir)
+    is_win = platform.system() == "Windows"
+    native_ext = ".exe" if is_win else ""
+    node_ext = ".cmd" if is_win else ""
 
     updates = 0
-    is_win = platform.system() == "Windows"
 
-    # The Plan: (Binary Name, Is_Node_App, List of Config Targets)
-    # "True" means it lives in node_modules/.bin and needs .cmd on Windows
-    # "False" means it lives under bin/<os> and needs .exe on Windows
-    server_definitions = [
-        ("pyright-langserver", True, [("lsp_servers", "python")]),
-        ("typescript-language-server", True, [("lsp_servers", "typescript"), ("lsp_servers", "javascript")]),
-        ("intelephense", True, [("lsp_servers", "php")]),
-        ("gopls", False, [("lsp_servers", "go")]),
-        ("tokei", False, [("tools", "tokei")]),
-        # Java is handled differently as it isn't an executable
-    ]
+    for dep in TOOL_REGISTRY:
+        section = config.get(dep.config_section, {})
+        entry = section.get(dep.key)
+        if entry is None:
+            continue
 
-    for binary, is_node, targets in server_definitions:
-        # 1. Determine the extension and folder based on the type
-        ext = (".cmd" if is_node else ".exe") if is_win else ""
-        folder = (servers_dir / "node_modules" / ".bin") if is_node else platform_bin_dir
-
-        # 2. Build the full path once
-        full_path = folder / (binary + ext)
-
-        # 3. Apply to all relevant targets in config
-        if full_path.exists():
-            for section, key in targets:
-                # Handle language server key for Intelephense, which is "php" not "Intelephense Language Server"
-                if binary == "intelephense":
-                    key = "php"
-                elif binary == "pyright-langserver":
-                    key = "python"
-
-                config[section][key]["command"][0] = str(full_path)
+        if dep.kind is ToolKind.NATIVE:
+            full_path = bin_dir / f"{dep.binary_name}{native_ext}"
+            if full_path.exists():
+                entry["command"][0] = str(full_path)
                 updates += 1
 
-    # Minimal fallback: if pyright wasn't installed under node_modules, use active env binary if available
-    node_ext = ".cmd" if is_win else ""
-    node_pyright = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
-    if not node_pyright.exists():
+        elif dep.kind is ToolKind.NODE:
+            full_path = servers_dir / "node_modules" / ".bin" / f"{dep.binary_name}{node_ext}"
+            if full_path.exists():
+                entry["command"][0] = str(full_path)
+                updates += 1
+
+        elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
+            archive_dir = servers_dir / "bin" / dep.archive_subdir
+            if archive_dir.is_dir():
+                entry["jdtls_root"] = str(archive_dir)
+                updates += 1
+
+    # Fallback: if pyright wasn't installed under node_modules, try the active environment
+    pyright_node = servers_dir / "node_modules" / ".bin" / f"pyright-langserver{node_ext}"
+    if not pyright_node.exists():
         env_pyright = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
         if env_pyright and "lsp_servers" in config and "python" in config["lsp_servers"]:
             config["lsp_servers"]["python"]["command"][0] = env_pyright
             updates += 1
 
-    # Update JDTLS configuration
-    jdtls_dir = servers_dir / "bin" / "jdtls"
-    if jdtls_dir.exists() and "lsp_servers" in config and "java" in config["lsp_servers"]:
-        config["lsp_servers"]["java"]["jdtls_root"] = str(jdtls_dir)
-        updates += 1
-
-    # Write the updated configuration back to file
     with open(config_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
 

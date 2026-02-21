@@ -7,6 +7,7 @@ from agents.validation import (
     validate_component_relationships,
     validate_cluster_ids_populated,
     validate_file_classifications,
+    validate_relation_component_names,
     _check_edge_between_cluster_sets,
 )
 from agents.agent_responses import (
@@ -658,6 +659,86 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
         )
 
         self.assertTrue(has_edge)  # Found in python
+
+
+class TestValidateRelationComponentNames(unittest.TestCase):
+    """Test validate_relation_component_names function."""
+
+    def _make_analysis(self, component_names: list[str], relations: list[tuple[str, str, str]]) -> AnalysisInsights:
+        components = [Component(name=n, description="desc", key_entities=[]) for n in component_names]
+        rel_objs = [Relation(relation=rel, src_name=src, dst_name=dst) for rel, src, dst in relations]
+        return AnalysisInsights(description="Test", components=components, components_relations=rel_objs)
+
+    def test_all_relation_names_valid(self):
+        """Relations whose src_name and dst_name match existing components should pass."""
+        analysis = self._make_analysis(
+            ["CompA", "CompB"],
+            [("calls", "CompA", "CompB")],
+        )
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.feedback_messages, [])
+
+    def test_invalid_src_name(self):
+        """A relation with a src_name that does not match any component should fail."""
+        analysis = self._make_analysis(
+            ["CompA", "CompB"],
+            [("calls", "NonExistent", "CompB")],
+        )
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("NonExistent", result.feedback_messages[0])
+
+    def test_invalid_dst_name(self):
+        """A relation with a dst_name that does not match any component should fail."""
+        analysis = self._make_analysis(
+            ["CompA", "CompB"],
+            [("calls", "CompA", "Ghost")],
+        )
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("Ghost", result.feedback_messages[0])
+
+    def test_both_names_invalid(self):
+        """A relation where both src_name and dst_name are unknown should flag both."""
+        analysis = self._make_analysis(
+            ["CompA"],
+            [("calls", "GhostSrc", "GhostDst")],
+        )
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertFalse(result.is_valid)
+        self.assertIn("GhostSrc", result.feedback_messages[0])
+        self.assertIn("GhostDst", result.feedback_messages[0])
+
+    def test_multiple_invalid_relations(self):
+        """Multiple relations with unknown names should all be reported."""
+        analysis = self._make_analysis(
+            ["CompA", "CompB"],
+            [
+                ("calls", "CompA", "Missing1"),
+                ("uses", "Missing2", "CompB"),
+            ],
+        )
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertFalse(result.is_valid)
+        self.assertIn("Missing1", result.feedback_messages[0])
+        self.assertIn("Missing2", result.feedback_messages[0])
+
+    def test_no_relations(self):
+        """No relations should always pass."""
+        analysis = self._make_analysis(["CompA"], [])
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertTrue(result.is_valid)
+
+    def test_empty_components_with_relations(self):
+        """Relations that reference components when no components exist should fail."""
+        analysis = self._make_analysis([], [("calls", "LLM Agent Core", "Agent Tooling Interface")])
+        result = validate_relation_component_names(analysis, ValidationContext())
+        self.assertFalse(result.is_valid)
+        self.assertIn("LLM Agent Core", result.feedback_messages[0])
+        self.assertIn("Agent Tooling Interface", result.feedback_messages[0])
 
 
 if __name__ == "__main__":

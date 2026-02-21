@@ -9,10 +9,13 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.analysis_json import parse_unified_analysis
-from diagram_analysis.incremental.io_utils import load_analysis, save_sub_analysis
+from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
+from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
+from monitoring import monitor_execution
+from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -29,8 +32,6 @@ from utils import (
     remove_temp_repo_folder,
     sanitize,
 )
-from monitoring import monitor_execution
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def validate_env_vars():
         "CEREBRAS_API_KEY",
         "VERCEL_API_KEY",
     ]
-    api_env_keys = [(key, os.getenv(key)) for key in api_provider_keys if os.getenv(key) is not None]
+    api_env_keys = [key for key in api_provider_keys if (os.getenv(key) or "").strip()]
 
     if len(api_env_keys) == 0:
         logger.error(f"API key not set, set one of the following: {api_provider_keys}")
@@ -124,9 +125,13 @@ def generate_markdown_docs(
         demo=demo_mode,
     )
 
+    # Build id-to-name mapping across all levels for file naming
+    id_to_name = build_id_to_name_map(root_analysis, sub_analyses)
+
     # Generate markdown for each sub-analysis
-    for comp_name, sub_analysis in sub_analyses.items():
-        sub_expanded = {c.name for c in sub_analysis.components if c.name in sub_analyses}
+    for comp_id, sub_analysis in sub_analyses.items():
+        sub_expanded = {c.component_id for c in sub_analysis.components if c.component_id in sub_analyses}
+        comp_name = id_to_name.get(comp_id, comp_id)
         fname = sanitize(comp_name)
         generate_markdown_file(
             fname,
@@ -143,7 +148,7 @@ def partial_update(
     repo_path: Path,
     output_dir: Path,
     project_name: str,
-    component_name: str,
+    component_id: str,
     depth_level: int = 1,
 ):
     """
@@ -158,31 +163,42 @@ def partial_update(
     )
     generator.pre_analysis()
 
-    # Load the analysis from the unified analysis.json
-    analysis = load_analysis(output_dir)
-    if analysis is None:
+    # Load the full unified analysis (root + all sub-analyses)
+    full_analysis = load_full_analysis(output_dir)
+    if full_analysis is None:
         logger.error(f"No analysis.json found in '{output_dir}'. Please ensure the file exists.")
         return
 
-    # Find and update the component
-    component_to_update = None
-    for component in analysis.components:
-        if component.name == component_name:
-            logger.info(f"Updating analysis for component: {component.name}")
-            component_to_update = component
-            break
+    root_analysis, sub_analyses = full_analysis
 
-    if component_to_update is None:
-        logger.error(f"Component '{component_name}' not found in analysis")
+    # Search root components first, then all nested sub-analysis components
+    component_to_analyze = None
+    for component in root_analysis.components:
+        if component.component_id == component_id:
+            logger.info(f"Updating analysis for component: {component.name}")
+            component_to_analyze = component
+            break
+    if component_to_analyze is None:
+        for sub_analysis in sub_analyses.values():
+            for component in sub_analysis.components:
+                if component.component_id == component_id:
+                    logger.info(f"Updating analysis for component: {component.name}")
+                    component_to_analyze = component
+                    break
+            if component_to_analyze is not None:
+                break
+
+    if component_to_analyze is None:
+        logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    comp_name, sub_analysis, new_components = generator.process_component(component_to_update)
+    comp_id, sub_analysis, new_components = generator.process_component(component_to_analyze)
 
     if sub_analysis:
-        save_sub_analysis(sub_analysis, output_dir, component_name)
-        logger.info(f"Updated component '{component_name}' in analysis.json")
+        save_sub_analysis(sub_analysis, output_dir, component_id)
+        logger.info(f"Updated component '{component_id}' in analysis.json")
     else:
-        logger.error(f"Failed to generate sub-analysis for component '{component_name}'")
+        logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
 
 
 def generate_docs_remote(
@@ -272,18 +288,18 @@ def process_local_repository(
     output_dir: Path,
     project_name: str,
     depth_level: int = 1,
-    component_name: str | None = None,
+    component_id: str | None = None,
     monitoring_enabled: bool = False,
     incremental: bool = False,
     force_full: bool = False,
 ):
     # Handle partial updates
-    if component_name:
+    if component_id:
         partial_update(
             repo_path=repo_path,
             output_dir=output_dir,
             project_name=project_name,
-            component_name=component_name,
+            component_id=component_id,
             depth_level=depth_level,
         )
         return
@@ -348,8 +364,8 @@ def validate_arguments(args, parser, is_local: bool):
         parser.error("--project-name is required when using --local")
 
     # Validate partial update arguments
-    if args.partial_component and not is_local:
-        parser.error("--partial-component only works with local repositories")
+    if args.partial_component_id and not is_local:
+        parser.error("--partial-component-id only works with local repositories")
 
     # Remote runs must persist output somewhere explicit.
     if not is_local and args.output_dir is None:
@@ -383,9 +399,9 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
 
     # Partial update options
     parser.add_argument(
-        "--partial-component",
+        "--partial-component-id",
         type=str,
-        help="Component to update (for partial updates only)",
+        help="Component ID to update (for partial updates only)",
     )
     # Advanced options
     parser.add_argument(
@@ -448,9 +464,9 @@ Examples:
   # Local repository
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
 
-  # Partial update (update single component)
+  # Partial update (update single component by ID)
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
-                 --partial-component "Component Name"
+                 --partial-component-id "a3f2b1c4d5e6f789"
 
   # Incremental update (smart - detects changes automatically)
   python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --incremental
@@ -481,6 +497,8 @@ Examples:
         load_dotenv()
         validate_env_vars()
 
+    load_plugins(get_registries())
+
     if args.binary_location:
         update_config(args.binary_location)
 
@@ -502,7 +520,7 @@ Examples:
             output_dir=output_dir,
             project_name=args.project_name,
             depth_level=args.depth_level,
-            component_name=args.partial_component,
+            component_id=args.partial_component_id,
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,

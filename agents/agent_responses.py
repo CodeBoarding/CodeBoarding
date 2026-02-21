@@ -1,9 +1,15 @@
 import abc
-import uuid
+import hashlib
+import logging
 from abc import abstractmethod
 from typing import get_origin, Optional
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+ROOT_PARENT_ID = "ROOT"
+COMPONENT_ID_BYTES = 8
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -86,6 +92,8 @@ class Relation(LLMBaseModel):
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
+    src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
+    dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
 
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
@@ -144,10 +152,11 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
-    @computed_field
-    def component_id(self) -> str:
-        """Unique identifier for this component."""
-        return str(uuid.uuid4())
+    component_id: str = Field(
+        default="",
+        description="Deterministic unique identifier for this component.",
+        exclude=True,
+    )
 
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
@@ -175,6 +184,43 @@ class AnalysisInsights(LLMBaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
+
+
+def hash_component_id(parent_id: str, name: str, sibling_index: int = 0) -> str:
+    """Hash a deterministic component ID from parent ID, name, and sibling index.
+
+    Note:
+        The ID is a compact, 64-bit prefix of SHA-256 (8 bytes -> 16 hex chars).
+        Truncation happens at the byte level to keep the representation explicit.
+    """
+    raw = f"{parent_id}:{name}:{sibling_index}".encode("utf-8")
+    return hashlib.sha256(raw).digest()[:COMPONENT_ID_BYTES].hex()
+
+
+def assign_component_ids(analysis: AnalysisInsights, parent_id: str = ROOT_PARENT_ID) -> None:
+    """Assign deterministic component IDs to all components in an analysis.
+
+    Handles same-named siblings by using a sibling index tiebreaker.
+    """
+    name_counts: dict[str, int] = {}
+    for component in analysis.components:
+        count = name_counts.get(component.name, 0)
+        component.component_id = hash_component_id(parent_id, component.name, count)
+        name_counts[component.name] = count + 1
+
+    # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
+    name_to_id: dict[str, str] = {}
+    for c in analysis.components:
+        if c.name in name_to_id:
+            logger.warning(
+                f"Duplicate component name '{c.name}' found during ID assignment; "
+                f"relation lookup will use the first occurrence (ID: {name_to_id[c.name]})"
+            )
+        else:
+            name_to_id[c.name] = c.component_id
+    for relation in analysis.components_relations:
+        relation.src_id = name_to_id.get(relation.src_name, "")
+        relation.dst_id = name_to_id.get(relation.dst_name, "")
 
 
 class CFGComponent(LLMBaseModel):

@@ -11,8 +11,21 @@ from pathlib import Path
 
 import pytest
 
-from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    SourceCodeReference,
+    hash_component_id,
+    ROOT_PARENT_ID,
+)
 from diagram_analysis.incremental.io_utils import save_analysis, save_sub_analysis, load_sub_analysis
+
+
+COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_C_ID = hash_component_id(ROOT_PARENT_ID, "ComponentC")
+COMP_D_ID = hash_component_id(ROOT_PARENT_ID, "ComponentD")
+NAME_TO_ID = {"ComponentB": COMP_B_ID, "ComponentC": COMP_C_ID, "ComponentD": COMP_D_ID}
 
 
 def _make_sub_analysis(component_name: str) -> AnalysisInsights:
@@ -39,16 +52,15 @@ def _make_sub_analysis(component_name: str) -> AnalysisInsights:
     )
 
 
-def _worker_save_sub_analysis(output_dir: str, component_name: str, barrier_parties: int) -> None:
+def _worker_save_sub_analysis(output_dir: str, component_name: str, component_id: str) -> None:
     """Worker function that runs in a separate process.
 
-    Uses a Barrier so all workers attempt save_sub_analysis at roughly the same time,
-    maximizing the chance of lock contention.
+    Multiple processes call save_sub_analysis concurrently, maximizing the chance of lock contention.
     """
     # Recreate the sub-analysis in this process (can't pickle AnalysisInsights reliably across processes)
     sub_analysis = _make_sub_analysis(component_name)
     # Each process gets its own fresh cache — no stale data
-    save_sub_analysis(sub_analysis, Path(output_dir), component_name)
+    save_sub_analysis(sub_analysis, Path(output_dir), component_id)
 
 
 @pytest.fixture
@@ -59,6 +71,7 @@ def root_analysis() -> AnalysisInsights:
         components=[
             Component(
                 name="ComponentB",
+                component_id=COMP_B_ID,
                 description="Component B",
                 key_entities=[
                     SourceCodeReference(
@@ -73,6 +86,7 @@ def root_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentC",
+                component_id=COMP_C_ID,
                 description="Component C",
                 key_entities=[
                     SourceCodeReference(
@@ -87,6 +101,7 @@ def root_analysis() -> AnalysisInsights:
             ),
             Component(
                 name="ComponentD",
+                component_id=COMP_D_ID,
                 description="Component D",
                 key_entities=[
                     SourceCodeReference(
@@ -118,7 +133,7 @@ class TestConcurrentSaveSubAnalysis:
         save_analysis(
             root_analysis,
             output_dir,
-            expandable_components=["ComponentB", "ComponentC", "ComponentD"],
+            expandable_component_ids=[COMP_B_ID, COMP_C_ID, COMP_D_ID],
             repo_name="test-repo",
         )
 
@@ -134,7 +149,7 @@ class TestConcurrentSaveSubAnalysis:
         for name in component_names:
             p = multiprocessing.Process(
                 target=_worker_save_sub_analysis,
-                args=(str(output_dir), name, len(component_names)),
+                args=(str(output_dir), name, NAME_TO_ID[name]),
             )
             processes.append(p)
 
@@ -160,7 +175,8 @@ class TestConcurrentSaveSubAnalysis:
 
         # Also verify via the load_sub_analysis API
         for name in component_names:
-            sub = load_sub_analysis(output_dir, name)
+            cid = NAME_TO_ID[name]
+            sub = load_sub_analysis(output_dir, cid)
             assert sub is not None, f"load_sub_analysis returned None for {name}"
             # Verify sub-analysis has the expected sub-component
             sub_comp_names = [c.name for c in sub.components]
@@ -171,3 +187,73 @@ class TestConcurrentSaveSubAnalysis:
         assert final_data["metadata"]["depth_level"] == 2
         assert len(final_data["components"]) == 3
         assert len(final_data["components_relations"]) == 1
+
+    def test_save_analysis_preserves_nested_can_expand_eligibility(self, tmp_path: Path) -> None:
+        """Nested can_expand should follow planner eligibility, not only existing sub-analysis keys."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        root_id = hash_component_id(ROOT_PARENT_ID, "RootComponent")
+        child_expandable_id = hash_component_id(root_id, "ChildExpandable")
+        child_leaf_id = hash_component_id(root_id, "ChildLeaf")
+
+        root_analysis = AnalysisInsights(
+            description="Root analysis",
+            components=[
+                Component(
+                    name="RootComponent",
+                    component_id=root_id,
+                    description="Root",
+                    key_entities=[],
+                    assigned_files=["src/root.py"],
+                    source_cluster_ids=[1],
+                )
+            ],
+            components_relations=[],
+        )
+
+        root_sub_analysis = AnalysisInsights(
+            description="Sub analysis",
+            components=[
+                Component(
+                    name="ChildExpandable",
+                    component_id=child_expandable_id,
+                    description="Expandable child",
+                    key_entities=[],
+                    assigned_files=["src/child_expandable.py"],
+                    source_cluster_ids=[10],
+                ),
+                Component(
+                    name="ChildLeaf",
+                    component_id=child_leaf_id,
+                    description="Leaf child",
+                    key_entities=[],
+                    assigned_files=[],
+                    source_cluster_ids=[],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        save_analysis(
+            analysis=root_analysis,
+            output_dir=output_dir,
+            expandable_component_ids=[root_id],
+            sub_analyses={root_id: root_sub_analysis},
+            repo_name="test-repo",
+        )
+
+        with open(output_dir / "analysis.json") as f:
+            data = json.load(f)
+
+        root = data["components"][0]
+        assert root["can_expand"] is True
+        assert root["components"] is not None
+
+        child_expandable = next(c for c in root["components"] if c["component_id"] == child_expandable_id)
+        child_leaf = next(c for c in root["components"] if c["component_id"] == child_leaf_id)
+
+        # ChildExpandable is planner-eligible (has clusters) even without its own sub-analysis yet.
+        assert child_expandable["can_expand"] is True
+        assert child_expandable.get("components") is None
+        assert child_leaf["can_expand"] is False
