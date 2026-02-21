@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-02-18T21:57:44.455578+00:00",
+  "generated_at": "2026-02-21T00:52:22.322734+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -36,6 +36,10 @@
     "agents/tools/toolkit.py",
     "agents/validation.py",
     "constants.py",
+    "core/__init__.py",
+    "core/plugin_loader.py",
+    "core/protocols.py",
+    "core/registry.py",
     "diagram_analysis/__init__.py",
     "diagram_analysis/analysis_json.py",
     "diagram_analysis/diagram_generator.py",
@@ -112,13 +116,14 @@
     "static_analyzer/reference_resolve_mixin.py",
     "static_analyzer/scanner.py",
     "static_analyzer/typescript_config_scanner.py",
+    "tool_registry.py",
     "utils.py",
     "vscode_constants.py"
   ],
   "not_analyzed_files": [],
   "summary": {
     "total_files": 0,
-    "analyzed": 112,
+    "analyzed": 117,
     "not_analyzed": 0,
     "not_analyzed_by_reason": {}
   }

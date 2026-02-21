@@ -1,20 +1,18 @@
 ```mermaid
 graph LR
-    Toolkit_Orchestrator["Toolkit Orchestrator"]
+    Toolkit_Registry["Toolkit Registry"]
     Repository_Context_Manager["Repository Context Manager"]
-    Structural_Topology_Analyzer["Structural Topology Analyzer"]
-    Logic_Flow_Analyzer["Logic & Flow Analyzer"]
-    Source_Code_Provider["Source Code Provider"]
-    Evolution_Dependency_Analyzer["Evolution & Dependency Analyzer"]
-    Documentation_Provider["Documentation Provider"]
-    Toolkit_Orchestrator -- "injects shared RepoContext into" --> Repository_Context_Manager
-    Repository_Context_Manager -- "provides resolved file paths and ignore‑pattern filtering for directory walking" --> Structural_Topology_Analyzer
-    Structural_Topology_Analyzer -- "identifies specific class/method signatures to be targeted for CFG extraction" --> Logic_Flow_Analyzer
-    Logic_Flow_Analyzer -- "provides specific line numbers or node references for targeted code retrieval" --> Source_Code_Provider
-    Structural_Topology_Analyzer -- "supplies file paths discovered during tree traversal for full‑file reading" --> Source_Code_Provider
-    Evolution_Dependency_Analyzer -- "supplies historical change data to enrich the agent's current session context" --> Toolkit_Orchestrator
-    Documentation_Provider -- "supplies narrative design intent to guide high‑level planning" --> Toolkit_Orchestrator
-    Repository_Context_Manager -- "ensures file I/O operations respect repository boundaries and encoding settings" --> Source_Code_Provider
+    Static_Analysis_Provider["Static Analysis Provider"]
+    Source_Content_Retriever["Source Content Retriever"]
+    Project_Topology_Mapper["Project Topology Mapper"]
+    Change_Context_Provider["Change Context Provider"]
+    Dependency_Analyzer["Dependency Analyzer"]
+    Toolkit_Registry -- "Injects the shared RepoContext into every tool instance during initialization." --> Repository_Context_Manager
+    Static_Analysis_Provider -- "Triggers the retriever to fetch specific code blocks identified during structural analysis for deeper inspection." --> Source_Content_Retriever
+    Project_Topology_Mapper -- "Utilizes the centralized directory walking and ignore‑file utilities to generate accurate project maps." --> Repository_Context_Manager
+    Change_Context_Provider -- "Retrieves the validated repository root path to execute localized Git commands." --> Repository_Context_Manager
+    Source_Content_Retriever -- "Inherits base filesystem utilities to ensure consistent file access and adherence to project‑specific ignore rules." --> Repository_Context_Manager
+    Toolkit_Registry -- "Manages the instantiation and registration of tools that transform raw static analysis data into agent‑consumable formats." --> Static_Analysis_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -23,74 +21,71 @@ graph LR
 
 Provides a set of specialized tools that allow the LLM Agent Core to interact with the codebase, query static analysis results, and perform specific actions within the project context.
 
-### Toolkit Orchestrator
-Acts as the central registry and factory; it instantiates the suite of tools and injects the shared repository context, exposing a unified interface to the LLM planner.
+### Toolkit Registry
+Acts as the central factory and lifecycle manager for the subsystem; it discovers available tools and provides a unified get_all_tools interface for external agent orchestration.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/toolkit.py#L19-L116" target="_blank" rel="noopener noreferrer">`CodeBoardingToolkit`:19-116</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/__init__.py" target="_blank" rel="noopener noreferrer">`agents.tools.registry.ToolkitRegistry`</a>
 
 
 ### Repository Context Manager
-Manages the foundational execution state, including repository discovery, file‑system walking, ignore patterns (e.g., .gitignore), and path resolution.
+Provides the foundational state and shared logic for all tools, including filesystem pathing, ignore‑file management, and result caching.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L10-L54" target="_blank" rel="noopener noreferrer">`RepoContext`:10-54</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py#L57-L96" target="_blank" rel="noopener noreferrer">`BaseRepoTool`:57-96</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py" target="_blank" rel="noopener noreferrer">`agents.tools.base.RepoContext`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/base.py" target="_blank" rel="noopener noreferrer">`agents.tools.base.BaseRepoTool`</a>
 
 
-### Structural Topology Analyzer
-Maps the high‑level organization of the project, providing the agent with directory trees, package hierarchies, and class relationships.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file_structure.py#L22-L102" target="_blank" rel="noopener noreferrer">`FileStructureTool`:22-102</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_packages.py#L26-L60" target="_blank" rel="noopener noreferrer">`PackageRelationsTool`:26-60</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`CodeStructureTool`</a>
-
-
-### Logic & Flow Analyzer
-Extracts behavioral data by generating Control Flow Graphs (CFG) and tracing method invocation chains across the codebase.
+### Static Analysis Provider
+Interfaces with the static analysis engine to extract high‑level architectural data, including Control Flow Graphs (CFGs), class hierarchies, and method invocation chains.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_cfg.py#L8-L60" target="_blank" rel="noopener noreferrer">`GetCFGTool`:8-60</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py#L14-L47" target="_blank" rel="noopener noreferrer">`MethodInvocationsTool`:14-47</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.GetCFGTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.CodeStructureTool`</a>
 
 
-### Source Code Provider
-Retrieves raw source code or specific code nodes (classes/functions) once the agent has identified target areas via structural or logic analysis.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`ReadFileTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`GetSourceCodeTool`</a>
-
-
-### Evolution & Dependency Analyzer
-Provides temporal and environmental context by analyzing Git history (diffs) and external library requirements.
+### Source Content Retriever
+Performs granular retrieval of raw code and documentation; it can read entire files or extract specific code blocks based on fully‑qualified identifiers.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`GitDiffTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`PackageDependenciesTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.ReadFileTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.CodeReferenceReader`</a>
 
 
-### Documentation Provider
-Discovers and parses project‑level documentation (READMEs, Markdown) to capture high‑level design intent and developer instructions.
+### Project Topology Mapper
+Maps the physical and logical layout of the project, generating directory trees and identifying package‑level relationships and imports.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`ReadDocTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`SearchDocsTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.FileStructureTool`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`agents.tools.read_source.PackageRelationsTool`</a>
+
+
+### Change Context Provider
+Wraps Git operations to provide incremental change data, allowing agents to focus their analysis on modified code sections rather than the entire codebase.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_git_diff.py" target="_blank" rel="noopener noreferrer">`agents.tools.git_tools.ReadDiffTool`</a>
+
+
+### Dependency Analyzer
+Scans and parses project manifests (e.g., pyproject.toml) to identify external libraries and the broader ecosystem the project relies on.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/external_deps.py" target="_blank" rel="noopener noreferrer">`agents.tools.dependency_tools.DependencyAnalyzer`</a>
 
 
 

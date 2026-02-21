@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "generated_at": "2026-02-18T21:57:44.447421+00:00",
+    "generated_at": "2026-02-21T00:52:22.314162+00:00",
     "repo_name": "CodeBoarding",
-    "depth_level": 3,
+    "depth_level": 2,
     "file_coverage_summary": {
       "total_files": 0,
       "analyzed": 0,
@@ -50,7 +50,8 @@
         "monitoring/stats.py",
         "monitoring/writers.py",
         "repo_utils/errors.py",
-        "repo_utils/git_diff.py"
+        "repo_utils/git_diff.py",
+        "tool_registry.py"
       ],
       "source_cluster_ids": [
         3,
@@ -62,66 +63,132 @@
       "components": [
         {
           "name": "Application Orchestrator",
-          "description": "The central control plane that manages the application lifecycle. It validates environment variables, processes CLI arguments, and sequences the execution flow between local and remote repository analysis.",
+          "description": "The central brain of the system. It handles CLI entry points, validates the environment (API keys, paths), and coordinates the execution flow between full scans and incremental updates.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.main",
+              "qualified_name": "repos.codeboarding.main.main",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.orchestrator.PipelineManager",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.config.EnvironmentValidator",
               "reference_file": "main.py"
             }
           ],
           "assigned_files": [
             "main.py",
-            "constants.py"
+            "constants.py",
+            "utils.py",
+            "vscode_constants.py"
           ],
           "source_cluster_ids": [],
           "component_id": "bab486ce1131be53",
           "can_expand": true
         },
         {
-          "name": "Repository Manager",
-          "description": "Handles low-level Git operations, including cloning remote repositories, checking out specific commits, and normalizing file paths for cross‑platform consistency.",
+          "name": "Repository State Manager",
+          "description": "Manages the physical lifecycle of the target codebase. It handles cloning, branch switching, and generates unique state hashes to ensure analysis reproducibility.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.repo_utils.change_detector",
-              "reference_file": "repo_utils/change_detector.py"
+              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+              "reference_file": "repo_utils/errors.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.StateHasher",
+              "reference_file": "repo_utils/errors.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.ErrorHandler",
+              "reference_file": "repo_utils/errors.py"
             }
           ],
           "assigned_files": [
-            "repo_utils/change_detector.py",
-            "repo_utils/errors.py"
+            "repo_utils/errors.py",
+            "repo_utils/__init__.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "defcdfd415214940",
+          "component_id": "a6166cb519012e2a",
           "can_expand": true
         },
         {
-          "name": "Change & Filter Engine",
-          "description": "A deterministic layer that identifies structural modifications between commits and applies exclusion rules (e.g., .gitignore) to ensure only relevant source files are analyzed.",
+          "name": "Incremental Change Detector",
+          "description": "Optimizes performance by identifying what has changed since the last run. It compares git commit hashes and file-level diffs to determine the minimal set of files requiring re-analysis.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.repo_utils.change_detector.ChangeDetector",
+              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
               "reference_file": "repo_utils/change_detector.py"
             },
             {
-              "qualified_name": "codeboarding.repo_utils.change_detector.RepoIgnoreManager",
+              "qualified_name": "repos.codeboarding.repository.DiffEngine",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
           "assigned_files": [
             "repo_utils/change_detector.py",
-            "repo_utils/git_diff.py",
-            "repo_utils/ignore.py"
+            "repo_utils/git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "3c32a1cbd8e8557f",
+          "component_id": "71c04ddb2b4869d7",
           "can_expand": true
         },
         {
-          "name": "Job & State Manager",
-          "description": "Manages the persistence of analysis metadata and incremental state using DuckDB. It allows the system to resume interrupted jobs and perform delta‑updates.",
+          "name": "Tool Environment Registry",
+          "description": "Acts as a package manager for the analysis engine. It discovers, installs, and resolves paths for external binaries like LSP servers (Python/TypeScript) and Tokei across different OS platforms.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.duckdb_crud",
+              "qualified_name": "repos.codeboarding.tools.Registry",
+              "reference_file": "install.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.tools.BinaryInstaller",
+              "reference_file": "install.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.tools.PathResolver",
+              "reference_file": "install.py"
+            }
+          ],
+          "assigned_files": [
+            "install.py",
+            "tool_registry.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1030ac6c33b348b6",
+          "can_expand": true
+        },
+        {
+          "name": "Scope & Exclusion Manager",
+          "description": "Defines the \"effective analysis area\" by parsing `.codeboardingignore` files. It filters out noise such as build artifacts, node_modules, and test suites.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.scope.IgnoreManager",
+              "reference_file": "repo_utils/ignore.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.scope.PathFilter",
+              "reference_file": "repo_utils/ignore.py"
+            }
+          ],
+          "assigned_files": [
+            "repo_utils/ignore.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "c81f42310d22e241",
+          "can_expand": true
+        },
+        {
+          "name": "Job Persistence Manager",
+          "description": "The system's memory. It uses DuckDB to store job metadata, execution status, and links repository versions to specific analysis results for historical tracking.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.persistence.DuckDBClient",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.persistence.JobStore",
               "reference_file": "duckdb_crud.py"
             }
           ],
@@ -129,141 +196,111 @@
             "duckdb_crud.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b1182b5f8844c314",
+          "component_id": "fec3aab143858427",
           "can_expand": true
         },
         {
-          "name": "Environment Provisioner",
-          "description": "Automates the setup of the execution environment by installing and verifying external dependencies like LSP binaries (e.g., JDTLS) and Node.js.",
+          "name": "Analysis Aggregator",
+          "description": "A transformation layer that takes raw output from various static analysis tools and maps them into a `UnifiedAnalysisJson` model, preparing the data for LLM consumption.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.environment_provisioner",
-              "reference_file": "install.py"
+              "qualified_name": "repos.codeboarding.aggregator.DataSynthesizer",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.models.UnifiedAnalysisJson",
+              "reference_file": "diagram_analysis/analysis_json.py"
             }
           ],
           "assigned_files": [
-            "install.py"
+            "diagram_analysis/analysis_json.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "1779d99f6f09b9a8",
+          "component_id": "4f1548909e8d640d",
           "can_expand": true
         },
         {
-          "name": "Analysis Modeler",
-          "description": "Transforms raw analysis data into a structured UnifiedAnalysisJson schema, handling recursive component extraction and generating human‑readable Markdown documentation.",
-          "key_entities": [],
-          "assigned_files": [
-            "utils.py",
-            "repo_utils/__init__.py",
-            "diagram_analysis/analysis_json.py",
-            "main.py"
-          ],
-          "source_cluster_ids": [
-            6,
-            9
-          ],
-          "component_id": "ab14a1ce76da81a6",
-          "can_expand": true
-        },
-        {
-          "name": "Monitoring & Observability",
-          "description": "A cross‑cutting suite that tracks LLM token usage, tool execution latency, and provides step‑by‑step execution traces for debugging agentic workflows.",
-          "key_entities": [],
-          "assigned_files": [
-            "monitoring/mixin.py",
-            "monitoring/writers.py",
-            "monitoring/callbacks.py",
-            "monitoring/context.py",
-            "monitoring/stats.py",
-            "logging_config.py",
-            "monitoring/__init__.py",
-            "monitoring/paths.py"
-          ],
-          "source_cluster_ids": [
-            4,
-            5,
-            12,
-            13,
-            14,
-            15
-          ],
-          "component_id": "d367a9f6bc42b9d6",
-          "can_expand": true
-        },
-        {
-          "name": "System Integration Handler",
-          "description": "Manages host‑specific configurations, such as VS Code extension settings and system health checks, to ensure the tool is compatible with the user's environment.",
+          "name": "Observability Engine",
+          "description": "Monitors the health and costs of the pipeline. It tracks LLM token usage, tool execution latency, and provides telemetry for the agentic workflows.",
           "key_entities": [
             {
-              "qualified_name": "codeboarding.system_integration_handler",
+              "qualified_name": "repos.codeboarding.observability.MetricsCollector",
+              "reference_file": "health_main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.observability.MonitoringMixin",
+              "reference_file": "health_main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.observability.TelemetryStreamer",
               "reference_file": "health_main.py"
             }
           ],
           "assigned_files": [
             "health_main.py",
-            "vscode_constants.py"
+            "logging_config.py",
+            "monitoring/__init__.py",
+            "monitoring/callbacks.py",
+            "monitoring/context.py",
+            "monitoring/mixin.py",
+            "monitoring/paths.py",
+            "monitoring/stats.py",
+            "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "3f8ac348f66316ff",
+          "component_id": "bdc7ed34513a369c",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "orchestrates provisioning of",
+          "relation": "triggers environment setup and binary verification",
           "src_name": "Application Orchestrator",
-          "dst_name": "Environment Provisioner",
+          "dst_name": "Tool Environment Registry",
           "src_id": "bab486ce1131be53",
-          "dst_id": "1779d99f6f09b9a8"
+          "dst_id": "1030ac6c33b348b6"
         },
         {
-          "relation": "queries state from",
+          "relation": "requests a specific repository state (clone/checkout) to begin the pipeline",
           "src_name": "Application Orchestrator",
-          "dst_name": "Job & State Manager",
+          "dst_name": "Repository State Manager",
           "src_id": "bab486ce1131be53",
-          "dst_id": "b1182b5f8844c314"
+          "dst_id": "a6166cb519012e2a"
         },
         {
-          "relation": "provides configuration to",
-          "src_name": "System Integration Handler",
+          "relation": "provides the current and previous commit hashes to calculate the analysis delta",
+          "src_name": "Repository State Manager",
+          "dst_name": "Incremental Change Detector",
+          "src_id": "a6166cb519012e2a",
+          "dst_id": "71c04ddb2b4869d7"
+        },
+        {
+          "relation": "passes raw file changes to be filtered against exclusion rules",
+          "src_name": "Incremental Change Detector",
+          "dst_name": "Scope & Exclusion Manager",
+          "src_id": "71c04ddb2b4869d7",
+          "dst_id": "c81f42310d22e241"
+        },
+        {
+          "relation": "sends raw tool outputs to be synthesized into the final unified model",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Analysis Aggregator",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "4f1548909e8d640d"
+        },
+        {
+          "relation": "updates job status and saves metadata upon pipeline completion",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Job Persistence Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "fec3aab143858427"
+        },
+        {
+          "relation": "wraps execution steps to capture latency and token usage metrics",
+          "src_name": "Observability Engine",
           "dst_name": "Application Orchestrator",
-          "src_id": "3f8ac348f66316ff",
+          "src_id": "bdc7ed34513a369c",
           "dst_id": "bab486ce1131be53"
-        },
-        {
-          "relation": "triggers cloning in",
-          "src_name": "Application Orchestrator",
-          "dst_name": "Repository Manager",
-          "src_id": "bab486ce1131be53",
-          "dst_id": "defcdfd415214940"
-        },
-        {
-          "relation": "feeds diffs to",
-          "src_name": "Repository Manager",
-          "dst_name": "Change & Filter Engine",
-          "src_id": "defcdfd415214940",
-          "dst_id": "3c32a1cbd8e8557f"
-        },
-        {
-          "relation": "passes filtered files to",
-          "src_name": "Change & Filter Engine",
-          "dst_name": "Analysis Modeler",
-          "src_id": "3c32a1cbd8e8557f",
-          "dst_id": "ab14a1ce76da81a6"
-        },
-        {
-          "relation": "persists results to",
-          "src_name": "Analysis Modeler",
-          "dst_name": "Job & State Manager",
-          "src_id": "ab14a1ce76da81a6",
-          "dst_id": "b1182b5f8844c314"
-        },
-        {
-          "relation": "sends telemetry to",
-          "src_name": "Application Orchestrator",
-          "dst_name": "Monitoring & Observability",
-          "src_id": "bab486ce1131be53",
-          "dst_id": "d367a9f6bc42b9d6"
         }
       ]
     },
@@ -595,301 +632,90 @@
       "can_expand": true,
       "components": [
         {
-          "name": "StaticAnalysisEngine",
-          "description": "Orchestrates the entire static analysis process, coordinating code retrieval, call graph construction, quality checks, and aggregation of findings.",
+          "name": "Static Analysis Façade",
+          "description": "Primary entry point; coordinates discovery, extraction, and modeling phases while persisting unified metadata.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisEngine",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "StaticAnalyzer",
+              "reference_file": "static_analyzer/__init__.py",
+              "reference_start_line": 109,
+              "reference_end_line": 294
+            },
+            {
+              "qualified_name": "StaticAnalysisResults",
+              "reference_file": "static_analyzer/analysis_result.py",
+              "reference_start_line": 53,
+              "reference_end_line": 269
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "health/__init__.py",
-            "health/checks/__init__.py",
-            "health/checks/circular_deps.py",
-            "health/checks/cohesion.py",
-            "health/checks/coupling.py",
-            "health/checks/function_size.py",
-            "health/checks/god_class.py",
-            "health/checks/inheritance.py",
-            "health/checks/instability.py",
-            "health/checks/unused_code_diagnostics.py",
-            "health/config.py",
-            "health/constants.py",
-            "health/models.py",
-            "health/runner.py",
             "static_analyzer/__init__.py",
-            "static_analyzer/cluster_helpers.py",
-            "static_analyzer/constants.py",
+            "static_analyzer/analysis_result.py",
+            "static_analyzer/constants.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e0af9ad54478384c",
+          "can_expand": true
+        },
+        {
+          "name": "Discovery & Environment Manager",
+          "description": "Scans the repository to identify project structures (Maven/Gradle) and filters files based on Git changes.",
+          "key_entities": [
+            {
+              "qualified_name": "ProjectScanner",
+              "reference_file": "static_analyzer/scanner.py",
+              "reference_start_line": 13,
+              "reference_end_line": 95
+            },
+            {
+              "qualified_name": "JavaConfigScanner",
+              "reference_file": "static_analyzer/java_config_scanner.py",
+              "reference_start_line": 33,
+              "reference_end_line": 218
+            },
+            {
+              "qualified_name": "GitDiffAnalyzer",
+              "reference_file": "static_analyzer/git_diff_analyzer.py",
+              "reference_start_line": 16,
+              "reference_end_line": 224
+            }
+          ],
+          "assigned_files": [
             "static_analyzer/git_diff_analyzer.py",
-            "static_analyzer/incremental_orchestrator.py",
+            "static_analyzer/java_config_scanner.py",
             "static_analyzer/java_utils.py",
             "static_analyzer/programming_language.py",
             "static_analyzer/scanner.py",
             "static_analyzer/typescript_config_scanner.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "bba52118bbb258ed",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Static Analysis Core Engine (SA Core)",
-              "description": "Orchestrates the overall static analysis process, serving as the central hub for initiating analysis, managing language-specific scanners, and integrating with incremental analysis. It provides core static analysis configurations and constants.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.constants",
-                  "reference_file": "static_analyzer/constants.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.__init__.StaticAnalyzer",
-                  "reference_file": "static_analyzer/__init__.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.scanner.ProjectScanner",
-                  "reference_file": "static_analyzer/scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/constants.py",
-                "static_analyzer/__init__.py",
-                "static_analyzer/scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "882f480a5218d3da",
-              "can_expand": false
-            },
-            {
-              "name": "Incremental Analysis Orchestrator (IAO)",
-              "description": "Optimizes static analysis by performing incremental updates. It manages caching of analysis results, detects code changes, and intelligently re-analyzes only affected parts of the codebase, also handling mapping and merging of cluster results.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.incremental_orchestrator",
-                  "reference_file": "static_analyzer/incremental_orchestrator.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.cluster_helpers",
-                  "reference_file": "static_analyzer/cluster_helpers.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/cluster_helpers.py",
-                "static_analyzer/incremental_orchestrator.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "637e8ea65f5a66fc",
-              "can_expand": false
-            },
-            {
-              "name": "Language Project Scanners (LPS)",
-              "description": "Specializes in understanding project structure and build configurations for different languages (Java, TypeScript). It identifies relevant source files and project settings.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.typescript_config_scanner",
-                  "reference_file": "static_analyzer/typescript_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py",
-                "static_analyzer/typescript_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "e341fab203bc44a3",
-              "can_expand": false
-            },
-            {
-              "name": "Language & Tooling Support (LTS)",
-              "description": "Provides foundational support for various programming languages, defining language properties, managing LSP server configurations, and offering language-specific utilities such as JDK detection and command creation.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.programming_language",
-                  "reference_file": "static_analyzer/programming_language.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_utils",
-                  "reference_file": "static_analyzer/java_utils.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/programming_language.py",
-                "static_analyzer/java_utils.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "4bdc886809075d16",
-              "can_expand": false
-            },
-            {
-              "name": "Git Change Analyzer (GCA)",
-              "description": "Interacts with the Git version control system to identify code changes between commits or uncommitted modifications. It supplies the necessary input for incremental analysis to focus on modified files.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.git_diff_analyzer",
-                  "reference_file": "static_analyzer/git_diff_analyzer.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/git_diff_analyzer.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "09729cc760c15cc0",
-              "can_expand": false
-            },
-            {
-              "name": "Health Check Runner (HCR)",
-              "description": "Central component for executing and managing code health checks. It orchestrates the running of individual checks, aggregates their findings, and applies project-defined exclusion patterns to filter results.",
-              "key_entities": [
-                {
-                  "qualified_name": "health.runner",
-                  "reference_file": "health/runner.py"
-                }
-              ],
-              "assigned_files": [
-                "health/runner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "52e3a7a9cc14b671",
-              "can_expand": false
-            },
-            {
-              "name": "Code Health Checks (CHC)",
-              "description": "Collection of specialized modules, each implementing a specific code quality or architectural health check (unused code, God classes, cohesion, inheritance, coupling, instability, function size, circular dependencies).",
-              "key_entities": [
-                {
-                  "qualified_name": "health.checks",
-                  "reference_file": "health/checks/__init__.py"
-                }
-              ],
-              "assigned_files": [
-                "health/checks/__init__.py",
-                "health/__init__.py",
-                "health/checks/circular_deps.py",
-                "health/checks/cohesion.py",
-                "health/checks/coupling.py",
-                "health/checks/function_size.py",
-                "health/checks/god_class.py",
-                "health/checks/inheritance.py",
-                "health/checks/instability.py",
-                "health/checks/unused_code_diagnostics.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "acbb530ffbb8d76f",
-              "can_expand": false
-            },
-            {
-              "name": "Health Configuration & Models (HCM)",
-              "description": "Manages configuration settings for all health checks, including thresholds and ignore rules, and defines data structures (models) used to represent health findings, summaries, and overall reports.",
-              "key_entities": [
-                {
-                  "qualified_name": "health.models",
-                  "reference_file": "health/models.py"
-                },
-                {
-                  "qualified_name": "health.config",
-                  "reference_file": "health/config.py"
-                },
-                {
-                  "qualified_name": "health.constants",
-                  "reference_file": "health/constants.py"
-                }
-              ],
-              "assigned_files": [
-                "health/config.py",
-                "health/constants.py",
-                "health/models.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "05ba1dd8d10a9c8a",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "requests project structure from",
-              "src_name": "Static Analysis Core Engine (SA Core)",
-              "dst_name": "Language Project Scanners (LPS)",
-              "src_id": "882f480a5218d3da",
-              "dst_id": "e341fab203bc44a3"
-            },
-            {
-              "relation": "delegates incremental analysis tasks to",
-              "src_name": "Static Analysis Core Engine (SA Core)",
-              "dst_name": "Incremental Analysis Orchestrator (IAO)",
-              "src_id": "882f480a5218d3da",
-              "dst_id": "637e8ea65f5a66fc"
-            },
-            {
-              "relation": "initiates health check execution via",
-              "src_name": "Static Analysis Core Engine (SA Core)",
-              "dst_name": "Health Check Runner (HCR)",
-              "src_id": "882f480a5218d3da",
-              "dst_id": "52e3a7a9cc14b671"
-            },
-            {
-              "relation": "utilizes language-specific configurations and utilities from",
-              "src_name": "Static Analysis Core Engine (SA Core)",
-              "dst_name": "Language & Tooling Support (LTS)",
-              "src_id": "882f480a5218d3da",
-              "dst_id": "4bdc886809075d16"
-            },
-            {
-              "relation": "requests code changes from",
-              "src_name": "Incremental Analysis Orchestrator (IAO)",
-              "dst_name": "Git Change Analyzer (GCA)",
-              "src_id": "637e8ea65f5a66fc",
-              "dst_id": "09729cc760c15cc0"
-            },
-            {
-              "relation": "consults for project context related to changed files",
-              "src_name": "Incremental Analysis Orchestrator (IAO)",
-              "dst_name": "Language Project Scanners (LPS)",
-              "src_id": "637e8ea65f5a66fc",
-              "dst_id": "e341fab203bc44a3"
-            },
-            {
-              "relation": "uses for language-specific parsing and build tool integration",
-              "src_name": "Language Project Scanners (LPS)",
-              "dst_name": "Language & Tooling Support (LTS)",
-              "src_id": "e341fab203bc44a3",
-              "dst_id": "4bdc886809075d16"
-            },
-            {
-              "relation": "executes individual",
-              "src_name": "Health Check Runner (HCR)",
-              "dst_name": "Code Health Checks (CHC)",
-              "src_id": "52e3a7a9cc14b671",
-              "dst_id": "acbb530ffbb8d76f"
-            },
-            {
-              "relation": "retrieves configuration settings and utilizes data models from",
-              "src_name": "Health Check Runner (HCR)",
-              "dst_name": "Health Configuration & Models (HCM)",
-              "src_id": "52e3a7a9cc14b671",
-              "dst_id": "05ba1dd8d10a9c8a"
-            },
-            {
-              "relation": "uses for check-specific configurations and to format their findings",
-              "src_name": "Code Health Checks (CHC)",
-              "dst_name": "Health Configuration & Models (HCM)",
-              "src_id": "acbb530ffbb8d76f",
-              "dst_id": "05ba1dd8d10a9c8a"
-            }
-          ]
+          "component_id": "d3696baabaef2ed7",
+          "can_expand": true
         },
         {
-          "name": "LSPClient",
-          "description": "Communicates with Language Server Protocol servers to extract language‑specific structural information such as ASTs, symbol definitions, and references.",
+          "name": "LSP Orchestration Engine",
+          "description": "Manages the lifecycle of language servers; handles JSON‑RPC communication and aggregates raw symbol diagnostics.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.LSPClient",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "LSPClient",
+              "reference_file": "static_analyzer/lsp_client/client.py",
+              "reference_start_line": 64,
+              "reference_end_line": 1642
+            },
+            {
+              "qualified_name": "JavaClient",
+              "reference_file": "static_analyzer/lsp_client/java_client.py",
+              "reference_start_line": 26,
+              "reference_end_line": 517
+            },
+            {
+              "qualified_name": "TypeScriptClient",
+              "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+              "reference_start_line": 10,
+              "reference_end_line": 235
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
             "static_analyzer/lsp_client/__init__.py",
             "static_analyzer/lsp_client/client.py",
             "static_analyzer/lsp_client/diagnostics.py",
@@ -898,757 +724,183 @@
             "static_analyzer/lsp_client/typescript_client.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "43ff2d1103130aa9",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "LSP Client Core",
-              "description": "Provides the foundational Language Server Protocol (LSP) communication layer. It manages the connection lifecycle with LSP servers, handles generic LSP requests, responses, and notifications, and offers core functionalities for querying code elements such as symbols, definitions, references, and call hierarchies.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.LSPClient",
-                  "reference_file": "static_analyzer/lsp_client/__init__.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.LSPConnectionManager",
-                  "reference_file": "static_analyzer/lsp_client/__init__.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.LSPRequestSender",
-                  "reference_file": "static_analyzer/lsp_client/__init__.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/lsp_client/__init__.py",
-                "static_analyzer/lsp_client/client.py",
-                "static_analyzer/lsp_client/language_settings.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "4c4cd7fcbb8b9ba4",
-              "can_expand": false
-            },
-            {
-              "name": "Java LSP Client",
-              "description": "Specializes the LSP Client Core for Java language servers. It supplies Java-specific initialization parameters, loads Java projects, and tailors communication for Java code analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.JavaLSPClient",
-                  "reference_file": "static_analyzer/lsp_client/java_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.JavaProjectInitializer",
-                  "reference_file": "static_analyzer/lsp_client/java_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.JavaLSPMethodHandler",
-                  "reference_file": "static_analyzer/lsp_client/java_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.JavaWorkspaceManager",
-                  "reference_file": "static_analyzer/lsp_client/java_client.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/lsp_client/java_client.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "b7293d59fb5c12bc",
-              "can_expand": false
-            },
-            {
-              "name": "TypeScript LSP Client",
-              "description": "Specializes the LSP Client Core for TypeScript/JavaScript language servers. It handles TypeScript-specific project bootstrapping, configuration, and communication.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.TypeScriptLSPClient",
-                  "reference_file": "static_analyzer/lsp_client/typescript_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.TypeScriptProjectConfigurator",
-                  "reference_file": "static_analyzer/lsp_client/typescript_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.TypeScriptLSPMethodHandler",
-                  "reference_file": "static_analyzer/lsp_client/typescript_client.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.TypeScriptWorkspaceManager",
-                  "reference_file": "static_analyzer/lsp_client/typescript_client.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/lsp_client/typescript_client.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9a9b3f346f7819fa",
-              "can_expand": false
-            },
-            {
-              "name": "Java Project Configuration Scanner",
-              "description": "Scans the codebase for Java build configurations (Maven, Gradle, Eclipse, etc.) and extracts project structure information. This data is required by the Java LSP Client to correctly initialise its workspace.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.MavenConfigParser",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.GradleConfigParser",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.ProjectStructureExtractor",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "e9a1d91255ffd4b9",
-              "can_expand": false
-            },
-            {
-              "name": "Static Analysis Orchestrator",
-              "description": "Coordinates the overall static-analysis workflow. It identifies source files, prepares them for analysis, and triggers specific analysis tasks by invoking the appropriate LSP client.",
-              "key_entities": [],
-              "assigned_files": [],
-              "source_cluster_ids": [],
-              "component_id": "188cb5a7d38bc97b",
-              "can_expand": false
-            },
-            {
-              "name": "LSP Diagnostic Data Model",
-              "description": "Defines structured data types and utilities for representing, parsing, and managing diagnostic information (errors, warnings, suggestions) received from language servers.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.lsp_data.Diagnostic",
-                  "reference_file": "static_analyzer/lsp_client/diagnostics.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.lsp_data.DiagnosticParser",
-                  "reference_file": "static_analyzer/lsp_client/diagnostics.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.lsp_data.DiagnosticManager",
-                  "reference_file": "static_analyzer/lsp_client/diagnostics.py"
-                },
-                {
-                  "qualified_name": "repos.codeboarding.lsp_data.DiagnosticSeverity",
-                  "reference_file": "static_analyzer/lsp_client/diagnostics.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/lsp_client/diagnostics.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "417806810333eb0b",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "extends",
-              "src_name": "Java LSP Client",
-              "dst_name": "LSP Client Core",
-              "src_id": "b7293d59fb5c12bc",
-              "dst_id": "4c4cd7fcbb8b9ba4"
-            },
-            {
-              "relation": "provides base functionality for",
-              "src_name": "LSP Client Core",
-              "dst_name": "Java LSP Client",
-              "src_id": "4c4cd7fcbb8b9ba4",
-              "dst_id": "b7293d59fb5c12bc"
-            },
-            {
-              "relation": "extends",
-              "src_name": "TypeScript LSP Client",
-              "dst_name": "LSP Client Core",
-              "src_id": "9a9b3f346f7819fa",
-              "dst_id": "4c4cd7fcbb8b9ba4"
-            },
-            {
-              "relation": "provides base functionality for",
-              "src_name": "LSP Client Core",
-              "dst_name": "TypeScript LSP Client",
-              "src_id": "4c4cd7fcbb8b9ba4",
-              "dst_id": "9a9b3f346f7819fa"
-            },
-            {
-              "relation": "utilizes",
-              "src_name": "LSP Client Core",
-              "dst_name": "LSP Diagnostic Data Model",
-              "src_id": "4c4cd7fcbb8b9ba4",
-              "dst_id": "417806810333eb0b"
-            },
-            {
-              "relation": "defines data types consumed by",
-              "src_name": "LSP Diagnostic Data Model",
-              "dst_name": "LSP Client Core",
-              "src_id": "417806810333eb0b",
-              "dst_id": "4c4cd7fcbb8b9ba4"
-            },
-            {
-              "relation": "invokes",
-              "src_name": "Static Analysis Orchestrator",
-              "dst_name": "LSP Client Core",
-              "src_id": "188cb5a7d38bc97b",
-              "dst_id": "4c4cd7fcbb8b9ba4"
-            },
-            {
-              "relation": "performs analysis as directed by",
-              "src_name": "LSP Client Core",
-              "dst_name": "Static Analysis Orchestrator",
-              "src_id": "4c4cd7fcbb8b9ba4",
-              "dst_id": "188cb5a7d38bc97b"
-            },
-            {
-              "relation": "consumes",
-              "src_name": "Java LSP Client",
-              "dst_name": "Java Project Configuration Scanner",
-              "src_id": "b7293d59fb5c12bc",
-              "dst_id": "e9a1d91255ffd4b9"
-            },
-            {
-              "relation": "provides",
-              "src_name": "Java Project Configuration Scanner",
-              "dst_name": "Java LSP Client",
-              "src_id": "e9a1d91255ffd4b9",
-              "dst_id": "b7293d59fb5c12bc"
-            },
-            {
-              "relation": "triggers",
-              "src_name": "Static Analysis Orchestrator",
-              "dst_name": "Java LSP Client",
-              "src_id": "188cb5a7d38bc97b",
-              "dst_id": "b7293d59fb5c12bc"
-            },
-            {
-              "relation": "executes analysis tasks for",
-              "src_name": "Java LSP Client",
-              "dst_name": "Static Analysis Orchestrator",
-              "src_id": "b7293d59fb5c12bc",
-              "dst_id": "188cb5a7d38bc97b"
-            },
-            {
-              "relation": "triggers",
-              "src_name": "Static Analysis Orchestrator",
-              "dst_name": "TypeScript LSP Client",
-              "src_id": "188cb5a7d38bc97b",
-              "dst_id": "9a9b3f346f7819fa"
-            },
-            {
-              "relation": "executes analysis tasks for",
-              "src_name": "TypeScript LSP Client",
-              "dst_name": "Static Analysis Orchestrator",
-              "src_id": "9a9b3f346f7819fa",
-              "dst_id": "188cb5a7d38bc97b"
-            },
-            {
-              "relation": "initiates scanning via",
-              "src_name": "Static Analysis Orchestrator",
-              "dst_name": "Java Project Configuration Scanner",
-              "src_id": "188cb5a7d38bc97b",
-              "dst_id": "e9a1d91255ffd4b9"
-            },
-            {
-              "relation": "provides insights to",
-              "src_name": "Java Project Configuration Scanner",
-              "dst_name": "Static Analysis Orchestrator",
-              "src_id": "e9a1d91255ffd4b9",
-              "dst_id": "188cb5a7d38bc97b"
-            }
-          ]
+          "component_id": "c47b41310d40c1b7",
+          "can_expand": true
         },
         {
-          "name": "CallGraphBuilder",
-          "description": "Constructs and maintains the call graph of the analyzed codebase by processing structural and semantic information obtained from the LSPClient.",
+          "name": "Semantic Reference Resolver",
+          "description": "Resolves ambiguous symbols and links call sites to definitions across module boundaries to create a unified symbol map.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.CallGraphBuilder",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "ReferenceResolverMixin",
+              "reference_file": "static_analyzer/reference_resolve_mixin.py",
+              "reference_start_line": 13,
+              "reference_end_line": 166
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/graph.py",
             "static_analyzer/reference_resolve_mixin.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "25e2a0ff2d40aa91",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "CallGraphBuilder",
-              "description": "Orchestrates the construction of the call graph by integrating structural and semantic information obtained from various sources, such as LSP clients and language‑specific configurators. It populates the core graph data structure.",
-              "key_entities": [
-                {
-                  "qualified_name": "repos.codeboarding.static_analysis.CallGraphBuilder",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "d4be79aec18b6266",
-              "can_expand": false
-            },
-            {
-              "name": "Call Graph Management",
-              "description": "Provides the foundational data structure for the call graph, offering interfaces for adding nodes and edges, querying graph elements, and initiating graph‑wide operations like clustering. It serves as the central repository for the graph's state.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.graph.CallGraph",
-                  "reference_file": "static_analyzer/graph.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/graph.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "021b42b08049a216",
-              "can_expand": false
-            },
-            {
-              "name": "Java Project Configurator",
-              "description": "Specializes in scanning Java projects to identify build systems (e.g., Maven, Gradle) and extract configuration details, providing language‑specific context for accurate call graph construction.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "0544dfec893aca33",
-              "can_expand": false
-            },
-            {
-              "name": "Code Reference Resolver",
-              "description": "Normalizes and resolves code references across the codebase, ensuring that all links within the call graph are accurate and consistent regardless of their original format or location.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin",
-                  "reference_file": "static_analyzer/reference_resolve_mixin.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/reference_resolve_mixin.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "4a4a479bbc37b14d",
-              "can_expand": false
-            },
-            {
-              "name": "Graph Clustering Engine",
-              "description": "Applies algorithms to group related nodes within the call graph, transforming the detailed, raw graph into a more abstract and manageable representation for documentation and visualization.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.graph._adaptive_clustering",
-                  "reference_file": "static_analyzer/graph.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.graph._balance_clusters",
-                  "reference_file": "static_analyzer/graph.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/graph.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "9bac71f76a463516",
-              "can_expand": false
-            },
-            {
-              "name": "Clustering Result Accessor",
-              "description": "Offers a standardized interface for retrieving and interpreting the outcomes of the graph clustering process, enabling access by file, cluster ID, or other criteria.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.graph.ClusterResult",
-                  "reference_file": "static_analyzer/graph.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/graph.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "c17939464ac34674",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "queries",
-              "src_name": "CallGraphBuilder",
-              "dst_name": "Java Project Configurator",
-              "src_id": "d4be79aec18b6266",
-              "dst_id": "0544dfec893aca33"
-            },
-            {
-              "relation": "provides configuration to",
-              "src_name": "Java Project Configurator",
-              "dst_name": "CallGraphBuilder",
-              "src_id": "0544dfec893aca33",
-              "dst_id": "d4be79aec18b6266"
-            },
-            {
-              "relation": "requests reference resolution from",
-              "src_name": "CallGraphBuilder",
-              "dst_name": "Code Reference Resolver",
-              "src_id": "d4be79aec18b6266",
-              "dst_id": "4a4a479bbc37b14d"
-            },
-            {
-              "relation": "returns resolved references to",
-              "src_name": "Code Reference Resolver",
-              "dst_name": "CallGraphBuilder",
-              "src_id": "4a4a479bbc37b14d",
-              "dst_id": "d4be79aec18b6266"
-            },
-            {
-              "relation": "adds nodes and edges to",
-              "src_name": "CallGraphBuilder",
-              "dst_name": "Call Graph Management",
-              "src_id": "d4be79aec18b6266",
-              "dst_id": "021b42b08049a216"
-            },
-            {
-              "relation": "provides graph to",
-              "src_name": "Call Graph Management",
-              "dst_name": "Graph Clustering Engine",
-              "src_id": "021b42b08049a216",
-              "dst_id": "9bac71f76a463516"
-            },
-            {
-              "relation": "stores results for",
-              "src_name": "Graph Clustering Engine",
-              "dst_name": "Clustering Result Accessor",
-              "src_id": "9bac71f76a463516",
-              "dst_id": "c17939464ac34674"
-            }
-          ]
+          "component_id": "1aae13505a3a6d25",
+          "can_expand": true
         },
         {
-          "name": "UnusedCodeAnalyzer",
-          "description": "Identifies and reports code elements that are defined but never invoked or referenced, leveraging the call graph and structural information.",
+          "name": "Architectural Modeling Engine",
+          "description": "Constructs the global CallGraph and applies community detection (Louvain/Leiden) for high‑level module discovery.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.UnusedCodeAnalyzer",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "CallGraphBuilder",
+              "reference_file": "static_analyzer/cluster_helpers.py"
+            },
+            {
+              "qualified_name": "AdaptiveClusteringEngine",
+              "reference_file": "static_analyzer/cluster_helpers.py"
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py"
+            "static_analyzer/cluster_helpers.py",
+            "static_analyzer/graph.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b42ee7fd8b479bf1",
-          "can_expand": true,
-          "components": [
-            {
-              "name": "Java Project Scanner",
-              "description": "Discovers Java projects (Maven, Gradle, Eclipse) in a given directory, identifies project roots, and initiates creation of project-specific configuration objects.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.scan",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.scan_java_projects",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "fcaaf5dc161b8ac5",
-              "can_expand": false
-            },
-            {
-              "name": "Java Project Configuration",
-              "description": "Encapsulates configuration details for a single Java project, parsing build files (pom.xml, build.gradle) to extract dependencies, source directories, and other metadata required for analysis.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaProjectConfig",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner._analyze_gradle_project",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner._analyze_maven_project",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "eb54f6bc28e90ba5",
-              "can_expand": false
-            }
-          ],
-          "components_relations": [
-            {
-              "relation": "Instantiation",
-              "src_name": "Java Project Scanner",
-              "dst_name": "Java Project Configuration",
-              "src_id": "fcaaf5dc161b8ac5",
-              "dst_id": "eb54f6bc28e90ba5"
-            },
-            {
-              "relation": "Delegation",
-              "src_name": "Java Project Scanner",
-              "dst_name": "Java Project Configuration",
-              "src_id": "fcaaf5dc161b8ac5",
-              "dst_id": "eb54f6bc28e90ba5"
-            }
-          ]
+          "component_id": "827578ec274bd7c6",
+          "can_expand": true
         },
         {
-          "name": "StaticAnalysisResults",
-          "description": "Acts as a data repository for all outputs generated during static analysis, storing call graphs, code structures, and analyzer findings.",
+          "name": "Static Quality Check Suite",
+          "description": "Implements structural analysis routines to detect \"God Classes,\" unused code, and topological imbalances.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisResults",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "UnusedCodeAnalyzer",
+              "reference_file": "health/checks/__init__.py"
+            },
+            {
+              "qualified_name": "CohesionMetrics",
+              "reference_file": "health/checks/__init__.py"
+            },
+            {
+              "qualified_name": "CouplingMetrics",
+              "reference_file": "health/checks/__init__.py"
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/analysis_result.py"
+            "health/checks/__init__.py",
+            "health/checks/circular_deps.py",
+            "health/checks/cohesion.py",
+            "health/checks/coupling.py",
+            "health/checks/function_size.py",
+            "health/checks/god_class.py",
+            "health/checks/inheritance.py",
+            "health/checks/instability.py",
+            "health/checks/unused_code_diagnostics.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "28160958cc7e7349",
-          "can_expand": true,
-          "components": [
+          "component_id": "4a91c42a45a03260",
+          "can_expand": true
+        },
+        {
+          "name": "Health & Quality Orchestrator",
+          "description": "Drives the diagnostic pipeline; configures and executes specific health checks based on the architectural model.",
+          "key_entities": [
             {
-              "name": "Analysis Result Manager",
-              "description": "Acts as the central repository and orchestrator for all static analysis outcomes, managing artifacts such as CFGs, class hierarchies, package dependencies, code references, and source file information. It coordinates the overall analysis data flow.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_result.StaticAnalysisResults",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/analysis_result.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "b1041254271a5295",
-              "can_expand": false
+              "qualified_name": "HealthRunner",
+              "reference_file": "health/__init__.py"
             },
             {
-              "name": "Analysis Data Cache",
-              "description": "Provides a caching mechanism for static analysis results, storing and retrieving previously computed data to avoid redundant computation.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_result.AnalysisCache",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/analysis_result.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "1489a54a109ae701",
-              "can_expand": false
+              "qualified_name": "HealthModels",
+              "reference_file": "health/__init__.py"
             },
             {
-              "name": "Source File Provider",
-              "description": "Supplies utilities to discover and retrieve source files within a project, feeding file lists to the Analysis Result Manager for further processing.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.analysis_result.get_all_source_files",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                },
-                {
-                  "qualified_name": "static_analyzer.analysis_result.get_source_files",
-                  "reference_file": "static_analyzer/analysis_result.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/analysis_result.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "3425de475211acf0",
-              "can_expand": false
-            },
-            {
-              "name": "Java Project Configuration Scanner",
-              "description": "Scans and parses Java project configuration files (e.g., Maven pom.xml, Gradle build.gradle, Eclipse .project) to understand project structure, dependencies, and build settings.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaConfigScanner",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "aba346012c1f75d7",
-              "can_expand": false
-            },
-            {
-              "name": "Java Project Configuration Model",
-              "description": "A data model encapsulating parsed configuration details of a single Java project, providing structured access to information like dependencies, source directories, and build specifics.",
-              "key_entities": [
-                {
-                  "qualified_name": "static_analyzer.java_config_scanner.JavaProjectConfig",
-                  "reference_file": "static_analyzer/java_config_scanner.py"
-                }
-              ],
-              "assigned_files": [
-                "static_analyzer/java_config_scanner.py"
-              ],
-              "source_cluster_ids": [],
-              "component_id": "47c5ed7df77e6e8e",
-              "can_expand": false
+              "qualified_name": "HealthConfig",
+              "reference_file": "health/constants.py",
+              "reference_start_line": 4,
+              "reference_end_line": 19
             }
           ],
-          "components_relations": [
+          "assigned_files": [
+            "health/__init__.py",
+            "health/config.py",
+            "health/constants.py",
+            "health/models.py",
+            "health/runner.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "db7d10842f5d9a95",
+          "can_expand": true
+        },
+        {
+          "name": "Incremental Analysis Manager",
+          "description": "Manages stateful analysis by comparing current repository deltas with cached results to minimize redundant processing.",
+          "key_entities": [
             {
-              "relation": "manages",
-              "src_name": "Analysis Result Manager",
-              "dst_name": "Analysis Data Cache",
-              "src_id": "b1041254271a5295",
-              "dst_id": "1489a54a109ae701"
-            },
-            {
-              "relation": "consumes",
-              "src_name": "Analysis Result Manager",
-              "dst_name": "Source File Provider",
-              "src_id": "b1041254271a5295",
-              "dst_id": "3425de475211acf0"
-            },
-            {
-              "relation": "receives/stores",
-              "src_name": "Analysis Result Manager",
-              "dst_name": "Java Project Configuration Scanner",
-              "src_id": "b1041254271a5295",
-              "dst_id": "aba346012c1f75d7"
-            },
-            {
-              "relation": "used by",
-              "src_name": "Analysis Data Cache",
-              "dst_name": "Analysis Result Manager",
-              "src_id": "1489a54a109ae701",
-              "dst_id": "b1041254271a5295"
-            },
-            {
-              "relation": "provides",
-              "src_name": "Source File Provider",
-              "dst_name": "Analysis Result Manager",
-              "src_id": "3425de475211acf0",
-              "dst_id": "b1041254271a5295"
-            },
-            {
-              "relation": "creates/uses",
-              "src_name": "Java Project Configuration Scanner",
-              "dst_name": "Java Project Configuration Model",
-              "src_id": "aba346012c1f75d7",
-              "dst_id": "47c5ed7df77e6e8e"
-            },
-            {
-              "relation": "provides",
-              "src_name": "Java Project Configuration Scanner",
-              "dst_name": "Analysis Result Manager",
-              "src_id": "aba346012c1f75d7",
-              "dst_id": "b1041254271a5295"
-            },
-            {
-              "relation": "used by",
-              "src_name": "Java Project Configuration Model",
-              "dst_name": "Java Project Configuration Scanner",
-              "src_id": "47c5ed7df77e6e8e",
-              "dst_id": "aba346012c1f75d7"
+              "qualified_name": "StateStore",
+              "reference_file": "static_analyzer/incremental_orchestrator.py"
             }
-          ]
+          ],
+          "assigned_files": [
+            "static_analyzer/incremental_orchestrator.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "18b2851d4a245abe",
+          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "invokes",
-          "src_name": "StaticAnalysisEngine",
-          "dst_name": "LSPClient",
-          "src_id": "bba52118bbb258ed",
-          "dst_id": "43ff2d1103130aa9"
+          "relation": "Requests a filtered list of files and environment parameters to define the analysis scope.",
+          "src_name": "Static Analysis Façade",
+          "dst_name": "Discovery & Environment Manager",
+          "src_id": "e0af9ad54478384c",
+          "dst_id": "d3696baabaef2ed7"
         },
         {
-          "relation": "returns parsed code structures to",
-          "src_name": "LSPClient",
-          "dst_name": "StaticAnalysisEngine",
-          "src_id": "43ff2d1103130aa9",
-          "dst_id": "bba52118bbb258ed"
+          "relation": "Provides configuration metadata and file paths required to bootstrap language‑specific servers.",
+          "src_name": "Discovery & Environment Manager",
+          "dst_name": "LSP Orchestration Engine",
+          "src_id": "d3696baabaef2ed7",
+          "dst_id": "c47b41310d40c1b7"
         },
         {
-          "relation": "provides code structures to",
-          "src_name": "StaticAnalysisEngine",
-          "dst_name": "CallGraphBuilder",
-          "src_id": "bba52118bbb258ed",
-          "dst_id": "25e2a0ff2d40aa91"
+          "relation": "Streams raw symbol data and location references for cross‑file linking.",
+          "src_name": "LSP Orchestration Engine",
+          "dst_name": "Semantic Reference Resolver",
+          "src_id": "c47b41310d40c1b7",
+          "dst_id": "1aae13505a3a6d25"
         },
         {
-          "relation": "generates call graph for",
-          "src_name": "CallGraphBuilder",
-          "dst_name": "StaticAnalysisEngine",
-          "src_id": "25e2a0ff2d40aa91",
-          "dst_id": "bba52118bbb258ed"
+          "relation": "Supplies resolved symbol edges to populate the structural CallGraph.",
+          "src_name": "Semantic Reference Resolver",
+          "dst_name": "Architectural Modeling Engine",
+          "src_id": "1aae13505a3a6d25",
+          "dst_id": "827578ec274bd7c6"
         },
         {
-          "relation": "submits call graph and code structures to",
-          "src_name": "StaticAnalysisEngine",
-          "dst_name": "UnusedCodeAnalyzer",
-          "src_id": "bba52118bbb258ed",
-          "dst_id": "b42ee7fd8b479bf1"
+          "relation": "Provides the complete graph topology for executing depth‑first searches and metric calculations.",
+          "src_name": "Architectural Modeling Engine",
+          "dst_name": "Static Quality Check Suite",
+          "src_id": "827578ec274bd7c6",
+          "dst_id": "4a91c42a45a03260"
         },
         {
-          "relation": "reports unused code findings to",
-          "src_name": "UnusedCodeAnalyzer",
-          "dst_name": "StaticAnalysisEngine",
-          "src_id": "b42ee7fd8b479bf1",
-          "dst_id": "bba52118bbb258ed"
+          "relation": "Forwards detected quality issues and unused code findings to be standardized into health reports.",
+          "src_name": "Static Quality Check Suite",
+          "dst_name": "Health & Quality Orchestrator",
+          "src_id": "4a91c42a45a03260",
+          "dst_id": "db7d10842f5d9a95"
         },
         {
-          "relation": "stores analysis reports in",
-          "src_name": "StaticAnalysisEngine",
-          "dst_name": "StaticAnalysisResults",
-          "src_id": "bba52118bbb258ed",
-          "dst_id": "28160958cc7e7349"
+          "relation": "Queries for previous analysis states to determine which modules require re‑processing.",
+          "src_name": "Static Analysis Façade",
+          "dst_name": "Incremental Analysis Manager",
+          "src_id": "e0af9ad54478384c",
+          "dst_id": "18b2851d4a245abe"
         },
         {
-          "relation": "manages analysis data for",
-          "src_name": "StaticAnalysisResults",
-          "dst_name": "StaticAnalysisEngine",
-          "src_id": "28160958cc7e7349",
-          "dst_id": "bba52118bbb258ed"
-        },
-        {
-          "relation": "queries call graph data from",
-          "src_name": "UnusedCodeAnalyzer",
-          "dst_name": "CallGraphBuilder",
-          "src_id": "b42ee7fd8b479bf1",
-          "dst_id": "25e2a0ff2d40aa91"
-        },
-        {
-          "relation": "provides call graph data to",
-          "src_name": "CallGraphBuilder",
-          "dst_name": "UnusedCodeAnalyzer",
-          "src_id": "25e2a0ff2d40aa91",
-          "dst_id": "b42ee7fd8b479bf1"
+          "relation": "Uses Git diff data to invalidate specific cache entries in the state store.",
+          "src_name": "Incremental Analysis Manager",
+          "dst_name": "Discovery & Environment Manager",
+          "src_id": "18b2851d4a245abe",
+          "dst_id": "d3696baabaef2ed7"
         }
       ]
     },
@@ -1691,14 +943,12 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Toolkit Orchestrator",
-          "description": "Acts as the central registry and factory; it instantiates the suite of tools and injects the shared repository context, exposing a unified interface to the LLM planner.",
+          "name": "Toolkit Registry",
+          "description": "Acts as the central factory and lifecycle manager for the subsystem; it discovers available tools and provides a unified get_all_tools interface for external agent orchestration.",
           "key_entities": [
             {
-              "qualified_name": "CodeBoardingToolkit",
-              "reference_file": "agents/tools/toolkit.py",
-              "reference_start_line": 19,
-              "reference_end_line": 116
+              "qualified_name": "agents.tools.registry.ToolkitRegistry",
+              "reference_file": "agents/tools/__init__.py"
             }
           ],
           "assigned_files": [
@@ -1706,24 +956,20 @@
             "agents/tools/toolkit.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "407832532a9a73ff",
+          "component_id": "f9f1df0f4af664fa",
           "can_expand": true
         },
         {
           "name": "Repository Context Manager",
-          "description": "Manages the foundational execution state, including repository discovery, file‑system walking, ignore patterns (e.g., .gitignore), and path resolution.",
+          "description": "Provides the foundational state and shared logic for all tools, including filesystem pathing, ignore‑file management, and result caching.",
           "key_entities": [
             {
-              "qualified_name": "RepoContext",
-              "reference_file": "agents/tools/base.py",
-              "reference_start_line": 10,
-              "reference_end_line": 54
+              "qualified_name": "agents.tools.base.RepoContext",
+              "reference_file": "agents/tools/base.py"
             },
             {
-              "qualified_name": "BaseRepoTool",
-              "reference_file": "agents/tools/base.py",
-              "reference_start_line": 57,
-              "reference_end_line": 96
+              "qualified_name": "agents.tools.base.BaseRepoTool",
+              "reference_file": "agents/tools/base.py"
             }
           ],
           "assigned_files": [
@@ -1734,180 +980,147 @@
           "can_expand": true
         },
         {
-          "name": "Structural Topology Analyzer",
-          "description": "Maps the high‑level organization of the project, providing the agent with directory trees, package hierarchies, and class relationships.",
+          "name": "Static Analysis Provider",
+          "description": "Interfaces with the static analysis engine to extract high‑level architectural data, including Control Flow Graphs (CFGs), class hierarchies, and method invocation chains.",
           "key_entities": [
             {
-              "qualified_name": "FileStructureTool",
-              "reference_file": "agents/tools/read_file_structure.py",
-              "reference_start_line": 22,
-              "reference_end_line": 102
+              "qualified_name": "agents.tools.read_source.GetCFGTool",
+              "reference_file": "agents/tools/read_source.py"
             },
             {
-              "qualified_name": "PackageRelationsTool",
-              "reference_file": "agents/tools/read_packages.py",
-              "reference_start_line": 26,
-              "reference_end_line": 60
+              "qualified_name": "agents.tools.read_source.CodeStructureTool",
+              "reference_file": "agents/tools/read_source.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_source.py",
+            "agents/tools/get_method_invocations.py",
+            "agents/tools/read_cfg.py",
+            "agents/tools/read_structure.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "6d2fa77bc1be3387",
+          "can_expand": true
+        },
+        {
+          "name": "Source Content Retriever",
+          "description": "Performs granular retrieval of raw code and documentation; it can read entire files or extract specific code blocks based on fully‑qualified identifiers.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.read_source.ReadFileTool",
+              "reference_file": "agents/tools/read_source.py"
             },
             {
-              "qualified_name": "CodeStructureTool",
+              "qualified_name": "agents.tools.read_source.CodeReferenceReader",
+              "reference_file": "agents/tools/read_source.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/tools/read_source.py",
+            "agents/tools/read_docs.py",
+            "agents/tools/read_file.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8efdc13106aa9993",
+          "can_expand": true
+        },
+        {
+          "name": "Project Topology Mapper",
+          "description": "Maps the physical and logical layout of the project, generating directory trees and identifying package‑level relationships and imports.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.read_source.FileStructureTool",
+              "reference_file": "agents/tools/read_source.py"
+            },
+            {
+              "qualified_name": "agents.tools.read_source.PackageRelationsTool",
               "reference_file": "agents/tools/read_source.py"
             }
           ],
           "assigned_files": [
             "agents/tools/read_source.py",
             "agents/tools/read_file_structure.py",
-            "agents/tools/read_packages.py",
-            "agents/tools/read_structure.py"
+            "agents/tools/read_packages.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "a701ed5058c3f218",
+          "component_id": "db8794d253b2e103",
           "can_expand": true
         },
         {
-          "name": "Logic & Flow Analyzer",
-          "description": "Extracts behavioral data by generating Control Flow Graphs (CFG) and tracing method invocation chains across the codebase.",
+          "name": "Change Context Provider",
+          "description": "Wraps Git operations to provide incremental change data, allowing agents to focus their analysis on modified code sections rather than the entire codebase.",
           "key_entities": [
             {
-              "qualified_name": "GetCFGTool",
-              "reference_file": "agents/tools/read_cfg.py",
-              "reference_start_line": 8,
-              "reference_end_line": 60
-            },
-            {
-              "qualified_name": "MethodInvocationsTool",
-              "reference_file": "agents/tools/get_method_invocations.py",
-              "reference_start_line": 14,
-              "reference_end_line": 47
+              "qualified_name": "agents.tools.git_tools.ReadDiffTool",
+              "reference_file": "agents/tools/read_git_diff.py"
             }
           ],
           "assigned_files": [
-            "agents/tools/get_method_invocations.py",
-            "agents/tools/read_cfg.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "617c7d14d324b1ea",
-          "can_expand": true
-        },
-        {
-          "name": "Source Code Provider",
-          "description": "Retrieves raw source code or specific code nodes (classes/functions) once the agent has identified target areas via structural or logic analysis.",
-          "key_entities": [
-            {
-              "qualified_name": "ReadFileTool",
-              "reference_file": "agents/tools/read_source.py"
-            },
-            {
-              "qualified_name": "GetSourceCodeTool",
-              "reference_file": "agents/tools/read_source.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/tools/read_source.py",
-            "agents/tools/read_file.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "ee6547f759dda2e9",
-          "can_expand": true
-        },
-        {
-          "name": "Evolution & Dependency Analyzer",
-          "description": "Provides temporal and environmental context by analyzing Git history (diffs) and external library requirements.",
-          "key_entities": [
-            {
-              "qualified_name": "GitDiffTool",
-              "reference_file": "agents/tools/external_deps.py"
-            },
-            {
-              "qualified_name": "PackageDependenciesTool",
-              "reference_file": "agents/tools/external_deps.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/tools/external_deps.py",
             "agents/tools/read_git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "9d5dd27289b847d8",
+          "component_id": "cadc2fdd5bbfc2aa",
           "can_expand": true
         },
         {
-          "name": "Documentation Provider",
-          "description": "Discovers and parses project‑level documentation (READMEs, Markdown) to capture high‑level design intent and developer instructions.",
+          "name": "Dependency Analyzer",
+          "description": "Scans and parses project manifests (e.g., pyproject.toml) to identify external libraries and the broader ecosystem the project relies on.",
           "key_entities": [
             {
-              "qualified_name": "ReadDocTool",
-              "reference_file": "agents/tools/read_docs.py"
-            },
-            {
-              "qualified_name": "SearchDocsTool",
-              "reference_file": "agents/tools/read_docs.py"
+              "qualified_name": "agents.tools.dependency_tools.DependencyAnalyzer",
+              "reference_file": "agents/tools/external_deps.py"
             }
           ],
           "assigned_files": [
-            "agents/tools/read_docs.py"
+            "agents/tools/external_deps.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "bbfa52e386817910",
+          "component_id": "ab8e34b62850835f",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "injects shared RepoContext into",
-          "src_name": "Toolkit Orchestrator",
+          "relation": "Injects the shared RepoContext into every tool instance during initialization.",
+          "src_name": "Toolkit Registry",
           "dst_name": "Repository Context Manager",
-          "src_id": "407832532a9a73ff",
+          "src_id": "f9f1df0f4af664fa",
           "dst_id": "8f80fe6db117abfa"
         },
         {
-          "relation": "provides resolved file paths and ignore‑pattern filtering for directory walking",
-          "src_name": "Repository Context Manager",
-          "dst_name": "Structural Topology Analyzer",
-          "src_id": "8f80fe6db117abfa",
-          "dst_id": "a701ed5058c3f218"
+          "relation": "Triggers the retriever to fetch specific code blocks identified during structural analysis for deeper inspection.",
+          "src_name": "Static Analysis Provider",
+          "dst_name": "Source Content Retriever",
+          "src_id": "6d2fa77bc1be3387",
+          "dst_id": "8efdc13106aa9993"
         },
         {
-          "relation": "identifies specific class/method signatures to be targeted for CFG extraction",
-          "src_name": "Structural Topology Analyzer",
-          "dst_name": "Logic & Flow Analyzer",
-          "src_id": "a701ed5058c3f218",
-          "dst_id": "617c7d14d324b1ea"
+          "relation": "Utilizes the centralized directory walking and ignore‑file utilities to generate accurate project maps.",
+          "src_name": "Project Topology Mapper",
+          "dst_name": "Repository Context Manager",
+          "src_id": "db8794d253b2e103",
+          "dst_id": "8f80fe6db117abfa"
         },
         {
-          "relation": "provides specific line numbers or node references for targeted code retrieval",
-          "src_name": "Logic & Flow Analyzer",
-          "dst_name": "Source Code Provider",
-          "src_id": "617c7d14d324b1ea",
-          "dst_id": "ee6547f759dda2e9"
+          "relation": "Retrieves the validated repository root path to execute localized Git commands.",
+          "src_name": "Change Context Provider",
+          "dst_name": "Repository Context Manager",
+          "src_id": "cadc2fdd5bbfc2aa",
+          "dst_id": "8f80fe6db117abfa"
         },
         {
-          "relation": "supplies file paths discovered during tree traversal for full‑file reading",
-          "src_name": "Structural Topology Analyzer",
-          "dst_name": "Source Code Provider",
-          "src_id": "a701ed5058c3f218",
-          "dst_id": "ee6547f759dda2e9"
+          "relation": "Inherits base filesystem utilities to ensure consistent file access and adherence to project‑specific ignore rules.",
+          "src_name": "Source Content Retriever",
+          "dst_name": "Repository Context Manager",
+          "src_id": "8efdc13106aa9993",
+          "dst_id": "8f80fe6db117abfa"
         },
         {
-          "relation": "supplies historical change data to enrich the agent's current session context",
-          "src_name": "Evolution & Dependency Analyzer",
-          "dst_name": "Toolkit Orchestrator",
-          "src_id": "9d5dd27289b847d8",
-          "dst_id": "407832532a9a73ff"
-        },
-        {
-          "relation": "supplies narrative design intent to guide high‑level planning",
-          "src_name": "Documentation Provider",
-          "dst_name": "Toolkit Orchestrator",
-          "src_id": "bbfa52e386817910",
-          "dst_id": "407832532a9a73ff"
-        },
-        {
-          "relation": "ensures file I/O operations respect repository boundaries and encoding settings",
-          "src_name": "Repository Context Manager",
-          "dst_name": "Source Code Provider",
-          "src_id": "8f80fe6db117abfa",
-          "dst_id": "ee6547f759dda2e9"
+          "relation": "Manages the instantiation and registration of tools that transform raw static analysis data into agent‑consumable formats.",
+          "src_name": "Toolkit Registry",
+          "dst_name": "Static Analysis Provider",
+          "src_id": "f9f1df0f4af664fa",
+          "dst_id": "6d2fa77bc1be3387"
         }
       ]
     },

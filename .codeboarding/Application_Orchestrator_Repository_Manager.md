@@ -1,21 +1,20 @@
 ```mermaid
 graph LR
     Application_Orchestrator["Application Orchestrator"]
-    Repository_Manager["Repository Manager"]
-    Change_Filter_Engine["Change & Filter Engine"]
-    Job_State_Manager["Job & State Manager"]
-    Environment_Provisioner["Environment Provisioner"]
-    Analysis_Modeler["Analysis Modeler"]
-    Monitoring_Observability["Monitoring & Observability"]
-    System_Integration_Handler["System Integration Handler"]
-    Application_Orchestrator -- "orchestrates provisioning of" --> Environment_Provisioner
-    Application_Orchestrator -- "queries state from" --> Job_State_Manager
-    System_Integration_Handler -- "provides configuration to" --> Application_Orchestrator
-    Application_Orchestrator -- "triggers cloning in" --> Repository_Manager
-    Repository_Manager -- "feeds diffs to" --> Change_Filter_Engine
-    Change_Filter_Engine -- "passes filtered files to" --> Analysis_Modeler
-    Analysis_Modeler -- "persists results to" --> Job_State_Manager
-    Application_Orchestrator -- "sends telemetry to" --> Monitoring_Observability
+    Repository_State_Manager["Repository State Manager"]
+    Incremental_Change_Detector["Incremental Change Detector"]
+    Tool_Environment_Registry["Tool Environment Registry"]
+    Scope_Exclusion_Manager["Scope & Exclusion Manager"]
+    Job_Persistence_Manager["Job Persistence Manager"]
+    Analysis_Aggregator["Analysis Aggregator"]
+    Observability_Engine["Observability Engine"]
+    Application_Orchestrator -- "triggers environment setup and binary verification" --> Tool_Environment_Registry
+    Application_Orchestrator -- "requests a specific repository state (clone/checkout) to begin the pipeline" --> Repository_State_Manager
+    Repository_State_Manager -- "provides the current and previous commit hashes to calculate the analysis delta" --> Incremental_Change_Detector
+    Incremental_Change_Detector -- "passes raw file changes to be filtered against exclusion rules" --> Scope_Exclusion_Manager
+    Application_Orchestrator -- "sends raw tool outputs to be synthesized into the final unified model" --> Analysis_Aggregator
+    Application_Orchestrator -- "updates job status and saves metadata upon pipeline completion" --> Job_Persistence_Manager
+    Observability_Engine -- "wraps execution steps to capture latency and token usage metrics" --> Application_Orchestrator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -25,70 +24,87 @@ graph LR
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
 ### Application Orchestrator
-The central control plane that manages the application lifecycle. It validates environment variables, processes CLI arguments, and sequences the execution flow between local and remote repository analysis.
+The central brain of the system. It handles CLI entry points, validates the environment (API keys, paths), and coordinates the execution flow between full scans and incremental updates.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`codeboarding.main`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.main.main`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.orchestrator.PipelineManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config.EnvironmentValidator`</a>
 
 
-### Repository Manager
-Handles low-level Git operations, including cloning remote repositories, checking out specific commits, and normalizing file paths for cross‑platform consistency.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`codeboarding.repo_utils.change_detector`</a>
-
-
-### Change & Filter Engine
-A deterministic layer that identifies structural modifications between commits and applies exclusion rules (e.g., .gitignore) to ensure only relevant source files are analyzed.
+### Repository State Manager
+Manages the physical lifecycle of the target codebase. It handles cloning, branch switching, and generates unique state hashes to ensure analysis reproducibility.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`codeboarding.repo_utils.change_detector.ChangeDetector`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`codeboarding.repo_utils.change_detector.RepoIgnoreManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/errors.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.RepositoryManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/errors.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.StateHasher`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/errors.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.ErrorHandler`</a>
 
 
-### Job & State Manager
-Manages the persistence of analysis metadata and incremental state using DuckDB. It allows the system to resume interrupted jobs and perform delta‑updates.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`codeboarding.duckdb_crud`</a>
-
-
-### Environment Provisioner
-Automates the setup of the execution environment by installing and verifying external dependencies like LSP binaries (e.g., JDTLS) and Node.js.
+### Incremental Change Detector
+Optimizes performance by identifying what has changed since the last run. It compares git commit hashes and file-level diffs to determine the minimal set of files requiring re-analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`codeboarding.environment_provisioner`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.ChangeDetector`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.DiffEngine`</a>
 
 
-### Analysis Modeler
-Transforms raw analysis data into a structured UnifiedAnalysisJson schema, handling recursive component extraction and generating human‑readable Markdown documentation.
-
-
-**Related Classes/Methods**: _None_
-
-### Monitoring & Observability
-A cross‑cutting suite that tracks LLM token usage, tool execution latency, and provides step‑by‑step execution traces for debugging agentic workflows.
-
-
-**Related Classes/Methods**: _None_
-
-### System Integration Handler
-Manages host‑specific configurations, such as VS Code extension settings and system health checks, to ensure the tool is compatible with the user's environment.
+### Tool Environment Registry
+Acts as a package manager for the analysis engine. It discovers, installs, and resolves paths for external binaries like LSP servers (Python/TypeScript) and Tokei across different OS platforms.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`codeboarding.system_integration_handler`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.Registry`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.BinaryInstaller`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinginstall.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.PathResolver`</a>
+
+
+### Scope & Exclusion Manager
+Defines the "effective analysis area" by parsing `.codeboardingignore` files. It filters out noise such as build artifacts, node_modules, and test suites.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.scope.IgnoreManager`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/ignore.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.scope.PathFilter`</a>
+
+
+### Job Persistence Manager
+The system's memory. It uses DuckDB to store job metadata, execution status, and links repository versions to specific analysis results for historical tracking.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.persistence.DuckDBClient`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingduckdb_crud.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.persistence.JobStore`</a>
+
+
+### Analysis Aggregator
+A transformation layer that takes raw output from various static analysis tools and maps them into a `UnifiedAnalysisJson` model, preparing the data for LLM consumption.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.aggregator.DataSynthesizer`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.UnifiedAnalysisJson`</a>
+
+
+### Observability Engine
+Monitors the health and costs of the pipeline. It tracks LLM token usage, tool execution latency, and provides telemetry for the agentic workflows.
+
+
+**Related Classes/Methods**:
+
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.observability.MetricsCollector`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.observability.MonitoringMixin`</a>
+- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth_main.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.observability.TelemetryStreamer`</a>
 
 
 
