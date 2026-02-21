@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
@@ -495,6 +496,8 @@ Examples:
     if args.load_env_variables:
         load_dotenv()
         validate_env_vars()
+
+    load_plugins(get_registries())
 
     if args.binary_location:
         update_config(args.binary_location)
