@@ -8,6 +8,10 @@ class hierarchy, call graph edges, package dependencies, and source files.
 The fixture describes what a CORRECT analyzer should find — if the LSP
 disagrees, the test fails, surfacing a real bug.
 
+The analysis is run once per project (via a class-scoped fixture) and
+shared across all validation test methods, so each check is reported
+independently without re-running the expensive LSP analysis.
+
 Usage:
     # Run all edge-case integration tests
     STATIC_ANALYSIS_CONFIG=static_analysis_config.yml uv run pytest tests/integration/test_edge_cases.py -m integration -v
@@ -43,6 +47,16 @@ class EdgeCaseProject:
     language: str
     fixture_file: str
     stability_runs: int = STABILITY_RUNS
+
+
+@dataclass
+class AnalysisRunData:
+    """Holds the analysis results for all stability runs of a single project."""
+
+    project: EdgeCaseProject
+    fixture: dict
+    all_results: list
+    project_path: Path
 
 
 EDGE_CASE_PROJECTS = [
@@ -111,129 +125,146 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
-def _generate_test_params():
-    params = []
-    for project in EDGE_CASE_PROJECTS:
-        markers = [pytest.mark.integration]
-        params.append(pytest.param(project, marks=markers, id=project.name))
-    return params
+def _generate_fixture_params():
+    return [pytest.param(project, marks=[pytest.mark.integration], id=project.name) for project in EDGE_CASE_PROJECTS]
+
+
+@pytest.fixture(scope="class", params=_generate_fixture_params())
+def analysis(request) -> AnalysisRunData:
+    """Run StaticAnalyzer N times per project; results are shared across all test methods in the class."""
+    project: EdgeCaseProject = request.param
+    project_path = PROJECTS_DIR / project.project_dir
+    assert project_path.is_dir(), f"Project directory not found: {project_path}"
+
+    fixture = _load_fixture(project.fixture_file)
+
+    all_results = []
+    for run in range(1, project.stability_runs + 1):
+        analyzer = StaticAnalyzer(project_path)
+        results = analyzer.analyze(cache_dir=None)
+        all_results.append(results)
+        logger.info(
+            "[%s] run %d/%d complete",
+            project.name,
+            run,
+            project.stability_runs,
+        )
+
+    return AnalysisRunData(
+        project=project,
+        fixture=fixture,
+        all_results=all_results,
+        project_path=project_path,
+    )
 
 
 @pytest.mark.integration
 class TestEdgeCases:
-    """Run real LSP analysis against local dummy projects, validate all outputs."""
+    """Run real LSP analysis against local dummy projects, validate all outputs.
 
-    @pytest.mark.parametrize("project", _generate_test_params())
-    def test_static_analysis_edge_cases(self, project: EdgeCaseProject):
-        """Run analysis STABILITY_RUNS times and validate every run produces identical results."""
-        project_path = PROJECTS_DIR / project.project_dir
-        assert project_path.is_dir(), f"Project directory not found: {project_path}"
+    Each validation concern is a separate test method so that pytest reports
+    every failure independently.  The expensive analysis is executed once per
+    project via the class-scoped ``analysis`` fixture.
+    """
 
-        fixture = _load_fixture(project.fixture_file)
-        language = fixture["language"]
+    def test_language_detected(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        detected = analysis.all_results[0].get_languages()
+        assert language in detected, f"Expected language '{language}' not detected. Found: {detected}"
 
-        first_run_metrics: dict | None = None
+    def test_sample_references(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        refs = analysis.all_results[0].results[language].get("references", {})
+        missing = [r for r in analysis.fixture.get("sample_references", []) if r not in refs]
+        assert not missing, f"Missing {len(missing)} expected references:\n" + "\n".join(f"  - {r}" for r in missing)
 
-        for run in range(1, project.stability_runs + 1):
-            # Run real StaticAnalyzer — no mocks, fresh instance each time
-            analyzer = StaticAnalyzer(project_path)
-            results = analyzer.analyze(cache_dir=None)
+    def test_sample_classes_in_hierarchy(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        hierarchy = analysis.all_results[0].get_hierarchy(language)
+        missing = [c for c in analysis.fixture.get("sample_classes", []) if c not in hierarchy]
+        assert not missing, f"Missing {len(missing)} expected classes in hierarchy:\n" + "\n".join(
+            f"  - {c}" for c in missing
+        )
 
-            # --- 1. Verify language detected ---
-            detected_languages = results.get_languages()
-            assert (
-                language in detected_languages
-            ), f"[run {run}] Expected language '{language}' not detected. Found: {detected_languages}"
+    def test_inheritance_relationships(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        hierarchy = analysis.all_results[0].get_hierarchy(language)
+        errors = []
+        for cls_name, expectations in analysis.fixture.get("sample_hierarchy", {}).items():
+            if cls_name not in hierarchy:
+                errors.append(f"Class '{cls_name}' not found in hierarchy")
+                continue
+            cls_info = hierarchy[cls_name]
+            for expected_super in expectations.get("superclasses_contain", []):
+                if expected_super not in cls_info.get("superclasses", []):
+                    errors.append(
+                        f"'{cls_name}' missing superclass '{expected_super}' "
+                        f"(has: {cls_info.get('superclasses', [])})"
+                    )
+            for expected_sub in expectations.get("subclasses_contain", []):
+                if expected_sub not in cls_info.get("subclasses", []):
+                    errors.append(
+                        f"'{cls_name}' missing subclass '{expected_sub}' " f"(has: {cls_info.get('subclasses', [])})"
+                    )
+        assert not errors, f"{len(errors)} inheritance issues:\n" + "\n".join(f"  - {e}" for e in errors)
 
-            # --- 2. Verify sample references exist ---
+    def test_call_graph_edges(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        cfg = analysis.all_results[0].get_cfg(language)
+        actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+        missing = [f"{s} → {d}" for s, d in analysis.fixture.get("sample_edges", []) if (s, d) not in actual_edges]
+        assert not missing, (
+            f"Missing {len(missing)} expected call graph edges:\n"
+            + "\n".join(f"  - {e}" for e in missing)
+            + f"\n\nActual edges ({len(actual_edges)}):\n"
+            + "\n".join(f"  - {s} → {d}" for s, d in sorted(actual_edges))
+        )
+
+    def test_package_dependencies(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        deps = analysis.all_results[0].get_package_dependencies(language)
+        errors = []
+        for pkg_name, expectations in analysis.fixture.get("sample_package_deps", {}).items():
+            if pkg_name not in deps:
+                errors.append(f"Package '{pkg_name}' not found in dependencies (found: {list(deps.keys())})")
+                continue
+            pkg_info = deps[pkg_name]
+            for expected_import in expectations.get("imports_contain", []):
+                if expected_import not in pkg_info.get("imports", []):
+                    errors.append(
+                        f"'{pkg_name}' missing import '{expected_import}' (has: {pkg_info.get('imports', [])})"
+                    )
+            for expected_importer in expectations.get("imported_by_contain", []):
+                if expected_importer not in pkg_info.get("imported_by", []):
+                    errors.append(
+                        f"'{pkg_name}' missing imported_by '{expected_importer}' "
+                        f"(has: {pkg_info.get('imported_by', [])})"
+                    )
+        assert not errors, f"{len(errors)} package dependency issues:\n" + "\n".join(f"  - {e}" for e in errors)
+
+    def test_source_files(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+        source_files = analysis.all_results[0].get_source_files(language)
+        source_files_rel = {str(Path(f).relative_to(analysis.project_path.resolve())) for f in source_files}
+        missing = [f for f in analysis.fixture.get("expected_source_files_contain", []) if f not in source_files_rel]
+        assert not missing, (
+            f"Missing {len(missing)} expected source files:\n"
+            + "\n".join(f"  - {f}" for f in missing)
+            + f"\n\nActual files:\n"
+            + "\n".join(f"  - {f}" for f in sorted(source_files_rel))
+        )
+
+    def test_stability_across_runs(self, analysis: AnalysisRunData):
+        language = analysis.fixture["language"]
+
+        def _compute_metrics(results):
             refs = results.results[language].get("references", {})
-            missing_refs = []
-            for expected_ref in fixture.get("sample_references", []):
-                if expected_ref not in refs:
-                    missing_refs.append(expected_ref)
-            assert not missing_refs, f"[run {run}] Missing {len(missing_refs)} expected references:\n" + "\n".join(
-                f"  - {r}" for r in missing_refs
-            )
-
-            # --- 3. Verify sample classes in hierarchy ---
             hierarchy = results.get_hierarchy(language)
-            missing_classes = []
-            for expected_cls in fixture.get("sample_classes", []):
-                if expected_cls not in hierarchy:
-                    missing_classes.append(expected_cls)
-            assert (
-                not missing_classes
-            ), f"[run {run}] Missing {len(missing_classes)} expected classes in hierarchy:\n" + "\n".join(
-                f"  - {c}" for c in missing_classes
-            )
-
-            # --- 4. Verify inheritance relationships ---
-            for cls_name, expectations in fixture.get("sample_hierarchy", {}).items():
-                assert cls_name in hierarchy, f"[run {run}] Class '{cls_name}' not found in hierarchy"
-                cls_info = hierarchy[cls_name]
-
-                for expected_super in expectations.get("superclasses_contain", []):
-                    assert expected_super in cls_info.get("superclasses", []), (
-                        f"[run {run}] Class '{cls_name}' should have superclass '{expected_super}', "
-                        f"but superclasses are: {cls_info.get('superclasses', [])}"
-                    )
-
-                for expected_sub in expectations.get("subclasses_contain", []):
-                    assert expected_sub in cls_info.get("subclasses", []), (
-                        f"[run {run}] Class '{cls_name}' should have subclass '{expected_sub}', "
-                        f"but subclasses are: {cls_info.get('subclasses', [])}"
-                    )
-
-            # --- 5. Verify call graph edges ---
-            cfg = results.get_cfg(language)
-            actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-            missing_edges = []
-            for src, dst in fixture.get("sample_edges", []):
-                if (src, dst) not in actual_edges:
-                    missing_edges.append(f"{src} → {dst}")
-            assert not missing_edges, (
-                f"[run {run}] Missing {len(missing_edges)} expected call graph edges:\n"
-                + "\n".join(f"  - {e}" for e in missing_edges)
-                + f"\n\nActual edges ({len(actual_edges)}):\n"
-                + "\n".join(f"  - {s} → {d}" for s, d in sorted(actual_edges))
-            )
-
-            # --- 6. Verify package dependencies ---
             deps = results.get_package_dependencies(language)
-            for pkg_name, expectations in fixture.get("sample_package_deps", {}).items():
-                assert pkg_name in deps, (
-                    f"[run {run}] Package '{pkg_name}' not found in dependencies. " f"Found: {list(deps.keys())}"
-                )
-                pkg_info = deps[pkg_name]
-
-                for expected_import in expectations.get("imports_contain", []):
-                    assert expected_import in pkg_info.get("imports", []), (
-                        f"[run {run}] Package '{pkg_name}' should import '{expected_import}', "
-                        f"but imports are: {pkg_info.get('imports', [])}"
-                    )
-
-                for expected_importer in expectations.get("imported_by_contain", []):
-                    assert expected_importer in pkg_info.get("imported_by", []), (
-                        f"[run {run}] Package '{pkg_name}' should be imported by '{expected_importer}', "
-                        f"but imported_by is: {pkg_info.get('imported_by', [])}"
-                    )
-
-            # --- 7. Verify source files ---
+            cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)
-            source_files_rel = {str(Path(f).relative_to(project_path.resolve())) for f in source_files}
-            missing_files = []
-            for expected_file in fixture.get("expected_source_files_contain", []):
-                if expected_file not in source_files_rel:
-                    missing_files.append(expected_file)
-            assert not missing_files, (
-                f"[run {run}] Missing {len(missing_files)} expected source files:\n"
-                + "\n".join(f"  - {f}" for f in missing_files)
-                + f"\n\nActual files:\n"
-                + "\n".join(f"  - {f}" for f in sorted(source_files_rel))
-            )
-
-            # --- 8. Stability check: metrics must be identical across runs ---
-            current_metrics = {
+            actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+            return {
                 "references": len(refs),
                 "classes": len(hierarchy),
                 "packages": len(deps),
@@ -245,34 +276,17 @@ class TestEdgeCases:
                 "hierarchy_keys": sorted(hierarchy.keys()),
             }
 
-            if first_run_metrics is None:
-                first_run_metrics = current_metrics
-            else:
-                for key in first_run_metrics:
-                    assert current_metrics[key] == first_run_metrics[key], (
-                        f"[run {run}] Stability failure — '{key}' differs from run 1:\n"
-                        f"  run 1: {first_run_metrics[key]}\n"
-                        f"  run {run}: {current_metrics[key]}"
+        first_metrics = _compute_metrics(analysis.all_results[0])
+        errors = []
+        for i, results in enumerate(analysis.all_results[1:], start=2):
+            metrics = _compute_metrics(results)
+            for key in first_metrics:
+                if metrics[key] != first_metrics[key]:
+                    errors.append(
+                        f"[run {i}] '{key}' differs from run 1:\n"
+                        f"    run 1: {first_metrics[key]}\n"
+                        f"    run {i}: {metrics[key]}"
                     )
-
-            print(
-                f"  [run {run}/{project.stability_runs}] PASS — "
-                f"refs={len(refs)}, classes={len(hierarchy)}, "
-                f"edges={len(cfg.edges)}, nodes={len(cfg.nodes)}"
-            )
-
-        # --- Final summary ---
-        print(f"\n{'=' * 70}")
-        print(
-            f"Edge Case Test: {project.name} ({language}) — "
-            f"{project.stability_runs}/{project.stability_runs} runs identical"
+        assert not errors, f"Stability failures across {len(analysis.all_results)} runs:\n" + "\n".join(
+            f"  - {e}" for e in errors
         )
-        print(f"{'=' * 70}")
-        assert first_run_metrics is not None
-        print(f"  References:    {first_run_metrics['references']}")
-        print(f"  Classes:       {first_run_metrics['classes']}")
-        print(f"  Packages:      {first_run_metrics['packages']}")
-        print(f"  Graph nodes:   {first_run_metrics['graph_nodes']}")
-        print(f"  Graph edges:   {first_run_metrics['graph_edges']}")
-        print(f"  Source files:  {first_run_metrics['source_files']}")
-        print(f"{'=' * 70}")
