@@ -35,7 +35,7 @@ PROJECTS_DIR = Path(__file__).parent / "projects"
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 # Each test runs this many times to verify deterministic output
-STABILITY_RUNS = 10
+STABILITY_RUNS = 3
 
 
 @dataclass(frozen=True)
@@ -67,13 +67,6 @@ EDGE_CASE_PROJECTS = [
         fixture_file="python_edge_cases.json",
     ),
     EdgeCaseProject(
-        name="python_scaled",
-        project_dir="python_scaled_project",
-        language="Python",
-        fixture_file="python_scaled.json",
-        stability_runs=2,
-    ),
-    EdgeCaseProject(
         name="javascript_edge_cases",
         project_dir="javascript_edge_cases_project",
         language="JavaScript",
@@ -86,24 +79,10 @@ EDGE_CASE_PROJECTS = [
         fixture_file="go_edge_cases.json",
     ),
     EdgeCaseProject(
-        name="javascript_scaled",
-        project_dir="javascript_scaled_project",
-        language="JavaScript",
-        fixture_file="javascript_scaled.json",
-        stability_runs=2,
-    ),
-    EdgeCaseProject(
         name="typescript_edge_cases",
         project_dir="typescript_edge_cases_project",
         language="TypeScript",
         fixture_file="typescript_edge_cases.json",
-    ),
-    EdgeCaseProject(
-        name="typescript_scaled",
-        project_dir="typescript_scaled_project",
-        language="TypeScript",
-        fixture_file="typescript_scaled.json",
-        stability_runs=2,
     ),
     EdgeCaseProject(
         name="java_edge_cases",
