@@ -58,6 +58,7 @@
     "src.utils.constants.max_retries",
     "src.utils.constants.default_timeout",
     "src.utils.constants.default_label",
+    "src.utils.constants.handler",
     "src.utils.helpers.add",
     "src.utils.helpers.clamp",
     "src.utils.helpers.formatlabel",
@@ -76,6 +77,7 @@
     "src.models.entities.UrgentTask",
     "src.models.entities.Event",
     "src.models.entities.Repository",
+    "src.models.entities.Validator",
     "src.models.entities.EventEmitter",
     "src.services.builder.QueryBuilder",
     "src.unused.orphan.OrphanClass"
@@ -103,6 +105,10 @@
     ["src.index.main", "src.services.processor.describeTask"],
     ["src.index.main", "src.services.processor.filterEntities"],
     ["src.index.main", "src.services.processor.setupEventProcessing"],
+    ["src.index.main", "src.models.entities.add"],
+    ["src.index.main", "src.models.entities.count"],
+    ["src.index.main", "src.models.entities.addRule"],
+    ["src.index.main", "src.models.entities.validate"],
     ["src.index.main", "src.utils.helpers.createMultiplier"],
     ["src.index.main", "src.utils.helpers.compose"],
     ["src.index.main", "src.utils.helpers.formatLabel"],
@@ -127,6 +133,9 @@
     ["src.services.processor.describeTask", "src.models.entities.getLabel"],
     ["src.services.processor.setupEventProcessing", "src.models.entities.on"],
     ["src.services.processor.setupEventProcessing", "src.models.entities.emit"],
+    ["src.services.processor.processTaskChain", "src.services.processor.isHighPriority"],
+    ["src.services.processor.processTaskChain", "src.services.processor.processTask"],
+    ["src.services.processor.summarizeTasks", "src.services.processor.isHighPriority"],
     ["src.services.processor.DEFAULT_HANDLER", "src.utils.helpers.add"]
   ],
   "sample_package_deps": {
