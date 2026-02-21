@@ -99,16 +99,14 @@ class TestExternalDepsTool(unittest.TestCase):
         self.assertIn("composer.json", result)
         self.assertIn("composer.lock", result)
 
-    def test_find_rust_deps(self):
+    def test_ignore_unsupported_rust_deps(self):
         (self.temp_dir / "Cargo.toml").touch()
         (self.temp_dir / "Cargo.lock").touch()
 
         tool = ExternalDepsTool(context=self.context)
         result = tool._run()
 
-        self.assertIn("Found 2 dependency file(s)", result)
-        self.assertIn("Cargo.toml", result)
-        self.assertIn("Cargo.lock", result)
+        self.assertIn("No dependency files found", result)
 
     def test_mixed_dependency_files(self):
         # Create various dependency files

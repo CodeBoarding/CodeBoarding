@@ -27,6 +27,7 @@ def test_detect_uncommitted_changes_uses_working_tree_diff():
         "-C",
         "--find-renames=50%",
         "HEAD",
+        "",
     ]
     assert len(changes.changes) == 1
     assert changes.changes[0].change_type == ChangeType.MODIFIED
@@ -55,6 +56,7 @@ def test_detect_changes_from_commit_uses_working_tree_target():
         "-C",
         "--find-renames=50%",
         "abc123",
+        "HEAD",
     ]
     assert len(changes.changes) == 1
     assert changes.changes[0].change_type == ChangeType.ADDED

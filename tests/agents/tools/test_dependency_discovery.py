@@ -99,41 +99,38 @@ class TestDependencyDiscovery(unittest.TestCase):
 
         self.assertEqual(discovered, ["composer.json", "composer.lock"])
 
-    def test_discovers_rust_dependency_files(self):
+    def test_ignores_unsupported_rust_dependency_files(self):
         (self.temp_dir / "Cargo.toml").touch()
         (self.temp_dir / "Cargo.lock").touch()
 
         discovered = self._relative_results()
 
-        self.assertEqual(discovered, ["Cargo.lock", "Cargo.toml"])
+        self.assertEqual(discovered, [])
 
-    def test_discovers_ruby_dependency_files(self):
+    def test_ignores_unsupported_ruby_dependency_files(self):
         (self.temp_dir / "Gemfile").touch()
         (self.temp_dir / "Gemfile.lock").touch()
 
         discovered = self._relative_results()
 
-        self.assertEqual(discovered, ["Gemfile", "Gemfile.lock"])
+        self.assertEqual(discovered, [])
 
-    def test_discovers_dotnet_dependency_files(self):
+    def test_ignores_unsupported_dotnet_dependency_files(self):
         (self.temp_dir / "Directory.Build.props").touch()
         (self.temp_dir / "Directory.Packages.props").touch()
         (self.temp_dir / "global.json").touch()
 
         discovered = self._relative_results()
 
-        self.assertEqual(
-            discovered,
-            ["Directory.Build.props", "Directory.Packages.props", "global.json"],
-        )
+        self.assertEqual(discovered, [])
 
-    def test_discovers_dart_dependency_files(self):
+    def test_ignores_unsupported_dart_dependency_files(self):
         (self.temp_dir / "pubspec.yaml").touch()
         (self.temp_dir / "pubspec.lock").touch()
 
         discovered = self._relative_results()
 
-        self.assertEqual(discovered, ["pubspec.lock", "pubspec.yaml"])
+        self.assertEqual(discovered, [])
 
     # ── Nested / monorepo discovery (bounded walk) ──
 
