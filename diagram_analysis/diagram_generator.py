@@ -2,13 +2,11 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-from tqdm import tqdm
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component
@@ -242,11 +240,88 @@ class DiagramGenerator:
                 start_time=analysis_start_time,
             )
 
+    def _generate_subcomponents(
+        self,
+        analysis: AnalysisInsights,
+        root_components: list[Component],
+    ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
+        """Generate subcomponents for the given root-level analysis using a frontier queue."""
+        max_workers = min(os.cpu_count() or 4, 8)
+
+        expanded_components: list[Component] = []
+        sub_analyses: dict[str, AnalysisInsights] = {}
+
+        # Group stats to avoid cluttering the local variable scope
+        stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_task: dict[Future, tuple[Component, int]] = {}
+
+            def submit_component(comp: Component, lvl: int):
+                future = executor.submit(self.process_component, comp)
+                future_to_task[future] = (comp, lvl)
+                stats["submitted"] += 1
+                logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
+
+            # 1. Initial Seeding
+            if self.depth_level > 1:
+                for component in root_components:
+                    submit_component(component, 1)
+
+            logger.info(
+                "Subcomponent generation started with %d workers. Initial tasks: %d", max_workers, stats["submitted"]
+            )
+
+            # 2. Process Queue
+            while future_to_task:
+                completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
+
+                for future in completed_futures:
+                    component, level = future_to_task.pop(future)
+                    stats["completed"] += 1
+
+                    try:
+                        comp_name, sub_analysis, new_components = future.result()
+
+                        if comp_name and sub_analysis:
+                            sub_analyses[comp_name] = sub_analysis
+                            expanded_components.append(component)
+                            stats["saves"] += 1
+
+                            logger.debug("Saving intermediate analysis for '%s'", comp_name)
+                            save_analysis(
+                                analysis=analysis,
+                                output_dir=Path(self.output_dir),
+                                sub_analyses=sub_analyses,
+                                repo_name=self.repo_name,
+                            )
+
+                        if new_components and level + 1 < self.depth_level:
+                            for child in new_components:
+                                submit_component(child, level + 1)
+
+                            logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
+
+                    except Exception:
+                        stats["errors"] += 1
+                        logger.exception("Component '%s' generated an exception", component.name)
+
+                logger.info(
+                    "Progress: %d completed, %d in flight, %d errors",
+                    stats["completed"],
+                    len(future_to_task),
+                    stats["errors"],
+                )
+
+            logger.info("Subcomponent generation complete: %s", stats)
+
+        return expanded_components, sub_analyses
+
     def generate_analysis(self):
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
-        Components are analyzed in parallel by level.
+        Components are analyzed in parallel as soon as their parents complete.
         """
         if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
@@ -262,62 +337,11 @@ class DiagramGenerator:
             analysis, cluster_results = self.abstraction_agent.run()
 
             # Get the initial components to analyze (deterministic, no LLM)
-            current_level_components = plan_analysis(analysis)
-            logger.info(f"Found {len(current_level_components)} components to analyze at level 0")
+            root_components = plan_analysis(analysis)
+            logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
-            level = 0
-            max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8 workers max
-
-            # Track components that were actually expanded (have sub-analysis)
-            actually_expanded: list[Component] = []
-
-            # Collect all sub-analyses: component_id -> (AnalysisInsights, expandable_sub_components)
-            all_sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
-
-            # Process each level of components in parallel
-            while current_level_components:
-                level += 1
-                if level == self.depth_level:
-                    break
-                logger.info(f"Processing level {level} with {len(current_level_components)} components")
-                next_level_components = []
-
-                # Process current level components in parallel
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    # Submit all tasks
-                    future_to_component = {
-                        executor.submit(self.process_component, component): component
-                        for component in current_level_components
-                    }
-
-                    # Use tqdm for a progress bar
-                    for future in tqdm(
-                        as_completed(future_to_component),
-                        total=len(future_to_component),
-                        desc=f"Level {level}",
-                    ):
-                        component = future_to_component[future]
-                        try:
-                            comp_id, sub_analysis, new_components = future.result()
-                            if comp_id and sub_analysis:
-                                all_sub_analyses[comp_id] = (sub_analysis, new_components)
-                                actually_expanded.append(component)
-                            if new_components:
-                                next_level_components.extend(new_components)
-                        except Exception as exc:
-                            logging.error(f"Component {component.name} generated an exception: {exc}")
-
-                logger.info(f"Completed level {level}. Found {len(next_level_components)} components for next level")
-                current_level_components = next_level_components
-
-                # Save intermediate progress after each completed level so results survive crashes
-                logger.info(f"Saving intermediate analysis after level {level}")
-                save_analysis(
-                    analysis=analysis,
-                    output_dir=Path(self.output_dir),
-                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
-                    repo_name=self.repo_name,
-                )
+            # Process components using a frontier queue: submit children as soon as parent finishes.
+            expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
             # Build file coverage summary for metadata
             file_coverage_summary = None
@@ -335,7 +359,7 @@ class DiagramGenerator:
                 save_analysis(
                     analysis=analysis,
                     output_dir=Path(self.output_dir),
-                    sub_analyses={cid: sub for cid, (sub, _) in all_sub_analyses.items()},
+                    sub_analyses=sub_analyses,
                     repo_name=self.repo_name,
                     file_coverage_summary=file_coverage_summary,
                 )
@@ -348,7 +372,7 @@ class DiagramGenerator:
             self._write_file_coverage()
 
             # Save manifest for incremental updates
-            self._save_manifest(analysis, actually_expanded)
+            self._save_manifest(analysis, expanded_components)
 
             return [analysis_path]
 

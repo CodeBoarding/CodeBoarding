@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -421,6 +422,75 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(result_name)
         self.assertIsNone(result_analysis)
         self.assertEqual(new_components, [])
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.plan_analysis")
+    def test_generate_analysis_frontier_submits_child_before_slow_sibling_finishes(
+        self, mock_plan_analysis, mock_save_analysis
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+        )
+
+        root_a = Component(
+            name="A", description="Root A", key_entities=[], source_cluster_ids=[1], assigned_files=["a.py"]
+        )
+        root_b = Component(
+            name="B", description="Root B", key_entities=[], source_cluster_ids=[2], assigned_files=["b.py"]
+        )
+        child_a = Component(
+            name="A-child",
+            description="Child of A",
+            key_entities=[],
+            source_cluster_ids=[3],
+            assigned_files=["a_child.py"],
+        )
+
+        root_analysis = AnalysisInsights(description="Root", components=[root_a, root_b], components_relations=[])
+        sub_analysis_a = AnalysisInsights(description="A sub", components=[child_a], components_relations=[])
+        sub_analysis_b = AnalysisInsights(description="B sub", components=[], components_relations=[])
+        sub_analysis_child = AnalysisInsights(description="Child sub", components=[], components_relations=[])
+
+        gen.abstraction_agent = Mock()
+        gen.abstraction_agent.run.return_value = (root_analysis, {})
+        gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
+        gen._save_manifest = Mock()
+        mock_plan_analysis.return_value = [root_a, root_b]
+        mock_save_analysis.return_value = self.output_dir / "analysis.json"
+
+        timestamps: dict[str, float] = {}
+
+        def process_component_side_effect(component: Component):
+            if component.name == "A":
+                timestamps["a_start"] = time.monotonic()
+                time.sleep(0.05)
+                timestamps["a_end"] = time.monotonic()
+                return "A", sub_analysis_a, [child_a]
+            if component.name == "B":
+                timestamps["b_start"] = time.monotonic()
+                time.sleep(0.35)
+                timestamps["b_end"] = time.monotonic()
+                return "B", sub_analysis_b, []
+            if component.name == "A-child":
+                timestamps["child_start"] = time.monotonic()
+                return "A-child", sub_analysis_child, []
+            raise AssertionError(f"Unexpected component: {component.name}")
+
+        gen.process_component = Mock(side_effect=process_component_side_effect)
+
+        result = gen.generate_analysis()
+
+        self.assertEqual(result, [str(self.output_dir / "analysis.json")])
+        self.assertIn("child_start", timestamps)
+        self.assertIn("b_end", timestamps)
+        self.assertLess(timestamps["child_start"], timestamps["b_end"])
+
+        processed_names = [call.args[0].name for call in gen.process_component.call_args_list]
+        self.assertIn("A-child", processed_names)
 
     def test_generate_analysis_uses_root_expandables_for_can_expand(self):
         gen = DiagramGenerator(
