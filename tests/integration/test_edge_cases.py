@@ -176,14 +176,22 @@ class TestEdgeCases:
         language = analysis.fixture["language"]
         refs = analysis.all_results[0].results[language].get("references", {})
         missing = [r for r in analysis.fixture.get("sample_references", []) if r not in refs]
-        assert not missing, f"Missing {len(missing)} expected references:\n" + "\n".join(f"  - {r}" for r in missing)
+        assert not missing, (
+            f"Missing {len(missing)} expected references:\n"
+            + "\n".join(f"  - {r}" for r in missing)
+            + f"\n\nActual references ({len(refs)}):\n"
+            + "\n".join(f"  - {r}" for r in sorted(refs.keys()))
+        )
 
     def test_sample_classes_in_hierarchy(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
         missing = [c for c in analysis.fixture.get("sample_classes", []) if c not in hierarchy]
-        assert not missing, f"Missing {len(missing)} expected classes in hierarchy:\n" + "\n".join(
-            f"  - {c}" for c in missing
+        assert not missing, (
+            f"Missing {len(missing)} expected classes in hierarchy:\n"
+            + "\n".join(f"  - {c}" for c in missing)
+            + f"\n\nActual classes ({len(hierarchy)}):\n"
+            + "\n".join(f"  - {c}" for c in sorted(hierarchy.keys()))
         )
 
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
@@ -206,7 +214,15 @@ class TestEdgeCases:
                     errors.append(
                         f"'{cls_name}' missing subclass '{expected_sub}' " f"(has: {cls_info.get('subclasses', [])})"
                     )
-        assert not errors, f"{len(errors)} inheritance issues:\n" + "\n".join(f"  - {e}" for e in errors)
+        assert not errors, (
+            f"{len(errors)} inheritance issues:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+            + f"\n\nActual hierarchy ({len(hierarchy)}):\n"
+            + "\n".join(
+                f"  - {c}: supers={info.get('superclasses', [])}, subs={info.get('subclasses', [])}"
+                for c, info in sorted(hierarchy.items())
+            )
+        )
 
     def test_call_graph_edges(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
@@ -240,7 +256,15 @@ class TestEdgeCases:
                         f"'{pkg_name}' missing imported_by '{expected_importer}' "
                         f"(has: {pkg_info.get('imported_by', [])})"
                     )
-        assert not errors, f"{len(errors)} package dependency issues:\n" + "\n".join(f"  - {e}" for e in errors)
+        assert not errors, (
+            f"{len(errors)} package dependency issues:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+            + f"\n\nActual packages ({len(deps)}):\n"
+            + "\n".join(
+                f"  - {p}: imports={info.get('imports', [])}, imported_by={info.get('imported_by', [])}"
+                for p, info in sorted(deps.items())
+            )
+        )
 
     def test_source_files(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
