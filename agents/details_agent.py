@@ -21,6 +21,7 @@ from agents.validation import (
     validate_key_entities,
     validate_relation_component_names,
 )
+from caching.details_cache import DetailsCache
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
@@ -41,6 +42,11 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_system_details_message(), agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
+        self._details_cache: DetailsCache | None = None
+        try:
+            self._details_cache = DetailsCache(repo_dir=repo_dir, agent_llm=agent_llm, parsing_llm=parsing_llm)
+        except Exception as e:
+            logger.warning("DetailsAgent cache disabled: %s", e)
 
         self.prompts = {
             "group_clusters": PromptTemplate(
@@ -80,6 +86,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             project_type=project_type,
         )
 
+        if self._details_cache is not None:
+            cached = self._details_cache.get(prompt=prompt, response_model=ClusterAnalysis)
+            if cached is not None:
+                logger.info("[DetailsAgent] Cache hit for cluster grouping: %s", component.name)
+                return cached
+
         # Build validation context using subgraph cluster results
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
@@ -89,6 +101,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         cluster_analysis = self._validation_invoke(
             prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context
         )
+        if self._details_cache is not None:
+            self._details_cache.put(prompt=prompt, payload=cluster_analysis)
         return cluster_analysis
 
     @trace
@@ -119,18 +133,27 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             project_type=project_type,
         )
 
+        if self._details_cache is not None:
+            cached = self._details_cache.get(prompt=prompt, response_model=AnalysisInsights)
+            if cached is not None:
+                logger.info("[DetailsAgent] Cache hit for final analysis: %s", component.name)
+                return cached
+
         # Build validation context with subgraph CFG graphs for edge checking
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
         )
 
-        return self._validation_invoke(
+        analysis = self._validation_invoke(
             prompt,
             AnalysisInsights,
             validators=[validate_relation_component_names, validate_component_relationships, validate_key_entities],
             context=context,
         )
+        if self._details_cache is not None:
+            self._details_cache.put(prompt=prompt, payload=analysis)
+        return analysis
 
     def run(self, component: Component):
         """

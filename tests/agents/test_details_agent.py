@@ -59,6 +59,12 @@ class TestDetailsAgent(unittest.TestCase):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def _mock_llm(self, model_name: str) -> MagicMock:
+        llm = MagicMock()
+        llm.model_name = model_name
+        llm._get_llm_string.return_value = f"llm::{model_name}"
+        return llm
+
     def test_init(self):
         # Test initialization
         mock_llm = MagicMock()
@@ -139,6 +145,98 @@ class TestDetailsAgent(unittest.TestCase):
         mock_validation_invoke.assert_called_once()
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_cluster_grouping_cache_hit(self, mock_validation_invoke):
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v1"),
+        )
+        mock_response = ClusterAnalysis(cluster_components=[])
+        mock_validation_invoke.return_value = mock_response
+
+        first = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+        second = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+
+        self.assertEqual(first.model_dump(), mock_response.model_dump())
+        self.assertEqual(second.model_dump(), mock_response.model_dump())
+        self.assertEqual(mock_validation_invoke.call_count, 1)
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_cluster_grouping_cache_invalidates_on_input_change(self, mock_validation_invoke):
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v1"),
+        )
+        mock_validation_invoke.side_effect = [
+            ClusterAnalysis(cluster_components=[]),
+            ClusterAnalysis(cluster_components=[]),
+        ]
+
+        agent.step_cluster_grouping(self.test_component, "Mock CFG data v1", {})
+        agent.step_cluster_grouping(self.test_component, "Mock CFG data v2", {})
+
+        self.assertEqual(mock_validation_invoke.call_count, 2)
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_cluster_grouping_cache_invalidates_on_model_change(self, mock_validation_invoke):
+        agent_a = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v1"),
+        )
+        agent_b = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v2"),
+        )
+        mock_validation_invoke.side_effect = [
+            ClusterAnalysis(cluster_components=[]),
+            ClusterAnalysis(cluster_components=[]),
+        ]
+
+        agent_a.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+        agent_b.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+
+        self.assertEqual(mock_validation_invoke.call_count, 2)
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_details_cache_keeps_single_record(self, mock_validation_invoke):
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v1"),
+        )
+        first_grouping = ClusterAnalysis(cluster_components=[])
+        final_analysis = AnalysisInsights(description="Final", components=[], components_relations=[])
+        second_grouping = ClusterAnalysis(cluster_components=[])
+
+        mock_validation_invoke.side_effect = [first_grouping, final_analysis, second_grouping]
+
+        grouping_one = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+        agent.step_final_analysis(self.test_component, grouping_one, {})
+        grouping_two = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+
+        self.assertEqual(grouping_one.model_dump(), first_grouping.model_dump())
+        self.assertEqual(grouping_two.model_dump(), second_grouping.model_dump())
+        self.assertEqual(mock_validation_invoke.call_count, 3)
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
     def test_step_final_analysis(self, mock_validation_invoke):
         # Test step_final_analysis
         mock_llm = MagicMock()
@@ -163,6 +261,27 @@ class TestDetailsAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_step_final_analysis_cache_hit(self, mock_validation_invoke):
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=self._mock_llm("details-model-v1"),
+            parsing_llm=self._mock_llm("parse-model-v1"),
+        )
+        mock_response = AnalysisInsights(description="Structure analysis", components=[], components_relations=[])
+        mock_validation_invoke.return_value = mock_response
+
+        cluster_analysis = ClusterAnalysis(cluster_components=[])
+        first = agent.step_final_analysis(self.test_component, cluster_analysis, {})
+        second = agent.step_final_analysis(self.test_component, cluster_analysis, {})
+
+        self.assertEqual(first.model_dump(), mock_response.model_dump())
+        self.assertEqual(second.model_dump(), mock_response.model_dump())
+        self.assertEqual(mock_validation_invoke.call_count, 1)
 
     @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
     @patch("agents.details_agent.DetailsAgent._parse_invoke")
