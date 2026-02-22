@@ -9,6 +9,7 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
+from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
@@ -386,20 +387,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         help="Use smart incremental updates (tries incremental first, falls back to full)",
     )
 
-    # Model selection
-    parser.add_argument(
-        "--agent-model",
-        type=str,
-        default="gemini-3-flash",
-        help="Model name for the agent LLM (e.g. gemini-3-flash, claude-3-7-sonnet-20250219)",
-    )
-    parser.add_argument(
-        "--parsing-model",
-        type=str,
-        default="gpt-4o-mini",
-        help="Model name for the parsing LLM (e.g. gpt-4o-mini, claude-3-haiku-20240307)",
-    )
-
 
 def main():
     """Main entry point for the unified CodeBoarding CLI."""
@@ -411,8 +398,8 @@ Examples:
   # Local repository (output written to <repo>/.codeboarding/)
   codeboarding --local /path/to/repo
 
-  # Local repository with custom depth and model
-  codeboarding --local /path/to/repo --depth-level 2 --agent-model gpt-4o
+  # Local repository with custom depth level
+  codeboarding --local /path/to/repo --depth-level 2
 
   # Remote repository (cloned to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/)
   codeboarding https://github.com/user/repo
@@ -449,8 +436,13 @@ Examples:
     setup_logging(log_dir=output_dir)
     logger.info("Starting CodeBoarding documentation generation...")
 
-    # Store model overrides in the global config so they are picked up by initialize_llms()
-    configure_models(agent_model=args.agent_model, parsing_model=args.parsing_model)
+    # Ensure ~/.codeboarding/config.toml exists (writes template on first run)
+    ensure_config_template()
+
+    # Load ~/.codeboarding/config.toml: inject provider keys into env and store model overrides
+    user_cfg = load_user_config()
+    user_cfg.apply_to_env()
+    configure_models(agent_model=user_cfg.llm.agent_model, parsing_model=user_cfg.llm.parsing_model)
 
     # Validate that an LLM provider key is configured before doing any heavy work
     try:

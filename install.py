@@ -13,11 +13,13 @@ import requests
 from tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
+    get_servers_dir,
     install_archive_tool,
     install_native_tools,
     install_node_tools,
     platform_bin_dir,
 )
+from user_config import ensure_config_template
 
 
 @dataclass(frozen=True, slots=True)
@@ -475,10 +477,10 @@ def run_install(
     Downloads language server binaries to target_dir (defaults to ~/.codeboarding/servers/).
     Safe to call multiple times; already-installed tools are skipped.
     """
-    from tool_registry import get_servers_dir
-
     target = (target_dir or get_servers_dir()).resolve()
     target.mkdir(parents=True, exist_ok=True)
+
+    ensure_config_template()
 
     npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm)
     if npm_available:
@@ -509,7 +511,7 @@ def main() -> None:
 
     print("\n" + "=" * 40)
     print("Setup complete!")
-    print("Configure your LLM provider key in a .env file, then run:")
+    print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
     print("  codeboarding --local /path/to/repo --project-name MyProject")
 
 

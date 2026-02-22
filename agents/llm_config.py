@@ -32,7 +32,13 @@ _parsing_model_override: str | None = None
 
 
 def configure_models(agent_model: str | None = None, parsing_model: str | None = None) -> None:
-    """Set process-wide model overrides.  Call this once at startup."""
+    """Set process-wide model overrides.  Call this once at startup.
+
+    Priority (highest to lowest):
+      1. Values passed here (loaded from ~/.codeboarding/config.toml by the caller)
+      2. AGENT_MODEL / PARSING_MODEL environment variables (handled in initialize_llms)
+      3. Provider defaults defined in LLM_PROVIDERS
+    """
     global _agent_model_override, _parsing_model_override
     _agent_model_override = agent_model
     _parsing_model_override = parsing_model
