@@ -46,12 +46,14 @@ codeboarding https://github.com/user/repo
 
 ```python
 import json
-import os
 from pathlib import Path
-from diagram_analysis import DiagramGenerator
+from diagram_analysis import DiagramGenerator, configure_models
 from diagram_analysis.analysis_json import parse_unified_analysis
 
-os.environ["OPENAI_API_KEY"] = "sk-..."   # or whichever provider you use
+# Pass the key programmatically — shell env vars always take precedence if already set.
+# Use the env-var name for whichever provider you want:
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, OLLAMA_BASE_URL, …
+configure_models(api_keys={"OPENAI_API_KEY": "sk-..."})
 
 repo_path = Path("/path/to/repo")
 output_dir = repo_path / ".codeboarding"
@@ -85,18 +87,25 @@ for comp in root.components:
 
 ## Configuration
 
-Set your LLM provider key as an environment variable (or in a `.env` file):
+LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml`, created automatically on first run:
 
-```bash
-# Choose one LLM provider
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
-OLLAMA_BASE_URL=http://localhost:11434   # for local inference
+```toml
+# ~/.codeboarding/config.toml
 
-# Optional
-GITHUB_TOKEN=ghp_...                    # for private repositories
+[provider]
+# Uncomment exactly one provider key
+# openai_api_key    = "sk-..."
+# anthropic_api_key = "sk-ant-..."
+# google_api_key    = "AIza..."
+# ollama_base_url   = "http://localhost:11434"
+
+[llm]
+# Optional: override the default model for your active provider
+# agent_model   = "gemini-3-flash"
+# parsing_model = "gemini-3-flash"
 ```
+
+Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes. For private repositories, set `GITHUB_TOKEN` in your environment.
 
 > **Tip:** Google Gemini 3 Pro consistently produces the best diagram quality for complex codebases.
 
@@ -116,8 +125,6 @@ codeboarding --local PATH             # local: analyze in-place
 | `--incremental` | Smart incremental update (only re-analyze changed files) |
 | `--full` | Force full reanalysis, skip incremental detection |
 | `--partial-component-id ID` | Update a single component by its ID |
-| `--agent-model MODEL` | Override the agent LLM model (e.g. `gpt-4o`, `claude-3-7-sonnet-20250219`) |
-| `--parsing-model MODEL` | Override the parsing LLM model (e.g. `gpt-4o-mini`) |
 | `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
 | `--upload` | Upload results to GeneratedOnBoardings repo (remote only) |
 | `--enable-monitoring` | Enable run monitoring |

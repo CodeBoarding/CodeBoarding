@@ -31,17 +31,33 @@ _agent_model_override: str | None = None
 _parsing_model_override: str | None = None
 
 
-def configure_models(agent_model: str | None = None, parsing_model: str | None = None) -> None:
-    """Set process-wide model overrides.  Call this once at startup.
+def configure_models(
+    agent_model: str | None = None,
+    parsing_model: str | None = None,
+    api_keys: dict[str, str] | None = None,
+) -> None:
+    """Set process-wide model and provider overrides.  Call this once at startup.
+
+    ``api_keys`` maps provider env-var names to values, e.g.::
+
+        configure_models(api_keys={"OPENAI_API_KEY": "sk-..."})
+
+    Keys already present in the shell environment are never overwritten, so
+    CI/CD pipelines that export keys directly retain full control.
 
     Priority (highest to lowest):
-      1. Values passed here (loaded from ~/.codeboarding/config.toml by the caller)
-      2. AGENT_MODEL / PARSING_MODEL environment variables (handled in initialize_llms)
-      3. Provider defaults defined in LLM_PROVIDERS
+      1. Shell environment variables (set before the process starts)
+      2. ``api_keys`` passed here  /  values from ~/.codeboarding/config.toml
+      3. AGENT_MODEL / PARSING_MODEL environment variables (for model names)
+      4. Provider defaults defined in LLM_PROVIDERS
     """
     global _agent_model_override, _parsing_model_override
     _agent_model_override = agent_model
     _parsing_model_override = parsing_model
+    if api_keys:
+        for env_var, value in api_keys.items():
+            if value and not os.environ.get(env_var):
+                os.environ[env_var] = value
 
 
 @dataclass

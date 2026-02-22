@@ -77,32 +77,30 @@ python install.py
 > `python install.py` downloads language server binaries to `~/.codeboarding/servers/` (shared across all projects).
 > `npm` is required (used for Python, TypeScript, JavaScript, and PHP language servers). If `npm` is not found, you will be prompted to install it via `nodeenv`; declining will abort setup.
 
-### Environment Variables
+### Configuration
 
-Set exactly **one** LLM provider key. Everything else is optional:
+LLM provider keys and model overrides live in `~/.codeboarding/config.toml`, created automatically on first run:
 
-```bash
-# LLM Provider — set exactly one
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-VERCEL_API_KEY=
-AWS_BEARER_TOKEN_BEDROCK=
-OLLAMA_BASE_URL=               # for local inference
-CEREBRAS_API_KEY=
-DEEPSEEK_API_KEY=
+```toml
+# ~/.codeboarding/config.toml
 
-# Optional provider overrides
-OPENAI_BASE_URL=               # Custom OpenAI-compatible endpoint
-VERCEL_BASE_URL=               # Custom Vercel AI gateway endpoint
+[provider]
+# Uncomment exactly one provider key
+# openai_api_key    = "sk-..."
+# anthropic_api_key = "sk-ant-..."
+# google_api_key    = "AIza..."
+# vercel_api_key    = "vck_..."
+# ollama_base_url   = "http://localhost:11434"
 
-# Optional
-GITHUB_TOKEN=                  # For private repositories
-LANGSMITH_TRACING=false        # Enable LangSmith tracing
-LANGSMITH_ENDPOINT=
-LANGSMITH_PROJECT=
-LANGCHAIN_API_KEY=
+[llm]
+# Optional: override the default model for your active provider
+# agent_model   = "gemini-3-flash"
+# parsing_model = "gemini-3-flash"
 ```
+
+Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes.
+
+For private repositories, set `GITHUB_TOKEN` in your environment.
 
 > 💡 **Tip:** Our experience has shown that using **Google Gemini‑2.5‑Pro** yields the best results for complex diagram
 > generation tasks.
@@ -131,10 +129,6 @@ python main.py https://github.com/user/repo
 - `--full` — Force full reanalysis, skip incremental detection
 - `--partial-component-id <id>` — Update a single component by its ID (local repos only)
 
-**Model selection:**
-- `--agent-model <model>` — Override the agent LLM model (e.g. `gemini-3-flash`, `claude-3-7-sonnet-20250219`)
-- `--parsing-model <model>` — Override the parsing LLM model (e.g. `gpt-4o-mini`)
-
 **Advanced:**
 - `--binary-location <path>` — Custom path to language server binaries (overrides `~/.codeboarding/servers/`)
 - `--upload` — Upload results to GeneratedOnBoardings repo (remote repos only)
@@ -146,8 +140,8 @@ python main.py https://github.com/user/repo
 # Analyze a local repository
 python main.py --local ./my-project
 
-# Analyze with custom depth and model
-python main.py --local ./my-project --depth-level 2 --agent-model gpt-4o
+# Analyze with custom depth
+python main.py --local ./my-project --depth-level 2
 
 # Analyze a remote repository
 python main.py https://github.com/pytorch/pytorch
