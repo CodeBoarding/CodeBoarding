@@ -13,6 +13,7 @@ import requests
 from tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
+    _write_manifest,
     get_servers_dir,
     install_archive_tool,
     install_native_tools,
@@ -505,14 +506,12 @@ def main() -> None:
 
     run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
 
-    from tool_registry import _write_manifest
-
     _write_manifest()
 
     print("\n" + "=" * 40)
     print("Setup complete!")
     print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
-    print("  codeboarding --local /path/to/repo --project-name MyProject")
+    print("  codeboarding --local /path/to/repo")
 
 
 if __name__ == "__main__":
