@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-21T14:58:29.464339+00:00",
-  "overall_score": 0.9697313658721151,
+  "timestamp": "2026-02-22T10:51:32.502244+00:00",
+  "overall_score": 0.9715693707354056,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -160,7 +160,7 @@
       "check_type": "circular_dependencies",
       "cycles": [
         "health -> core -> health",
-        "caching -> agents -> caching",
+        "agents -> caching -> agents",
         "agents -> static_analyzer -> agents"
       ],
       "packages_checked": 24,
@@ -214,9 +214,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 65,
-      "findings_count": 65,
-      "warning_count": 65,
+      "total_entities_checked": 60,
+      "findings_count": 60,
+      "warning_count": 60,
       "score": 0.0,
       "finding_groups": [
         {
@@ -253,34 +253,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 83,
-              "line_end": 83,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 83,
-              "line_end": 83,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 336,
-              "line_end": 336,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 336,
-              "line_end": 336,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 0,
@@ -299,13 +271,6 @@
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 2,
               "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"exc_type\" is not accessed",
-              "file_path": "monitoring/writers.py",
-              "line_start": 53,
-              "line_end": 53,
               "metric_value": 0.0
             },
             {
@@ -334,34 +299,6 @@
               "file_path": "monitoring/__init__.py",
               "line_start": 11,
               "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"matches\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 285,
-              "line_end": 285,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"metrics\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 288,
-              "line_end": 288,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"total_changes\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 309,
-              "line_end": 309,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"total_changes\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 309,
-              "line_end": 309,
               "metric_value": 0.0
             },
             {
@@ -510,6 +447,20 @@
               "line_start": 10,
               "line_end": 10,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_filter_changes_for_scope\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 214,
+              "line_end": 214,
+              "metric_value": 0.0
             }
           ]
         },
@@ -657,6 +608,13 @@
               "line_start": 10,
               "line_end": 10,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
             }
           ]
         },
@@ -691,6 +649,20 @@
               "file_path": "agents/prompts/prompt_factory.py",
               "line_start": 78,
               "line_end": 78,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Functions/methods defined but never called",
+          "entities": [
+            {
+              "entity_name": "[unused_function] Function \"_filter_changes_for_scope\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 214,
+              "line_end": 214,
               "metric_value": 0.0
             }
           ]
@@ -730,19 +702,13 @@
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "static_analyzer/cluster_change_analyzer.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
       "file_path": "agents/validation.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "diagram_analysis/incremental/impact_analyzer.py",
       "total_findings": 4,
       "warning_findings": 4,
       "composite_risk_score": 60.0
@@ -797,12 +763,6 @@
     },
     {
       "file_path": "agents/agent_responses.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
-    },
-    {
-      "file_path": "monitoring/writers.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
