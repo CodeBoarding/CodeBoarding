@@ -50,7 +50,7 @@ class TestUtils(unittest.TestCase):
             self.assertIn("python", result)
 
     def test_get_config_missing_key_raises(self):
-        fake_config = {"lsp_servers": {}, "tools": {}}
+        fake_config: dict[str, dict[str, dict]] = {"lsp_servers": {}, "tools": {}}
         with patch("tool_registry.build_config", return_value=fake_config):
             with self.assertRaises(KeyError) as ctx:
                 get_config("nonexistent_key")
