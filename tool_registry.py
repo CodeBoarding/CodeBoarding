@@ -11,6 +11,8 @@ Adding a new language/tool:
     That's it — install, resolve, and wrapper pick it up automatically.
 """
 
+import importlib.metadata
+import json
 import logging
 import os
 import platform
@@ -132,6 +134,85 @@ TOOL_REGISTRY: list[ToolDependency] = [
         archive_subdir="jdtls",
     ),
 ]
+
+
+# -- User data directory & manifest -------------------------------------------
+
+
+def user_data_dir() -> Path:
+    """Return the user-level persistent storage directory (~/.codeboarding)."""
+    return Path.home() / ".codeboarding"
+
+
+def get_servers_dir() -> Path:
+    """Return the directory where language server binaries are installed."""
+    return user_data_dir() / "servers"
+
+
+def _installed_version() -> str:
+    try:
+        return importlib.metadata.version("codeboarding")
+    except importlib.metadata.PackageNotFoundError:
+        return "dev"
+
+
+def _manifest_path() -> Path:
+    return get_servers_dir() / "installed.json"
+
+
+def _read_manifest() -> dict:
+    p = _manifest_path()
+    if p.exists():
+        return json.loads(p.read_text())
+    return {}
+
+
+def _write_manifest() -> None:
+    p = _manifest_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"version": _installed_version()}, indent=2))
+
+
+def needs_install() -> bool:
+    """Return True when binaries are missing or installed by a different package version."""
+    manifest = _read_manifest()
+    if manifest.get("version") != _installed_version():
+        return True
+    return not has_required_tools(get_servers_dir())
+
+
+def ensure_tools(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
+    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current."""
+    if not needs_install():
+        return
+    from install import run_install  # deferred to avoid circular import at module level
+
+    run_install(
+        target_dir=get_servers_dir(),
+        auto_install_npm=auto_install_npm,
+        auto_install_vcpp=auto_install_vcpp,
+    )
+    _write_manifest()
+
+
+def build_config() -> dict[str, Any]:
+    """Build the tool config dict from ~/.codeboarding/servers/, falling back to system PATH.
+
+    The returned dict has the same shape as VSCODE_CONFIG ("lsp_servers" + "tools")
+    with command paths resolved to absolute paths wherever binaries are found.
+    """
+    servers = get_servers_dir()
+    config = resolve_config(servers)
+    path_config = resolve_config_from_path()
+    # For any entry still pointing to a bare name (not found in servers dir), try system PATH
+    for section in ("lsp_servers", "tools"):
+        for key, entry in config[section].items():
+            cmd = entry.get("command", [])
+            if cmd and not Path(cmd[0]).is_absolute():
+                path_cmd = path_config[section][key].get("command", [])
+                if path_cmd and Path(path_cmd[0]).is_absolute():
+                    entry["command"] = list(path_cmd)
+    return config
 
 
 # -- Public API ----------------------------------------------------------------

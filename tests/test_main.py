@@ -13,55 +13,7 @@ from main import (
     process_local_repository,
     process_remote_repository,
     validate_arguments,
-    validate_env_vars,
 )
-
-
-class TestValidateEnvVars(unittest.TestCase):
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}, clear=True)
-    def test_validate_env_vars_single_key(self):
-        # Should not raise any exception when exactly one key is set
-        try:
-            validate_env_vars()
-        except SystemExit:
-            self.fail("validate_env_vars raised SystemExit unexpectedly")
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_validate_env_vars_no_keys(self):
-        # Should exit when no keys are set
-        with self.assertRaises(SystemExit) as cm:
-            validate_env_vars()
-        self.assertEqual(cm.exception.code, 1)
-
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "   "}, clear=True)
-    def test_validate_env_vars_empty_key_value(self):
-        # Should treat empty/whitespace key values as unset
-        with self.assertRaises(SystemExit) as cm:
-            validate_env_vars()
-        self.assertEqual(cm.exception.code, 1)
-
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "key1", "ANTHROPIC_API_KEY": "key2"}, clear=True)
-    def test_validate_env_vars_multiple_keys(self):
-        # Should exit when multiple keys are set
-        with self.assertRaises(SystemExit) as cm:
-            validate_env_vars()
-        self.assertEqual(cm.exception.code, 2)
-
-    @patch.dict(os.environ, {"GOOGLE_API_KEY": "test_key"}, clear=True)
-    def test_validate_env_vars_google_key(self):
-        # Test with Google API key
-        try:
-            validate_env_vars()
-        except SystemExit:
-            self.fail("validate_env_vars raised SystemExit unexpectedly")
-
-    @patch.dict(os.environ, {"CEREBRAS_API_KEY": "test_key"}, clear=True)
-    def test_validate_env_vars_cerebras_key(self):
-        # Test with Cerebras API key
-        try:
-            validate_env_vars()
-        except SystemExit:
-            self.fail("validate_env_vars raised SystemExit unexpectedly")
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -124,6 +76,8 @@ class TestGenerateAnalysis(unittest.TestCase):
                 depth_level=2,
                 run_id=None,
                 monitoring_enabled=False,
+                agent_model=None,
+                parsing_model=None,
             )
             mock_generator.generate_analysis.assert_called_once()
 
@@ -325,10 +279,8 @@ class TestProcessRemoteRepository(unittest.TestCase):
     @patch("main.clone_repository")
     @patch("main.get_repo_name")
     @patch("main.onboarding_materials_exist")
-    @patch("main.caching_enabled")
     def test_process_remote_repository_with_cache_hit(
         self,
-        mock_caching_enabled,
         mock_materials_exist,
         mock_get_repo_name,
         mock_clone,
@@ -340,19 +292,17 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_upload,
     ):
         # Test with cache hit
-        mock_caching_enabled.return_value = True
         mock_materials_exist.return_value = True
         mock_get_repo_name.return_value = "test_repo"
 
-        with patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "ROOT_RESULT": "/tmp/results"}):
-            process_remote_repository(
-                repo_url="https://github.com/test/repo",
-                cache_check=True,
-            )
+        process_remote_repository(
+            repo_url="https://github.com/test/repo",
+            cache_check=True,
+        )
 
-            # Should return early due to cache hit
-            mock_clone.assert_not_called()
-            mock_generate_analysis.assert_not_called()
+        # Should return early due to cache hit
+        mock_clone.assert_not_called()
+        mock_generate_analysis.assert_not_called()
 
     @patch("main.upload_onboarding_materials")
     @patch("main.copy_files")
@@ -362,10 +312,8 @@ class TestProcessRemoteRepository(unittest.TestCase):
     @patch("main.create_temp_repo_folder")
     @patch("main.clone_repository")
     @patch("main.get_repo_name")
-    @patch("main.caching_enabled")
     def test_process_remote_repository_success(
         self,
-        mock_caching_enabled,
         mock_get_repo_name,
         mock_clone,
         mock_create_temp,
@@ -376,7 +324,6 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_upload,
     ):
         # Test successful processing
-        mock_caching_enabled.return_value = False
         mock_get_repo_name.return_value = "test_repo"
         mock_clone.return_value = "test_repo"
 
@@ -385,21 +332,20 @@ class TestProcessRemoteRepository(unittest.TestCase):
             mock_create_temp.return_value = temp_folder
             mock_generate_analysis.return_value = [Path("analysis.json")]
 
-            with patch.dict(os.environ, {"REPO_ROOT": temp_dir, "ROOT_RESULT": temp_dir}):
-                # Create the repo directory
-                repo_path = Path(temp_dir) / "test_repo"
-                repo_path.mkdir(parents=True, exist_ok=True)
+            # Create the repo directory
+            repo_path = Path("repos") / "test_repo"
+            repo_path.mkdir(parents=True, exist_ok=True)
 
-                process_remote_repository(
-                    repo_url="https://github.com/test/repo",
-                    upload=True,
-                    cache_check=False,
-                )
+            process_remote_repository(
+                repo_url="https://github.com/test/repo",
+                upload=True,
+                cache_check=False,
+            )
 
-                mock_clone.assert_called_once()
-                mock_generate_analysis.assert_called_once()
-                mock_generate_markdown.assert_called_once()
-                mock_remove_temp.assert_called_once()
+            mock_clone.assert_called_once()
+            mock_generate_analysis.assert_called_once()
+            mock_generate_markdown.assert_called_once()
+            mock_remove_temp.assert_called_once()
 
 
 class TestProcessLocalRepository(unittest.TestCase):
@@ -426,6 +372,8 @@ class TestProcessLocalRepository(unittest.TestCase):
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
+                agent_model=None,
+                parsing_model=None,
             )
             self.assertTrue(output_dir.exists())
 
@@ -477,70 +425,49 @@ class TestCopyFiles(unittest.TestCase):
 
 
 class TestValidateArguments(unittest.TestCase):
-    def test_validate_arguments_local_without_project_name(self):
-        # Test local mode without project_name
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = None
-        args.local = "/path/to/repo"
-        args.project_name = None
-        args.partial_component_id = None
-        args.output_dir = None
-
-        validate_arguments(args, parser, is_local=True)
-        parser.error.assert_called_once()
-
     def test_validate_arguments_partial_without_local(self):
         # Test partial update without local mode
         parser = MagicMock()
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
-        args.project_name = "test"
         args.partial_component_id = "test_comp_id"
-        args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_called_once()
 
-    def test_validate_arguments_valid(self):
-        # Test with valid arguments
+    def test_validate_arguments_valid_local(self):
+        # Test with valid local arguments
         parser = MagicMock()
         args = MagicMock()
         args.repositories = None
         args.local = "/path/to/repo"
-        args.project_name = "test"
         args.partial_component_id = None
-        args.output_dir = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_not_called()
 
-    def test_validate_arguments_remote_without_output_dir(self):
-        # Test remote mode requires output_dir
+    def test_validate_arguments_valid_remote(self):
+        # Test valid remote arguments (no output-dir requirement anymore)
         parser = MagicMock()
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
-        args.project_name = None
         args.partial_component_id = None
-        args.output_dir = None
-
-        validate_arguments(args, parser, is_local=False)
-        parser.error.assert_called_once_with("--output-dir is required when using remote repositories")
-
-    def test_validate_arguments_remote_with_output_dir(self):
-        # Test remote mode with output_dir is valid
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = ["https://github.com/test/repo"]
-        args.local = None
-        args.project_name = None
-        args.partial_component_id = None
-        args.output_dir = Path("./analysis")
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_not_called()
+
+    def test_validate_arguments_both_local_and_remote(self):
+        # Test that providing both local and remote raises an error
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = "/path/to/repo"
+        args.partial_component_id = None
+
+        validate_arguments(args, parser, is_local=True)
+        parser.error.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -245,6 +245,16 @@ def _initialize_llm(
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
 
 
+def validate_api_key_provided() -> None:
+    """Raise ValueError if zero or more than one LLM provider key is configured."""
+    active = [name for name, config in LLM_PROVIDERS.items() if config.is_active()]
+    if not active:
+        required = sorted({config.api_key_env for config in LLM_PROVIDERS.values()})
+        raise ValueError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
+    if len(active) > 1:
+        raise ValueError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
+
+
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
     model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
     MONITORING_CALLBACK.model_name = model_name
@@ -256,7 +266,10 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     return model
 
 
-def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
-    agent_llm = initialize_agent_llm(os.getenv("AGENT_MODEL"))
-    parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
+def initialize_llms(
+    agent_model: str | None = None,
+    parsing_model: str | None = None,
+) -> tuple[BaseChatModel, BaseChatModel]:
+    agent_llm = initialize_agent_llm(agent_model or os.getenv("AGENT_MODEL"))
+    parsing_llm = initialize_parsing_llm(parsing_model or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm

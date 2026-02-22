@@ -5,8 +5,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.llm_config import initialize_agent_llm, initialize_parsing_llm
+from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
 from agents.prompts.prompt_factory import LLMType
+
+
+class TestValidateApiKeyProvided:
+    def test_no_keys_raises_value_error(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="No LLM provider API key found"):
+                validate_api_key_provided()
+
+    def test_single_key_passes(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            validate_api_key_provided()  # should not raise
+
+    def test_multiple_keys_raises_value_error(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test", "ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True):
+            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+                validate_api_key_provided()
 
 
 class TestDetectLLMTypeFromModel:
