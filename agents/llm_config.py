@@ -22,6 +22,21 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Module-level model overrides – set once by the orchestrator (main.py) and
+# consumed by initialize_llms() without needing to thread the values through
+# every intermediate function signature.
+# ---------------------------------------------------------------------------
+_agent_model_override: str | None = None
+_parsing_model_override: str | None = None
+
+
+def configure_models(agent_model: str | None = None, parsing_model: str | None = None) -> None:
+    """Set process-wide model overrides.  Call this once at startup."""
+    global _agent_model_override, _parsing_model_override
+    _agent_model_override = agent_model
+    _parsing_model_override = parsing_model
+
 
 @dataclass
 class LLMConfig:
@@ -266,10 +281,7 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     return model
 
 
-def initialize_llms(
-    agent_model: str | None = None,
-    parsing_model: str | None = None,
-) -> tuple[BaseChatModel, BaseChatModel]:
-    agent_llm = initialize_agent_llm(agent_model or os.getenv("AGENT_MODEL"))
-    parsing_llm = initialize_parsing_llm(parsing_model or os.getenv("PARSING_MODEL"))
+def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
+    agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
+    parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm

@@ -76,8 +76,6 @@ class TestGenerateAnalysis(unittest.TestCase):
                 depth_level=2,
                 run_id=None,
                 monitoring_enabled=False,
-                agent_model=None,
-                parsing_model=None,
             )
             mock_generator.generate_analysis.assert_called_once()
 
@@ -372,8 +370,6 @@ class TestProcessLocalRepository(unittest.TestCase):
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
-                agent_model=None,
-                parsing_model=None,
             )
             self.assertTrue(output_dir.exists())
 

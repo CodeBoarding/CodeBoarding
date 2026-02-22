@@ -45,7 +45,7 @@ def generate_markdown(
     repo_ref="",
     expanded_components: set[str] | None = None,
     demo=False,
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> str:
     """
     Generate a Mermaid 'graph LR' diagram from an AnalysisInsights object.
@@ -63,7 +63,7 @@ def generate_markdown(
 
     detail_lines = ["\n## Details\n", f"{insights.description}\n"]
 
-    root_dir = str(repo_path / project) if repo_path else project
+    root_dir = str(repo_path / project)
 
     for comp in insights.components:
         detail_lines.append(component_header(comp.name, comp.component_id, expanded_components))
@@ -113,7 +113,7 @@ def generate_markdown_file(
     expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> Path:
     content = generate_markdown(
         insights,

@@ -62,7 +62,7 @@ def generate_html(
     repo_ref: str = "",
     expanded_components: set[str] | None = None,
     demo=False,
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> str:
     """
     Generate an HTML document with a Cytoscape.js diagram from an AnalysisInsights object.
@@ -72,7 +72,7 @@ def generate_html(
     cytoscape_data = generate_cytoscape_data(insights, expanded_components, project, demo)
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
-    root_dir = str(repo_path / project) if repo_path else project
+    root_dir = str(repo_path / project)
 
     # Build component details HTML
     components_html = ""
@@ -133,7 +133,7 @@ def generate_html_file(
     expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> Path:
     """
     Generate an HTML file with the analysis insights.

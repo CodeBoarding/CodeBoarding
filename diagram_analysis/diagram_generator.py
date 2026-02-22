@@ -53,8 +53,6 @@ class DiagramGenerator:
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
-        agent_model: str | None = None,
-        parsing_model: str | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -64,8 +62,6 @@ class DiagramGenerator:
         self.project_name = project_name
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
-        self.agent_model = agent_model
-        self.parsing_model = parsing_model
         self.force_full_analysis = False  # Set to True to skip incremental updates
 
         self.details_agent: DetailsAgent | None = None
@@ -151,10 +147,7 @@ class DiagramGenerator:
         analysis_start_time = time.time()
 
         # Initialize LLMs before spawning threads so both share the same instances
-        agent_llm, parsing_llm = initialize_llms(
-            agent_model=self.agent_model,
-            parsing_model=self.parsing_model,
-        )
+        agent_llm, parsing_llm = initialize_llms()
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location,

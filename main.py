@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 from tqdm import tqdm
 
-from agents.llm_config import validate_api_key_provided
+from agents.llm_config import configure_models, validate_api_key_provided
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
@@ -53,8 +53,6 @@ def generate_analysis(
     run_id: str | None = None,
     monitoring_enabled: bool = False,
     force_full: bool = False,
-    agent_model: str | None = None,
-    parsing_model: str | None = None,
 ) -> list[Path]:
     generator = DiagramGenerator(
         repo_location=repo_path,
@@ -64,8 +62,6 @@ def generate_analysis(
         depth_level=depth_level,
         run_id=run_id,
         monitoring_enabled=monitoring_enabled,
-        agent_model=agent_model,
-        parsing_model=parsing_model,
     )
     generator.force_full_analysis = force_full
     generated_files = generator.generate_analysis()
@@ -207,8 +203,6 @@ def process_remote_repository(
     cache_check: bool = True,
     run_id: str | None = None,
     monitoring_enabled: bool = False,
-    agent_model: str | None = None,
-    parsing_model: str | None = None,
 ):
     """
     Process a remote repository by cloning and generating documentation.
@@ -236,8 +230,6 @@ def process_remote_repository(
             depth_level=depth_level,
             run_id=run_id,
             monitoring_enabled=monitoring_enabled,
-            agent_model=agent_model,
-            parsing_model=parsing_model,
         )
 
         # Generate markdown documentation for remote repo
@@ -270,8 +262,6 @@ def process_local_repository(
     monitoring_enabled: bool = False,
     incremental: bool = False,
     force_full: bool = False,
-    agent_model: str | None = None,
-    parsing_model: str | None = None,
 ):
     # Handle partial updates
     if component_id:
@@ -293,8 +283,6 @@ def process_local_repository(
             output_dir=output_dir,
             depth_level=depth_level,
             monitoring_enabled=monitoring_enabled,
-            agent_model=agent_model,
-            parsing_model=parsing_model,
         )
         generator.force_full_analysis = force_full
 
@@ -312,8 +300,6 @@ def process_local_repository(
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
         force_full=force_full,
-        agent_model=agent_model,
-        parsing_model=parsing_model,
     )
 
 
@@ -404,13 +390,13 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--agent-model",
         type=str,
-        default=None,
-        help="Model name for the agent LLM (e.g. gpt-4o, claude-3-7-sonnet-20250219)",
+        default="gemini-3-flash",
+        help="Model name for the agent LLM (e.g. gemini-3-flash, claude-3-7-sonnet-20250219)",
     )
     parser.add_argument(
         "--parsing-model",
         type=str,
-        default=None,
+        default="gpt-4o-mini",
         help="Model name for the parsing LLM (e.g. gpt-4o-mini, claude-3-haiku-20240307)",
     )
 
@@ -463,6 +449,9 @@ Examples:
     setup_logging(log_dir=output_dir)
     logger.info("Starting CodeBoarding documentation generation...")
 
+    # Store model overrides in the global config so they are picked up by initialize_llms()
+    configure_models(agent_model=args.agent_model, parsing_model=args.parsing_model)
+
     # Validate that an LLM provider key is configured before doing any heavy work
     try:
         validate_api_key_provided()
@@ -499,8 +488,6 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
-            agent_model=args.agent_model,
-            parsing_model=args.parsing_model,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
@@ -536,8 +523,6 @@ Examples:
                             upload=args.upload,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
-                            agent_model=args.agent_model,
-                            parsing_model=args.parsing_model,
                         )
                     except Exception as e:
                         logger.error(f"Failed to process repository {repo}: {e}")

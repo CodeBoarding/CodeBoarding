@@ -49,7 +49,7 @@ def generate_rst(
     expanded_components: set[str] | None = None,
     demo=False,
     file_name: str = "",
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> str:
     """
     Generate a RST document from an AnalysisInsights object.
@@ -92,7 +92,7 @@ def generate_rst(
     lines.append("")
 
     # Add component details
-    root_dir = str(repo_path / project) if repo_path else project
+    root_dir = str(repo_path / project)
 
     for comp in insights.components:
         lines.append(component_header(comp.name, comp.component_id, expanded_components))
@@ -141,7 +141,7 @@ def generate_rst_file(
     expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
-    repo_path: Path | None = None,
+    repo_path: Path = Path(),
 ) -> Path:
     """
     Generate a RST file with the given insights and save it to the specified directory.
