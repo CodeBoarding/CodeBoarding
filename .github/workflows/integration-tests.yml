@@ -72,8 +72,6 @@ jobs:
           source .venv/bin/activate
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
           echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-          echo "PROJECT_ROOT=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "STATIC_ANALYSIS_CONFIG=$GITHUB_WORKSPACE/static_analysis_config.yml" >> $GITHUB_ENV
 
       - name: Install Go
         if: matrix.language == 'go'
@@ -94,8 +92,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y php
 
-      - name: Setup LSP servers using install.py
-        run: python install.py
+      - name: Setup LSP servers
+        run: codeboarding-setup --auto-install-npm
 
       - name: Run integration tests (${{ matrix.language }})
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v --tb=long

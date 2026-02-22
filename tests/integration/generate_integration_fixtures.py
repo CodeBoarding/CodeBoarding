@@ -25,14 +25,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from dotenv import load_dotenv
-
 # Add project root to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
-# Load .env file to get STATIC_ANALYSIS_CONFIG and other environment variables
-load_dotenv(PROJECT_ROOT / ".env")
 
 from git import Repo
 
@@ -179,8 +174,8 @@ Examples:
     parser.add_argument(
         "--binary-location",
         type=Path,
-        default=PROJECT_ROOT / "static_analyzer" / "servers",
-        help="Path to the binary directory for language servers and tools (default: static_analyzer/servers)",
+        default=Path.home() / ".codeboarding" / "servers",
+        help="Path to the binary directory for language servers and tools (default: ~/.codeboarding/servers/)",
     )
     args = parser.parse_args()
 

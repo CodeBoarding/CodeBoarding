@@ -368,7 +368,7 @@ wheels = [
 
 [[package]]
 name = "codeboarding"
-version = "0.9.0.dev2"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
