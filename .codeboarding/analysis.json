@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-21T15:12:02.834324+00:00",
+    "generated_at": "2026-02-23T12:15:31.185055+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -51,7 +51,8 @@
         "monitoring/writers.py",
         "repo_utils/errors.py",
         "repo_utils/git_diff.py",
-        "tool_registry.py"
+        "tool_registry.py",
+        "user_config.py"
       ],
       "source_cluster_ids": [
         3,
@@ -62,37 +63,52 @@
       "can_expand": true,
       "components": [
         {
-          "name": "CLI Orchestrator",
-          "description": "The primary controller that parses command‑line arguments, validates the environment, and sequences the high‑level pipeline flow.",
+          "name": "Main Orchestrator",
+          "description": "The central coordinator of the analysis pipeline. It manages the end‑to‑end lifecycle, from CLI argument validation and configuration loading to delegating tasks across the repository, analysis, and persistence layers.",
           "key_entities": [
             {
-              "qualified_name": "main.py",
+              "qualified_name": "repos.codeboarding.main.main",
               "reference_file": "main.py"
             },
             {
-              "qualified_name": "health_main.py",
-              "reference_file": "health_main.py"
+              "qualified_name": "repos.codeboarding.orchestrator.Orchestrator",
+              "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.config.UserConfig",
+              "reference_file": "main.py"
             }
           ],
           "assigned_files": [
             "main.py",
-            "health_main.py"
+            "constants.py",
+            "logging_config.py",
+            "user_config.py",
+            "utils.py",
+            "vscode_constants.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "d84e22a611fd670c",
+          "component_id": "b31b6826ba3631a9",
           "can_expand": true
         },
         {
           "name": "Repository Manager",
-          "description": "Handles Git operations including cloning, branch switching, and local filesystem path resolution for the target project.",
+          "description": "Handles all Git‑level operations and local workspace management. It is responsible for cloning, branch detection, and providing a normalized file system interface for subsequent analysis stages.",
           "key_entities": [
             {
-              "qualified_name": "repo_utils/change_detector.py",
-              "reference_file": "repo_utils/change_detector.py"
+              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+              "reference_file": "repo_utils/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.RepoManager.clone_repo",
+              "reference_file": "repo_utils/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.RepoManager.get_workspace_path",
+              "reference_file": "repo_utils/__init__.py"
             }
           ],
           "assigned_files": [
-            "repo_utils/change_detector.py",
             "repo_utils/__init__.py",
             "repo_utils/errors.py"
           ],
@@ -101,11 +117,19 @@
           "can_expand": true
         },
         {
-          "name": "Change Detector",
-          "description": "Identifies modified files between analysis runs to enable incremental processing and optimize LLM usage.",
+          "name": "Change & Diff Analyzer",
+          "description": "Enables incremental processing by identifying structural and content changes between commits. It extracts line‑level diffs to minimize the scope of LLM analysis to only modified components.",
           "key_entities": [
             {
-              "qualified_name": "git_diff.py",
+              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repo_utils.change_detector.DiffAnalyzer",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repo_utils.change_detector.git_diff",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
@@ -114,44 +138,99 @@
             "repo_utils/git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "0c224e15b134016c",
+          "component_id": "cdb94acace3095d0",
           "can_expand": true
         },
         {
-          "name": "Tool Registry & Provisioner",
-          "description": "Manages the lifecycle, installation, and discovery of LSP servers (Python/TS) and binary tools like Tokei.",
+          "name": "Tool & Environment Registry",
+          "description": "Manages the external execution environment, including LSP binaries, Node.js dependencies, and system health checks. It ensures the host system is provisioned for static analysis.",
           "key_entities": [
             {
-              "qualified_name": "tool_registry.py",
+              "qualified_name": "repos.codeboarding.tool_registry.ToolRegistry",
               "reference_file": "tool_registry.py"
             },
             {
-              "qualified_name": "install.py",
-              "reference_file": "install.py"
+              "qualified_name": "repos.codeboarding.tool_registry.Installer",
+              "reference_file": "tool_registry.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.health.health_main",
+              "reference_file": "tool_registry.py"
             }
           ],
           "assigned_files": [
-            "install.py",
-            "tool_registry.py"
+            "tool_registry.py",
+            "health_main.py",
+            "install.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "514fed94a42d044b",
+          "component_id": "c68fbe626639e978",
           "can_expand": true
         },
         {
-          "name": "Job State Manager",
-          "description": "Tracks the status (started, finished, error) and metadata of analysis tasks to support concurrency and recovery.",
+          "name": "Analysis Model Builder",
+          "description": "The static analysis engine that constructs the UnifiedAnalysisJson. It maps code entities (classes, functions) into a hierarchical tree suitable for Mermaid.js visualization.",
           "key_entities": [
             {
-              "qualified_name": "duckdb_crud.py",
+              "qualified_name": "repos.codeboarding.analysis.AnalysisModelBuilder",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.analysis.UnifiedAnalysisJson",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.analysis.ComponentJson",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/analysis_json.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "ea3e0cf9141da08b",
+          "can_expand": true
+        },
+        {
+          "name": "Job & Persistence Manager",
+          "description": "Manages the state and history of analysis runs using DuckDB. It tracks job statuses, repository metadata, and allows for recovery or auditing of previous analysis tasks.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.persistence.JobPersistence",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.persistence.DuckDBManager",
               "reference_file": "duckdb_crud.py"
             }
           ],
           "assigned_files": [
-            "duckdb_crud.py",
-            "diagram_analysis/analysis_json.py",
-            "monitoring/__init__.py",
+            "duckdb_crud.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "1c3755479f9d2d26",
+          "can_expand": true
+        },
+        {
+          "name": "Monitoring & Telemetry Engine",
+          "description": "Captures execution traces, LLM token usage, and performance metrics. It provides an observability layer that wraps the orchestration lifecycle to provide real‑time streaming stats.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.monitoring.MonitoringEngine",
+              "reference_file": "monitoring/callbacks.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.monitoring.MonitoringCallback",
+              "reference_file": "monitoring/callbacks.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.monitoring.MonitorContext",
+              "reference_file": "monitoring/callbacks.py"
+            }
+          ],
+          "assigned_files": [
             "monitoring/callbacks.py",
+            "monitoring/__init__.py",
             "monitoring/context.py",
             "monitoring/mixin.py",
             "monitoring/paths.py",
@@ -159,15 +238,19 @@
             "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "a757bc6d11b13906",
+          "component_id": "358bc1e386878d25",
           "can_expand": true
         },
         {
-          "name": "Ignore Engine",
-          "description": "Implements complex filtering logic (e.g., .gitignore patterns) to exclude non‑essential files from the analysis scope.",
+          "name": "Ignore & Filter Manager",
+          "description": "Implements file‑tree pruning logic based on .gitignore and internal exclusion patterns (e.g., codeboardingignore) to ensure only relevant source code is analyzed.",
           "key_entities": [
             {
-              "qualified_name": "ignore.py",
+              "qualified_name": "repos.codeboarding.ignore.IgnoreManager",
+              "reference_file": "repo_utils/ignore.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.ignore.codeboardingignore",
               "reference_file": "repo_utils/ignore.py"
             }
           ],
@@ -175,82 +258,66 @@
             "repo_utils/ignore.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "346ff049965b5d03",
-          "can_expand": true
-        },
-        {
-          "name": "Environment Configurator",
-          "description": "Provides centralized access to application constants, path resolution, and configuration overrides.",
-          "key_entities": [
-            {
-              "qualified_name": "constants.py",
-              "reference_file": "constants.py"
-            },
-            {
-              "qualified_name": "utils.py",
-              "reference_file": "utils.py"
-            }
-          ],
-          "assigned_files": [
-            "constants.py",
-            "utils.py",
-            "logging_config.py",
-            "vscode_constants.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "049da989a04e2d73",
+          "component_id": "a8f35c7e8e1a9ee2",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers tool verification and installation",
-          "src_name": "CLI Orchestrator",
-          "dst_name": "Tool Registry & Provisioner",
-          "src_id": "d84e22a611fd670c",
-          "dst_id": "514fed94a42d044b"
-        },
-        {
-          "relation": "commands to fetch or update target codebase",
-          "src_name": "CLI Orchestrator",
+          "relation": "delegates repository fetching",
+          "src_name": "Main Orchestrator",
           "dst_name": "Repository Manager",
-          "src_id": "d84e22a611fd670c",
+          "src_id": "b31b6826ba3631a9",
           "dst_id": "defcdfd415214940"
         },
         {
-          "relation": "initializes and updates job records",
-          "src_name": "CLI Orchestrator",
-          "dst_name": "Job State Manager",
-          "src_id": "d84e22a611fd670c",
-          "dst_id": "a757bc6d11b13906"
+          "relation": "invokes environment setup",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Tool & Environment Registry",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "c68fbe626639e978"
         },
         {
-          "relation": "utilizes to calculate diffs",
+          "relation": "updates job status",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Job & Persistence Manager",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "1c3755479f9d2d26"
+        },
+        {
+          "relation": "utilizes",
           "src_name": "Repository Manager",
-          "dst_name": "Change Detector",
+          "dst_name": "Ignore & Filter Manager",
           "src_id": "defcdfd415214940",
-          "dst_id": "0c224e15b134016c"
+          "dst_id": "a8f35c7e8e1a9ee2"
         },
         {
-          "relation": "passes file lists through to filter",
+          "relation": "provides workspace path",
           "src_name": "Repository Manager",
-          "dst_name": "Ignore Engine",
+          "dst_name": "Change & Diff Analyzer",
           "src_id": "defcdfd415214940",
-          "dst_id": "346ff049965b5d03"
+          "dst_id": "cdb94acace3095d0"
         },
         {
-          "relation": "queries for installation paths and version constants",
-          "src_name": "Tool Registry & Provisioner",
-          "dst_name": "Environment Configurator",
-          "src_id": "514fed94a42d044b",
-          "dst_id": "049da989a04e2d73"
+          "relation": "returns ChangeSet",
+          "src_name": "Change & Diff Analyzer",
+          "dst_name": "Main Orchestrator",
+          "src_id": "cdb94acace3095d0",
+          "dst_id": "b31b6826ba3631a9"
         },
         {
-          "relation": "queries previous job metadata",
-          "src_name": "Change Detector",
-          "dst_name": "Job State Manager",
-          "src_id": "0c224e15b134016c",
-          "dst_id": "a757bc6d11b13906"
+          "relation": "consumes file lists",
+          "src_name": "Analysis Model Builder",
+          "dst_name": "Repository Manager",
+          "src_id": "ea3e0cf9141da08b",
+          "dst_id": "defcdfd415214940"
+        },
+        {
+          "relation": "wraps execution context",
+          "src_name": "Monitoring & Telemetry Engine",
+          "dst_name": "Main Orchestrator",
+          "src_id": "358bc1e386878d25",
+          "dst_id": "b31b6826ba3631a9"
         }
       ]
     },
@@ -304,18 +371,114 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Orchestration Engine",
-          "description": "Central supervisor that manages the analysis lifecycle, file classification, and depth planning, coordinating prompts and delegating tasks to specialized agents.",
-          "key_entities": [],
-          "assigned_files": [],
+          "name": "Agent Orchestrator",
+          "description": "The central controller managing the pipeline lifecycle, state transitions, and handoffs between specialized agents. It maintains the global state of the analysis job.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.CodeBoardingAgent",
+              "reference_file": "agents/__init__.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/__init__.py",
+            "agents/agent.py",
+            "agents/constants.py",
+            "agents/llm_config.py"
+          ],
           "source_cluster_ids": [],
-          "component_id": "aeb05b20ba4b13d4",
-          "can_expand": false
+          "component_id": "f9361d9913ef4906",
+          "can_expand": true
         },
         {
-          "name": "Prompt Registry & Factory",
-          "description": "Decoupled system for generating provider‑specific system messages and task templates, interfacing with LLM infrastructure for correct prompt formatting.",
+          "name": "Contextualizer",
+          "description": "Analyzes project‑wide metadata (tech stack, domain, READMEs) to provide the grounding context for all subsequent LLM reasoning.",
           "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.MetaAgent",
+              "reference_file": "agents/meta_agent.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/meta_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "5d494a63ded71360",
+          "can_expand": true
+        },
+        {
+          "name": "Architectural Abstractor",
+          "description": "Performs high‑level clustering of files and modules into logical architectural components based on naming conventions and structural proximity.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.AbstractionAgent",
+              "reference_file": "agents/abstraction_agent.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/abstraction_agent.py",
+            "agents/cluster_methods_mixin.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "b01096ea5fdf5804",
+          "can_expand": true
+        },
+        {
+          "name": "Strategic Planner",
+          "description": "Evaluates the complexity of the initial abstraction and determines which specific components require granular \"drill‑down\" analysis.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.PlannerAgent",
+              "reference_file": "agents/planner_agent.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/planner_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "9dc1b3ce8783126c",
+          "can_expand": true
+        },
+        {
+          "name": "Detail Analyzer",
+          "description": "Conducts deep‑dive inspections of specific components to extract internal logic, sub‑graph relationships, and fine‑grained dependencies.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.DetailsAgent",
+              "reference_file": "agents/dependency_discovery.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/dependency_discovery.py",
+            "agents/details_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "5d4214b385715dd3",
+          "can_expand": true
+        },
+        {
+          "name": "Grounding Engine",
+          "description": "Cross‑references LLM‑proposed mappings with deterministic CFG data to ensure structural validity and prevent hallucinations.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.agent.ValidationContext",
+              "reference_file": "agents/validation.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/validation.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "eb13729eb545dd12",
+          "can_expand": true
+        },
+        {
+          "name": "Prompt Factory",
+          "description": "A decoupled interface for generating provider‑specific prompts (Gemini, OpenAI, etc.) and managing templates to ensure consistent agent behavior.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.prompts.PromptFactory",
+              "reference_file": "agents/prompts/__init__.py"
+            },
             {
               "qualified_name": "repos.codeboarding.prompts.PromptGenerator",
               "reference_file": "agents/prompts/__init__.py"
@@ -333,53 +496,19 @@
             "agents/prompts/prompt_factory.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "827847aab5804062",
+          "component_id": "b3e9ffed11044d2b",
           "can_expand": true
         },
         {
-          "name": "Specialized Analysis Agents",
-          "description": "Suite of agents (Meta, Abstraction, Details) that perform domain‑specific interpretation of code facts, querying the static analysis bridge and populating data models.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.agents.meta_agent",
-              "reference_file": "agents/__init__.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/__init__.py",
-            "agents/abstraction_agent.py",
-            "agents/agent.py",
-            "agents/constants.py",
-            "agents/details_agent.py",
-            "agents/meta_agent.py",
-            "agents/planner_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "56cec86e982e5f5d",
-          "can_expand": true
-        },
-        {
-          "name": "Validation Engine",
-          "description": "Feedback loop that cross‑references LLM‑generated insights against the ground‑truth CFG to prevent hallucinations and informs the orchestrator of failures.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.agent.validation",
-              "reference_file": "agents/validation.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/validation.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "717698077f1ebbf2",
-          "can_expand": true
-        },
-        {
-          "name": "Architectural Data Models",
-          "description": "Pydantic schemas defining the contract layer for inter‑agent communication and final insight representation.",
+          "name": "Schema Registry",
+          "description": "Defines the Pydantic models and structured contracts used for inter‑agent communication and final output serialization.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.models.AnalysisInsights",
+              "reference_file": "agents/agent_responses.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.models.AgentResponses",
               "reference_file": "agents/agent_responses.py"
             }
           ],
@@ -387,85 +516,80 @@
             "agents/agent_responses.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "3567cadfd7612702",
-          "can_expand": true
-        },
-        {
-          "name": "Static Analysis Bridge",
-          "description": "Utility layer that provides agents with filtered, relevant facts from the raw CFG and dependency graphs.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.utils.cluster_utils",
-              "reference_file": "agents/cluster_methods_mixin.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/cluster_methods_mixin.py",
-            "agents/dependency_discovery.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "3e75cb83b92870c1",
-          "can_expand": true
-        },
-        {
-          "name": "LLM Infrastructure",
-          "description": "Manages multi‑provider configurations, API authentication, and shared runtime constants.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.config",
-              "reference_file": "agents/llm_config.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/llm_config.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "58534068b3f59b2e",
+          "component_id": "95a402b1c96ed004",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers specific analysis phases",
-          "src_name": "Orchestration Engine",
-          "dst_name": "Specialized Analysis Agents",
-          "src_id": "aeb05b20ba4b13d4",
-          "dst_id": "56cec86e982e5f5d"
+          "relation": "coordinates",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Contextualizer",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "5d494a63ded71360"
         },
         {
-          "relation": "requests filtered CFG data and dependency clusters",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Static Analysis Bridge",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "3e75cb83b92870c1"
+          "relation": "triggers",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Architectural Abstractor",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "b01096ea5fdf5804"
         },
         {
-          "relation": "compares LLM‑generated component maps against actual CFG facts",
-          "src_name": "Validation Engine",
-          "dst_name": "Static Analysis Bridge",
-          "src_id": "717698077f1ebbf2",
-          "dst_id": "3e75cb83b92870c1"
+          "relation": "validates clusters via",
+          "src_name": "Architectural Abstractor",
+          "dst_name": "Grounding Engine",
+          "src_id": "b01096ea5fdf5804",
+          "dst_id": "eb13729eb545dd12"
         },
         {
-          "relation": "signals validation failures to trigger re‑analysis or correction loops",
-          "src_name": "Validation Engine",
-          "dst_name": "Orchestration Engine",
-          "src_id": "717698077f1ebbf2",
-          "dst_id": "aeb05b20ba4b13d4"
+          "relation": "consults",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Strategic Planner",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "9dc1b3ce8783126c"
         },
         {
-          "relation": "retrieves provider‑specific constants for prompt payloads",
-          "src_name": "Prompt Registry & Factory",
-          "dst_name": "LLM Infrastructure",
-          "src_id": "827847aab5804062",
-          "dst_id": "58534068b3f59b2e"
+          "relation": "directs analysis of",
+          "src_name": "Strategic Planner",
+          "dst_name": "Detail Analyzer",
+          "src_id": "9dc1b3ce8783126c",
+          "dst_id": "5d4214b385715dd3"
         },
         {
-          "relation": "populates structured schemas with interpreted data",
-          "src_name": "Specialized Analysis Agents",
-          "dst_name": "Architectural Data Models",
-          "src_id": "56cec86e982e5f5d",
-          "dst_id": "3567cadfd7612702"
+          "relation": "validates sub‑graphs via",
+          "src_name": "Detail Analyzer",
+          "dst_name": "Grounding Engine",
+          "src_id": "5d4214b385715dd3",
+          "dst_id": "eb13729eb545dd12"
+        },
+        {
+          "relation": "uses",
+          "src_name": "Detail Analyzer",
+          "dst_name": "Prompt Factory",
+          "src_id": "5d4214b385715dd3",
+          "dst_id": "b3e9ffed11044d2b"
+        },
+        {
+          "relation": "uses",
+          "src_name": "Architectural Abstractor",
+          "dst_name": "Prompt Factory",
+          "src_id": "b01096ea5fdf5804",
+          "dst_id": "b3e9ffed11044d2b"
+        },
+        {
+          "relation": "enforces contracts via",
+          "src_name": "Agent Orchestrator",
+          "dst_name": "Schema Registry",
+          "src_id": "f9361d9913ef4906",
+          "dst_id": "95a402b1c96ed004"
+        },
+        {
+          "relation": "adheres to",
+          "src_name": "Detail Analyzer",
+          "dst_name": "Schema Registry",
+          "src_id": "5d4214b385715dd3",
+          "dst_id": "95a402b1c96ed004"
         }
       ]
     },
@@ -1251,65 +1375,33 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Execution Controller",
-          "description": "The subsystem entry point that validates the environment, parses configuration, and triggers the high-level analysis and rendering pipeline. It acts as the bridge between the user (CLI/GitHub Actions) and the internal logic.",
+          "name": "DiagramGenerator",
+          "description": "The central orchestrator of the output phase; coordinates the transformation of CFG data into visual Mermaid diagrams and documentation structures.",
           "key_entities": [
             {
-              "qualified_name": "main",
-              "reference_file": "main.py"
-            },
-            {
-              "qualified_name": "github_action",
-              "reference_file": "github_action.py"
+              "qualified_name": "output_generators.sphinx.DiagramGenerator",
+              "reference_file": "output_generators/sphinx.py"
             }
           ],
           "assigned_files": [
-            "main.py",
-            "github_action.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "1d2d46d24cfd2196",
-          "can_expand": true
-        },
-        {
-          "name": "Analysis Orchestrator",
-          "description": "The central coordinator that manages the analysis lifecycle. It handles the transition from raw repository data to structured architectural models and coordinates incremental updates.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.DiagramGenerator",
-              "reference_file": "diagram_analysis/__init__.py"
-            },
-            {
-              "qualified_name": "DiagramGenerator.generate",
-              "reference_file": "diagram_analysis/__init__.py"
-            }
-          ],
-          "assigned_files": [
+            "output_generators/sphinx.py",
             "diagram_analysis/__init__.py",
             "diagram_analysis/diagram_generator.py",
             "diagram_analysis/version.py",
+            "github_action.py",
+            "main.py",
             "output_generators/__init__.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "06bfa569be6ea92f",
+          "component_id": "2127840e96f9e737",
           "can_expand": true
         },
         {
-          "name": "Manifest Manager",
-          "description": "Maintains the persistent mapping between source code files and discovered architectural components. It ensures that the analysis is reproducible and consistent across runs.",
+          "name": "AnalysisManifest",
+          "description": "The source‑of‑truth data structure containing the hierarchical map of architectural components, relationships, and LLM‑generated insights.",
           "key_entities": [
             {
-              "qualified_name": "AnalysisManifest",
-              "reference_file": "diagram_analysis/manifest.py",
-              "reference_start_line": 24,
-              "reference_end_line": 67
-            },
-            {
-              "qualified_name": "AnalysisManifest.load",
-              "reference_file": "diagram_analysis/manifest.py"
-            },
-            {
-              "qualified_name": "AnalysisManifest.save",
+              "qualified_name": "core.manifest.AnalysisManifest",
               "reference_file": "diagram_analysis/manifest.py"
             }
           ],
@@ -1317,65 +1409,48 @@
             "diagram_analysis/manifest.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b88d14ec4ba30fa4",
+          "component_id": "f603a9ff1abc40f8",
           "can_expand": true
         },
         {
-          "name": "Coverage Tracker",
-          "description": "Handles change detection and tracks which files require re-analysis. It provides the granularity needed for performance‑optimized incremental builds.",
+          "name": "SphinxGenerator",
+          "description": "Specialized generator that produces reStructuredText and configuration files for integration with the Sphinx documentation framework.",
           "key_entities": [
             {
-              "qualified_name": "FileCoverage",
-              "reference_file": "diagram_analysis/file_coverage.py",
-              "reference_start_line": 23,
-              "reference_end_line": 212
-            },
-            {
-              "qualified_name": "FileCoverage.get_status",
-              "reference_file": "diagram_analysis/file_coverage.py"
-            },
-            {
-              "qualified_name": "FileCoverage.update",
-              "reference_file": "diagram_analysis/file_coverage.py"
+              "qualified_name": "output_generators.sphinx.SphinxGenerator",
+              "reference_file": "output_generators/sphinx.py"
             }
           ],
           "assigned_files": [
-            "diagram_analysis/file_coverage.py"
+            "output_generators/sphinx.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "5853310842453d65",
+          "component_id": "e987b155e6ab7ac8",
           "can_expand": true
         },
         {
-          "name": "Markdown Generator",
-          "description": "Transforms the internal analysis model into static Markdown files, primarily utilizing Mermaid.js for architectural diagrams.",
+          "name": "MarkdownGenerator",
+          "description": "Transforms analysis data into standard Markdown files, embedding Mermaid.js code blocks for visual representation in Git platforms.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.output.MarkdownOutputGenerator",
-              "reference_file": "output_generators/markdown.py"
-            },
-            {
-              "qualified_name": "MarkdownOutputGenerator.render",
-              "reference_file": "output_generators/markdown.py"
+              "qualified_name": "output_generators.sphinx.MarkdownGenerator",
+              "reference_file": "output_generators/sphinx.py"
             }
           ],
           "assigned_files": [
+            "output_generators/sphinx.py",
             "output_generators/markdown.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "0156067b663245d6",
+          "component_id": "9d15f26177bc63fb",
           "can_expand": true
         },
         {
-          "name": "HTML Generator",
-          "description": "Produces interactive documentation using Cytoscape.js for dynamic, browser‑based architectural visualizations.",
+          "name": "HTMLGenerator",
+          "description": "Produces standalone, interactive HTML reports that allow users to navigate the codebase hierarchy and view diagrams in a browser.",
           "key_entities": [
             {
-              "qualified_name": "HTMLOutputGenerator",
-              "reference_file": "output_generators/html.py"
-            },
-            {
-              "qualified_name": "HTMLOutputGenerator.render",
+              "qualified_name": "output_generators.html.HTMLGenerator",
               "reference_file": "output_generators/html.py"
             }
           ],
@@ -1384,39 +1459,15 @@
             "output_generators/html_template.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "2a8f4d4d6b2a52b1",
+          "component_id": "a8c51b0e10e69600",
           "can_expand": true
         },
         {
-          "name": "Sphinx Generator",
-          "description": "Generates reStructuredText (RST) files specifically designed for integration into the Sphinx documentation ecosystem.",
+          "name": "MDXGenerator",
+          "description": "Generates React‑compatible Markdown (MDX) files, optimized for modern documentation sites like Docusaurus or Next.js.",
           "key_entities": [
             {
-              "qualified_name": "SphinxOutputGenerator",
-              "reference_file": "output_generators/sphinx.py"
-            },
-            {
-              "qualified_name": "SphinxOutputGenerator.render",
-              "reference_file": "output_generators/sphinx.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/sphinx.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "a57b589dbffbbec6",
-          "can_expand": true
-        },
-        {
-          "name": "MDX Generator",
-          "description": "Emits React‑compatible documentation (MDX) with metadata front‑matter for modern web‑based documentation platforms (e.g., Docusaurus).",
-          "key_entities": [
-            {
-              "qualified_name": "MDXOutputGenerator",
-              "reference_file": "output_generators/mdx.py"
-            },
-            {
-              "qualified_name": "MDXOutputGenerator.render",
+              "qualified_name": "output_generators.mdx.MDXGenerator",
               "reference_file": "output_generators/mdx.py"
             }
           ],
@@ -1424,73 +1475,112 @@
             "output_generators/mdx.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "9e48f95cf2ad4334",
+          "component_id": "fc1684acb946541c",
+          "can_expand": true
+        },
+        {
+          "name": "FileCoverage",
+          "description": "Tracks which source files have been successfully analyzed and documented, ensuring the output reflects the current state of the repository.",
+          "key_entities": [
+            {
+              "qualified_name": "core.coverage.FileCoverage",
+              "reference_file": "diagram_analysis/file_coverage.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/file_coverage.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "89016d3c05bdf757",
+          "can_expand": true
+        },
+        {
+          "name": "MermaidRenderer",
+          "description": "(Logic within DiagramGenerator) Specifically handles the conversion of Control Flow Graph (CFG) nodes and edges into Mermaid.js syntax.",
+          "key_entities": [
+            {
+              "qualified_name": "output_generators.sphinx.MermaidRenderer",
+              "reference_file": "output_generators/sphinx.py"
+            }
+          ],
+          "assigned_files": [
+            "output_generators/sphinx.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "7964a3b9f89c3f22",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers start of analysis pipeline and passes configuration parameters",
-          "src_name": "Execution Controller",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "1d2d46d24cfd2196",
-          "dst_id": "06bfa569be6ea92f"
+          "relation": "retrieves structured architectural data",
+          "src_name": "DiagramGenerator",
+          "dst_name": "AnalysisManifest",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "f603a9ff1abc40f8"
         },
         {
-          "relation": "queries existing component mappings and persists newly discovered architectural entities",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Manifest Manager",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "b88d14ec4ba30fa4"
+          "relation": "orchestrates execution of specific formatters",
+          "src_name": "DiagramGenerator",
+          "dst_name": "SphinxGenerator",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "e987b155e6ab7ac8"
         },
         {
-          "relation": "requests file status to determine which parts of the codebase need fresh analysis",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Coverage Tracker",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "5853310842453d65"
+          "relation": "orchestrates execution of specific formatters",
+          "src_name": "DiagramGenerator",
+          "dst_name": "MarkdownGenerator",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "9d15f26177bc63fb"
         },
         {
-          "relation": "passes the finalized internal model to the selected rendering engines for file emission",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Markdown Generator",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "0156067b663245d6"
+          "relation": "orchestrates execution of specific formatters",
+          "src_name": "DiagramGenerator",
+          "dst_name": "HTMLGenerator",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "a8c51b0e10e69600"
         },
         {
-          "relation": "passes the finalized internal model to the selected rendering engines for file emission",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "HTML Generator",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "2a8f4d4d6b2a52b1"
+          "relation": "orchestrates execution of specific formatters",
+          "src_name": "DiagramGenerator",
+          "dst_name": "MDXGenerator",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "fc1684acb946541c"
         },
         {
-          "relation": "passes the finalized internal model to the selected rendering engines for file emission",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "Sphinx Generator",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "a57b589dbffbbec6"
+          "relation": "queries component metadata",
+          "src_name": "SphinxGenerator",
+          "dst_name": "AnalysisManifest",
+          "src_id": "e987b155e6ab7ac8",
+          "dst_id": "f603a9ff1abc40f8"
         },
         {
-          "relation": "passes the finalized internal model to the selected rendering engines for file emission",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "MDX Generator",
-          "src_id": "06bfa569be6ea92f",
-          "dst_id": "9e48f95cf2ad4334"
+          "relation": "queries component metadata",
+          "src_name": "MarkdownGenerator",
+          "dst_name": "AnalysisManifest",
+          "src_id": "9d15f26177bc63fb",
+          "dst_id": "f603a9ff1abc40f8"
         },
         {
-          "relation": "synchronizes file‑level changes with the component‑level manifest to maintain state consistency",
-          "src_name": "Coverage Tracker",
-          "dst_name": "Manifest Manager",
-          "src_id": "5853310842453d65",
-          "dst_id": "b88d14ec4ba30fa4"
+          "relation": "queries component metadata",
+          "src_name": "HTMLGenerator",
+          "dst_name": "AnalysisManifest",
+          "src_id": "a8c51b0e10e69600",
+          "dst_id": "f603a9ff1abc40f8"
         },
         {
-          "relation": "provides the ground truth of previously analyzed components to avoid redundant AI interpretation",
-          "src_name": "Manifest Manager",
-          "dst_name": "Analysis Orchestrator",
-          "src_id": "b88d14ec4ba30fa4",
-          "dst_id": "06bfa569be6ea92f"
+          "relation": "consults coverage data",
+          "src_name": "DiagramGenerator",
+          "dst_name": "FileCoverage",
+          "src_id": "2127840e96f9e737",
+          "dst_id": "89016d3c05bdf757"
+        },
+        {
+          "relation": "passes relationship data for formatting",
+          "src_name": "MarkdownGenerator",
+          "dst_name": "MermaidRenderer",
+          "src_id": "9d15f26177bc63fb",
+          "dst_id": "7964a3b9f89c3f22"
         }
       ]
     }

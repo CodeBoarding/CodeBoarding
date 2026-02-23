@@ -1,18 +1,23 @@
 ```mermaid
 graph LR
-    Orchestration_Engine["Orchestration Engine"]
-    Prompt_Registry_Factory["Prompt Registry & Factory"]
-    Specialized_Analysis_Agents["Specialized Analysis Agents"]
-    Validation_Engine["Validation Engine"]
-    Architectural_Data_Models["Architectural Data Models"]
-    Static_Analysis_Bridge["Static Analysis Bridge"]
-    LLM_Infrastructure["LLM Infrastructure"]
-    Orchestration_Engine -- "triggers specific analysis phases" --> Specialized_Analysis_Agents
-    Specialized_Analysis_Agents -- "requests filtered CFG data and dependency clusters" --> Static_Analysis_Bridge
-    Validation_Engine -- "compares LLM‑generated component maps against actual CFG facts" --> Static_Analysis_Bridge
-    Validation_Engine -- "signals validation failures to trigger re‑analysis or correction loops" --> Orchestration_Engine
-    Prompt_Registry_Factory -- "retrieves provider‑specific constants for prompt payloads" --> LLM_Infrastructure
-    Specialized_Analysis_Agents -- "populates structured schemas with interpreted data" --> Architectural_Data_Models
+    Agent_Orchestrator["Agent Orchestrator"]
+    Contextualizer["Contextualizer"]
+    Architectural_Abstractor["Architectural Abstractor"]
+    Strategic_Planner["Strategic Planner"]
+    Detail_Analyzer["Detail Analyzer"]
+    Grounding_Engine["Grounding Engine"]
+    Prompt_Factory["Prompt Factory"]
+    Schema_Registry["Schema Registry"]
+    Agent_Orchestrator -- "coordinates" --> Contextualizer
+    Agent_Orchestrator -- "triggers" --> Architectural_Abstractor
+    Architectural_Abstractor -- "validates clusters via" --> Grounding_Engine
+    Agent_Orchestrator -- "consults" --> Strategic_Planner
+    Strategic_Planner -- "directs analysis of" --> Detail_Analyzer
+    Detail_Analyzer -- "validates sub‑graphs via" --> Grounding_Engine
+    Detail_Analyzer -- "uses" --> Prompt_Factory
+    Architectural_Abstractor -- "uses" --> Prompt_Factory
+    Agent_Orchestrator -- "enforces contracts via" --> Schema_Registry
+    Detail_Analyzer -- "adheres to" --> Schema_Registry
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -21,64 +26,78 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Orchestration Engine
-Central supervisor that manages the analysis lifecycle, file classification, and depth planning, coordinating prompts and delegating tasks to specialized agents.
-
-
-**Related Classes/Methods**: _None_
-
-### Prompt Registry & Factory
-Decoupled system for generating provider‑specific system messages and task templates, interfacing with LLM infrastructure for correct prompt formatting.
+### Agent Orchestrator
+The central controller managing the pipeline lifecycle, state transitions, and handoffs between specialized agents. It maintains the global state of the analysis job.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptGenerator`</a>
+- `repos.codeboarding.agent.CodeBoardingAgent`
 
 
-### Specialized Analysis Agents
-Suite of agents (Meta, Abstraction, Details) that perform domain‑specific interpretation of code facts, querying the static analysis bridge and populating data models.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agents.meta_agent`</a>
-
-
-### Validation Engine
-Feedback loop that cross‑references LLM‑generated insights against the ground‑truth CFG to prevent hallucinations and informs the orchestrator of failures.
+### Contextualizer
+Analyzes project‑wide metadata (tech stack, domain, READMEs) to provide the grounding context for all subsequent LLM reasoning.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/validation.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agent.validation`</a>
+- `repos.codeboarding.agent.MetaAgent`
 
 
-### Architectural Data Models
-Pydantic schemas defining the contract layer for inter‑agent communication and final insight representation.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.AnalysisInsights`</a>
-
-
-### Static Analysis Bridge
-Utility layer that provides agents with filtered, relevant facts from the raw CFG and dependency graphs.
+### Architectural Abstractor
+Performs high‑level clustering of files and modules into logical architectural components based on naming conventions and structural proximity.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/cluster_methods_mixin.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.utils.cluster_utils`</a>
+- `repos.codeboarding.agent.AbstractionAgent`
 
 
-### LLM Infrastructure
-Manages multi‑provider configurations, API authentication, and shared runtime constants.
+### Strategic Planner
+Evaluates the complexity of the initial abstraction and determines which specific components require granular "drill‑down" analysis.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.config`</a>
+- `repos.codeboarding.agent.PlannerAgent`
+
+
+### Detail Analyzer
+Conducts deep‑dive inspections of specific components to extract internal logic, sub‑graph relationships, and fine‑grained dependencies.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.agent.DetailsAgent`
+
+
+### Grounding Engine
+Cross‑references LLM‑proposed mappings with deterministic CFG data to ensure structural validity and prevent hallucinations.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.agent.ValidationContext`
+
+
+### Prompt Factory
+A decoupled interface for generating provider‑specific prompts (Gemini, OpenAI, etc.) and managing templates to ensure consistent agent behavior.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.prompts.PromptFactory`
+- `repos.codeboarding.prompts.PromptGenerator`
+
+
+### Schema Registry
+Defines the Pydantic models and structured contracts used for inter‑agent communication and final output serialization.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.models.AnalysisInsights`
+- `repos.codeboarding.models.AgentResponses`
 
 
 

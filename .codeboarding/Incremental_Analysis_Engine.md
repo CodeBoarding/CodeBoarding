@@ -30,7 +30,7 @@ The central controller that drives the update pipeline, coordinates sub‑compon
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py#L55-L464" target="_blank" rel="noopener noreferrer">`IncrementalUpdater`:55-464</a>
+- `IncrementalUpdater`:55-464
 
 
 ### Change Impact Analyzer
@@ -39,7 +39,7 @@ Quantifies structural shifts using similarity metrics and classifies changes int
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/impact_analyzer.py" target="_blank" rel="noopener noreferrer">`ImpactAnalyzer`</a>
+- `ImpactAnalyzer`
 
 
 ### Analysis State Manager
@@ -48,7 +48,7 @@ Manages the persistence and retrieval of historical analysis artifacts (call gra
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/analysis_cache.py#L31-L699" target="_blank" rel="noopener noreferrer">`AnalysisCacheManager`:31-699</a>
+- `AnalysisCacheManager`:31-699
 
 
 ### Update Strategy Router
@@ -57,7 +57,7 @@ Evaluates "dirty" components to decide between a lightweight patch or a full AI�
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/component_checker.py" target="_blank" rel="noopener noreferrer">`ComponentChecker`</a>
+- `ComponentChecker`
 
 
 ### Lightweight Patcher
@@ -66,7 +66,7 @@ Executes fast‑path updates for file renames or moves by patching internal mani
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/path_patching.py" target="_blank" rel="noopener noreferrer">`PathPatcher`</a>
+- `PathPatcher`
 
 
 ### Agentic Re-expansion Engine
@@ -75,7 +75,7 @@ Orchestrates LLM‑based agents to re‑document components that have undergone 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/reexpansion.py" target="_blank" rel="noopener noreferrer">`ReexpansionEngine`</a>
+- `ReexpansionEngine`
 
 
 ### File-Component Mapper
@@ -84,7 +84,7 @@ Maintains the alignment between physical source files and the abstract architect
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/file_manager.py" target="_blank" rel="noopener noreferrer">`FileManager`</a>
+- `FileManager`
 
 
 ### Incremental Schema
@@ -93,7 +93,7 @@ Defines the shared domain language (ChangeImpact, UpdateAction) used to communic
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/models.py" target="_blank" rel="noopener noreferrer">`IncrementalModels`</a>
+- `IncrementalModels`
 
 
 

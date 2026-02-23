@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-02-21T15:12:02.842886+00:00",
+  "generated_at": "2026-02-23T12:15:31.193744+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -121,13 +121,14 @@
     "static_analyzer/scanner.py",
     "static_analyzer/typescript_config_scanner.py",
     "tool_registry.py",
+    "user_config.py",
     "utils.py",
     "vscode_constants.py"
   ],
   "not_analyzed_files": [],
   "summary": {
     "total_files": 0,
-    "analyzed": 121,
+    "analyzed": 122,
     "not_analyzed": 0,
     "not_analyzed_by_reason": {}
   }

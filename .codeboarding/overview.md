@@ -34,9 +34,9 @@ Manages the overall application lifecycle, including project initialization, rep
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.main.main`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.RepositoryManager`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingrepo_utils/change_detector.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.repository.ChangeDetector`</a>
+- `repos.codeboarding.main.main`
+- `repos.codeboarding.repository.RepositoryManager`
+- `repos.codeboarding.repository.ChangeDetector`
 
 
 ### LLM Agent Core [[Expand]](./LLM_Agent_Core.md)
@@ -45,9 +45,9 @@ The intelligent core responsible for driving the code analysis and documentation
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.agent.CodeBoardingAgent`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.prompts.PromptGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/prompts/gemini_flash_prompts.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.models.AnalysisInsights`</a>
+- `repos.codeboarding.agent.CodeBoardingAgent`
+- `repos.codeboarding.prompts.PromptGenerator`
+- `repos.codeboarding.models.AnalysisInsights`
 
 
 ### Static Code Analyzer [[Expand]](./Static_Code_Analyzer.md)
@@ -56,10 +56,10 @@ Performs deep structural and behavioral analysis of the codebase across multiple
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.LSPClient`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.CallGraphBuilder`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.StaticAnalysisResults`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.static_analysis.UnusedCodeAnalyzer`</a>
+- `repos.codeboarding.static_analysis.LSPClient`
+- `repos.codeboarding.static_analysis.CallGraphBuilder`
+- `repos.codeboarding.static_analysis.StaticAnalysisResults`
+- `repos.codeboarding.static_analysis.UnusedCodeAnalyzer`
 
 
 ### Agent Tooling Interface [[Expand]](./Agent_Tooling_Interface.md)
@@ -68,9 +68,9 @@ Provides a set of specialized tools that allow the LLM Agent Core to interact wi
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ReadFileTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.GetCFGTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_source.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.CodeStructureTool`</a>
+- `repos.codeboarding.tools.ReadFileTool`
+- `repos.codeboarding.tools.GetCFGTool`
+- `repos.codeboarding.tools.CodeStructureTool`
 
 
 ### Incremental Analysis Engine [[Expand]](./Incremental_Analysis_Engine.md)
@@ -79,9 +79,9 @@ Optimizes analysis performance by managing the caching of static analysis result
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.IncrementalUpdater`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.AnalysisCache`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/updater.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.incremental.ClusterChangeAnalyzer`</a>
+- `repos.codeboarding.incremental.IncrementalUpdater`
+- `repos.codeboarding.incremental.AnalysisCache`
+- `repos.codeboarding.incremental.ClusterChangeAnalyzer`
 
 
 ### Documentation & Diagram Generator [[Expand]](./Documentation_Diagram_Generator.md)
@@ -90,8 +90,8 @@ Transforms the processed analysis data and insights into user-friendly documenta
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.DiagramGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.MarkdownOutputGenerator`</a>
+- `repos.codeboarding.output.DiagramGenerator`
+- `repos.codeboarding.output.MarkdownOutputGenerator`
 
 
 
