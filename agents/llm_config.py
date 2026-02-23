@@ -240,7 +240,7 @@ LLM_PROVIDERS = {
         api_key_env="OPENROUTER_API_KEY",
         agent_model="google/gemini-2.5-flash",
         parsing_model="google/gemini-2.5-flash",
-        llm_type=LLMType.CLAUDE,
+        llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             "max_tokens": None,
