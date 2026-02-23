@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Dict, Any
 import json
@@ -63,6 +62,7 @@ def generate_html(
     repo_ref: str = "",
     expanded_components: set[str] | None = None,
     demo=False,
+    repo_path: Path = Path(),
 ) -> str:
     """
     Generate an HTML document with a Cytoscape.js diagram from an AnalysisInsights object.
@@ -72,8 +72,7 @@ def generate_html(
     cytoscape_data = generate_cytoscape_data(insights, expanded_components, project, demo)
     cytoscape_json = json.dumps(cytoscape_data, indent=2)
 
-    repo_root = os.getenv("REPO_ROOT")
-    root_dir = os.path.join(repo_root, project) if repo_root else project
+    root_dir = str(repo_path / project)
 
     # Build component details HTML
     components_html = ""
@@ -134,12 +133,18 @@ def generate_html_file(
     expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
+    repo_path: Path = Path(),
 ) -> Path:
     """
     Generate an HTML file with the analysis insights.
     """
     content = generate_html(
-        insights, project=project, repo_ref=repo_ref, expanded_components=expanded_components, demo=demo
+        insights,
+        project=project,
+        repo_ref=repo_ref,
+        expanded_components=expanded_components,
+        demo=demo,
+        repo_path=repo_path,
     )
     html_file = temp_dir / f"{file_name}.html"
     with open(html_file, "w", encoding="utf-8") as f:

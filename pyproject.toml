@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codeboarding"
-version = "0.9.0.dev2"
+version = "0.9.0"
 description = "Interactive Diagrams for Code"
 readme = "PYPI.md"
 license = {text = "MIT"}
@@ -80,12 +80,12 @@ all = [
 
 [tool.setuptools]
 packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "diagram_analysis.incremental", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.lsp_client", "caching"]
-py-modules = ["utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "health_main", "tool_registry"]
+py-modules = ["utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "tool_registry", "user_config", "main", "install"]
 include-package-data = true
 
 [project.scripts]
 codeboarding = "main:main"
-codeboarding-health = "health_main:main"
+codeboarding-setup = "install:main"
 
 [project.urls]
 Repository = "https://github.com/CodeBoarding/CodeBoarding"

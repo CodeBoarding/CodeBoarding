@@ -6,9 +6,10 @@ import shutil
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 from tqdm import tqdm
 
+from agents.llm_config import configure_models, validate_api_key_provided
+from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
@@ -26,7 +27,6 @@ from repo_utils import (
 )
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import (
-    caching_enabled,
     create_temp_repo_folder,
     monitoring_enabled,
     remove_temp_repo_folder,
@@ -35,32 +35,6 @@ from utils import (
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
-
-
-def validate_env_vars():
-    """Validate that required API keys and environment variables are set."""
-    api_provider_keys = [
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "GOOGLE_API_KEY",
-        "AWS_BEARER_TOKEN_BEDROCK",
-        "OLLAMA_BASE_URL",
-        "CEREBRAS_API_KEY",
-        "VERCEL_API_KEY",
-    ]
-    api_env_keys = [key for key in api_provider_keys if (os.getenv(key) or "").strip()]
-
-    if len(api_env_keys) == 0:
-        logger.error(f"API key not set, set one of the following: {api_provider_keys}")
-        exit(1)
-
-    if len(api_env_keys) > 1:
-        logger.error(
-            "Detected multiple API keys set (%s); please set only one of: %s",
-            api_env_keys,
-            api_provider_keys,
-        )
-        exit(2)
 
 
 def onboarding_materials_exist(project_name: str) -> bool:
@@ -234,13 +208,12 @@ def process_remote_repository(
     """
     Process a remote repository by cloning and generating documentation.
     """
-    repo_root = Path(os.getenv("REPO_ROOT", "repos"))
-    root_result = os.getenv("ROOT_RESULT", "results")
+    repo_root = Path("repos")
 
     repo_name = get_repo_name(repo_url)
 
     # Check cache if enabled
-    if cache_check and caching_enabled() and onboarding_materials_exist(repo_name):
+    if cache_check and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
         return
 
@@ -275,10 +248,8 @@ def process_remote_repository(
             copy_files(temp_folder, output_dir)
 
         # Upload if requested
-        if upload and os.path.exists(root_result):
-            upload_onboarding_materials(repo_name, temp_folder, root_result)
-        elif upload:
-            logger.warning(f"ROOT_RESULT directory '{root_result}' does not exist. Skipping upload.")
+        if upload:
+            upload_onboarding_materials(repo_name, temp_folder, "results")
     finally:
         remove_temp_repo_folder(str(temp_folder))
 
@@ -360,17 +331,9 @@ def validate_arguments(args, parser, is_local: bool):
     if has_remote_repos == has_local_repo:
         parser.error("Provide either one or more remote repositories or --local, but not both.")
 
-    # Validate local repository arguments
-    if is_local and not args.project_name:
-        parser.error("--project-name is required when using --local")
-
     # Validate partial update arguments
     if args.partial_component_id and not is_local:
         parser.error("--partial-component-id only works with local repositories")
-
-    # Remote runs must persist output somewhere explicit.
-    if not is_local and args.output_dir is None:
-        parser.error("--output-dir is required when using remote repositories")
 
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
@@ -384,37 +347,21 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     )
     parser.add_argument("--local", type=Path, help="Path to a local repository")
 
-    # Output configuration
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        help="Directory for generated files (required for remote repositories; optional for local, default: ./analysis)",
-    )
-
-    # Local repository specific options
-    parser.add_argument(
-        "--project-name",
-        type=str,
-        help="Name of the project (required for local repositories)",
-    )
-
     # Partial update options
     parser.add_argument(
         "--partial-component-id",
         type=str,
         help="Component ID to update (for partial updates only)",
     )
-    # Advanced options
-    parser.add_argument(
-        "--load-env-variables",
-        action="store_true",
-        help="Load the .env file for environment variables",
-    )
+
+    # Binary/tool configuration
     parser.add_argument(
         "--binary-location",
         type=Path,
-        help="Path to the binary directory for language servers",
+        help="Path to the binary directory for language servers (overrides ~/.codeboarding/servers/)",
     )
+
+    # Analysis options
     parser.add_argument(
         "--depth-level",
         type=int,
@@ -425,16 +372,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         "--upload",
         action="store_true",
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
-    )
-    parser.add_argument(
-        "--no-cache-check",
-        action="store_true",
-        help="Skip checking if materials already exist (remote repos only)",
-    )
-    parser.add_argument(
-        "--project-root",
-        type=Path,
-        help="Project root directory (default: current directory)",
     )
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
@@ -458,25 +395,26 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Remote repositories
-  python main.py https://github.com/user/repo1 --output-dir ./docs
-  python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./output
+  # Local repository (output written to <repo>/.codeboarding/)
+  codeboarding --local /path/to/repo
 
-  # Local repository
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis
+  # Local repository with custom depth level
+  codeboarding --local /path/to/repo --depth-level 2
+
+  # Remote repository (cloned to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/)
+  codeboarding https://github.com/user/repo
 
   # Partial update (update single component by ID)
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis \\
-                 --partial-component-id "a3f2b1c4d5e6f789"
+  codeboarding --local /path/to/repo --partial-component-id "a3f2b1c4d5e6f789"
 
   # Incremental update (smart - detects changes automatically)
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --incremental
+  codeboarding --local /path/to/repo --incremental
 
   # Force full reanalysis (skip incremental detection)
-  python main.py --local /path/to/repo --project-name MyProject --output-dir ./analysis --full
+  codeboarding --local /path/to/repo --full
 
-  # Use custom binary location
-  python main.py --local /path/to/repo --project-name MyProject --binary-location /path/to/binaries
+  # Use custom binary location (e.g. VS Code extension)
+  codeboarding --local /path/to/repo --binary-location /path/to/binaries
         """,
     )
     define_cli_arguments(parser)
@@ -487,39 +425,56 @@ Examples:
     is_local = args.local is not None
     validate_arguments(args, parser, is_local)
 
-    # Setup logging first, before any operations that might log
-    log_dir: Path | None = args.output_dir if args.output_dir else None
-    setup_logging(log_dir=log_dir)
+    # Derive output directory from repo path
+    if is_local:
+        output_dir = args.local.resolve() / ".codeboarding"
+    else:
+        # Remote: will be set per-repo inside the loop below
+        output_dir = None
+
+    # Setup logging
+    setup_logging(log_dir=output_dir)
     logger.info("Starting CodeBoarding documentation generation...")
 
-    # Load environment from .env file if it exists
-    # Validate environment variables (only for remote repos due to .env file - should be modified soon)
-    if args.load_env_variables:
-        load_dotenv()
-        validate_env_vars()
+    # Ensure ~/.codeboarding/config.toml exists (writes template on first run)
+    ensure_config_template()
+
+    # Load ~/.codeboarding/config.toml: inject provider keys into env and store model overrides
+    user_cfg = load_user_config()
+    user_cfg.apply_to_env()
+    configure_models(agent_model=user_cfg.llm.agent_model, parsing_model=user_cfg.llm.parsing_model)
+
+    # Validate that an LLM provider key is configured before doing any heavy work
+    try:
+        validate_api_key_provided()
+    except ValueError as e:
+        logger.error(str(e))
+        raise SystemExit(1)
 
     load_plugins(get_registries())
 
     if args.binary_location:
         update_config(args.binary_location)
+    else:
+        from tool_registry import ensure_tools, needs_install
+
+        if needs_install():
+            logger.info("First run: downloading language server binaries to ~/.codeboarding/servers/ ...")
+            ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
 
-    output_dir = args.output_dir
     if is_local:
-        output_dir = output_dir or Path("./analysis")
-
-    if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created output directory: {output_dir}")
+        initialize_codeboardingignore(output_dir)
 
-    initialize_codeboardingignore(output_dir)
+        # Derive project name from the repo directory name
+        project_name = args.local.resolve().name
 
-    if is_local:
         process_local_repository(
             repo_path=args.local,
             output_dir=output_dir,
-            project_name=args.project_name,
+            project_name=project_name,
             depth_level=args.depth_level,
             component_id=args.partial_component_id,
             monitoring_enabled=should_monitor,
@@ -537,11 +492,12 @@ Examples:
 
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 repo_name = get_repo_name(repo)
-                repo_output_dir = output_dir / repo_name if len(args.repositories) > 1 else output_dir
+                # Clone to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/
+                repo_output_dir = Path.cwd() / repo_name / ".codeboarding"
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
+                initialize_codeboardingignore(repo_output_dir)
 
-                base_name = args.project_name if args.project_name else repo_name
-                run_id = generate_run_id(base_name)
+                run_id = generate_run_id(repo_name)
                 monitoring_dir = get_monitoring_run_dir(run_id, create=should_monitor)
 
                 with monitor_execution(
@@ -557,7 +513,6 @@ Examples:
                             output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
-                            cache_check=not args.no_cache_check,
                             run_id=run_id,
                             monitoring_enabled=should_monitor,
                         )

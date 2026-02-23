@@ -20,13 +20,13 @@
 pip install codeboarding
 ```
 
-After installing, run the setup script to download language server binaries:
+Language server binaries are downloaded automatically on first use. To pre-install them explicitly (useful in CI or restricted environments):
 
 ```bash
-python -m codeboarding.install
+codeboarding-setup
 ```
 
-> The setup script installs LSP servers for static analysis. TypeScript/JavaScript support requires `npm` to be available. If `npm` is not found, those servers are skipped and can be installed manually later.
+> `npm` is required (used for Python, TypeScript, JavaScript, and PHP language servers). If `npm` is not found, it will be automatically installed during the setup. Binaries are stored in `~/.codeboarding/servers/` and shared across all projects.
 
 ---
 
@@ -35,28 +35,31 @@ python -m codeboarding.install
 ### CLI
 
 ```bash
-# Analyze a remote GitHub repository
-codeboarding https://github.com/user/repo --output-dir ./docs
+# Analyze a local repository (output goes to /path/to/repo/.codeboarding/)
+codeboarding --local /path/to/repo
 
-# Analyze a local repository
-codeboarding --local /path/to/repo --project-name MyProject --output-dir ./docs
+# Analyze a remote GitHub repository (cloned to cwd/repo_name/, output to cwd/repo_name/.codeboarding/)
+codeboarding https://github.com/user/repo
 ```
 
 ### Python API
 
 ```python
+import json
 from pathlib import Path
-from static_analyzer import get_static_analysis
-from diagram_analysis import DiagramGenerator
+from diagram_analysis import DiagramGenerator, configure_models
+from diagram_analysis.analysis_json import parse_unified_analysis
+
+# Pass the key programmatically — shell env vars always take precedence if already set.
+# Use the env-var name for whichever provider you want:
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, OLLAMA_BASE_URL, …
+configure_models(api_keys={"OPENAI_API_KEY": "sk-..."})
 
 repo_path = Path("/path/to/repo")
-output_dir = Path("./docs")
+output_dir = repo_path / ".codeboarding"
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Step 1: Run static analysis (no LLM needed)
-static_results = get_static_analysis(repo_path)
-
-# Step 2: Generate diagrams (requires an LLM provider key)
+# Generate the architectural diagram
 generator = DiagramGenerator(
     repo_location=repo_path,
     temp_folder=output_dir,
@@ -64,60 +67,67 @@ generator = DiagramGenerator(
     output_dir=output_dir,
     depth_level=1,
 )
-generator.generate_analysis()
+[analysis_path] = generator.generate_analysis()
+
+# Read and inspect the results
+with open(analysis_path) as f:
+    data = json.load(f)
+
+root, sub_analyses = parse_unified_analysis(data)
+
+print(root.description)
+for comp in root.components:
+    print(f"  {comp.name}: {comp.description}")
+    if comp.component_id in sub_analyses:
+        for sub in sub_analyses[comp.component_id].components:
+            print(f"    └ {sub.name}")
 ```
 
 ---
 
 ## Configuration
 
-Set your LLM provider key in a `.env` file (or as environment variables):
+LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml`, created automatically on first run:
 
-```bash
-# Choose one LLM provider
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
-OLLAMA_BASE_URL=http://localhost:11434   # for local inference
+```toml
+# ~/.codeboarding/config.toml
 
-# Core settings
-REPO_ROOT=./repos                        # where cloned repos are stored
-ROOT_RESULT=./results                    # where outputs are written
-STATIC_ANALYSIS_CONFIG=./static_analysis_config.yml
+[provider]
+# Uncomment exactly one provider key
+# openai_api_key    = "sk-..."
+# anthropic_api_key = "sk-ant-..."
+# google_api_key    = "AIza..."
+# ollama_base_url   = "http://localhost:11434"
 
-# Optional
-AGENT_MODEL=gemini-2.5-pro              # override the default model
-GITHUB_TOKEN=ghp_...                    # for private repositories
+[llm]
+# Optional: override the default model for your active provider
+# agent_model   = "gemini-3-flash"
+# parsing_model = "gemini-3-flash"
 ```
 
-> **Tip:** Google Gemini 2.5 Pro consistently produces the best diagram quality for complex codebases.
+Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes. For private repositories, set `GITHUB_TOKEN` in your environment.
+
+> **Tip:** Google Gemini 3 Pro consistently produces the best diagram quality for complex codebases.
 
 ---
 
 ## CLI Reference
 
 ```
-codeboarding [REPO_URL ...] [OPTIONS]
-codeboarding --local PATH --project-name NAME [OPTIONS]
+codeboarding [REPO_URL ...]           # remote: clone + analyze
+codeboarding --local PATH             # local: analyze in-place
 ```
 
 | Option | Description |
 |---|---|
-| `--local PATH` | Analyze a local repository instead of a remote one |
-| `--project-name NAME` | Project name (required with `--local`) |
-| `--output-dir PATH` | Directory for generated documentation |
+| `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
 | `--depth-level INT` | Diagram depth (default: 1) |
-| `--no-cache-check` | Skip existing documentation check |
-| `--partial-component NAME` | Update a single component in an existing analysis |
-| `--partial-analysis NAME` | Analysis file to update (use with `--partial-component`) |
-
-### Health checks (no LLM required)
-
-```bash
-codeboarding-health --local /path/to/repo --project-name MyProject --output-dir ./health
-```
-
-Runs structural checks (circular dependencies, unused exports, etc.) without calling any LLM.
+| `--incremental` | Smart incremental update (only re-analyze changed files) |
+| `--full` | Force full reanalysis, skip incremental detection |
+| `--partial-component-id ID` | Update a single component by its ID |
+| `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
+| `--upload` | Upload results to GeneratedOnBoardings repo (remote only) |
+| `--enable-monitoring` | Enable run monitoring |
 
 ---
 
