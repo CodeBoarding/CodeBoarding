@@ -235,6 +235,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+  "openrouter": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="OPENROUTER_API_KEY",
+        agent_model="anthropic/claude-3.7-sonnet",
+        parsing_model="anthropic/claude-3-haiku",
+        llm_type=LLMType.CLAUDE,
+        extra_args={
+            "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
 }
 
 
