@@ -29,6 +29,7 @@ _PROVIDER_KEY_TO_ENV: dict[str, str] = {
     "glm_api_key": "GLM_API_KEY",
     "kimi_api_key": "KIMI_API_KEY",
     "ollama_base_url": "OLLAMA_BASE_URL",
+    "openrouter_api_key": "OPENROUTER_API_KEY",
 }
 
 # Template written to ~/.codeboarding/config.toml on first install.
@@ -51,6 +52,7 @@ CONFIG_TEMPLATE = """\
 # glm_api_key               = "..."
 # kimi_api_key              = "..."
 # ollama_base_url           = "http://localhost:11434"
+# openrouter_api_key        = "sk..."
 
 # Optional: override the default models chosen by the active provider.
 # If omitted, each provider's built-in defaults are used.
@@ -74,6 +76,7 @@ class ProviderUserConfig:
     glm_api_key: str | None = None
     kimi_api_key: str | None = None
     ollama_base_url: str | None = None
+    openrouter_api_key: str | None = None
 
 
 @dataclass
@@ -118,6 +121,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             glm_api_key=provider_data.get("glm_api_key") or None,
             kimi_api_key=provider_data.get("kimi_api_key") or None,
             ollama_base_url=provider_data.get("ollama_base_url") or None,
+            openrouter_api_key=provider_data.get("openrouter_api_key") or None,
         ),
         llm=LLMUserConfig(
             agent_model=llm_data.get("agent_model") or None,
