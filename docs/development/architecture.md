@@ -429,22 +429,22 @@ Primary entry point for the CodeBoarding tool; parses CLI arguments, validates e
 
 ```mermaid
 graph LR
-    Main_Orchestrator["Main Orchestrator"]
+    Analysis_Orchestrator["Analysis Orchestrator"]
     Repository_Manager["Repository Manager"]
-    Change_Diff_Analyzer["Change & Diff Analyzer"]
-    Tool_Environment_Registry["Tool & Environment Registry"]
-    Analysis_Model_Builder["Analysis Model Builder"]
-    Job_Persistence_Manager["Job & Persistence Manager"]
-    Monitoring_Telemetry_Engine["Monitoring & Telemetry Engine"]
-    Ignore_Filter_Manager["Ignore & Filter Manager"]
-    Main_Orchestrator -- "delegates repository fetching" --> Repository_Manager
-    Main_Orchestrator -- "invokes environment setup" --> Tool_Environment_Registry
-    Main_Orchestrator -- "updates job status" --> Job_Persistence_Manager
-    Repository_Manager -- "utilizes" --> Ignore_Filter_Manager
-    Repository_Manager -- "provides workspace path" --> Change_Diff_Analyzer
-    Change_Diff_Analyzer -- "returns ChangeSet" --> Main_Orchestrator
-    Analysis_Model_Builder -- "consumes file lists" --> Repository_Manager
-    Monitoring_Telemetry_Engine -- "wraps execution context" --> Main_Orchestrator
+    Change_Detector["Change Detector"]
+    Tooling_Registry["Tooling Registry"]
+    Analysis_Schema_Engine["Analysis Schema Engine"]
+    Persistence_Controller["Persistence Controller"]
+    Configuration_Provider["Configuration Provider"]
+    Integration_Diagnostics["Integration & Diagnostics"]
+    Analysis_Orchestrator -- "triggers" --> Repository_Manager
+    Repository_Manager -- "utilizes" --> Change_Detector
+    Analysis_Orchestrator -- "requests" --> Tooling_Registry
+    Integration_Diagnostics -- "verifies" --> Tooling_Registry
+    Analysis_Orchestrator -- "feeds" --> Analysis_Schema_Engine
+    Analysis_Orchestrator -- "updates" --> Persistence_Controller
+    Configuration_Provider -- "supplies" --> Analysis_Orchestrator
+    Change_Detector -- "stores" --> Persistence_Controller
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -453,90 +453,76 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Main Orchestrator
-The central coordinator of the analysis pipeline. It manages the end‑to‑end lifecycle, from CLI argument validation and configuration loading to delegating tasks across the repository, analysis, and persistence layers.
+### Analysis Orchestrator
+Coordinates the end-to-end workflow, from initialization to final schema generation.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.main.main`
-- `repos.codeboarding.orchestrator.Orchestrator`
-- `repos.codeboarding.config.UserConfig`
+- `analysis.orchestrator`
 
 
 ### Repository Manager
-Handles all Git‑level operations and local workspace management. It is responsible for cloning, branch detection, and providing a normalized file system interface for subsequent analysis stages.
+Handles Git operations (clone, pull) and manages the local workspace.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.repository.RepositoryManager`
-- `repos.codeboarding.repository.RepoManager.clone_repo`
-- `repos.codeboarding.repository.RepoManager.get_workspace_path`
+- `repo_utils.repository_manager`
 
 
-### Change & Diff Analyzer
-Enables incremental processing by identifying structural and content changes between commits. It extracts line‑level diffs to minimize the scope of LLM analysis to only modified components.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.repository.ChangeDetector`
-- `repos.codeboarding.repo_utils.change_detector.DiffAnalyzer`
-- `repos.codeboarding.repo_utils.change_detector.git_diff`
-
-
-### Tool & Environment Registry
-Manages the external execution environment, including LSP binaries, Node.js dependencies, and system health checks. It ensures the host system is provisioned for static analysis.
+### Change Detector
+Calculates file hashes and diffs to enable incremental analysis updates.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.tool_registry.ToolRegistry`
-- `repos.codeboarding.tool_registry.Installer`
-- `repos.codeboarding.health.health_main`
+- `repo_utils.change_detector`
 
 
-### Analysis Model Builder
-The static analysis engine that constructs the UnifiedAnalysisJson. It maps code entities (classes, functions) into a hierarchical tree suitable for Mermaid.js visualization.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.analysis.AnalysisModelBuilder`
-- `repos.codeboarding.analysis.UnifiedAnalysisJson`
-- `repos.codeboarding.analysis.ComponentJson`
-
-
-### Job & Persistence Manager
-Manages the state and history of analysis runs using DuckDB. It tracks job statuses, repository metadata, and allows for recovery or auditing of previous analysis tasks.
+### Tooling Registry
+Provisions and resolves paths for static analysis binaries (e.g., Pyright, JDTLS).
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.persistence.JobPersistence`
-- `repos.codeboarding.persistence.DuckDBManager`
+- `tools.registry`
 
 
-### Monitoring & Telemetry Engine
-Captures execution traces, LLM token usage, and performance metrics. It provides an observability layer that wraps the orchestration lifecycle to provide real‑time streaming stats.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.monitoring.MonitoringEngine`
-- `repos.codeboarding.monitoring.MonitoringCallback`
-- `repos.codeboarding.monitoring.MonitorContext`
-
-
-### Ignore & Filter Manager
-Implements file‑tree pruning logic based on .gitignore and internal exclusion patterns (e.g., codeboardingignore) to ensure only relevant source code is analyzed.
+### Analysis Schema Engine
+Transforms raw analysis data into the UnifiedAnalysisJson format.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.ignore.IgnoreManager`
-- `repos.codeboarding.ignore.codeboardingignore`
+- `schema.engine`
+
+
+### Persistence Controller
+Manages long-term storage of job states and metadata using DuckDB.
+
+
+**Related Classes/Methods**:
+
+- `persistence.db`
+
+
+### Configuration Provider
+Resolves and validates LLM provider settings and environment variables.
+
+
+**Related Classes/Methods**:
+
+- `config.provider`
+
+
+### Integration & Diagnostics
+Performs system health checks and ensures VS Code compatibility.
+
+
+**Related Classes/Methods**:
+
+- `diagnostics.health`
 
 
 
@@ -1558,24 +1544,22 @@ Defines the shared domain language (ChangeImpact, UpdateAction) used to communic
 
 ```mermaid
 graph LR
-    Agent_Orchestrator["Agent Orchestrator"]
-    Contextualizer["Contextualizer"]
-    Architectural_Abstractor["Architectural Abstractor"]
-    Strategic_Planner["Strategic Planner"]
-    Detail_Analyzer["Detail Analyzer"]
-    Grounding_Engine["Grounding Engine"]
-    Prompt_Factory["Prompt Factory"]
-    Schema_Registry["Schema Registry"]
-    Agent_Orchestrator -- "coordinates" --> Contextualizer
-    Agent_Orchestrator -- "triggers" --> Architectural_Abstractor
-    Architectural_Abstractor -- "validates clusters via" --> Grounding_Engine
-    Agent_Orchestrator -- "consults" --> Strategic_Planner
-    Strategic_Planner -- "directs analysis of" --> Detail_Analyzer
-    Detail_Analyzer -- "validates sub‑graphs via" --> Grounding_Engine
-    Detail_Analyzer -- "uses" --> Prompt_Factory
-    Architectural_Abstractor -- "uses" --> Prompt_Factory
-    Agent_Orchestrator -- "enforces contracts via" --> Schema_Registry
-    Detail_Analyzer -- "adheres to" --> Schema_Registry
+    Orchestration_Engine["Orchestration Engine"]
+    Analysis_Strategy_Planner["Analysis Strategy Planner"]
+    Semantic_Analysis_Trio["Semantic Analysis Trio"]
+    Structural_Validation_Engine["Structural Validation Engine"]
+    Multi_Provider_Prompt_System["Multi-Provider Prompt System"]
+    LLM_Runtime_Configuration["LLM Runtime Configuration"]
+    Static_Discovery_Bridge["Static Discovery Bridge"]
+    Standardized_Data_Schema["Standardized Data Schema"]
+    Orchestration_Engine -- "requests execution strategy from" --> Analysis_Strategy_Planner
+    Orchestration_Engine -- "delegates semantic analysis tasks to" --> Semantic_Analysis_Trio
+    Semantic_Analysis_Trio -- "produces architectural descriptions formatted according to" --> Standardized_Data_Schema
+    Structural_Validation_Engine -- "validates output of" --> Semantic_Analysis_Trio
+    Structural_Validation_Engine -- "cross-references against data from" --> Static_Discovery_Bridge
+    Multi_Provider_Prompt_System -- "provides prompt templates to" --> Semantic_Analysis_Trio
+    LLM_Runtime_Configuration -- "supplies authenticated model instances to" --> Orchestration_Engine
+    Static_Discovery_Bridge -- "feeds ground-truth structural data into" --> Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1584,35 +1568,18 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Agent Orchestrator
-The central controller managing the pipeline lifecycle, state transitions, and handoffs between specialized agents. It maintains the global state of the analysis job.
+### Orchestration Engine
+The central lifecycle manager that coordinates the analysis flow, manages state, and sequences the execution of specialized agents. It handles retry logic and maintains the overall progress of the codebase visualization task.
 
 
 **Related Classes/Methods**:
 
 - `repos.codeboarding.agent.CodeBoardingAgent`
+- `repos.codeboarding.agent.AgentState`
 
 
-### Contextualizer
-Analyzes project‑wide metadata (tech stack, domain, READMEs) to provide the grounding context for all subsequent LLM reasoning.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.MetaAgent`
-
-
-### Architectural Abstractor
-Performs high‑level clustering of files and modules into logical architectural components based on naming conventions and structural proximity.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.AbstractionAgent`
-
-
-### Strategic Planner
-Evaluates the complexity of the initial abstraction and determines which specific components require granular "drill‑down" analysis.
+### Analysis Strategy Planner
+Evaluates repository characteristics (file density, cluster count) to determine the optimal analysis strategy, such as whether components should be processed as flat lists or recursive sub-graphs.
 
 
 **Related Classes/Methods**:
@@ -1620,17 +1587,19 @@ Evaluates the complexity of the initial abstraction and determines which specifi
 - `repos.codeboarding.agent.PlannerAgent`
 
 
-### Detail Analyzer
-Conducts deep‑dive inspections of specific components to extract internal logic, sub‑graph relationships, and fine‑grained dependencies.
+### Semantic Analysis Trio
+A specialized group of agents that interpret the codebase at three granularities: project metadata (Meta), high-level abstractions (Abstraction), and implementation details (Details).
 
 
 **Related Classes/Methods**:
 
+- `repos.codeboarding.agent.MetaAgent`
+- `repos.codeboarding.agent.AbstractionAgent`
 - `repos.codeboarding.agent.DetailsAgent`
 
 
-### Grounding Engine
-Cross‑references LLM‑proposed mappings with deterministic CFG data to ensure structural validity and prevent hallucinations.
+### Structural Validation Engine
+Acts as a deterministic gatekeeper, cross-referencing LLM-generated mappings against the static Control Flow Graph (CFG) to prevent hallucinations and ensure structural integrity.
 
 
 **Related Classes/Methods**:
@@ -1638,24 +1607,42 @@ Cross‑references LLM‑proposed mappings with deterministic CFG data to ensure
 - `repos.codeboarding.agent.ValidationContext`
 
 
-### Prompt Factory
-A decoupled interface for generating provider‑specific prompts (Gemini, OpenAI, etc.) and managing templates to ensure consistent agent behavior.
+### Multi-Provider Prompt System
+A decoupled management layer that serves provider-specific templates (OpenAI, Gemini, Anthropic, etc.) to agents via a factory pattern, ensuring the system is model‑agnostic.
 
 
 **Related Classes/Methods**:
 
 - `repos.codeboarding.prompts.PromptFactory`
-- `repos.codeboarding.prompts.PromptGenerator`
+- `repos.codeboarding.prompts.AbstractPromptFactory`
 
 
-### Schema Registry
-Defines the Pydantic models and structured contracts used for inter‑agent communication and final output serialization.
+### LLM Runtime Configuration
+Handles the initialization of LLM providers, API key resolution, and global model settings such as token limits and temperature.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.config.LLMConfig`
+
+
+### Static Discovery Bridge
+Identifies the project ecosystem and extracts specific sub‑graphs from the codebase to deliver ground‑truth structural data to the agents.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.discovery.DependencyDiscovery`
+- `repos.codeboarding.discovery.ClusterMethodsMixin`
+
+
+### Standardized Data Schema
+Defines the shared Pydantic models that ensure all agents produce and consume data in a consistent, validated format across the pipeline.
 
 
 **Related Classes/Methods**:
 
 - `repos.codeboarding.models.AnalysisInsights`
-- `repos.codeboarding.models.AgentResponses`
 
 
 

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-02-23T12:15:31.193744+00:00",
+  "generated_at": "2026-02-23T23:52:14.559643+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",

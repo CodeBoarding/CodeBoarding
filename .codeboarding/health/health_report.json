@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-23T12:05:57.583368+00:00",
-  "overall_score": 0.975885455915599,
+  "timestamp": "2026-02-23T23:48:59.421378+00:00",
+  "overall_score": 0.9714928732183046,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -221,9 +221,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 48,
-      "findings_count": 48,
-      "warning_count": 48,
+      "total_entities_checked": 60,
+      "findings_count": 60,
+      "warning_count": 60,
       "score": 0.0,
       "finding_groups": [
         {
@@ -231,6 +231,62 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
+            {
+              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 74,
+              "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"result\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 74,
+              "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 83,
+              "line_end": 83,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 83,
+              "line_end": 83,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 336,
+              "line_end": 336,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 336,
+              "line_end": 336,
+              "metric_value": 0.0
+            },
             {
               "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
@@ -302,6 +358,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
+              "file_path": "output_generators/mdx.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
               "file_path": "agents/tools/__init__.py",
               "line_start": 0,
@@ -355,6 +418,13 @@
               "file_path": "agents/tools/__init__.py",
               "line_start": 7,
               "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 15,
+              "line_end": 15,
               "metric_value": 0.0
             },
             {
@@ -580,6 +650,20 @@
               "line_start": 79,
               "line_end": 79,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
             }
           ]
         }
@@ -618,6 +702,30 @@
       "composite_risk_score": 90.0
     },
     {
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "main.py",
+      "total_findings": 3,
+      "warning_findings": 3,
+      "composite_risk_score": 45.0
+    },
+    {
+      "file_path": "agents/prompts/prompt_factory.py",
+      "total_findings": 3,
+      "warning_findings": 3,
+      "composite_risk_score": 45.0
+    },
+    {
+      "file_path": "install.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
       "file_path": "static_analyzer/git_diff_analyzer.py",
       "total_findings": 2,
       "warning_findings": 2,
@@ -642,12 +750,6 @@
       "composite_risk_score": 15.0
     },
     {
-      "file_path": "main.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
-    },
-    {
       "file_path": "github_action.py",
       "total_findings": 1,
       "warning_findings": 1,
@@ -660,7 +762,13 @@
       "composite_risk_score": 15.0
     },
     {
-      "file_path": "agents/prompts/prompt_factory.py",
+      "file_path": "output_generators/mdx.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    },
+    {
+      "file_path": "static_analyzer/lsp_client/typescript_client.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
