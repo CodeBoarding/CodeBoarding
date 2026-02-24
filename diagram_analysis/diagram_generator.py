@@ -13,7 +13,7 @@ from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import plan_analysis
+from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -87,7 +87,7 @@ class DiagramGenerator:
             parent_had_clusters = bool(component.source_cluster_ids)
 
             # Get new components to analyze (deterministic, no LLM)
-            new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
+            new_components = get_expandable_components(analysis, parent_had_clusters=parent_had_clusters)
 
             return component.component_id, analysis, new_components
         except Exception as e:
@@ -337,7 +337,7 @@ class DiagramGenerator:
             analysis, cluster_results = self.abstraction_agent.run()
 
             # Get the initial components to analyze (deterministic, no LLM)
-            root_components = plan_analysis(analysis)
+            root_components = get_expandable_components(analysis)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
