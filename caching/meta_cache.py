@@ -1,13 +1,9 @@
 import hashlib
-import json
 import logging
-import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
-from langchain_community.cache import SQLiteCache
 from langchain_core.language_models import BaseChatModel
-from langchain_core.outputs import Generation
 from pydantic import BaseModel
 
 from agents.agent_responses import MetaAnalysisInsights
@@ -18,8 +14,6 @@ from repo_utils.ignore import RepoIgnoreManager
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
-
-type JsonScalar = str | int | float | bool | None
 
 _README_PATTERNS: tuple[str, ...] = (
     "README.md",
@@ -62,83 +56,6 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         self._ignore_manager = ignore_manager
         self._prompt_key = self._build_prompt_key(project_name, prompt_material)
         self._llm_key = self._build_llm_key(agent_llm, parsing_llm)
-
-    @staticmethod
-    def _llm_signature(llm: BaseChatModel) -> str:
-        model_id = None
-        for attr in ("model_name", "model", "model_id"):
-            value = getattr(llm, attr, None)
-            if isinstance(value, str) and value:
-                model_id = value
-                break
-
-        config: dict[str, JsonScalar] = {}
-        for attr in ("temperature", "max_tokens", "top_p", "timeout", "max_retries"):
-            value = getattr(llm, attr, None)
-            if isinstance(value, (str, int, float, bool)) or value is None:
-                config[attr] = value
-
-        payload = {
-            "provider": f"{type(llm).__module__}.{type(llm).__name__}",
-            "model_id": model_id or type(llm).__name__,
-            "config": config,
-        }
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-    def _build_prompt_key(self, project_name: str, prompt_material: str) -> str:
-        prompt_hash = hashlib.sha256(prompt_material.encode("utf-8")).hexdigest()
-        payload = {
-            "kind": "meta_agent_cache",
-            "project_name": project_name,
-            "prompt_version": prompt_hash,
-        }
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-    def _build_llm_key(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> str:
-        payload = {
-            "kind": "meta_agent_llm_cache",
-            "agent": self._llm_signature(agent_llm),
-            "parser": self._llm_signature(parsing_llm),
-        }
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-    def signature(self) -> str:
-        """Return the composite cache key identifying this configuration."""
-        return self._prompt_key + "|" + self._llm_key
-
-    def _open_sqlite(self) -> SQLiteCache | None:
-        try:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            return SQLiteCache(database_path=str(self.file_path))
-        except (OSError, sqlite3.Error) as e:
-            logger.warning("Meta cache disabled: %s", e)
-            return None
-
-    def load(self) -> MetaCacheRecord | None:
-        cache = self._open_sqlite()
-        if cache is None:
-            return None
-        raw: Sequence[Generation] | None = cache.lookup(self._prompt_key, self._llm_key)
-        if raw is None:
-            return None
-        if len(raw) > 1:
-            logger.warning("Meta cache returned %d generations; using first", len(raw))
-        try:
-            return MetaCacheRecord.model_validate_json(raw[0].text)
-        except Exception:
-            return None
-
-    def store(self, data: MetaCacheRecord) -> None:
-        cache = self._open_sqlite()
-        if cache is None:
-            return
-        cache.clear()
-        cache.update(self._prompt_key, self._llm_key, [Generation(text=data.model_dump_json())])
-
-    def clear(self) -> None:
-        cache = self._open_sqlite()
-        if cache is not None:
-            cache.clear()
 
     @require_git_import(default=[])
     def discover_watch_files(self) -> list[str]:
