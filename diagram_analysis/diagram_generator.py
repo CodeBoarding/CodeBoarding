@@ -393,7 +393,7 @@ class DiagramGenerator:
         except Exception as e:
             logger.warning(f"Failed to save manifest: {e}")
 
-    def try_incremental_update(self) -> list[str] | None:
+    def try_incremental_update(self) -> list[Path] | None:
         """
         Attempt an incremental update if possible.
 
@@ -439,7 +439,7 @@ class DiagramGenerator:
 
         if impact.action == UpdateAction.NONE:
             logger.info("No changes detected, analysis is up to date")
-            return [str(self.output_dir / "analysis.json")]
+            return [self.output_dir / "analysis.json"]
 
         # For structural changes, recompute which components are actually affected
         # after static analysis has been updated with cluster matching
@@ -462,7 +462,7 @@ class DiagramGenerator:
                 )
                 self._write_file_coverage()
 
-            return [str(self.output_dir / "analysis.json")]
+            return [self.output_dir / "analysis.json"]
 
         # Incremental update failed or not possible
         logger.info("Incremental update not possible, falling back to full analysis")
