@@ -193,7 +193,7 @@ class StaticAnalyzer:
                         logger.warning(f"No diagnostics collected for {client.language.language}")
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
-        print(f"Static analysis complete: {results}")
+        logger.info(f"Static analysis complete: {results}")
         return results
 
     def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:

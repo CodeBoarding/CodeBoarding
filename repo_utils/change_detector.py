@@ -125,7 +125,7 @@ def detect_changes(
     Example:
         changes = detect_changes(repo_path, "abc1234")
         for rename_old, rename_new in changes.renames.items():
-            print(f"Renamed: {rename_old} -> {rename_new}")
+            logger.info(f"Renamed: {rename_old} -> {rename_new}")
     """
     changes: list[DetectedChange] = []
 

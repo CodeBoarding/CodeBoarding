@@ -687,4 +687,4 @@ if __name__ == "__main__":
     print("🎉 Installation completed!")
 
     print("📝 Don't forget to configure your .env file with your preferred LLM provider!")
-    print("All set you can run: python demo.py <github_repo_url> --output-dir <output_path>")
+    print("All set! You can run: python main.py <github_repo_url> --output-dir <output_path>")

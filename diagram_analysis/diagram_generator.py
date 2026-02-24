@@ -107,7 +107,7 @@ class DiagramGenerator:
             repo_path=self.repo_location,
         )
         if health_report is not None:
-            health_path = os.path.join(self.output_dir, "health", "health_report.json")
+            health_path = Path(self.output_dir) / "health" / "health_report.json"
             with open(health_path, "w") as f:
                 f.write(health_report.model_dump_json(indent=2, exclude_none=True))
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
@@ -138,7 +138,7 @@ class DiagramGenerator:
             summary=FileCoverageSummary(**self.file_coverage_data["summary"]),
         )
 
-        coverage_path = os.path.join(self.output_dir, "file_coverage.json")
+        coverage_path = Path(self.output_dir) / "file_coverage.json"
         with open(coverage_path, "w") as f:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
@@ -205,7 +205,7 @@ class DiagramGenerator:
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
+        version_file = Path(self.output_dir) / "codeboarding_version.json"
         with open(version_file, "w") as f:
             f.write(
                 Version(
@@ -317,7 +317,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def generate_analysis(self):
+    def generate_analysis(self) -> list[Path]:
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
@@ -355,14 +355,12 @@ class DiagramGenerator:
                 )
 
             # Final write of unified analysis.json
-            analysis_path = str(
-                save_analysis(
-                    analysis=analysis,
-                    output_dir=Path(self.output_dir),
-                    sub_analyses=sub_analyses,
-                    repo_name=self.repo_name,
-                    file_coverage_summary=file_coverage_summary,
-                )
+            analysis_path = save_analysis(
+                analysis=analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=file_coverage_summary,
             )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
@@ -470,7 +468,7 @@ class DiagramGenerator:
         logger.info("Incremental update not possible, falling back to full analysis")
         return None
 
-    def generate_analysis_smart(self) -> list[str]:
+    def generate_analysis_smart(self) -> list[Path]:
         """
         Smart analysis that tries incremental first, falls back to full.
 
