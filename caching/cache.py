@@ -4,10 +4,11 @@ import json
 import logging
 import pickle
 import sqlite3
-from abc import ABC
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast
 
+from langchain_core.language_models import BaseChatModel
 from langchain_community.cache import SQLiteCache
 from langchain_core.outputs import Generation
 from pydantic import BaseModel, ConfigDict
@@ -44,23 +45,22 @@ class BaseCache(ABC, Generic[K, V]):
             self._sqlite_disabled = True
             return None
 
-    def signature(self, key: K) -> str:
-        if key is None and hasattr(self, "_prompt_key") and hasattr(self, "_llm_key"):
-            payload = {"prompt_key": getattr(self, "_prompt_key"), "llm_key": getattr(self, "_llm_key")}
-        elif isinstance(key, BaseModel):
-            payload = key.model_dump(mode="json")
-        else:
-            payload = key
-
+    def signature(self, payload: object) -> str:
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump(mode="json")
         encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    @abstractmethod
+    def cache_keys(self, key: K) -> tuple[str, str]:
+        """Map a typed cache key to sqlite prompt and llm keys."""
 
     def load(self, key: K) -> V | None:
         cache = self._open_sqlite()
         if cache is None:
             return None
 
-        prompt_key, llm_key = self._resolve_cache_keys(key)
+        prompt_key, llm_key = self.cache_keys(key)
         try:
             raw = cache.lookup(prompt_key, llm_key)
         except Exception as e:
@@ -78,16 +78,22 @@ class BaseCache(ABC, Generic[K, V]):
             logger.warning("Unexpected cache payload type: %s", type(generation).__name__)
             return None
 
-        return self._deserialize_payload(generation.text)
+        try:
+            raw_payload = base64.b64decode(generation.text.encode("ascii"), validate=True)
+            return cast(V, pickle.loads(raw_payload))
+        except Exception as e:
+            logger.warning("Cache payload decode failed: %s", e)
+            return None
 
     def store(self, key: K, value: V) -> None:
         cache = self._open_sqlite()
         if cache is None:
             return
 
-        prompt_key, llm_key = self._resolve_cache_keys(key)
+        prompt_key, llm_key = self.cache_keys(key)
         try:
-            payload = self._serialize_payload(value)
+            raw_payload = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+            payload = base64.b64encode(raw_payload).decode("ascii")
             cache.update(prompt_key, llm_key, [Generation(text=payload)])
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
@@ -97,7 +103,7 @@ class BaseCache(ABC, Generic[K, V]):
         if cache is None:
             return True
 
-        prompt_key, llm_key = self._resolve_cache_keys(key)
+        prompt_key, llm_key = self.cache_keys(key)
         try:
             return cache.lookup(prompt_key, llm_key) is None
         except Exception as e:
@@ -146,3 +152,24 @@ class ModelSettings(BaseModel):
 
     def signature(self) -> str:
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
+
+    @classmethod
+    def from_chat_model(cls, provider: str, llm: BaseChatModel | None) -> "ModelSettings":
+        if llm is None:
+            return cls(provider=provider, chat_class="NoneType", model_name="unknown")
+
+        model_name = getattr(llm, "model_name", None) or getattr(llm, "model", None) or llm.__class__.__name__
+        base_url = getattr(llm, "base_url", None)
+        max_tokens = getattr(llm, "max_tokens", None)
+        max_retries = getattr(llm, "max_retries", None)
+        timeout = getattr(llm, "timeout", None)
+
+        return cls(
+            provider=provider,
+            chat_class=llm.__class__.__name__,
+            model_name=str(model_name),
+            base_url=base_url if isinstance(base_url, str) else None,
+            max_tokens=max_tokens if isinstance(max_tokens, int) and not isinstance(max_tokens, bool) else None,
+            max_retries=max_retries if isinstance(max_retries, int) and not isinstance(max_retries, bool) else None,
+            timeout=(float(timeout) if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) else None),
+        )

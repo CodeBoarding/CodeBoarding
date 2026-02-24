@@ -70,10 +70,10 @@ class MetaAgent(CodeBoardingAgent):
             self._cache.clear()
             logger.info("Meta cache cleared due to refresh request")
 
-        record = self._cache.load()
+        record = self._cache.load_record()
 
         if record is not None:
-            if not self._cache.is_stale(record):
+            if not self._cache.is_record_stale(record):
                 logger.info("Meta cache hit; reusing metadata analysis")
                 return record.meta
             logger.info("Meta cache invalidated by watch-file changes; recomputing metadata analysis")
@@ -82,7 +82,7 @@ class MetaAgent(CodeBoardingAgent):
 
         computed_meta = self.analyze_project_metadata()
 
-        watch_files = self._cache.discover_metadata_files()
+        watch_files = self._cache.discover_watch_files()
         watch_state_hash = self._cache._compute_metadata_content_hash(watch_files)
         base_commit = get_git_commit_hash(str(self.repo_dir))
 
@@ -93,7 +93,7 @@ class MetaAgent(CodeBoardingAgent):
         else:
             if base_commit == NO_COMMIT_HASH:
                 logger.warning("Unable to resolve current commit for meta cache; storing fingerprint-only record")
-            self._cache.store(
+            self._cache.store_record(
                 MetaCacheKey(
                     meta=computed_meta,
                     base_commit=base_commit,
