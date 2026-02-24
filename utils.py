@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import hashlib
 import uuid
 from pathlib import Path
 
@@ -36,6 +37,18 @@ def get_project_root() -> Path:
         return Path(project_root_env)
 
     return Path(__file__).resolve().parent
+
+
+@staticmethod
+def fingerprint_file(path: Path) -> bytes | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.digest()
+    except OSError:
+        return None
 
 
 def monitoring_enabled():

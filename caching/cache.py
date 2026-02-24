@@ -1,6 +1,9 @@
 import hashlib
 import json
-from abc import ABC, abstractmethod
+import logging
+import pickle
+import sqlite3
+from abc import ABC
 from pathlib import Path
 from typing import Generic, TypeVar
 
@@ -8,6 +11,8 @@ from pydantic import BaseModel, ConfigDict
 
 K = TypeVar("K")
 V = TypeVar("V")
+
+logger = logging.getLogger(__name__)
 
 
 class BaseCache(ABC, Generic[K, V]):
@@ -18,21 +23,67 @@ class BaseCache(ABC, Generic[K, V]):
         self.file_path = self.cache_dir / filename
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    @abstractmethod
-    def load(self, key: K) -> V | None:
-        pass
+    def _open_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.file_path)
+        conn.execute("CREATE TABLE IF NOT EXISTS cache_entries (key_hash TEXT PRIMARY KEY, payload BLOB NOT NULL)")
+        return conn
 
-    @abstractmethod
-    def store(self, key: K, value: V) -> None:
-        pass
+    def signature(self, key: K | None = None) -> str:
+        if key is None and hasattr(self, "_prompt_key") and hasattr(self, "_llm_key"):
+            payload = {"prompt_key": getattr(self, "_prompt_key"), "llm_key": getattr(self, "_llm_key")}
+        else:
+            payload = key
 
-    @abstractmethod
-    def signature(self, key: K) -> str:
-        pass
+        encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    @abstractmethod
-    def is_stale(self, key: K, value: V) -> bool:
-        pass
+    def load(self, key: K | None = None) -> V | None:
+        key_hash = self.signature(key)
+        try:
+            with self._open_connection() as conn:
+                row = conn.execute("SELECT payload FROM cache_entries WHERE key_hash = ?", (key_hash,)).fetchone()
+        except sqlite3.Error as e:
+            logger.warning("Cache load failed: %s", e)
+            return None
+
+        if row is None:
+            return None
+
+        try:
+            return pickle.loads(row[0])
+        except Exception as e:
+            logger.warning("Cache payload decode failed: %s", e)
+            return None
+
+    def store(self, key: K | V | None, value: V | None = None) -> None:
+        if value is None:
+            data = key
+            cache_key = None
+        else:
+            data = value
+            cache_key = key
+
+        key_hash = self.signature(cache_key)
+        try:
+            payload = pickle.dumps(data)
+            with self._open_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO cache_entries(key_hash, payload) VALUES (?, ?)",
+                    (key_hash, payload),
+                )
+                conn.commit()
+        except (sqlite3.Error, pickle.PickleError, TypeError) as e:
+            logger.warning("Cache store failed: %s", e)
+
+    def is_stale(self, key: K | None = None) -> bool:
+        key_hash = self.signature(key)
+        try:
+            with self._open_connection() as conn:
+                row = conn.execute("SELECT 1 FROM cache_entries WHERE key_hash = ?", (key_hash,)).fetchone()
+            return row is None
+        except sqlite3.Error as e:
+            logger.warning("Cache staleness check failed: %s", e)
+            return True
 
 
 class ModelSettings(BaseModel):

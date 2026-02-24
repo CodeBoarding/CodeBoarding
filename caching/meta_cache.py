@@ -1,19 +1,24 @@
 import hashlib
+import json
 import logging
+import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
-
+from utils import fingerprint_file
+from langchain_community.cache import SQLiteCache
 from langchain_core.language_models import BaseChatModel
+from langchain_core.outputs import Generation
 from pydantic import BaseModel
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.dependency_discovery import FileRole, discover_dependency_files
 from caching.cache import BaseCache
-from repo_utils import Repo, require_git_import
 from repo_utils.ignore import RepoIgnoreManager
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
+
+type JsonScalar = str | int | float | bool | None
 
 _README_PATTERNS: tuple[str, ...] = (
     "README.md",
@@ -33,14 +38,8 @@ class MetaCacheRecord(BaseModel):
     watch_state_hash: str | None = None
 
 
-class MetaCache(BaseCache[MetaCacheRecord]):
-    """SQLite-backed cache for MetaAgent analysis results.
-
-    Watches dependency manifests, config files, and root-level READMEs.
-    Keyed by a composite of project name, prompt version hash, and LLM
-    configuration so that any change to prompts or models automatically
-    produces a cache miss.
-    """
+class MetaCache(BaseCache[str, MetaCacheRecord]):
+    """SQLite-backed cache for MetaAgent analysis results."""
 
     def __init__(
         self,
@@ -57,60 +56,30 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         self._prompt_key = self._build_prompt_key(project_name, prompt_material)
         self._llm_key = self._build_llm_key(agent_llm, parsing_llm)
 
-    @require_git_import(default=[])
     def discover_watch_files(self) -> list[str]:
-        """Return git-known files whose changes should invalidate this cache.
-
-        Includes dependency manifests and configs (not locks) and root-level
-        README files that the meta agent reads for project context.
-        """
-        try:
-            repo = Repo(self._repo_dir)
-            tracked_files = set(repo.git.ls_files().splitlines())
-            untracked_files = {
-                Path(path).as_posix()
-                for path in repo.untracked_files
-                if not self._ignore_manager.should_ignore(Path(path))
-            }
-            git_known_files = tracked_files | untracked_files
-        except Exception as e:
-            logger.warning("Unable to discover git file set for meta cache watch list: %s", e)
-            return []
-
-        watch: set[str] = set()
-
-        for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_WATCH_ROLES):
-            relative_path = discovered.path.relative_to(self._repo_dir).as_posix()
-            if relative_path in git_known_files:
-                watch.add(relative_path)
+        """Return dependency and README files whose changes invalidate this cache."""
+        watch = {
+            discovered.path.relative_to(self._repo_dir).as_posix()
+            for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_WATCH_ROLES)
+        }
 
         for pattern in _README_PATTERNS:
-            if (self._repo_dir / pattern).is_file() and pattern in git_known_files:
+            path = self._repo_dir / pattern
+            if path.is_file() and not self._ignore_manager.should_ignore(path):
                 watch.add(pattern)
 
         return sorted(watch)
 
-    @staticmethod
-    def _fingerprint_file(path: Path) -> bytes | None:
-        try:
-            digest = hashlib.sha256()
-            with path.open("rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            return digest.digest()
-        except OSError:
-            return None
-
-    def compute_watch_state_hash(self, watch_files: Sequence[str]) -> str | None:
+    def _compute_metadata_content_hash(self, metadata_files: Sequence[str]) -> str:
         """Return a deterministic fingerprint for watched file contents."""
-        if not watch_files:
-            return None
+        if not metadata_files:
+            return logger.error("[MetaCache] Trying to compute hash for empty list of metadata files.")
 
         digest = hashlib.sha256()
-        for relative_path in sorted(set(watch_files)):
-            file_digest = self._fingerprint_file(self._repo_dir / relative_path)
+        for relative_path in sorted(set(metadata_files)):
+            file_digest = fingerprint_file(self._repo_dir / relative_path)
             if file_digest is None:
-                logger.warning("Unable to fingerprint meta cache watch file: %s", relative_path)
+                logger.warning("Unable to fingerprint metadata files: %s", relative_path)
                 return None
             digest.update(relative_path.encode("utf-8"))
             digest.update(b"\0")
@@ -120,25 +89,13 @@ class MetaCache(BaseCache[MetaCacheRecord]):
         return digest.hexdigest()
 
     def is_stale(self, record: MetaCacheRecord) -> bool:
-        """Return True if watched file fingerprints differ from the cached record."""
-        if not record.watch_files:
-            return False
+        """Return True if metadata file fingerprints differ from the cached record."""
+        if not record.metadata_files:
+            return True
 
-        if not record.watch_state_hash:
+        if not record.metadata_content_hash:
             logger.info("Meta cache record is missing watch-state fingerprint; recomputing once for migration")
             return True
 
-        expected_watch_files = sorted(set(record.watch_files))
-        discovered_watch_files = self.discover_watch_files()
-        if discovered_watch_files:
-            normalized_discovered = sorted(set(discovered_watch_files))
-            if normalized_discovered != expected_watch_files:
-                logger.info("Meta cache watch-file set changed; recomputing metadata analysis")
-                return True
-            expected_watch_files = normalized_discovered
-
-        current_watch_hash = self.compute_watch_state_hash(expected_watch_files)
-        if current_watch_hash is None:
-            return True
-
-        return current_watch_hash != record.watch_state_hash
+        current_signature = self._compute_metadata_content_hash(self.discover_watch_files())
+        return current_signature != record.metadata_content_hash
