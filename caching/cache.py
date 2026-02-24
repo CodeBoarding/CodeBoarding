@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import logging
@@ -7,6 +8,8 @@ from abc import ABC
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from langchain_community.cache import SQLiteCache
+from langchain_core.outputs import Generation
 from pydantic import BaseModel, ConfigDict
 
 K = TypeVar("K")
@@ -22,68 +25,106 @@ class BaseCache(ABC, Generic[K, V]):
         self.cache_dir = cache_dir
         self.file_path = self.cache_dir / filename
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._sqlite_cache: SQLiteCache | None = None
+        self._sqlite_disabled = False
 
-    def _open_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.file_path)
-        conn.execute("CREATE TABLE IF NOT EXISTS cache_entries (key_hash TEXT PRIMARY KEY, payload BLOB NOT NULL)")
-        return conn
+    def _open_sqlite(self) -> SQLiteCache | None:
+        if self._sqlite_disabled:
+            return None
 
-    def signature(self, key: K | None = None) -> str:
+        if self._sqlite_cache is not None:
+            return self._sqlite_cache
+
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            self._sqlite_cache = SQLiteCache(database_path=str(self.file_path))
+            return self._sqlite_cache
+        except (OSError, sqlite3.Error) as e:
+            logger.warning("Cache disabled: %s", e)
+            self._sqlite_disabled = True
+            return None
+
+    def signature(self, key: K) -> str:
         if key is None and hasattr(self, "_prompt_key") and hasattr(self, "_llm_key"):
             payload = {"prompt_key": getattr(self, "_prompt_key"), "llm_key": getattr(self, "_llm_key")}
+        elif isinstance(key, BaseModel):
+            payload = key.model_dump(mode="json")
         else:
             payload = key
 
         encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    def load(self, key: K | None = None) -> V | None:
-        key_hash = self.signature(key)
+    def load(self, key: K) -> V | None:
+        cache = self._open_sqlite()
+        if cache is None:
+            return None
+
+        prompt_key, llm_key = self._resolve_cache_keys(key)
         try:
-            with self._open_connection() as conn:
-                row = conn.execute("SELECT payload FROM cache_entries WHERE key_hash = ?", (key_hash,)).fetchone()
-        except sqlite3.Error as e:
+            raw = cache.lookup(prompt_key, llm_key)
+        except Exception as e:
             logger.warning("Cache load failed: %s", e)
             return None
 
-        if row is None:
+        if raw is None:
             return None
 
+        if len(raw) > 1:
+            logger.warning("Cache lookup returned %d generations; using first", len(raw))
+
+        generation = raw[0]
+        if not isinstance(generation, Generation):
+            logger.warning("Unexpected cache payload type: %s", type(generation).__name__)
+            return None
+
+        return self._deserialize_payload(generation.text)
+
+    def store(self, key: K, value: V) -> None:
+        cache = self._open_sqlite()
+        if cache is None:
+            return
+
+        prompt_key, llm_key = self._resolve_cache_keys(key)
         try:
-            return pickle.loads(row[0])
+            payload = self._serialize_payload(value)
+            cache.update(prompt_key, llm_key, [Generation(text=payload)])
         except Exception as e:
-            logger.warning("Cache payload decode failed: %s", e)
-            return None
-
-    def store(self, key: K | V | None, value: V | None = None) -> None:
-        if value is None:
-            data = key
-            cache_key = None
-        else:
-            data = value
-            cache_key = key
-
-        key_hash = self.signature(cache_key)
-        try:
-            payload = pickle.dumps(data)
-            with self._open_connection() as conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO cache_entries(key_hash, payload) VALUES (?, ?)",
-                    (key_hash, payload),
-                )
-                conn.commit()
-        except (sqlite3.Error, pickle.PickleError, TypeError) as e:
             logger.warning("Cache store failed: %s", e)
 
-    def is_stale(self, key: K | None = None) -> bool:
-        key_hash = self.signature(key)
+    def is_stale(self, key: K) -> bool:
+        cache = self._open_sqlite()
+        if cache is None:
+            return True
+
+        prompt_key, llm_key = self._resolve_cache_keys(key)
         try:
-            with self._open_connection() as conn:
-                row = conn.execute("SELECT 1 FROM cache_entries WHERE key_hash = ?", (key_hash,)).fetchone()
-            return row is None
-        except sqlite3.Error as e:
+            return cache.lookup(prompt_key, llm_key) is None
+        except Exception as e:
             logger.warning("Cache staleness check failed: %s", e)
             return True
+
+    def clear(self) -> None:
+        cache = self._open_sqlite()
+        if cache is None:
+            return
+
+        try:
+            cache.clear()
+        except Exception as e:
+            logger.warning("Cache clear failed: %s", e)
+
+    def close(self) -> None:
+        cache = self._sqlite_cache
+        if cache is None:
+            return
+
+        try:
+            cache.engine.dispose()
+        except Exception as e:
+            logger.warning("Cache close failed: %s", e)
+        finally:
+            self._sqlite_cache = None
 
 
 class ModelSettings(BaseModel):
@@ -105,25 +146,3 @@ class ModelSettings(BaseModel):
 
     def signature(self) -> str:
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
-
-
-class DetailsCacheRecord(BaseModel):
-    prompt: str
-    model_name: str
-    model_settings: ModelSettings
-
-    @property
-    def model_signature(self) -> str:
-        return self.model_settings.signature()
-
-
-class MetaCacheRecord(BaseModel):
-    prompt: str
-    model: str
-    model_settings: ModelSettings
-    metadata_files: list[str]
-    metadata_content_hash: str
-
-    @property
-    def model_signature(self) -> str:
-        return self.model_settings.signature()

@@ -1,4 +1,5 @@
 from caching.cache import BaseCache
-from caching.meta_cache import MetaCache, MetaCacheRecord
+from caching.detail_cache import DetailsCache, DetailsCacheKey
+from caching.meta_cache import MetaCache, MetaCacheKey
 
-__all__ = ["BaseCache", "MetaCache", "MetaCacheRecord"]
+__all__ = ["BaseCache", "DetailsCache", "DetailsCacheKey", "MetaCache", "MetaCacheKey"]

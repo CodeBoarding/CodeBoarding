@@ -8,7 +8,7 @@ from langchain.agents import create_agent
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
-from caching.meta_cache import MetaCache, MetaCacheRecord
+from caching.meta_cache import MetaCache, MetaCacheKey
 from monitoring import trace
 from repo_utils import NO_COMMIT_HASH, get_git_commit_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -82,7 +82,7 @@ class MetaAgent(CodeBoardingAgent):
 
         computed_meta = self.analyze_project_metadata()
 
-        watch_files = self._cache.discover_watch_files()
+        watch_files = self._cache.discover_metadata_files()
         watch_state_hash = self._cache._compute_metadata_content_hash(watch_files)
         base_commit = get_git_commit_hash(str(self.repo_dir))
 
@@ -94,7 +94,7 @@ class MetaAgent(CodeBoardingAgent):
             if base_commit == NO_COMMIT_HASH:
                 logger.warning("Unable to resolve current commit for meta cache; storing fingerprint-only record")
             self._cache.store(
-                MetaCacheRecord(
+                MetaCacheKey(
                     meta=computed_meta,
                     base_commit=base_commit,
                     watch_files=watch_files,

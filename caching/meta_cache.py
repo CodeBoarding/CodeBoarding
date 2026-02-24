@@ -1,24 +1,18 @@
 import hashlib
-import json
 import logging
-import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
-from utils import fingerprint_file
-from langchain_community.cache import SQLiteCache
+from utils import fingerprint_file, get_cache_dir
 from langchain_core.language_models import BaseChatModel
-from langchain_core.outputs import Generation
 from pydantic import BaseModel
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.dependency_discovery import FileRole, discover_dependency_files
-from caching.cache import BaseCache
+from caching.cache import BaseCache, ModelSettings
 from repo_utils.ignore import RepoIgnoreManager
-from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
-type JsonScalar = str | int | float | bool | None
 
 _README_PATTERNS: tuple[str, ...] = (
     "README.md",
@@ -28,56 +22,51 @@ _README_PATTERNS: tuple[str, ...] = (
     "readme.md",
 )
 
-_CACHE_WATCH_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole.CONFIG})
+_CACHE_META_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole.CONFIG})
 
 
-class MetaCacheRecord(BaseModel):
-    meta: MetaAnalysisInsights
-    base_commit: str
-    watch_files: list[str]
-    watch_state_hash: str | None = None
+class MetaCacheKey(BaseModel):
+    prompt: str
+    model: str
+    model_settings: ModelSettings
+    metadata_files: list[str]
+    metadata_content_hash: str
 
 
-class MetaCache(BaseCache[str, MetaCacheRecord]):
+class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
     """SQLite-backed cache for MetaAgent analysis results."""
 
     def __init__(
         self,
         repo_dir: Path,
         ignore_manager: RepoIgnoreManager,
-        project_name: str,
-        agent_llm: BaseChatModel,
-        parsing_llm: BaseChatModel,
-        prompt_material: str,
     ):
         super().__init__("meta_agent_llm.sqlite", cache_dir=get_cache_dir(repo_dir))
         self._repo_dir = repo_dir
         self._ignore_manager = ignore_manager
-        self._prompt_key = self._build_prompt_key(project_name, prompt_material)
-        self._llm_key = self._build_llm_key(agent_llm, parsing_llm)
 
-    def discover_watch_files(self) -> list[str]:
+    def discover_metadata_files(self) -> list[Path]:
         """Return dependency and README files whose changes invalidate this cache."""
-        watch = {
-            discovered.path.relative_to(self._repo_dir).as_posix()
-            for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_WATCH_ROLES)
+        files = {
+            discovered.path.relative_to(self._repo_dir)
+            for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_META_ROLES)
         }
 
         for pattern in _README_PATTERNS:
             path = self._repo_dir / pattern
             if path.is_file() and not self._ignore_manager.should_ignore(path):
-                watch.add(pattern)
+                files.add(path.relative_to(self._repo_dir))
 
-        return sorted(watch)
+        return sorted(files)
 
-    def _compute_metadata_content_hash(self, watch_files: Sequence[str]) -> str | None:
+    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str | None:
         """Return a deterministic fingerprint for watched file contents."""
-        if not watch_files:
+        if not metadata_files:
             logger.error("[MetaCache] Trying to compute hash for empty list of watch files.")
             return None
 
         digest = hashlib.sha256()
-        for path in sorted(set(watch_files)):
+        for path in sorted(set(metadata_files)):
             # Use the walrus operator to assign and check for None in one step
             if (file_digest := fingerprint_file(self._repo_dir / path)) is None:
                 logger.warning("Unable to fingerprint meta cache watch file: %s", path)
@@ -86,14 +75,15 @@ class MetaCache(BaseCache[str, MetaCacheRecord]):
             digest.update(path.encode("utf-8") + b"\0" + file_digest + b"\n")
         return digest.hexdigest()
 
-    def is_stale(self, record: MetaCacheRecord) -> bool:
+    def is_stale(self, key: str) -> bool:
         """Return True if metadata file fingerprints differ from the cached record."""
+        record = self.load(key)
+        if record is None:
+            return True
         if not record.metadata_files:
             return True
-
         if not record.metadata_content_hash:
             logger.info("Meta cache record is missing watch-state fingerprint; recomputing once for migration")
             return True
-
-        current_signature = self._compute_metadata_content_hash(self.discover_watch_files())
-        return current_signature != record.metadata_content_hash
+        current_hash = self._compute_metadata_content_hash(self.discover_metadata_files())
+        return current_hash != record.metadata_content_hash
