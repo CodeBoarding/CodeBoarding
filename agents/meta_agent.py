@@ -83,7 +83,7 @@ class MetaAgent(CodeBoardingAgent):
         computed_meta = self.analyze_project_metadata()
 
         watch_files = self._cache.discover_watch_files()
-        watch_state_hash = self._cache.compute_watch_state_hash(watch_files)
+        watch_state_hash = self._cache._compute_metadata_content_hash(watch_files)
         base_commit = get_git_commit_hash(str(self.repo_dir))
 
         if not watch_files:

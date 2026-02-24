@@ -70,22 +70,20 @@ class MetaCache(BaseCache[str, MetaCacheRecord]):
 
         return sorted(watch)
 
-    def _compute_metadata_content_hash(self, metadata_files: Sequence[str]) -> str:
+    def _compute_metadata_content_hash(self, watch_files: Sequence[str]) -> str | None:
         """Return a deterministic fingerprint for watched file contents."""
-        if not metadata_files:
-            return logger.error("[MetaCache] Trying to compute hash for empty list of metadata files.")
+        if not watch_files:
+            logger.error("[MetaCache] Trying to compute hash for empty list of watch files.")
+            return None
 
         digest = hashlib.sha256()
-        for relative_path in sorted(set(metadata_files)):
-            file_digest = fingerprint_file(self._repo_dir / relative_path)
-            if file_digest is None:
-                logger.warning("Unable to fingerprint metadata files: %s", relative_path)
+        for path in sorted(set(watch_files)):
+            # Use the walrus operator to assign and check for None in one step
+            if (file_digest := fingerprint_file(self._repo_dir / path)) is None:
+                logger.warning("Unable to fingerprint meta cache watch file: %s", path)
                 return None
-            digest.update(relative_path.encode("utf-8"))
-            digest.update(b"\0")
-            digest.update(file_digest)
-            digest.update(b"\n")
 
+            digest.update(path.encode("utf-8") + b"\0" + file_digest + b"\n")
         return digest.hexdigest()
 
     def is_stale(self, record: MetaCacheRecord) -> bool:
