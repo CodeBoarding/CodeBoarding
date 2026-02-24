@@ -31,7 +31,7 @@ def remove_temp_repo_folder(temp_path: str):
 
 
 def caching_enabled():
-    logger.info("Caching enabled:", os.getenv("CACHING_DOCUMENTATION", "false"))
+    logger.info("Caching enabled: %s", os.getenv("CACHING_DOCUMENTATION", "false"))
     return os.getenv("CACHING_DOCUMENTATION", "false").lower() in ("1", "true", "yes")
 
 
@@ -48,7 +48,7 @@ def get_project_root() -> Path:
 
 
 def monitoring_enabled():
-    logger.info("Monitoring enabled:", os.getenv("ENABLE_MONITORING", "false"))
+    logger.info("Monitoring enabled: %s", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
 
 

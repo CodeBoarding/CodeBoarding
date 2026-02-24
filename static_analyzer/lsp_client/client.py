@@ -484,7 +484,7 @@ class LSPClient(ABC):
         lines = content.split("\n")
         call_positions = []
 
-        for line_idx in range(max(0, start_line), min(end_line + 1, len(lines))):
+        for line_idx in range(start_line, min(end_line + 1, len(lines))):
             line = lines[line_idx]
 
             # Find all '(' in the line
@@ -514,7 +514,7 @@ class LSPClient(ABC):
 
                 # Skip declaration names like "def foo(" or "class Bar(".
                 decl_prefix = line[:name_start].rstrip()
-                if decl_prefix.endswith("def") or decl_prefix.endswith("class") or decl_prefix.endswith("function"):
+                if decl_prefix.endswith(("def", "class", "function")):
                     continue
 
                 # Skip keywords and invalid identifiers
