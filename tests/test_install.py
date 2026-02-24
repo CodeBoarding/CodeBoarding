@@ -26,9 +26,9 @@ class TestResolveMissingNpm(unittest.TestCase):
 
     @patch("install.is_non_interactive_mode", return_value=True)
     @patch("install.install_npm_with_nodeenv")
-    def test_non_interactive_without_auto_install_returns_false(self, mock_install_npm, mock_non_interactive):
-        result = install.resolve_missing_npm(auto_install_npm=False)
-        self.assertFalse(result)
+    def test_non_interactive_without_auto_install_raises(self, mock_install_npm, mock_non_interactive):
+        with self.assertRaises(SystemExit):
+            install.resolve_missing_npm(auto_install_npm=False)
         mock_non_interactive.assert_called_once()
         mock_install_npm.assert_not_called()
 

@@ -233,7 +233,6 @@ class TestSphinxOutput(unittest.TestCase):
         self.assertIn("NoRefComponent", result)
         self.assertIn("*None*", result)
 
-    @patch.dict(os.environ, {"REPO_ROOT": "/repo"})
     def test_generate_rst_with_line_numbers(self):
         # Test that line numbers are included in RST links
         result = generate_rst(
@@ -243,6 +242,7 @@ class TestSphinxOutput(unittest.TestCase):
             expanded_components=self.expanded_components,
             demo=False,
             file_name="test",
+            repo_path=Path("/repo"),
         )
 
         self.assertIn("#L10-L20", result)

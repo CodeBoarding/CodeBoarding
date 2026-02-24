@@ -22,6 +22,43 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Module-level model overrides – set once by the orchestrator (main.py) and
+# consumed by initialize_llms() without needing to thread the values through
+# every intermediate function signature.
+# ---------------------------------------------------------------------------
+_agent_model_override: str | None = None
+_parsing_model_override: str | None = None
+
+
+def configure_models(
+    agent_model: str | None = None,
+    parsing_model: str | None = None,
+    api_keys: dict[str, str] | None = None,
+) -> None:
+    """Set process-wide model and provider overrides.  Call this once at startup.
+
+    ``api_keys`` maps provider env-var names to values, e.g.::
+
+        configure_models(api_keys={"OPENAI_API_KEY": "sk-..."})
+
+    Keys already present in the shell environment are never overwritten, so
+    CI/CD pipelines that export keys directly retain full control.
+
+    Priority (highest to lowest):
+      1. Shell environment variables (set before the process starts)
+      2. ``api_keys`` passed here  /  values from ~/.codeboarding/config.toml
+      3. AGENT_MODEL / PARSING_MODEL environment variables (for model names)
+      4. Provider defaults defined in LLM_PROVIDERS
+    """
+    global _agent_model_override, _parsing_model_override
+    _agent_model_override = agent_model
+    _parsing_model_override = parsing_model
+    if api_keys:
+        for env_var, value in api_keys.items():
+            if value and not os.environ.get(env_var):
+                os.environ[env_var] = value
+
 
 @dataclass
 class LLMConfig:
@@ -198,6 +235,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "openrouter": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="OPENROUTER_API_KEY",
+        agent_model="google/gemini-2.5-flash",
+        parsing_model="google/gemini-2.5-flash",
+        llm_type=LLMType.GEMINI_FLASH,
+        extra_args={
+            "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
 }
 
 
@@ -245,6 +295,16 @@ def _initialize_llm(
     raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
 
 
+def validate_api_key_provided() -> None:
+    """Raise ValueError if zero or more than one LLM provider key is configured."""
+    active = [name for name, config in LLM_PROVIDERS.items() if config.is_active()]
+    if not active:
+        required = sorted({config.api_key_env for config in LLM_PROVIDERS.values()})
+        raise ValueError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
+    if len(active) > 1:
+        raise ValueError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
+
+
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
     model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
     MONITORING_CALLBACK.model_name = model_name
@@ -257,6 +317,6 @@ def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
 
 
 def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
-    agent_llm = initialize_agent_llm(os.getenv("AGENT_MODEL"))
-    parsing_llm = initialize_parsing_llm(os.getenv("PARSING_MODEL"))
+    agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
+    parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm

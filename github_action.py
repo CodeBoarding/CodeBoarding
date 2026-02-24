@@ -132,7 +132,7 @@ def generate_analysis(
             and analysis_manifest.json. When provided, incremental analysis is attempted
             before falling back to a full analysis.
     """
-    repo_root = Path(os.environ["REPO_ROOT"])
+    repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
     checkout_repo(repo_dir, source_branch)
@@ -147,7 +147,7 @@ def generate_analysis(
         temp_folder=temp_repo_folder,
         repo_name=repo_name,
         output_dir=temp_repo_folder,
-        depth_level=int(os.environ["DIAGRAM_DEPTH_LEVEL"]),
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
     )
 
     # Use smart analysis: tries incremental first, falls back to full

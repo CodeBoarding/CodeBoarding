@@ -13,7 +13,6 @@ Usage:
 
 import argparse
 import logging
-import os
 from pathlib import Path
 
 from health.runner import run_health_checks
@@ -46,7 +45,7 @@ def run_health_check_command(
     repo_input = str(repo_path)
     if repo_input.startswith(("https://", "http://", "git@", "ssh://")):
         # Remote repository URL
-        repo_root = Path(os.getenv("REPO_ROOT", "repos"))
+        repo_root = Path.cwd() / "repos"
         repo_name = clone_repository(repo_input, repo_root)
         resolved_repo_path = repo_root / repo_name
         resolved_project_name = project_name or get_repo_name(repo_input)

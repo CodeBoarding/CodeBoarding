@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
@@ -50,6 +49,7 @@ def generate_rst(
     expanded_components: set[str] | None = None,
     demo=False,
     file_name: str = "",
+    repo_path: Path = Path(),
 ) -> str:
     """
     Generate a RST document from an AnalysisInsights object.
@@ -92,8 +92,7 @@ def generate_rst(
     lines.append("")
 
     # Add component details
-    repo_root = os.getenv("REPO_ROOT")
-    root_dir = os.path.join(repo_root, project) if repo_root else project
+    root_dir = str(repo_path / project)
 
     for comp in insights.components:
         lines.append(component_header(comp.name, comp.component_id, expanded_components))
@@ -142,6 +141,7 @@ def generate_rst_file(
     expanded_components: set[str],
     temp_dir: Path,
     demo: bool = False,
+    repo_path: Path = Path(),
 ) -> Path:
     """
     Generate a RST file with the given insights and save it to the specified directory.
@@ -153,6 +153,7 @@ def generate_rst_file(
         expanded_components=expanded_components,
         demo=demo,
         file_name=file_name,
+        repo_path=repo_path,
     )
     rst_file = temp_dir / f"{file_name}.rst"
     with open(rst_file, "w") as f:

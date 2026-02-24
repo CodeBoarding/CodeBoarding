@@ -1,22 +1,23 @@
 ```mermaid
 graph LR
-    Execution_Controller["Execution Controller"]
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    Manifest_Manager["Manifest Manager"]
-    Coverage_Tracker["Coverage Tracker"]
-    Markdown_Generator["Markdown Generator"]
-    HTML_Generator["HTML Generator"]
-    Sphinx_Generator["Sphinx Generator"]
-    MDX_Generator["MDX Generator"]
-    Execution_Controller -- "triggers start of analysis pipeline and passes configuration parameters" --> Analysis_Orchestrator
-    Analysis_Orchestrator -- "queries existing component mappings and persists newly discovered architectural entities" --> Manifest_Manager
-    Analysis_Orchestrator -- "requests file status to determine which parts of the codebase need fresh analysis" --> Coverage_Tracker
-    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> Markdown_Generator
-    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> HTML_Generator
-    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> Sphinx_Generator
-    Analysis_Orchestrator -- "passes the finalized internal model to the selected rendering engines for file emission" --> MDX_Generator
-    Coverage_Tracker -- "synchronizes file‑level changes with the component‑level manifest to maintain state consistency" --> Manifest_Manager
-    Manifest_Manager -- "provides the ground truth of previously analyzed components to avoid redundant AI interpretation" --> Analysis_Orchestrator
+    DiagramGenerator["DiagramGenerator"]
+    AnalysisManifest["AnalysisManifest"]
+    SphinxGenerator["SphinxGenerator"]
+    MarkdownGenerator["MarkdownGenerator"]
+    HTMLGenerator["HTMLGenerator"]
+    MDXGenerator["MDXGenerator"]
+    FileCoverage["FileCoverage"]
+    MermaidRenderer["MermaidRenderer"]
+    DiagramGenerator -- "retrieves structured architectural data" --> AnalysisManifest
+    DiagramGenerator -- "orchestrates execution of specific formatters" --> SphinxGenerator
+    DiagramGenerator -- "orchestrates execution of specific formatters" --> MarkdownGenerator
+    DiagramGenerator -- "orchestrates execution of specific formatters" --> HTMLGenerator
+    DiagramGenerator -- "orchestrates execution of specific formatters" --> MDXGenerator
+    SphinxGenerator -- "queries component metadata" --> AnalysisManifest
+    MarkdownGenerator -- "queries component metadata" --> AnalysisManifest
+    HTMLGenerator -- "queries component metadata" --> AnalysisManifest
+    DiagramGenerator -- "consults coverage data" --> FileCoverage
+    MarkdownGenerator -- "passes relationship data for formatting" --> MermaidRenderer
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -25,86 +26,76 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### Execution Controller
-The subsystem entry point that validates the environment, parses configuration, and triggers the high-level analysis and rendering pipeline. It acts as the bridge between the user (CLI/GitHub Actions) and the internal logic.
+### DiagramGenerator
+The central orchestrator of the output phase; coordinates the transformation of CFG data into visual Mermaid diagrams and documentation structures.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingmain.py" target="_blank" rel="noopener noreferrer">`main`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinggithub_action.py" target="_blank" rel="noopener noreferrer">`github_action`</a>
+- `output_generators.sphinx.DiagramGenerator`
 
 
-### Analysis Orchestrator
-The central coordinator that manages the analysis lifecycle. It handles the transition from raw repository data to structured architectural models and coordinates incremental updates.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.DiagramGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/__init__.py" target="_blank" rel="noopener noreferrer">`DiagramGenerator.generate`</a>
-
-
-### Manifest Manager
-Maintains the persistent mapping between source code files and discovered architectural components. It ensures that the analysis is reproducible and consistent across runs.
+### AnalysisManifest
+The source‑of‑truth data structure containing the hierarchical map of architectural components, relationships, and LLM‑generated insights.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py#L24-L67" target="_blank" rel="noopener noreferrer">`AnalysisManifest`:24-67</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py" target="_blank" rel="noopener noreferrer">`AnalysisManifest.load`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/manifest.py" target="_blank" rel="noopener noreferrer">`AnalysisManifest.save`</a>
+- `core.manifest.AnalysisManifest`
 
 
-### Coverage Tracker
-Handles change detection and tracks which files require re-analysis. It provides the granularity needed for performance‑optimized incremental builds.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py#L23-L212" target="_blank" rel="noopener noreferrer">`FileCoverage`:23-212</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`FileCoverage.get_status`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py" target="_blank" rel="noopener noreferrer">`FileCoverage.update`</a>
-
-
-### Markdown Generator
-Transforms the internal analysis model into static Markdown files, primarily utilizing Mermaid.js for architectural diagrams.
+### SphinxGenerator
+Specialized generator that produces reStructuredText and configuration files for integration with the Sphinx documentation framework.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.output.MarkdownOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/markdown.py" target="_blank" rel="noopener noreferrer">`MarkdownOutputGenerator.render`</a>
+- `output_generators.sphinx.SphinxGenerator`
 
 
-### HTML Generator
-Produces interactive documentation using Cytoscape.js for dynamic, browser‑based architectural visualizations.
-
-
-**Related Classes/Methods**:
-
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`HTMLOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/html.py" target="_blank" rel="noopener noreferrer">`HTMLOutputGenerator.render`</a>
-
-
-### Sphinx Generator
-Generates reStructuredText (RST) files specifically designed for integration into the Sphinx documentation ecosystem.
+### MarkdownGenerator
+Transforms analysis data into standard Markdown files, embedding Mermaid.js code blocks for visual representation in Git platforms.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`SphinxOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/sphinx.py" target="_blank" rel="noopener noreferrer">`SphinxOutputGenerator.render`</a>
+- `output_generators.sphinx.MarkdownGenerator`
 
 
-### MDX Generator
-Emits React‑compatible documentation (MDX) with metadata front‑matter for modern web‑based documentation platforms (e.g., Docusaurus).
+### HTMLGenerator
+Produces standalone, interactive HTML reports that allow users to navigate the codebase hierarchy and view diagrams in a browser.
 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`MDXOutputGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingoutput_generators/mdx.py" target="_blank" rel="noopener noreferrer">`MDXOutputGenerator.render`</a>
+- `output_generators.html.HTMLGenerator`
+
+
+### MDXGenerator
+Generates React‑compatible Markdown (MDX) files, optimized for modern documentation sites like Docusaurus or Next.js.
+
+
+**Related Classes/Methods**:
+
+- `output_generators.mdx.MDXGenerator`
+
+
+### FileCoverage
+Tracks which source files have been successfully analyzed and documented, ensuring the output reflects the current state of the repository.
+
+
+**Related Classes/Methods**:
+
+- `core.coverage.FileCoverage`
+
+
+### MermaidRenderer
+(Logic within DiagramGenerator) Specifically handles the conversion of Control Flow Graph (CFG) nodes and edges into Mermaid.js syntax.
+
+
+**Related Classes/Methods**:
+
+- `output_generators.sphinx.MermaidRenderer`
 
 
 

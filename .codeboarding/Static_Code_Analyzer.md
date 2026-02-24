@@ -30,7 +30,7 @@ Coordinates project scanning, language detection, and the overall analysis lifec
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.AnalysisOrchestrator`</a>
+- `static_analyzer.java_config_scanner.AnalysisOrchestrator`
 
 
 ### LSP Infrastructure
@@ -39,7 +39,7 @@ Provides the JSON-RPC transport layer and symbol resolution logic to communicate
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.LSPInfrastructure`</a>
+- `static_analyzer.java_config_scanner.LSPInfrastructure`
 
 
 ### Incremental Manager
@@ -48,7 +48,7 @@ Optimizes performance by using Git diffs to perform delta-analysis, updating onl
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.IncrementalManager`</a>
+- `static_analyzer.java_config_scanner.IncrementalManager`
 
 
 ### Language Adapters
@@ -57,7 +57,7 @@ Language‑specific bridges (Java, TypeScript, etc.) that handle environment dis
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.LanguageAdapters`</a>
+- `static_analyzer.java_config_scanner.LanguageAdapters`
 
 
 ### Graph Construction Engine
@@ -66,7 +66,7 @@ Transforms raw symbol and call data into a unified Call Graph and performs archi
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.GraphConstructionEngine`</a>
+- `static_analyzer.java_config_scanner.GraphConstructionEngine`
 
 
 ### Analysis Result Store
@@ -75,7 +75,7 @@ Central DTO and persistence layer containing the extracted CFG, class hierarchie
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.AnalysisResultStore`</a>
+- `static_analyzer.java_config_scanner.AnalysisResultStore`
 
 
 ### Health & Quality Runner
@@ -84,7 +84,7 @@ Orchestrates the execution of diagnostic checks and aggregates findings into a r
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.HealthQualityRunner`</a>
+- `static_analyzer.java_config_scanner.HealthQualityRunner`
 
 
 ### Code Quality Diagnostics
@@ -93,7 +93,7 @@ Suite of specialized checkers (e.g., UnusedCodeAnalyzer, God Class) that evaluat
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_config_scanner.py" target="_blank" rel="noopener noreferrer">`static_analyzer.java_config_scanner.CodeQualityDiagnostics`</a>
+- `static_analyzer.java_config_scanner.CodeQualityDiagnostics`
 
 
 

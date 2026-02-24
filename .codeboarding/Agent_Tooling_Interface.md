@@ -26,9 +26,9 @@ Acts as the central factory and dispatcher; it aggregates all specialized tools 
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ToolRegistry`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.AgentToolFactory`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/__init__.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ToolDispatcher`</a>
+- `repos.codeboarding.tools.ToolRegistry`
+- `repos.codeboarding.tools.AgentToolFactory`
+- `repos.codeboarding.tools.ToolDispatcher`
 
 
 ### Static Analysis Engine
@@ -37,9 +37,9 @@ Extracts high-level code intelligence, including Control Flow Graphs (CFG), clas
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.GetCFGTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.CodeStructureTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_method_invocations.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.analysis.ClassHierarchyAnalyzer`</a>
+- `repos.codeboarding.tools.GetCFGTool`
+- `repos.codeboarding.tools.CodeStructureTool`
+- `repos.codeboarding.analysis.ClassHierarchyAnalyzer`
 
 
 ### File System & Source Access
@@ -48,9 +48,9 @@ Provides low-level access to the project's physical structure, enabling director
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ReadFileTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.DirectoryTreeGenerator`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_file.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.FileSystemExplorer`</a>
+- `repos.codeboarding.tools.ReadFileTool`
+- `repos.codeboarding.tools.DirectoryTreeGenerator`
+- `repos.codeboarding.tools.FileSystemExplorer`
 
 
 ### Dependency & Ecosystem Mapper
@@ -59,9 +59,9 @@ Maps internal package relationships and identifies external library dependencies
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_external_deps.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.DependencyMapperTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_external_deps.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.analysis.PackageRelationshipAnalyzer`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/get_external_deps.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.analysis.ExternalLibraryScanner`</a>
+- `repos.codeboarding.tools.DependencyMapperTool`
+- `repos.codeboarding.analysis.PackageRelationshipAnalyzer`
+- `repos.codeboarding.analysis.ExternalLibraryScanner`
 
 
 ### Documentation & Git Context Provider
@@ -70,9 +70,9 @@ Retrieves non-code context, such as Markdown documentation and Git diffs, to pro
 
 **Related Classes/Methods**:
 
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.MarkdownDocTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.GitDiffTool`</a>
-- <a href="https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/tools/read_docs.py" target="_blank" rel="noopener noreferrer">`repos.codeboarding.tools.ContextRetriever`</a>
+- `repos.codeboarding.tools.MarkdownDocTool`
+- `repos.codeboarding.tools.GitDiffTool`
+- `repos.codeboarding.tools.ContextRetriever`
 
 
 ### Infrastructure & State Manager

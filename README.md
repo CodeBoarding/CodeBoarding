@@ -63,9 +63,9 @@ graph LR
 
 ## 📌 Setup
 
-First, make sure you have uv installed. Check official installation guide [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
+First, make sure you have uv installed. Check the official installation guide: [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
 
-Setup the environment:
+Set up the environment:
 
 ```bash
 uv sync --frozen
@@ -73,47 +73,34 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python install.py
 ```
 
-> [!IMPORTANT]  
-> The install script installs a language server for Python and TypeScript/JavaScript. In order to successfully install
-> the TypeScript Language Server, you need to have `npm` installed. If `npm` is not found, the script will skip the
-> installation of the TypeScript Language Server and you will need to install it manually later if you want to analyze
-> TypeScript/JavaScript projects.
+> [!IMPORTANT]
+> `python install.py` downloads language server binaries to `~/.codeboarding/servers/` (shared across all projects).
+> `npm` is required (used for Python, TypeScript, JavaScript, and PHP language servers). If `npm` is not found, you will be prompted to install it via `nodeenv`; declining will abort setup.
 
+### Configuration
 
-Configure the environment variables in a `.env` file (you can copy from `.env.example`):
-The `python install.py` command creates a `.env` file if it doesn't exist with a default value for `REPO_ROOT` and `ROOT_RESULT` as well as OLLAMA_BASE_URL for local LLM inference. If you want to use a different LLM provider, you need to set the corresponding API key in the `.env` file.
+LLM provider keys and model overrides live in `~/.codeboarding/config.toml`, created automatically on first run:
 
-### Environment Variables
+```toml
+# ~/.codeboarding/config.toml
 
-```bash
-# LLM Provider (choose one)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-VERCEL_API_KEY=
-AWS_BEARER_TOKEN_BEDROCK=
-OLLAMA_BASE_URL=
-OPENAI_BASE_URL=                   # Optional: Custom OpenAI endpoint
-VERCEL_BASE_URL=                   # Optional: Custom Vercel endpoint
-CEREBRAS_API_KEY=
-AGENT_MODEL=                      # Optional: Specify model to use for the main agent (e.g., gpt-4o, claude-3-7-sonnet)
-PARSING_MODEL=                    # Optional: Specify model to use for parsing tasks (e.g., gpt-4o-mini, claude-3-haiku)
+[provider]
+# Uncomment exactly one provider key
+# openai_api_key    = "sk-..."
+# anthropic_api_key = "sk-ant-..."
+# google_api_key    = "AIza..."
+# vercel_api_key    = "vck_..."
+# ollama_base_url   = "http://localhost:11434"
 
-# Core Configuration
-CACHING_DOCUMENTATION=false        # Enable/disable documentation caching
-REPO_ROOT=./repos                  # Directory for downloaded repositories
-ROOT_RESULT=./results              # Directory for generated outputs
-PROJECT_ROOT=/path/to/CodeBoarding # Source project root (must end with /CodeBoarding)
-DIAGRAM_DEPTH_LEVEL=1              # Max depth level for diagram generation
-STATIC_ANALYSIS_CONFIG=./static_analysis_config.yml # Path to static analysis config
-
-# Optional
-GITHUB_TOKEN=                     # For accessing private repositories
-LANGSMITH_TRACING=false           # Optional: Enable LangSmith tracing
-LANGSMITH_ENDPOINT=               # Optional: LangSmith endpoint
-LANGSMITH_PROJECT=                # Optional: LangSmith project name
-LANGCHAIN_API_KEY=                # Optional: LangChain API key
+[llm]
+# Optional: override the default model for your active provider
+# agent_model   = "gemini-3-flash"
+# parsing_model = "gemini-3-flash"
 ```
+
+Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes.
+
+For private repositories, set `GITHUB_TOKEN` in your environment.
 
 > 💡 **Tip:** Our experience has shown that using **Google Gemini‑2.5‑Pro** yields the best results for complex diagram
 > generation tasks.
@@ -123,55 +110,50 @@ LANGCHAIN_API_KEY=                # Optional: LangChain API key
 #### Basic Usage
 
 ```bash
-# Analyze a remote repository
-python main.py <github_repo_url> --output-dir <output_path>
+# Analyze a local repository (output written to /path/to/repo/.codeboarding/)
+python main.py --local /path/to/repo
 
-# Analyze a local repository
-python main.py --local /path/to/repo --project-name MyProject --output-dir <output_path>
+# Analyze a remote repository (cloned to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/)
+python main.py https://github.com/user/repo
 ```
 
 #### Command-Line Arguments
 
-**Repository Selection (required, choose one):**
-- `<repository_url>` - One or more GitHub repository URLs to analyze
-- `--local <path>` - Path to a local repository for analysis
+**Repository selection (required, choose one):**
+- `<repository_url> ...` — One or more GitHub repository URLs to analyze
+- `--local <path>` — Path to a local repository
 
-**Output Configuration:**
-- `--output-dir <path>` - Directory where generated documentation will be saved (required for remote repos; optional for local repos, defaults to `./analysis`)
+**Analysis options:**
+- `--depth-level <int>` — Diagram depth (default: `1`)
+- `--incremental` — Smart incremental update (re-analyze changed files only)
+- `--full` — Force full reanalysis, skip incremental detection
+- `--partial-component-id <id>` — Update a single component by its ID (local repos only)
 
-**Local Repository Options:**
-- `--project-name <name>` - Name of the project (required when using `--local`)
-
-**Partial Update Options (local repos only):**
-- `--partial-component <name>` - Specific component to update in existing analysis
-- `--partial-analysis <name>` - Analysis file name to update (both component and analysis must be specified together)
-
-**Advanced Options:**
-- `--depth-level <int>` - Depth level for diagram generation (default: 1)
-- `--prompt-type <type>` - Prompt type: `bidirectional` or `unidirectional` (default: bidirectional for remote, unidirectional for local)
-- `--binary-location <path>` - Custom path to language server binaries
-- `--project-root <path>` - Project root directory (default: current directory)
-- `--upload` - Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)
-- `--no-cache-check` - Skip checking if documentation already exists (remote repos only)
+**Advanced:**
+- `--binary-location <path>` — Custom path to language server binaries (overrides `~/.codeboarding/servers/`)
+- `--upload` — Upload results to GeneratedOnBoardings repo (remote repos only)
+- `--enable-monitoring` — Enable run monitoring
 
 #### Examples
 
 ```bash
-# Analyze a single remote repository
-python main.py https://github.com/pytorch/pytorch --output-dir ./pytorch-docs
+# Analyze a local repository
+python main.py --local ./my-project
+
+# Analyze with custom depth
+python main.py --local ./my-project --depth-level 2
+
+# Analyze a remote repository
+python main.py https://github.com/pytorch/pytorch
 
 # Analyze multiple remote repositories
-python main.py https://github.com/user/repo1 https://github.com/user/repo2 --output-dir ./docs
+python main.py https://github.com/user/repo1 https://github.com/user/repo2
 
-# Analyze a local repository
-python main.py --local ./my-project --project-name MyProject --output-dir ./analysis
+# Incremental update (re-analyze only changed components)
+python main.py --local ./my-project --incremental
 
-# Partial update of a specific component
-python main.py --local ./my-project --project-name MyProject --output-dir ./analysis \
-               --partial-component "API Service" --partial-analysis on_boarding
-
-# Use custom depth level and disable caching
-python main.py https://github.com/user/repo --depth-level 2 --no-cache-check --output-dir ./deep-analysis
+# Update a single component by ID
+python main.py --local ./my-project --partial-component-id "a3f2b1c4d5e6f789"
 ```
 
 ## 🖥️ Examples:
