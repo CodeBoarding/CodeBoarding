@@ -1,12 +1,10 @@
-import base64
 import hashlib
 import json
 import logging
-import pickle
 import sqlite3
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from typing import Generic, TypeVar, cast
+from typing import Generic, TypeVar
 
 from langchain_core.language_models import BaseChatModel
 from langchain_community.cache import SQLiteCache
@@ -14,7 +12,7 @@ from langchain_core.outputs import Generation
 from pydantic import BaseModel, ConfigDict
 
 K = TypeVar("K")
-V = TypeVar("V")
+V = TypeVar("V", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +20,10 @@ logger = logging.getLogger(__name__)
 class BaseCache(ABC, Generic[K, V]):
     """Minimal key/value cache interface."""
 
-    def __init__(self, filename: str, cache_dir: Path):
+    def __init__(self, filename: str, cache_dir: Path, value_type: type[V]):
         self.cache_dir = cache_dir
         self.file_path = self.cache_dir / filename
+        self._value_type = value_type
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._sqlite_cache: SQLiteCache | None = None
         self._sqlite_disabled = False
@@ -51,9 +50,9 @@ class BaseCache(ABC, Generic[K, V]):
         encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    @abstractmethod
     def cache_keys(self, key: K) -> tuple[str, str]:
         """Map a typed cache key to sqlite prompt and llm keys."""
+        return self.signature(key), ""
 
     def load(self, key: K) -> V | None:
         cache = self._open_sqlite()
@@ -79,8 +78,7 @@ class BaseCache(ABC, Generic[K, V]):
             return None
 
         try:
-            raw_payload = base64.b64decode(generation.text.encode("ascii"), validate=True)
-            return cast(V, pickle.loads(raw_payload))
+            return self._value_type.model_validate_json(generation.text)
         except Exception as e:
             logger.warning("Cache payload decode failed: %s", e)
             return None
@@ -92,9 +90,7 @@ class BaseCache(ABC, Generic[K, V]):
 
         prompt_key, llm_key = self.cache_keys(key)
         try:
-            raw_payload = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
-            payload = base64.b64encode(raw_payload).decode("ascii")
-            cache.update(prompt_key, llm_key, [Generation(text=payload)])
+            cache.update(prompt_key, llm_key, [Generation(text=value.model_dump_json())])
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
 
