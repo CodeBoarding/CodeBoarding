@@ -50,37 +50,18 @@ class BaseCache(ABC, Generic[K, V]):
         encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    def cache_keys(self, key: K) -> tuple[str, str]:
-        """Map a typed cache key to sqlite prompt and llm keys."""
-        return self.signature(key), ""
-
     def load(self, key: K) -> V | None:
         cache = self._open_sqlite()
         if cache is None:
             return None
 
-        prompt_key, llm_key = self.cache_keys(key)
         try:
-            raw = cache.lookup(prompt_key, llm_key)
+            raw = cache.lookup(self.signature(key), None)
+            if not raw:
+                return None
+            return self._value_type.model_validate_json(raw[0].text)
         except Exception as e:
             logger.warning("Cache load failed: %s", e)
-            return None
-
-        if raw is None:
-            return None
-
-        if len(raw) > 1:
-            logger.warning("Cache lookup returned %d generations; using first", len(raw))
-
-        generation = raw[0]
-        if not isinstance(generation, Generation):
-            logger.warning("Unexpected cache payload type: %s", type(generation).__name__)
-            return None
-
-        try:
-            return self._value_type.model_validate_json(generation.text)
-        except Exception as e:
-            logger.warning("Cache payload decode failed: %s", e)
             return None
 
     def store(self, key: K, value: V) -> None:
@@ -88,9 +69,8 @@ class BaseCache(ABC, Generic[K, V]):
         if cache is None:
             return
 
-        prompt_key, llm_key = self.cache_keys(key)
         try:
-            cache.update(prompt_key, llm_key, [Generation(text=value.model_dump_json())])
+            cache.update(self.signature(key), None, [Generation(text=value.model_dump_json())])
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
 
@@ -99,9 +79,8 @@ class BaseCache(ABC, Generic[K, V]):
         if cache is None:
             return True
 
-        prompt_key, llm_key = self.cache_keys(key)
         try:
-            return cache.lookup(prompt_key, llm_key) is None
+            return cache.lookup(self.signature(key), None) is None
         except Exception as e:
             logger.warning("Cache staleness check failed: %s", e)
             return True
