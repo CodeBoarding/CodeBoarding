@@ -424,9 +424,9 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(new_components, [])
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
-    @patch("diagram_analysis.diagram_generator.plan_analysis")
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
     def test_generate_analysis_frontier_submits_child_before_slow_sibling_finishes(
-        self, mock_plan_analysis, mock_save_analysis
+        self, mock_get_expandable_components, mock_save_analysis
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -459,7 +459,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.abstraction_agent.run.return_value = (root_analysis, {})
         gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
         gen._save_manifest = Mock()
-        mock_plan_analysis.return_value = [root_a, root_b]
+        mock_get_expandable_components.return_value = [root_a, root_b]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         timestamps: dict[str, float] = {}
@@ -484,7 +484,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         result = gen.generate_analysis()
 
-        self.assertEqual(result, [str(self.output_dir / "analysis.json")])
+        self.assertEqual(result, [self.output_dir / "analysis.json"])
         self.assertIn("child_start", timestamps)
         self.assertIn("b_end", timestamps)
         self.assertLess(timestamps["child_start"], timestamps["b_end"])
@@ -541,7 +541,7 @@ class TestDiagramGenerator(unittest.TestCase):
             captured["expandable_components"] = expandable_components
             return "{}"
 
-        with patch("diagram_analysis.diagram_generator.plan_analysis", return_value=planned):
+        with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
                 "diagram_analysis.incremental.io_utils.build_unified_analysis_json",
                 side_effect=_capture_build,
@@ -554,8 +554,8 @@ class TestDiagramGenerator(unittest.TestCase):
             sorted([c.component_id for c in analysis.components]),
         )
 
-    @patch("diagram_analysis.diagram_generator.plan_analysis")
-    def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_plan_analysis):
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_generate_analysis_depth_one_preserves_root_expandable_flags(self, mock_get_expandable_components):
         comp1 = Component(
             name="Comp1",
             description="Component one",
@@ -575,7 +575,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         assign_component_ids(analysis)
 
-        mock_plan_analysis.return_value = analysis.components
+        mock_get_expandable_components.return_value = analysis.components
 
         gen = DiagramGenerator(
             repo_location=self.repo_location,
