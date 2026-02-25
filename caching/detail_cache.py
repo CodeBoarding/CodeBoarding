@@ -9,8 +9,11 @@ from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
+CACHE_VERSION = 1
+
 
 class DetailsCacheKey(BaseModel):
+    cache_version = 1
     prompt: str
     model_settings: ModelSettings
 

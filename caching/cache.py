@@ -70,6 +70,7 @@ class BaseCache(ABC, Generic[K, V]):
             return
 
         try:
+            cache.clear()
             cache.update(self.signature(key), None, [Generation(text=value.model_dump_json())])
         except Exception as e:
             logger.warning("Cache store failed: %s", e)

@@ -23,9 +23,11 @@ _README_PATTERNS: tuple[str, ...] = (
 )
 
 _CACHE_WATCH_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole.CONFIG})
+CACHE_VERSION = 1
 
 
 class MetaCacheKey(BaseModel):
+    cache_version = CACHE_VERSION
     prompt: str
     model: str
     model_settings: ModelSettings
@@ -59,7 +61,7 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
 
         return files
 
-    def _compute_metadata_content_hash(self, metadata_files: Sequence[str | Path]) -> str | None:
+    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str | None:
         """Return a deterministic fingerprint for watched file contents."""
         if not metadata_files:
             logger.error("[MetaCache] Trying to compute hash for empty list of watch files.")
