@@ -9,7 +9,7 @@ from agents.agent_responses import MetaAnalysisInsights
 from agents.dependency_discovery import FileRole, discover_dependency_files
 from caching.cache import BaseCache, ModelSettings
 from repo_utils.ignore import RepoIgnoreManager
-from utils import fingerprint_file, get_cache_dir
+from utils import fingerprint_file
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
         repo_dir: Path,
         ignore_manager: RepoIgnoreManager,
     ):
-        super().__init__("meta_agent_llm.sqlite", cache_dir=get_cache_dir(repo_dir), value_type=MetaCacheKey)
+        super().__init__("meta_agent_llm.sqlite", value_type=MetaAnalysisInsights)
         self._repo_dir = repo_dir
         self._ignore_manager = ignore_manager
 

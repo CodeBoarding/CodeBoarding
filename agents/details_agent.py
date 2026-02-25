@@ -14,6 +14,7 @@ from agents.agent_responses import (
 )
 from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from caching.detail_cache import FinalAnalysisCache, ClusterCache
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
@@ -41,6 +42,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_system_details_message(), agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
+        self._cluster_cache = ClusterCache(repo_dir=repo_dir)
+        self._analysis_cache = FinalAnalysisCache(repo_dir=repo_dir)
 
         self.prompts = {
             "group_clusters": PromptTemplate(
@@ -86,9 +89,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
         )
 
+        if (cached := self._cluster_cache.load(prompt)) is not None:
+            return cached
         cluster_analysis = self._validation_invoke(
             prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context
         )
+        self._cluster_cache.store(prompt, cluster_analysis)
         return cluster_analysis
 
     @trace
@@ -125,12 +131,16 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
         )
 
-        return self._validation_invoke(
+        if (cached := self._analysis_cache.load(prompt)) is not None:
+            return cached
+        result = self._validation_invoke(
             prompt,
             AnalysisInsights,
             validators=[validate_relation_component_names, validate_component_relationships, validate_key_entities],
             context=context,
         )
+        self._analysis_cache.store(prompt, result)
+        return result
 
     def run(self, component: Component):
         """

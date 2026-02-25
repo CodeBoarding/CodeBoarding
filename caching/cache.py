@@ -2,8 +2,8 @@ import hashlib
 import json
 import logging
 import sqlite3
-from pathlib import Path
 from typing import Generic, TypeVar
+from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
 from langchain_community.cache import SQLiteCache
@@ -19,9 +19,8 @@ logger = logging.getLogger(__name__)
 class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
 
-    def __init__(self, filename: str, cache_dir: Path, value_type: type[V]):
-        self.cache_dir = cache_dir
-        self.file_path = self.cache_dir / filename
+    def __init__(self, filename: str, value_type: type[V]):
+        self.file_path = get_cache_dir() / filename
         self._value_type = value_type
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._sqlite_cache: SQLiteCache | None = None
