@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import sqlite3
-from abc import ABC
 from pathlib import Path
 from typing import Generic, TypeVar
 
@@ -17,7 +16,7 @@ V = TypeVar("V", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 
-class BaseCache(ABC, Generic[K, V]):
+class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
 
     def __init__(self, filename: str, cache_dir: Path, value_type: type[V]):
