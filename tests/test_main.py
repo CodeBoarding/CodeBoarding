@@ -78,6 +78,28 @@ class TestGenerateAnalysis(unittest.TestCase):
                 monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
+            self.assertTrue(mock_generator.use_meta_cache)
+
+    @patch("main.DiagramGenerator")
+    def test_generate_analysis_ignores_meta_cache_when_requested(self, mock_generator_class):
+        mock_generator = MagicMock()
+        mock_generator.generate_analysis.return_value = [Path("analysis.json")]
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            generate_analysis(
+                repo_name="test_repo",
+                repo_path=repo_path,
+                output_dir=output_dir,
+                use_meta_cache=False,
+            )
+
+        self.assertFalse(mock_generator.use_meta_cache)
 
 
 class TestGenerateMarkdownDocs(unittest.TestCase):
@@ -370,6 +392,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
+                use_meta_cache=True,
             )
             self.assertTrue(output_dir.exists())
 
@@ -395,6 +418,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 project_name="test_project",
                 component_id="TestComponent",
                 depth_level=2,
+                use_meta_cache=True,
             )
 
 

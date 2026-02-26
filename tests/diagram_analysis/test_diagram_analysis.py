@@ -390,6 +390,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
+        mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
         # Note: planner is now a module function, not an agent instance
 
         # Verify version file was created

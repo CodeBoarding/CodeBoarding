@@ -45,7 +45,7 @@ class MetaAgent(CodeBoardingAgent):
         self._meta_cache = MetaCache(repo_dir=repo_dir, ignore_manager=self.ignore_manager)
 
     @trace
-    def analyze_project_metadata(self, skip_cache: bool) -> MetaAnalysisInsights:
+    def analyze_project_metadata(self, skip_cache: bool = False) -> MetaAnalysisInsights:
         """Analyze project metadata to provide architectural context and bias."""
         logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
 

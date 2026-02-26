@@ -69,7 +69,7 @@ class TestMetaAgent(unittest.TestCase):
         mock_meta_insights = self._meta_insights("library")
         mock_parse_invoke.return_value = mock_meta_insights
 
-        result = agent.analyze_project_metadata()
+        result = agent.analyze_project_metadata(skip_cache=False)
 
         self.assertEqual(result, mock_meta_insights)
         self.assertEqual(result.project_type, "library")
@@ -91,7 +91,7 @@ class TestMetaAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_meta_insights
 
-        result = agent.analyze_project_metadata()
+        result = agent.analyze_project_metadata(skip_cache=False)
 
         self.assertEqual(result, mock_meta_insights)
         self.assertEqual(result.project_type, "web application")

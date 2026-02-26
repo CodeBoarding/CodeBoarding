@@ -121,7 +121,7 @@ def reexpand_components(
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
     )
-    meta_context = meta_agent.get_meta_context()
+    meta_context = meta_agent.analyze_project_metadata(skip_cache=False)
 
     details_agent = DetailsAgent(
         repo_dir=repo_dir,

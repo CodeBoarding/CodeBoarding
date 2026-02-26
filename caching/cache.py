@@ -38,6 +38,7 @@ class BaseCache(Generic[K, V]):
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             self._sqlite_cache = SQLiteCache(database_path=str(self.file_path))
+            logger.info("Cache initialized at %s", self.file_path)
             return self._sqlite_cache
         except (OSError, sqlite3.Error) as e:
             logger.warning("Cache disabled: %s", e)
@@ -56,10 +57,14 @@ class BaseCache(Generic[K, V]):
             return None
 
         try:
-            raw = cache.lookup(self.signature(key), None)
+            key_signature = self.signature(key)
+            raw = cache.lookup(key_signature, None)
             if not raw:
+                logger.info("Cache miss: %s key=%s", self.file_path.name, key_signature)
                 return None
-            return self._value_type.model_validate_json(raw[0].text)
+            value = self._value_type.model_validate_json(raw[0].text)
+            logger.info("Cache load success: %s key=%s", self.file_path.name, key_signature)
+            return value
         except Exception as e:
             logger.warning("Cache load failed: %s", e)
             return None
@@ -70,8 +75,10 @@ class BaseCache(Generic[K, V]):
             return
 
         try:
+            key_sig = self.signature(key)
             cache.clear()
-            cache.update(self.signature(key), None, [Generation(text=value.model_dump_json())])
+            cache.update(key_sig, None, [Generation(text=value.model_dump_json())])
+            logger.info("Cache store success: %s key=%s", self.file_path.name, key_sig)
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
 
