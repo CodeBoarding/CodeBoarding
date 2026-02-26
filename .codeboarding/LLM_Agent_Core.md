@@ -1,31 +1,20 @@
 ```mermaid
 graph LR
-    CodeBoarding_Orchestrator["CodeBoarding Orchestrator"]
+    Agent_Orchestration_Engine["Agent Orchestration Engine"]
+    Specialized_Semantic_Agents["Specialized Semantic Agents"]
     Prompt_Management_System["Prompt Management System"]
-    Project_Meta_Analyzer["Project Meta-Analyzer"]
-    Strategic_Planner["Strategic Planner"]
-    Architectural_Abstraction_Agent["Architectural Abstraction Agent"]
-    Component_Detail_Agent["Component Detail Agent"]
-    CFG_Validator["CFG Validator"]
-    Schema_Enforcement["Schema Enforcement"]
-    CodeBoarding_Orchestrator -- "triggers" --> Project_Meta_Analyzer
-    CodeBoarding_Orchestrator -- "provides progress to" --> Strategic_Planner
-    Architectural_Abstraction_Agent -- "passes high‑level clusters to" --> Component_Detail_Agent
-    Component_Detail_Agent -- "submits inferred relationships to" --> CFG_Validator
-    CFG_Validator -- "sends feedback to" --> CodeBoarding_Orchestrator
-    Prompt_Management_System -- "provides prompts to" --> CodeBoarding_Orchestrator
-    Prompt_Management_System -- "provides prompts to" --> Project_Meta_Analyzer
-    Prompt_Management_System -- "provides prompts to" --> Strategic_Planner
-    Prompt_Management_System -- "provides prompts to" --> Architectural_Abstraction_Agent
-    Prompt_Management_System -- "provides prompts to" --> Component_Detail_Agent
-    Prompt_Management_System -- "provides prompts to" --> CFG_Validator
-    Schema_Enforcement -- "validates JSON structure for" --> CodeBoarding_Orchestrator
-    Schema_Enforcement -- "validates JSON structure for" --> Project_Meta_Analyzer
-    Schema_Enforcement -- "validates JSON structure for" --> Strategic_Planner
-    Schema_Enforcement -- "validates JSON structure for" --> Architectural_Abstraction_Agent
-    Schema_Enforcement -- "validates JSON structure for" --> Component_Detail_Agent
-    Schema_Enforcement -- "validates JSON structure for" --> CFG_Validator
-    Strategic_Planner -- "defines breadth for" --> Architectural_Abstraction_Agent
+    Semantic_Validation_Engine["Semantic Validation Engine"]
+    LLM_Infrastructure_Config["LLM Infrastructure & Config"]
+    Static_Analysis_Cluster_Utils["Static Analysis & Cluster Utils"]
+    Semantic_Data_Models["Semantic Data Models"]
+    Dependency_Discovery_Service["Dependency Discovery Service"]
+    Agent_Orchestration_Engine -- "delegates granular analysis tasks" --> Specialized_Semantic_Agents
+    Specialized_Semantic_Agents -- "retrieves task‑specific templates" --> Prompt_Management_System
+    Specialized_Semantic_Agents -- "fetches code snippets and subgraph data for context" --> Static_Analysis_Cluster_Utils
+    Semantic_Validation_Engine -- "validates LLM‑derived components against CFG facts" --> Static_Analysis_Cluster_Utils
+    LLM_Infrastructure_Config -- "supplies initialized model clients for execution" --> Specialized_Semantic_Agents
+    Specialized_Semantic_Agents -- "serializes LLM responses into structured objects" --> Semantic_Data_Models
+    Dependency_Discovery_Service -- "provides high‑level project metadata to seed the analysis" --> Agent_Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -34,78 +23,82 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### CodeBoarding Orchestrator
-Primary controller managing the analysis lifecycle, maintaining global state and coordinating the flow between specialized agents.
+### Agent Orchestration Engine
+Coordinates the analysis workflow, manages agent lifecycles, and ensures full coverage of CFG clusters.
 
 
 **Related Classes/Methods**:
 
-- `agents.agent.CodeBoardingAgent`
+- `agents.code_boarding.CodeBoardingAgent`
 
 
-### Prompt Management System
-Provider‑agnostic factory that abstracts LLM‑specific templates (Claude, GPT, Gemini) and supplies optimized system messages.
-
-
-**Related Classes/Methods**:
-
-- `agents.prompts.prompt_generator.PromptGenerator`
-- `agents.prompts.prompt_factory.PromptFactory`
-
-
-### Project Meta-Analyzer
-Identifies the tech stack, domain, and architectural bias to provide high‑level context that primes the rest of the pipeline.
-
-
-**Related Classes/Methods**:
-
-- `agents.meta_analyzer.MetaAgent`
-
-
-### Strategic Planner
-Analyzes component complexity and file counts to decide which areas require deeper recursive analysis or "expansion."
-
-
-**Related Classes/Methods**:
-
-- `agents.planner.PlannerAgent`
-
-
-### Architectural Abstraction Agent
-Performs coarse‑grained reasoning to identify broad patterns and top‑level components, establishing the project skeleton.
+### Specialized Semantic Agents
+Task‑specific agents (Abstraction, Meta, Details) that perform targeted analysis of code components.
 
 
 **Related Classes/Methods**:
 
 - `agents.abstraction.AbstractionAgent`
+- `agents.meta.MetaAgent`
+- `agents.details.DetailsAgent`
 
 
-### Component Detail Agent
-Conducts deep dives into specific clusters, extracting responsibilities and internal logic using filtered CFG sub‑graphs.
-
-
-**Related Classes/Methods**:
-
-- `agents.detail_agent.DetailAgent`
-
-
-### CFG Validator
-Grounding mechanism that cross‑references LLM‑generated maps against the actual static analysis graph to detect hallucinations.
+### Prompt Management System
+Decouples prompt engineering from logic, providing provider‑specific templates (OpenAI, Gemini, etc.).
 
 
 **Related Classes/Methods**:
 
-- `agents.validation.ValidationContext`
+- `prompts.prompt_generator.PromptGenerator`
+- `prompts.prompt_factory.PromptFactory`:49-99
 
 
-### Schema Enforcement
-Defines Pydantic models used by all agents to ensure complex LLM outputs are strictly typed before being passed to other stages.
+### Semantic Validation Engine
+Cross‑references LLM interpretations with static analysis facts to ensure no clusters are missed or hallucinated.
+
+
+**Related Classes/Methods**:
+
+- `validation.ValidationContext`:14-27
+
+
+### LLM Infrastructure & Config
+Manages provider configurations, API keys, and model initialization (Ollama, Anthropic, etc.).
+
+
+**Related Classes/Methods**:
+
+- `config.llm_config.LLMConfig`
+- `config.initialize_llms`:319-322
+
+
+### Static Analysis & Cluster Utils
+Provides utility methods for agents to map clusters to file sets and extract relevant code subgraphs.
+
+
+**Related Classes/Methods**:
+
+- `utils.cluster_utils`
+
+
+### Semantic Data Models
+Defines the structured Pydantic schemas for LLM communication and final documentation output.
 
 
 **Related Classes/Methods**:
 
 - `models.analysis_insights.AnalysisInsights`
-- `models.agent_responses.AgentResponses`
+- `models.component.Component`
+- `models.relation.Relation`
+
+
+### Dependency Discovery Service
+Scans for manifest files (e.g., package.json) to provide ecosystem context to the agents.
+
+
+**Related Classes/Methods**:
+
+- `discovery.discover_dependency_files`:103-159
 
 
 

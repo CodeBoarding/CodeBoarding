@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-26T17:56:21.248647+00:00",
-  "overall_score": 0.966852886405959,
+  "timestamp": "2026-02-26T19:28:22.954242+00:00",
+  "overall_score": 0.9647102526002972,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -155,7 +155,7 @@
       "check_name": "inheritance_depth",
       "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
       "check_type": "standard",
-      "total_entities_checked": 156,
+      "total_entities_checked": 157,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -166,9 +166,9 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "core -> health -> core",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents"
+        "health -> core -> health",
+        "caching -> agents -> caching",
+        "static_analyzer -> agents -> static_analyzer"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -221,9 +221,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 73,
-      "findings_count": 73,
-      "warning_count": 73,
+      "total_entities_checked": 79,
+      "findings_count": 79,
+      "warning_count": 79,
       "score": 0.0,
       "finding_groups": [
         {
@@ -288,6 +288,34 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"used_old_ids\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 274,
+              "line_end": 274,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"used_old_ids\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 274,
+              "line_end": 274,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"name\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 414,
+              "line_end": 414,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"name\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 414,
+              "line_end": 414,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"Edge\" is not accessed",
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 15,
@@ -337,6 +365,27 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 134,
+              "line_end": 134,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 274,
+              "line_end": 274,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
               "file_path": "output_generators/mdx.py",
               "line_start": 7,
@@ -369,13 +418,6 @@
               "file_path": "monitoring/callbacks.py",
               "line_start": 91,
               "line_end": 91,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
               "metric_value": 0.0
             },
             {
@@ -604,9 +646,9 @@
             },
             {
               "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
+              "file_path": "agents/validation.py",
+              "line_start": 3,
+              "line_end": 3,
               "metric_value": 0.0
             },
             {
@@ -792,7 +834,19 @@
       "composite_risk_score": 90.0
     },
     {
+      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "total_findings": 5,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
+    },
+    {
       "file_path": "static_analyzer/cluster_change_analyzer.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "agents/validation.py",
       "total_findings": 4,
       "warning_findings": 4,
       "composite_risk_score": 60.0
@@ -820,18 +874,6 @@
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "monitoring/paths.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
     },
     {
       "file_path": "agents/prompts/prompt_factory.py",

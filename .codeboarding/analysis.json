@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-26T18:05:40.526197+00:00",
+    "generated_at": "2026-02-26T19:29:50.171322+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -349,39 +349,66 @@
       "can_expand": true,
       "components": [
         {
-          "name": "CodeBoarding Orchestrator",
-          "description": "Primary controller managing the analysis lifecycle, maintaining global state and coordinating the flow between specialized agents.",
+          "name": "Agent Orchestration Engine",
+          "description": "Coordinates the analysis workflow, manages agent lifecycles, and ensures full coverage of CFG clusters.",
           "key_entities": [
             {
-              "qualified_name": "agents.agent.CodeBoardingAgent",
-              "reference_file": "agents/agent.py"
+              "qualified_name": "agents.code_boarding.CodeBoardingAgent",
+              "reference_file": "agents/__init__.py"
             }
           ],
           "assigned_files": [
-            "agents/agent.py",
             "agents/__init__.py",
+            "agents/agent.py",
             "agents/constants.py",
-            "agents/llm_config.py"
+            "agents/planner_agent.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "ed411c21490f3d34",
+          "component_id": "335eaf8bac0f3ebb",
+          "can_expand": true
+        },
+        {
+          "name": "Specialized Semantic Agents",
+          "description": "Task‑specific agents (Abstraction, Meta, Details) that perform targeted analysis of code components.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.abstraction.AbstractionAgent",
+              "reference_file": "agents/abstraction_agent.py"
+            },
+            {
+              "qualified_name": "agents.meta.MetaAgent",
+              "reference_file": "agents/abstraction_agent.py"
+            },
+            {
+              "qualified_name": "agents.details.DetailsAgent",
+              "reference_file": "agents/abstraction_agent.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/abstraction_agent.py",
+            "agents/details_agent.py",
+            "agents/meta_agent.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "af18e0ebd65af7d1",
           "can_expand": true
         },
         {
           "name": "Prompt Management System",
-          "description": "Provider‑agnostic factory that abstracts LLM‑specific templates (Claude, GPT, Gemini) and supplies optimized system messages.",
+          "description": "Decouples prompt engineering from logic, providing provider‑specific templates (OpenAI, Gemini, etc.).",
           "key_entities": [
             {
-              "qualified_name": "agents.prompts.prompt_generator.PromptGenerator",
-              "reference_file": "agents/prompts/prompt_factory.py"
+              "qualified_name": "prompts.prompt_generator.PromptGenerator",
+              "reference_file": "agents/prompts/__init__.py"
             },
             {
-              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-              "reference_file": "agents/prompts/prompt_factory.py"
+              "qualified_name": "prompts.prompt_factory.PromptFactory",
+              "reference_file": "agents/prompts/prompt_factory.py",
+              "reference_start_line": 49,
+              "reference_end_line": 99
             }
           ],
           "assigned_files": [
-            "agents/prompts/prompt_factory.py",
             "agents/prompts/__init__.py",
             "agents/prompts/abstract_prompt_factory.py",
             "agents/prompts/claude_prompts.py",
@@ -389,104 +416,83 @@
             "agents/prompts/gemini_flash_prompts.py",
             "agents/prompts/glm_prompts.py",
             "agents/prompts/gpt_prompts.py",
-            "agents/prompts/kimi_prompts.py"
+            "agents/prompts/kimi_prompts.py",
+            "agents/prompts/prompt_factory.py"
           ],
           "source_cluster_ids": [],
           "component_id": "db4a86ad3c9c99dc",
           "can_expand": true
         },
         {
-          "name": "Project Meta-Analyzer",
-          "description": "Identifies the tech stack, domain, and architectural bias to provide high‑level context that primes the rest of the pipeline.",
+          "name": "Semantic Validation Engine",
+          "description": "Cross‑references LLM interpretations with static analysis facts to ensure no clusters are missed or hallucinated.",
           "key_entities": [
             {
-              "qualified_name": "agents.meta_analyzer.MetaAgent",
-              "reference_file": "agents/meta_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/meta_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "2fcdbce4b6643487",
-          "can_expand": true
-        },
-        {
-          "name": "Strategic Planner",
-          "description": "Analyzes component complexity and file counts to decide which areas require deeper recursive analysis or \"expansion.\"",
-          "key_entities": [
-            {
-              "qualified_name": "agents.planner.PlannerAgent",
-              "reference_file": "agents/planner_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/planner_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "9dc1b3ce8783126c",
-          "can_expand": true
-        },
-        {
-          "name": "Architectural Abstraction Agent",
-          "description": "Performs coarse‑grained reasoning to identify broad patterns and top‑level components, establishing the project skeleton.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.abstraction.AbstractionAgent",
-              "reference_file": "agents/abstraction_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/abstraction_agent.py",
-            "agents/cluster_methods_mixin.py",
-            "agents/dependency_discovery.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "f993778a0e84b517",
-          "can_expand": true
-        },
-        {
-          "name": "Component Detail Agent",
-          "description": "Conducts deep dives into specific clusters, extracting responsibilities and internal logic using filtered CFG sub‑graphs.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.detail_agent.DetailAgent",
-              "reference_file": "agents/details_agent.py"
-            }
-          ],
-          "assigned_files": [
-            "agents/details_agent.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "e47b472bdc838c82",
-          "can_expand": true
-        },
-        {
-          "name": "CFG Validator",
-          "description": "Grounding mechanism that cross‑references LLM‑generated maps against the actual static analysis graph to detect hallucinations.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.validation.ValidationContext",
-              "reference_file": "agents/validation.py"
+              "qualified_name": "validation.ValidationContext",
+              "reference_file": "agents/validation.py",
+              "reference_start_line": 14,
+              "reference_end_line": 27
             }
           ],
           "assigned_files": [
             "agents/validation.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "92a02150a1213dd6",
+          "component_id": "01b5ad69bebfed99",
           "can_expand": true
         },
         {
-          "name": "Schema Enforcement",
-          "description": "Defines Pydantic models used by all agents to ensure complex LLM outputs are strictly typed before being passed to other stages.",
+          "name": "LLM Infrastructure & Config",
+          "description": "Manages provider configurations, API keys, and model initialization (Ollama, Anthropic, etc.).",
+          "key_entities": [
+            {
+              "qualified_name": "config.llm_config.LLMConfig",
+              "reference_file": "agents/llm_config.py"
+            },
+            {
+              "qualified_name": "config.initialize_llms",
+              "reference_file": "agents/llm_config.py",
+              "reference_start_line": 319,
+              "reference_end_line": 322
+            }
+          ],
+          "assigned_files": [
+            "agents/llm_config.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "d3a41f56c382c9a9",
+          "can_expand": true
+        },
+        {
+          "name": "Static Analysis & Cluster Utils",
+          "description": "Provides utility methods for agents to map clusters to file sets and extract relevant code subgraphs.",
+          "key_entities": [
+            {
+              "qualified_name": "utils.cluster_utils",
+              "reference_file": "agents/cluster_methods_mixin.py"
+            }
+          ],
+          "assigned_files": [
+            "agents/cluster_methods_mixin.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8a858c35b1bf6d0c",
+          "can_expand": true
+        },
+        {
+          "name": "Semantic Data Models",
+          "description": "Defines the structured Pydantic schemas for LLM communication and final documentation output.",
           "key_entities": [
             {
               "qualified_name": "models.analysis_insights.AnalysisInsights",
               "reference_file": "agents/agent_responses.py"
             },
             {
-              "qualified_name": "models.agent_responses.AgentResponses",
+              "qualified_name": "models.component.Component",
+              "reference_file": "agents/agent_responses.py"
+            },
+            {
+              "qualified_name": "models.relation.Relation",
               "reference_file": "agents/agent_responses.py"
             }
           ],
@@ -494,136 +500,77 @@
             "agents/agent_responses.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "e764f8ea477ef8b0",
+          "component_id": "b75d3ae021c47a35",
+          "can_expand": true
+        },
+        {
+          "name": "Dependency Discovery Service",
+          "description": "Scans for manifest files (e.g., package.json) to provide ecosystem context to the agents.",
+          "key_entities": [
+            {
+              "qualified_name": "discovery.discover_dependency_files",
+              "reference_file": "agents/dependency_discovery.py",
+              "reference_start_line": 103,
+              "reference_end_line": 159
+            }
+          ],
+          "assigned_files": [
+            "agents/dependency_discovery.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "91aede9d789c09cf",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers",
-          "src_name": "CodeBoarding Orchestrator",
-          "dst_name": "Project Meta-Analyzer",
-          "src_id": "ed411c21490f3d34",
-          "dst_id": "2fcdbce4b6643487"
+          "relation": "delegates granular analysis tasks",
+          "src_name": "Agent Orchestration Engine",
+          "dst_name": "Specialized Semantic Agents",
+          "src_id": "335eaf8bac0f3ebb",
+          "dst_id": "af18e0ebd65af7d1"
         },
         {
-          "relation": "provides progress to",
-          "src_name": "CodeBoarding Orchestrator",
-          "dst_name": "Strategic Planner",
-          "src_id": "ed411c21490f3d34",
-          "dst_id": "9dc1b3ce8783126c"
+          "relation": "retrieves task‑specific templates",
+          "src_name": "Specialized Semantic Agents",
+          "dst_name": "Prompt Management System",
+          "src_id": "af18e0ebd65af7d1",
+          "dst_id": "db4a86ad3c9c99dc"
         },
         {
-          "relation": "passes high‑level clusters to",
-          "src_name": "Architectural Abstraction Agent",
-          "dst_name": "Component Detail Agent",
-          "src_id": "f993778a0e84b517",
-          "dst_id": "e47b472bdc838c82"
+          "relation": "fetches code snippets and subgraph data for context",
+          "src_name": "Specialized Semantic Agents",
+          "dst_name": "Static Analysis & Cluster Utils",
+          "src_id": "af18e0ebd65af7d1",
+          "dst_id": "8a858c35b1bf6d0c"
         },
         {
-          "relation": "submits inferred relationships to",
-          "src_name": "Component Detail Agent",
-          "dst_name": "CFG Validator",
-          "src_id": "e47b472bdc838c82",
-          "dst_id": "92a02150a1213dd6"
+          "relation": "validates LLM‑derived components against CFG facts",
+          "src_name": "Semantic Validation Engine",
+          "dst_name": "Static Analysis & Cluster Utils",
+          "src_id": "01b5ad69bebfed99",
+          "dst_id": "8a858c35b1bf6d0c"
         },
         {
-          "relation": "sends feedback to",
-          "src_name": "CFG Validator",
-          "dst_name": "CodeBoarding Orchestrator",
-          "src_id": "92a02150a1213dd6",
-          "dst_id": "ed411c21490f3d34"
+          "relation": "supplies initialized model clients for execution",
+          "src_name": "LLM Infrastructure & Config",
+          "dst_name": "Specialized Semantic Agents",
+          "src_id": "d3a41f56c382c9a9",
+          "dst_id": "af18e0ebd65af7d1"
         },
         {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "CodeBoarding Orchestrator",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "ed411c21490f3d34"
+          "relation": "serializes LLM responses into structured objects",
+          "src_name": "Specialized Semantic Agents",
+          "dst_name": "Semantic Data Models",
+          "src_id": "af18e0ebd65af7d1",
+          "dst_id": "b75d3ae021c47a35"
         },
         {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "Project Meta-Analyzer",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "2fcdbce4b6643487"
-        },
-        {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "Strategic Planner",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "9dc1b3ce8783126c"
-        },
-        {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "Architectural Abstraction Agent",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "f993778a0e84b517"
-        },
-        {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "Component Detail Agent",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "e47b472bdc838c82"
-        },
-        {
-          "relation": "provides prompts to",
-          "src_name": "Prompt Management System",
-          "dst_name": "CFG Validator",
-          "src_id": "db4a86ad3c9c99dc",
-          "dst_id": "92a02150a1213dd6"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "CodeBoarding Orchestrator",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "ed411c21490f3d34"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "Project Meta-Analyzer",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "2fcdbce4b6643487"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "Strategic Planner",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "9dc1b3ce8783126c"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "Architectural Abstraction Agent",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "f993778a0e84b517"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "Component Detail Agent",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "e47b472bdc838c82"
-        },
-        {
-          "relation": "validates JSON structure for",
-          "src_name": "Schema Enforcement",
-          "dst_name": "CFG Validator",
-          "src_id": "e764f8ea477ef8b0",
-          "dst_id": "92a02150a1213dd6"
-        },
-        {
-          "relation": "defines breadth for",
-          "src_name": "Strategic Planner",
-          "dst_name": "Architectural Abstraction Agent",
-          "src_id": "9dc1b3ce8783126c",
-          "dst_id": "f993778a0e84b517"
+          "relation": "provides high‑level project metadata to seed the analysis",
+          "src_name": "Dependency Discovery Service",
+          "dst_name": "Agent Orchestration Engine",
+          "src_id": "91aede9d789c09cf",
+          "dst_id": "335eaf8bac0f3ebb"
         }
       ]
     },
