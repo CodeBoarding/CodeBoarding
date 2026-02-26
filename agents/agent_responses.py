@@ -129,6 +129,33 @@ class ClusterAnalysis(LLMBaseModel):
         return title + body
 
 
+class MethodEntry(BaseModel):
+    """A single method/function within a file, with its location and identity."""
+
+    qualified_name: str = Field(description="Fully qualified name of the method or function.")
+    start_line: int = Field(description="Starting line number in the file.")
+    end_line: int = Field(description="Ending line number in the file.")
+    node_type: int = Field(description="LSP SymbolKind (e.g. 6=Method, 12=Function, 5=Class).")
+
+    def __hash__(self) -> int:
+        return hash(self.qualified_name)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MethodEntry):
+            return NotImplemented
+        return self.qualified_name == other.qualified_name
+
+
+class FileMethodGroup(BaseModel):
+    """All methods/functions belonging to a component within a single file."""
+
+    file_path: str = Field(description="Relative path to the source file.")
+    methods: list[MethodEntry] = Field(
+        default_factory=list,
+        description="Methods and functions in this file that belong to the component, sorted by start_line.",
+    )
+
+
 class Component(LLMBaseModel):
     """A software component with name, description, and key entities."""
 
@@ -140,16 +167,22 @@ class Component(LLMBaseModel):
         description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
 
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from CFG analysis that this component encompasses.",
+        default_factory=list,
+    )
+
     # Deterministic from static analysis: ALL files belonging to this component
     assigned_files: list[str] = Field(
-        description="All source files assigned to this component (populated deterministically).",
+        description="All source files assigned to this component (derived from file_methods).",
         default_factory=list,
         exclude=True,
     )
 
-    source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses.",
+    file_methods: list[FileMethodGroup] = Field(
+        description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
         default_factory=list,
+        exclude=True,
     )
 
     component_id: str = Field(

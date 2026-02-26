@@ -136,15 +136,13 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
         # Step 3: Sanitize cluster IDs (remove invalid ones)
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
-        # Step 4: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, cluster_results, self.static_analysis.get_all_source_files())
-        # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 3b: Populate file_methods deterministically from cluster results + orphan assignment
+        self.populate_file_methods(analysis, cluster_results)
+        # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 6: Ensure unique key entities across components
+        # Step 5: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
-        # Step 7: Ensure unique file assignments across components
-        self._ensure_unique_file_assignments(analysis)
-        # Step 8: Assign deterministic component IDs
+        # Step 6: Assign deterministic component IDs
         assign_component_ids(analysis)
 
         return analysis, cluster_results

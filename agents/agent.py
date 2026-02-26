@@ -15,14 +15,11 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.agent_responses import AnalysisInsights, ComponentFiles, FileClassification
-from agents.prompts import (
-    get_unassigned_files_classification_message,
-    get_validation_feedback_message,
-)
+from agents.agent_responses import AnalysisInsights
+from agents.prompts import get_validation_feedback_message
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
-from agents.validation import ValidationContext, validate_file_classifications
+from agents.validation import ValidationContext
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.llm_config import MONITORING_CALLBACK
@@ -335,133 +332,3 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
-
-    def classify_files(self, analysis: AnalysisInsights, cluster_results: dict, scope_files: list[str]) -> None:
-        """
-        Two-pass file assignment for AnalysisInsights:
-        1. Deterministic: assign files from cluster_ids and key_entities
-        2. LLM-based: classify remaining unassigned files
-
-        Args:
-            analysis: AnalysisInsights object to classify files for
-            cluster_results: Dict mapping language -> ClusterResult (for the relevant scope)
-            scope_files: List of file paths to limit classification scope.
-
-        Requires self to be a mixin with ClusterMethodsMixin for helper methods.
-        """
-        for comp in analysis.components:
-            # Deterministic assignment (uses mixin methods)
-            self._assign_files_to_component(comp, cluster_results)  # type: ignore[attr-defined]
-        self._classify_unassigned_files_llm(analysis, scope_files)
-        self._log_unclassified_files_count(analysis, scope_files)
-
-    def _classify_unassigned_files_llm(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
-        """
-        Classify files from the scope files that weren't assigned to any component.
-        Uses a single LLM call to classify all unassigned files.
-        Args:
-            analysis: AnalysisInsights object
-            scope_files: List of file paths to limit classification scope.
-        """
-        # Get unassigned files using the helper method
-        unassigned_files = self._get_unassigned_files(analysis, scope_files)
-
-        if not unassigned_files:
-            logger.info("[Agent] All files already assigned, skipping LLM classification")
-            return
-
-        logger.info(f"[Agent] Found {len(unassigned_files)} unassigned files, using LLM classification")
-
-        # 4. Build component summary for LLM using llm_str()
-        valid_components = [comp for comp in analysis.components if comp.name != "Unclassified"]
-        components_summary = "\n\n".join(comp.llm_str() for comp in valid_components)
-        component_map = {comp.name: comp for comp in valid_components}
-
-        # 5. Classify all unassigned files with LLM
-        classifications: list[FileClassification] = self._classify_unassigned_files_with_llm(
-            unassigned_files, components_summary, analysis
-        )
-
-        # 6. Append successfully classified files to components
-        for fc in classifications:
-            if fc.component_name in component_map:
-                comp = component_map[fc.component_name]
-                if fc.file_path not in comp.assigned_files:
-                    comp.assigned_files.append(fc.file_path)
-                    logger.debug(f"[Agent] Assigned {fc.file_path} to {fc.component_name}")
-            else:
-                logger.warning(
-                    f"[Agent] Invalid component name '{fc.component_name}' for file {fc.file_path}, skipping"
-                )
-
-        logger.info(f"[Agent] File classification complete: {len(classifications)} files classified")
-
-    def _get_unassigned_files(self, analysis: AnalysisInsights, scope_files: list[str]) -> list[str]:
-        """
-        Check which files remain unassigned after classification.
-        Args:
-            analysis: AnalysisInsights object with classified components
-            scope_files: List of file paths to limit the scope.
-        Returns:
-            List of file paths that are still unassigned
-        """
-        # 1. Gather all assigned files
-        assigned_files = set()
-        for comp in analysis.components:
-            for f in comp.assigned_files:
-                abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
-                assigned_files.add(os.path.relpath(abs_path, self.repo_dir))
-
-        # 2. Get files to consider for classification
-        # If scope_files is provided (e.g., DetailsAgent), use those
-        # Otherwise use all source files from static_analysis (e.g., AbstractionAgent)
-        all_files = set()
-        for file_path in scope_files:
-            file_path_str = str(file_path)
-            rel_path = os.path.relpath(file_path_str, self.repo_dir) if os.path.isabs(file_path_str) else file_path_str
-            all_files.add(rel_path)
-
-        # 3. Return unassigned files
-        return sorted(all_files - assigned_files)
-
-    def _log_unclassified_files_count(self, analysis: AnalysisInsights, scope_files: list[str]) -> None:
-        """
-        Log how many files remain unclassified within the analysis.
-
-        Args:
-            analysis: AnalysisInsights object with classified components
-            scope_files: List of file paths which are expected to be within the analysis.
-        """
-        unassigned = self._get_unassigned_files(analysis, scope_files)
-        if unassigned:
-            logger.warning(f"[Agent] {len(unassigned)} files have not been classified successfully: {unassigned}")
-        else:
-            logger.info("[Agent] All files have been classified successfully")
-
-    def _classify_unassigned_files_with_llm(
-        self, unassigned_files: list[str], components_summary: str, analysis: AnalysisInsights
-    ) -> list[FileClassification]:
-        """
-        Classify unassigned files using LLM with validation.
-        Returns list of FileClassification objects.
-        """
-
-        prompt = PromptTemplate(
-            template=get_unassigned_files_classification_message(), input_variables=["unassigned_files", "components"]
-        ).format(unassigned_files="\n".join(unassigned_files), components=components_summary)
-
-        # Get valid component names from the components_summary
-        # Parse component names from the summary (components have format "**Component:** `ComponentName`")
-        valid_component_names = set([comp.name for comp in analysis.components])
-
-        # Build validation context
-        context = ValidationContext(
-            expected_files=set(unassigned_files),
-            valid_component_names=valid_component_names,
-            repo_dir=str(self.repo_dir),
-        )
-
-        file_classifications = self._validation_invoke(
-            prompt, ComponentFiles, validators=[validate_file_classifications], context=context
-        )
-        return file_classifications.file_paths

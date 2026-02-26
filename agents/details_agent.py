@@ -159,16 +159,15 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 4: Sanitize cluster IDs (remove invalid ones) - use subgraph's cluster results
         self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
 
-        # Step 5: Assign files to components (deterministic + LLM-based with validation)
-        # Pass component's assigned files as scope to limit classification to this component
-        self.classify_files(analysis, subgraph_cluster_results, component.assigned_files)
+        # Step 4b: Populate file_methods deterministically from cluster results + orphan assignment
+        self.populate_file_methods(analysis, subgraph_cluster_results)
 
-        # Step 6: Fix source code reference lines (resolves reference_file paths)
+        # Step 5: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)
 
-        # Step 7: Ensure unique key entities across components
+        # Step 6: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
-        # Step 8: Assign deterministic component IDs based on parent
+        # Step 7: Assign deterministic component IDs based on parent
         assign_component_ids(analysis, parent_id=component.component_id)
 
         return analysis, subgraph_cluster_results
