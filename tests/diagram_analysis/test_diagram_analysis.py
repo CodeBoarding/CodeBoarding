@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     Relation,
     SourceCodeReference,
     assign_component_ids,
@@ -511,12 +512,14 @@ class TestDiagramGenerator(unittest.TestCase):
             description="First",
             key_entities=[],
             assigned_files=["file1.py"],
+            file_methods=[FileMethodGroup(file_path="file1.py", methods=[])],
         )
         comp2 = Component(
             name="Component2",
             description="Second",
             key_entities=[],
             assigned_files=["file2.py"],
+            file_methods=[FileMethodGroup(file_path="file2.py", methods=[])],
         )
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -561,12 +564,14 @@ class TestDiagramGenerator(unittest.TestCase):
             description="Component one",
             key_entities=[],
             assigned_files=["a.py"],
+            file_methods=[FileMethodGroup(file_path="a.py", methods=[])],
         )
         comp2 = Component(
             name="Comp2",
             description="Component two",
             key_entities=[],
             assigned_files=["b.py"],
+            file_methods=[FileMethodGroup(file_path="b.py", methods=[])],
         )
         analysis = AnalysisInsights(
             description="Root analysis",
