@@ -21,12 +21,32 @@ def create_clients(
     programming_languages: list[ProgrammingLanguage], repository_path: Path, ignore_manager: RepoIgnoreManager
 ) -> list[LSPClient]:
     clients: list[LSPClient] = []
+    ts_family_keys = {"typescript", "javascript"}
+    ts_family_candidates = [pl for pl in programming_languages if pl.lsp_server_key in ts_family_keys]
+    ts_family_preferred: ProgrammingLanguage | None = None
+    merged_ts_family_language: ProgrammingLanguage | None = None
+    if ts_family_candidates:
+        ts_family_preferred = next((pl for pl in ts_family_candidates if pl.language.lower() == "typescript"), None)
+        if ts_family_preferred is None:
+            ts_family_preferred = max(ts_family_candidates, key=lambda pl: pl.percentage)
+        merged_ts_family_language = ProgrammingLanguage(
+            language=ts_family_preferred.language,
+            size=sum(pl.size for pl in ts_family_candidates),
+            percentage=sum(pl.percentage for pl in ts_family_candidates),
+            suffixes=sorted({suffix for pl in ts_family_candidates for suffix in pl.suffixes}),
+            server_commands=ts_family_preferred.server_commands,
+            lsp_server_key=ts_family_preferred.lsp_server_key,
+            language_specific_config=ts_family_preferred.language_specific_config,
+        )
     for pl in programming_languages:
         if not pl.is_supported_lang():
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
             continue
         try:
-            if pl.language.lower() in ["typescript"]:
+            if pl.lsp_server_key in ts_family_keys:
+                if ts_family_preferred is not None and pl is not ts_family_preferred:
+                    continue
+                active_language = merged_ts_family_language or pl
                 # For TypeScript, scan for multiple project configurations (mono-repo support)
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
@@ -38,13 +58,17 @@ def create_clients(
                             f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}"
                         )
                         clients.append(
-                            TypeScriptClient(language=pl, project_path=project_path, ignore_manager=ignore_manager)
+                            TypeScriptClient(
+                                language=active_language, project_path=project_path, ignore_manager=ignore_manager
+                            )
                         )
                 else:
                     # Fallback: No config files found, use repository root
                     logger.info("No TypeScript config files found, using repository root")
                     clients.append(
-                        TypeScriptClient(language=pl, project_path=repository_path, ignore_manager=ignore_manager)
+                        TypeScriptClient(
+                            language=active_language, project_path=repository_path, ignore_manager=ignore_manager
+                        )
                     )
             elif pl.language.lower() == "java":
                 # For Java, scan for multiple project configurations (Maven, Gradle, etc.)
