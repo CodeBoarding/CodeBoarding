@@ -4,8 +4,6 @@ import logging
 import os
 from pathlib import Path
 
-from agents.llm_config import initialize_llms
-from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
@@ -123,24 +121,14 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_id}', skipping targeted classification")
         return False
 
-    agent_llm, parsing_llm = initialize_llms()
-
-    agent = CodeBoardingAgent(
-        repo_dir=repo_dir,
-        static_analysis=static_analysis,
-        system_message="Classification agent for incremental updates",
-        agent_llm=agent_llm,
-        parsing_llm=parsing_llm,
-    )
-
     try:
-        # Add new files to the sub-analysis as unassigned (they'll be classified)
-        # First, we need to ensure the new files are in the component's scope
-        component_files = set(component.assigned_files)
+        from agents.cluster_methods_mixin import ClusterMethodsMixin
 
-        # Perform classification using the agent's classify_files method
-        # This mimics DetailsAgent.run() step 5 but scoped to only new files
-        agent.classify_files(sub_analysis, cluster_results, list(component_files))
+        # Use a lightweight mixin instance to populate file_methods deterministically
+        mixin = ClusterMethodsMixin.__new__(ClusterMethodsMixin)
+        mixin.repo_dir = repo_dir
+        mixin.static_analysis = static_analysis
+        mixin.populate_file_methods(sub_analysis, cluster_results)
 
         # Save the updated sub-analysis
         save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
