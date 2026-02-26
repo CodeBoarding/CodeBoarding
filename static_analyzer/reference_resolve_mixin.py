@@ -127,7 +127,7 @@ class ReferenceResolverMixin:
         return False
 
     def _remove_unresolved_references(self, analysis: AnalysisInsights):
-        """Remove references and assigned files that couldn't be resolved to existing files."""
+        """Remove references that couldn't be resolved to existing files."""
         for component in analysis.components:
             # Remove unresolved key_entities
             original_ref_count = len(component.key_entities)
@@ -140,20 +140,6 @@ class ReferenceResolverMixin:
             if removed_ref_count > 0:
                 logger.info(
                     f"[Reference Resolution] Removed {removed_ref_count} unresolved reference(s) "
-                    f"from component '{component.name}'"
-                )
-
-            # Remove unresolved assigned_files
-            original_file_count = len(component.assigned_files)
-            component.assigned_files = [
-                f
-                for f in component.assigned_files
-                if os.path.exists(os.path.join(self.repo_dir, f)) or os.path.exists(f)
-            ]
-            removed_file_count = original_file_count - len(component.assigned_files)
-            if removed_file_count > 0:
-                logger.info(
-                    f"[Reference Resolution] Removed {removed_file_count} unresolved assigned file(s) "
                     f"from component '{component.name}'"
                 )
 

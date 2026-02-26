@@ -2,10 +2,13 @@ import logging
 import os
 from pathlib import Path
 
-from agents.agent_responses import Component, AnalysisInsights
+from collections import defaultdict
+
+from agents.agent_responses import Component, AnalysisInsights, MethodEntry, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Node
 from static_analyzer.graph import ClusterResult
-from static_analyzer.cluster_helpers import get_files_for_cluster_ids, get_all_cluster_ids
+from static_analyzer.cluster_helpers import get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +34,6 @@ class ClusterMethodsMixin:
     # These attributes must be provided by the class using this mixin
     repo_dir: Path
     static_analysis: StaticAnalysisResults
-
-    def _get_files_for_clusters(self, cluster_ids: list[int], cluster_results: dict[str, ClusterResult]) -> set[str]:
-        """
-        Get all files that belong to the given cluster IDs.
-
-        Args:
-            cluster_ids: List of cluster IDs to get files for
-            cluster_results: dict mapping language -> ClusterResult
-
-        Returns:
-            Set of file paths
-        """
-        return get_files_for_cluster_ids(cluster_ids, cluster_results)
 
     def _build_cluster_string(
         self,
@@ -77,40 +67,6 @@ class ClusterMethodsMixin:
                 cluster_lines.append("\n")
 
         return "".join(cluster_lines)
-
-    def _assign_files_to_component(self, component: Component, cluster_results: dict[str, ClusterResult]) -> None:
-        """
-        Assign files to a component.
-        1. Get all files from component's clusters (instant lookup)
-        2. Add resolved key_entity files
-        3. Convert to relative paths
-
-        Args:
-            component: Component to assign files to
-            cluster_results: dict mapping language -> ClusterResult
-        """
-        assigned: set[str] = set()
-
-        # Step 1: Files from clusters
-        if component.source_cluster_ids:
-            cluster_files = self._get_files_for_clusters(component.source_cluster_ids, cluster_results)
-            assigned.update(cluster_files)
-
-        # Step 2: Files from key_entities (already resolved by ReferenceResolverMixin)
-        for entity in component.key_entities:
-            if entity.reference_file:
-                # Handle both absolute and relative paths
-                if os.path.isabs(entity.reference_file):
-                    assigned.add(entity.reference_file)
-                else:
-                    abs_path = os.path.join(self.repo_dir, entity.reference_file)
-                    if os.path.exists(abs_path):
-                        assigned.add(abs_path)
-                    else:
-                        assigned.add(entity.reference_file)
-
-        # Convert to relative paths
-        component.assigned_files = [os.path.relpath(f, self.repo_dir) if os.path.isabs(f) else f for f in assigned]
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """
@@ -167,35 +123,6 @@ class ClusterMethodsMixin:
                     seen_entities[qname] = component
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
-
-    def _ensure_unique_file_assignments(self, analysis: AnalysisInsights) -> None:
-        """
-        Deduplicate assigned_files within each component.
-
-        A file may legitimately appear in multiple components, but should not
-        appear more than once within the same component's assigned_files list.
-        """
-        logger.info("[ClusterMethodsMixin] Deduplicating file assignments within components")
-
-        total_removed = 0
-
-        for component in analysis.components:
-            seen: set[str] = set()
-            unique_files: list[str] = []
-            for file_path in component.assigned_files:
-                if file_path in seen:
-                    logger.debug(
-                        f"[ClusterMethodsMixin] Removed duplicate file '{file_path}' within '{component.name}'"
-                    )
-                    total_removed += 1
-                else:
-                    seen.add(file_path)
-                    unique_files.append(file_path)
-
-            component.assigned_files = unique_files
-
-        if total_removed > 0:
-            logger.info(f"[ClusterMethodsMixin] Removed {total_removed} duplicate file assignment(s)")
 
     def _sanitize_component_cluster_ids(
         self,
@@ -279,3 +206,129 @@ class ClusterMethodsMixin:
             return "No relevant CFG clusters found for this component.", cluster_results
 
         return result, cluster_results
+
+    def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
+        """Build a lookup of qualified_name -> Node for all languages present in cluster_results."""
+        all_nodes: dict[str, Node] = {}
+        for lang in cluster_results:
+            cfg = self.static_analysis.get_cfg(lang)
+            all_nodes.update(cfg.nodes)
+        return all_nodes
+
+    def _collect_clustered_node_names(self, cluster_results: dict[str, ClusterResult]) -> set[str]:
+        """Return the set of all qualified names that belong to at least one cluster."""
+        clustered: set[str] = set()
+        for cr in cluster_results.values():
+            for node_names in cr.clusters.values():
+                clustered.update(node_names)
+        return clustered
+
+    def _find_nearest_cluster(self, node_name: str, cluster_results: dict[str, ClusterResult]) -> int | None:
+        """Find the cluster whose members are closest to *node_name* in the call graph.
+
+        Uses undirected shortest-path distance so that both callers and callees
+        are considered.  Returns the cluster_id of the nearest cluster, or None
+        if the node is completely disconnected.
+        """
+        import networkx as nx
+
+        best_cluster: int | None = None
+        best_dist = float("inf")
+
+        for lang in cluster_results:
+            cfg = self.static_analysis.get_cfg(lang)
+            if node_name not in cfg.nodes:
+                continue
+
+            nx_graph = cfg.to_networkx().to_undirected()
+            if node_name not in nx_graph:
+                continue
+
+            try:
+                distances = nx.single_source_shortest_path_length(nx_graph, node_name)
+            except nx.NetworkXError:
+                continue
+
+            cr = cluster_results[lang]
+            for cluster_id, members in cr.clusters.items():
+                for member in members:
+                    d = distances.get(member)
+                    if d is not None and d < best_dist:
+                        best_dist = d
+                        best_cluster = cluster_id
+
+        return best_cluster
+
+    def _build_file_methods_from_nodes(self, nodes: list[Node]) -> list[FileMethodGroup]:
+        """Group a flat list of Nodes into FileMethodGroups sorted by file then line."""
+        by_file: dict[str, list[MethodEntry]] = defaultdict(list)
+        seen: set[str] = set()
+        for node in nodes:
+            if node.fully_qualified_name in seen:
+                continue
+            seen.add(node.fully_qualified_name)
+            rel_path = (
+                os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
+            )
+            by_file[rel_path].append(
+                MethodEntry(
+                    qualified_name=node.fully_qualified_name,
+                    start_line=node.line_start,
+                    end_line=node.line_end,
+                    node_type=node.type,
+                )
+            )
+
+        groups: list[FileMethodGroup] = []
+        for file_path in sorted(by_file):
+            methods = sorted(by_file[file_path], key=lambda m: m.start_line)
+            groups.append(FileMethodGroup(file_path=file_path, methods=methods))
+        return groups
+
+    def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
+        """Deterministically populate ``file_methods`` on every component.
+
+        1. For each component, resolve all nodes from its ``source_cluster_ids``.
+        2. Collect orphan nodes (present in the call-graph but not in any cluster).
+        3. Assign each orphan to the component whose cluster is nearest by graph
+           distance.
+        4. Build ``FileMethodGroup`` lists grouped by file path.
+        """
+        all_nodes = self._collect_all_cfg_nodes(cluster_results)
+        clustered_names = self._collect_clustered_node_names(cluster_results)
+
+        # ---- Step 1: Resolve clustered nodes per component ----
+        component_nodes: dict[str, list[Node]] = defaultdict(list)
+        # Build cluster_id -> component mapping
+        cluster_to_component: dict[int, Component] = {}
+        for comp in analysis.components:
+            for cid in comp.source_cluster_ids:
+                cluster_to_component[cid] = comp
+            # Gather nodes from this component's clusters
+            for cid in comp.source_cluster_ids:
+                for cr in cluster_results.values():
+                    for qname in cr.get_nodes_for_cluster(cid):
+                        node = all_nodes.get(qname)
+                        if node:
+                            component_nodes[comp.name].append(node)
+
+        # ---- Step 2 & 3: Assign orphans to nearest cluster's component ----
+        orphan_names = set(all_nodes.keys()) - clustered_names
+        if orphan_names:
+            logger.info(f"[ClusterMethodsMixin] Assigning {len(orphan_names)} orphan node(s) by graph distance")
+        for qname in orphan_names:
+            nearest_cid = self._find_nearest_cluster(qname, cluster_results)
+            if nearest_cid is not None and nearest_cid in cluster_to_component:
+                comp = cluster_to_component[nearest_cid]
+                node = all_nodes[qname]
+                component_nodes[comp.name].append(node)
+                logger.debug(
+                    f"[ClusterMethodsMixin] Orphan '{qname}' -> component '{comp.name}' (cluster {nearest_cid})"
+                )
+            else:
+                logger.debug(f"[ClusterMethodsMixin] Orphan '{qname}' has no reachable cluster, skipping")
+
+        # ---- Step 4: Build FileMethodGroup lists and derive assigned_files ----
+        for comp in analysis.components:
+            comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.name, []))
+            comp.assigned_files = [fg.file_path for fg in comp.file_methods]
