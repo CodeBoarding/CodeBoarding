@@ -4,15 +4,13 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis
-from caching.cache import BaseCache, ModelSettings
+from caching.cache import CACHE_VERSION, BaseCache, ModelSettings
 
 logger = logging.getLogger(__name__)
 
-CACHE_VERSION = 1
-
 
 class DetailsCacheKey(BaseModel):
-    cache_version = 1
+    cache_version: int = CACHE_VERSION
     prompt: str
     model_settings: ModelSettings
 

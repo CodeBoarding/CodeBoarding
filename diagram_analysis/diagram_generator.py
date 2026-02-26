@@ -163,7 +163,7 @@ class DiagramGenerator:
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
             static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
-            meta_future = executor.submit(self.meta_agent.get_meta_context, refresh=self.force_full_analysis)
+            meta_future = executor.submit(self.meta_agent.analyze_project_metadata, skip_cache=skip_cache)
 
             static_analysis = static_future.result()
             meta_context = meta_future.result()

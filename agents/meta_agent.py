@@ -45,12 +45,12 @@ class MetaAgent(CodeBoardingAgent):
         self._meta_cache = MetaCache(repo_dir=repo_dir, ignore_manager=self.ignore_manager)
 
     @trace
-    def analyze_project_metadata(self) -> MetaAnalysisInsights:
+    def analyze_project_metadata(self, skip_cache: bool) -> MetaAnalysisInsights:
         """Analyze project metadata to provide architectural context and bias."""
         logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
 
         prompt = self.meta_analysis_prompt.format(project_name=self.project_name)
-        if (cached := self._meta_cache.load(prompt)) is not None:
+        if not skip_cache and (cached := self._meta_cache.load(prompt)) is not None:
             return cached
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
         self._meta_cache.store(prompt, analysis)

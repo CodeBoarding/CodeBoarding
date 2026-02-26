@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from agents.agent_responses import MetaAnalysisInsights
 from agents.dependency_discovery import FileRole, discover_dependency_files
-from caching.cache import BaseCache, ModelSettings
+from caching.cache import CACHE_VERSION, BaseCache, ModelSettings
 from repo_utils.ignore import RepoIgnoreManager
 from utils import fingerprint_file
 
@@ -23,11 +23,10 @@ _README_PATTERNS: tuple[str, ...] = (
 )
 
 _CACHE_WATCH_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole.CONFIG})
-CACHE_VERSION = 1
 
 
 class MetaCacheKey(BaseModel):
-    cache_version = CACHE_VERSION
+    cache_version: int = CACHE_VERSION
     prompt: str
     model: str
     model_settings: ModelSettings

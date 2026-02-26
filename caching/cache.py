@@ -3,7 +3,7 @@ import json
 import logging
 import sqlite3
 from typing import Generic, TypeVar
-from utils import get_cache_dir
+from utils import get_cache_dir, get_project_root
 
 from langchain_core.language_models import BaseChatModel
 from langchain_community.cache import SQLiteCache
@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 K = TypeVar("K")
 V = TypeVar("V", bound=BaseModel)
+CACHE_VERSION = 1
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,10 @@ class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
 
     def __init__(self, filename: str, value_type: type[V]):
-        self.file_path = get_cache_dir() / filename
-        self._value_type = value_type
+        self.cache_dir = get_cache_dir(get_project_root())
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.file_path = self.cache_dir / filename
+        self._value_type = value_type
         self._sqlite_cache: SQLiteCache | None = None
         self._sqlite_disabled = False
 
