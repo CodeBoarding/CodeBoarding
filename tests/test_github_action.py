@@ -207,7 +207,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
             # Mock generator
             mock_generator = MagicMock()
-            mock_generator.generate_analysis.return_value = [temp_path / "analysis.json"]
+            mock_generator.generate_analysis_smart.return_value = [temp_path / "analysis.json"]
             mock_generator_class.return_value = mock_generator
 
             result = generate_analysis(

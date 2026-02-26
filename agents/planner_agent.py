@@ -79,7 +79,7 @@ def should_expand_component(
     return False
 
 
-def plan_analysis(
+def get_expandable_components(
     analysis: AnalysisInsights,
     parent_had_clusters: bool = True,
     min_files: int = DEFAULT_MIN_FILES,

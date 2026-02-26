@@ -3,7 +3,7 @@ import logging
 import functools
 import time
 import contextlib
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Callable, Any
 
@@ -71,25 +71,40 @@ def monitor_execution(
 
     # Allow the user to manually log steps via the yielded context
     class MonitorContext:
+        def __init__(self):
+            self._step_tokens: list[Token[str]] = []
+
         def step(self, name):
             trace_logger.info(json.dumps({"event": "phase_change", "step": name, "timestamp": time.time()}))
             # Also update the ContextVar for other components
-            self._token = current_step.set(name)
+            token = current_step.set(name)
+            self._step_tokens.append(token)
 
-            def end_step(self):
-                pass
+        def end_step(self):
+            if not self._step_tokens:
+                return
+            token = self._step_tokens.pop()
+            current_step.reset(token)
+
+        def close(self):
+            while self._step_tokens:
+                self.end_step()
 
     # Initialize stats for this run
     run_stats = RunStats()
     stats_token = current_stats.set(run_stats)
 
+    monitor_context = MonitorContext()
+
     try:
         # Log start of run
         trace_logger.info(json.dumps({"event": "run_start", "run_id": run_id, "timestamp": time.time()}))
 
-        yield MonitorContext()
+        yield monitor_context
 
     finally:
+        monitor_context.close()
+
         # Log end of run
         trace_logger.info(json.dumps({"event": "run_end", "run_id": run_id, "timestamp": time.time()}))
 
