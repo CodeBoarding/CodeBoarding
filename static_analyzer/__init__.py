@@ -23,8 +23,8 @@ def create_clients(
     clients: list[LSPClient] = []
     ts_family_keys = {"typescript", "javascript"}
     ts_family_candidates = [pl for pl in programming_languages if pl.lsp_server_key in ts_family_keys]
-    ts_family_preferred = "typescript"
-    merged_ts_family_language = None
+    ts_family_preferred: ProgrammingLanguage | None = None
+    merged_ts_family_language: ProgrammingLanguage | None = None
     if ts_family_candidates:
         ts_family_preferred = next((pl for pl in ts_family_candidates if pl.language.lower() == "typescript"), None)
         if ts_family_preferred is None:
