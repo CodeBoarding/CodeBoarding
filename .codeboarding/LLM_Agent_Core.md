@@ -1,21 +1,31 @@
 ```mermaid
 graph LR
-    Orchestration_Engine["Orchestration Engine"]
-    Analysis_Strategy_Planner["Analysis Strategy Planner"]
-    Semantic_Analysis_Trio["Semantic Analysis Trio"]
-    Structural_Validation_Engine["Structural Validation Engine"]
-    Multi_Provider_Prompt_System["Multi-Provider Prompt System"]
-    LLM_Runtime_Configuration["LLM Runtime Configuration"]
-    Static_Discovery_Bridge["Static Discovery Bridge"]
-    Standardized_Data_Schema["Standardized Data Schema"]
-    Orchestration_Engine -- "requests execution strategy from" --> Analysis_Strategy_Planner
-    Orchestration_Engine -- "delegates semantic analysis tasks to" --> Semantic_Analysis_Trio
-    Semantic_Analysis_Trio -- "produces architectural descriptions formatted according to" --> Standardized_Data_Schema
-    Structural_Validation_Engine -- "validates output of" --> Semantic_Analysis_Trio
-    Structural_Validation_Engine -- "cross-references against data from" --> Static_Discovery_Bridge
-    Multi_Provider_Prompt_System -- "provides prompt templates to" --> Semantic_Analysis_Trio
-    LLM_Runtime_Configuration -- "supplies authenticated model instances to" --> Orchestration_Engine
-    Static_Discovery_Bridge -- "feeds ground-truth structural data into" --> Orchestration_Engine
+    CodeBoarding_Orchestrator["CodeBoarding Orchestrator"]
+    Prompt_Management_System["Prompt Management System"]
+    Project_Meta_Analyzer["Project Meta-Analyzer"]
+    Strategic_Planner["Strategic Planner"]
+    Architectural_Abstraction_Agent["Architectural Abstraction Agent"]
+    Component_Detail_Agent["Component Detail Agent"]
+    CFG_Validator["CFG Validator"]
+    Schema_Enforcement["Schema Enforcement"]
+    CodeBoarding_Orchestrator -- "triggers" --> Project_Meta_Analyzer
+    CodeBoarding_Orchestrator -- "provides progress to" --> Strategic_Planner
+    Architectural_Abstraction_Agent -- "passes high‑level clusters to" --> Component_Detail_Agent
+    Component_Detail_Agent -- "submits inferred relationships to" --> CFG_Validator
+    CFG_Validator -- "sends feedback to" --> CodeBoarding_Orchestrator
+    Prompt_Management_System -- "provides prompts to" --> CodeBoarding_Orchestrator
+    Prompt_Management_System -- "provides prompts to" --> Project_Meta_Analyzer
+    Prompt_Management_System -- "provides prompts to" --> Strategic_Planner
+    Prompt_Management_System -- "provides prompts to" --> Architectural_Abstraction_Agent
+    Prompt_Management_System -- "provides prompts to" --> Component_Detail_Agent
+    Prompt_Management_System -- "provides prompts to" --> CFG_Validator
+    Schema_Enforcement -- "validates JSON structure for" --> CodeBoarding_Orchestrator
+    Schema_Enforcement -- "validates JSON structure for" --> Project_Meta_Analyzer
+    Schema_Enforcement -- "validates JSON structure for" --> Strategic_Planner
+    Schema_Enforcement -- "validates JSON structure for" --> Architectural_Abstraction_Agent
+    Schema_Enforcement -- "validates JSON structure for" --> Component_Detail_Agent
+    Schema_Enforcement -- "validates JSON structure for" --> CFG_Validator
+    Strategic_Planner -- "defines breadth for" --> Architectural_Abstraction_Agent
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -24,81 +34,78 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Orchestration Engine
-The central lifecycle manager that coordinates the analysis flow, manages state, and sequences the execution of specialized agents. It handles retry logic and maintains the overall progress of the codebase visualization task.
+### CodeBoarding Orchestrator
+Primary controller managing the analysis lifecycle, maintaining global state and coordinating the flow between specialized agents.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.agent.CodeBoardingAgent`
-- `repos.codeboarding.agent.AgentState`
+- `agents.agent.CodeBoardingAgent`
 
 
-### Analysis Strategy Planner
-Evaluates repository characteristics (file density, cluster count) to determine the optimal analysis strategy, such as whether components should be processed as flat lists or recursive sub-graphs.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.PlannerAgent`
-
-
-### Semantic Analysis Trio
-A specialized group of agents that interpret the codebase at three granularities: project metadata (Meta), high-level abstractions (Abstraction), and implementation details (Details).
+### Prompt Management System
+Provider‑agnostic factory that abstracts LLM‑specific templates (Claude, GPT, Gemini) and supplies optimized system messages.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.agent.MetaAgent`
-- `repos.codeboarding.agent.AbstractionAgent`
-- `repos.codeboarding.agent.DetailsAgent`
+- `agents.prompts.prompt_generator.PromptGenerator`
+- `agents.prompts.prompt_factory.PromptFactory`
 
 
-### Structural Validation Engine
-Acts as a deterministic gatekeeper, cross-referencing LLM-generated mappings against the static Control Flow Graph (CFG) to prevent hallucinations and ensure structural integrity.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.ValidationContext`
-
-
-### Multi-Provider Prompt System
-A decoupled management layer that serves provider-specific templates (OpenAI, Gemini, Anthropic, etc.) to agents via a factory pattern, ensuring the system is model‑agnostic.
+### Project Meta-Analyzer
+Identifies the tech stack, domain, and architectural bias to provide high‑level context that primes the rest of the pipeline.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.prompts.PromptFactory`
-- `repos.codeboarding.prompts.AbstractPromptFactory`
+- `agents.meta_analyzer.MetaAgent`
 
 
-### LLM Runtime Configuration
-Handles the initialization of LLM providers, API key resolution, and global model settings such as token limits and temperature.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.config.LLMConfig`
-
-
-### Static Discovery Bridge
-Identifies the project ecosystem and extracts specific sub‑graphs from the codebase to deliver ground‑truth structural data to the agents.
+### Strategic Planner
+Analyzes component complexity and file counts to decide which areas require deeper recursive analysis or "expansion."
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.discovery.DependencyDiscovery`
-- `repos.codeboarding.discovery.ClusterMethodsMixin`
+- `agents.planner.PlannerAgent`
 
 
-### Standardized Data Schema
-Defines the shared Pydantic models that ensure all agents produce and consume data in a consistent, validated format across the pipeline.
+### Architectural Abstraction Agent
+Performs coarse‑grained reasoning to identify broad patterns and top‑level components, establishing the project skeleton.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.models.AnalysisInsights`
+- `agents.abstraction.AbstractionAgent`
+
+
+### Component Detail Agent
+Conducts deep dives into specific clusters, extracting responsibilities and internal logic using filtered CFG sub‑graphs.
+
+
+**Related Classes/Methods**:
+
+- `agents.detail_agent.DetailAgent`
+
+
+### CFG Validator
+Grounding mechanism that cross‑references LLM‑generated maps against the actual static analysis graph to detect hallucinations.
+
+
+**Related Classes/Methods**:
+
+- `agents.validation.ValidationContext`
+
+
+### Schema Enforcement
+Defines Pydantic models used by all agents to ensure complex LLM outputs are strictly typed before being passed to other stages.
+
+
+**Related Classes/Methods**:
+
+- `models.analysis_insights.AnalysisInsights`
+- `models.agent_responses.AgentResponses`
 
 
 

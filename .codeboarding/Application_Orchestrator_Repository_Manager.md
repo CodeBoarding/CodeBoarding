@@ -1,21 +1,19 @@
 ```mermaid
 graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    Repository_Manager["Repository Manager"]
-    Change_Detector["Change Detector"]
-    Tooling_Registry["Tooling Registry"]
-    Analysis_Schema_Engine["Analysis Schema Engine"]
-    Persistence_Controller["Persistence Controller"]
-    Configuration_Provider["Configuration Provider"]
-    Integration_Diagnostics["Integration & Diagnostics"]
-    Analysis_Orchestrator -- "triggers" --> Repository_Manager
-    Repository_Manager -- "utilizes" --> Change_Detector
-    Analysis_Orchestrator -- "requests" --> Tooling_Registry
-    Integration_Diagnostics -- "verifies" --> Tooling_Registry
-    Analysis_Orchestrator -- "feeds" --> Analysis_Schema_Engine
-    Analysis_Orchestrator -- "updates" --> Persistence_Controller
-    Configuration_Provider -- "supplies" --> Analysis_Orchestrator
-    Change_Detector -- "stores" --> Persistence_Controller
+    Orchestration_Engine["Orchestration Engine"]
+    Repository_Change_Manager["Repository & Change Manager"]
+    Tool_Registry_Installer["Tool Registry & Installer"]
+    Analysis_Transformer["Analysis Transformer"]
+    State_Manager["State Manager"]
+    Config_Provider["Config Provider"]
+    Monitoring_Observability["Monitoring & Observability"]
+    Orchestration_Engine -- "queries" --> Tool_Registry_Installer
+    Orchestration_Engine -- "triggers ingestion" --> Repository_Change_Manager
+    Repository_Change_Manager -- "compares hashes against persisted manifest" --> State_Manager
+    Orchestration_Engine -- "passes raw static analysis results" --> Analysis_Transformer
+    Orchestration_Engine -- "persists final structured analysis and job completion status" --> State_Manager
+    Config_Provider -- "supplies validated LLM credentials and pipeline settings" --> Orchestration_Engine
+    Orchestration_Engine -- "streams execution telemetry and LLM usage metrics" --> Monitoring_Observability
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -24,76 +22,81 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Analysis Orchestrator
-Coordinates the end-to-end workflow, from initialization to final schema generation.
+### Orchestration Engine
+Acts as the central controller for the agentic pipeline. It validates CLI arguments, manages the high‑level workflow (Clone → Analyze → Document), and updates environment‑specific configurations like VS Code settings.
 
 
 **Related Classes/Methods**:
 
-- `analysis.orchestrator`
+- `codeboarding.main.main`
+- `codeboarding.orchestrator.PipelineManager`
+- `codeboarding.vscode_config.VSCodeConfigUpdater`
 
 
-### Repository Manager
-Handles Git operations (clone, pull) and manages the local workspace.
-
-
-**Related Classes/Methods**:
-
-- `repo_utils.repository_manager`
-
-
-### Change Detector
-Calculates file hashes and diffs to enable incremental analysis updates.
+### Repository & Change Manager
+Manages the lifecycle of the target source code. It handles Git operations (cloning/checkout), applies exclusion filters (.gitignore), and performs structural diffing to identify modified components for incremental analysis.
 
 
 **Related Classes/Methods**:
 
-- `repo_utils.change_detector`
+- `codeboarding.repo_utils.change_detector.ChangeDetector`
+- `codeboarding.repo_utils.git_operations.GitHandler`
+- `codeboarding.repo_utils.filter.PathFilter`
 
 
-### Tooling Registry
-Provisions and resolves paths for static analysis binaries (e.g., Pyright, JDTLS).
-
-
-**Related Classes/Methods**:
-
-- `tools.registry`
-
-
-### Analysis Schema Engine
-Transforms raw analysis data into the UnifiedAnalysisJson format.
+### Tool Registry & Installer
+A plugin‑style registry that manages the lifecycle of Language Server Protocol (LSP) binaries and other static analysis tools. It handles platform‑specific dependency checks (e.g., NPM, VCPP) and automated installations.
 
 
 **Related Classes/Methods**:
 
-- `schema.engine`
+- `codeboarding.tool_registry.Registry`
+- `codeboarding.installers.base_installer.BaseInstaller`
+- `codeboarding.installers.npm_installer.NPMInstaller`
 
 
-### Persistence Controller
-Manages long-term storage of job states and metadata using DuckDB.
-
-
-**Related Classes/Methods**:
-
-- `persistence.db`
-
-
-### Configuration Provider
-Resolves and validates LLM provider settings and environment variables.
+### Analysis Transformer
+Normalizes raw output from various static analysis tools into a UnifiedAnalysisJson schema. It also calculates component hierarchies and generates Mermaid.js diagrams for visual documentation.
 
 
 **Related Classes/Methods**:
 
-- `config.provider`
+- `codeboarding.transformers.unified_transformer.UnifiedTransformer`
+- `codeboarding.transformers.mermaid_generator.MermaidGenerator`
+- `codeboarding.transformers.hierarchy_builder.HierarchyBuilder`
 
 
-### Integration & Diagnostics
-Performs system health checks and ensures VS Code compatibility.
+### State Manager
+Provides a persistence layer for job metadata, file hashes, and analysis results using DuckDB. It ensures that the system can recover from interruptions and track the status of long‑running documentation tasks.
 
 
 **Related Classes/Methods**:
 
-- `diagnostics.health`
+- `codeboarding.state.duckdb_store.DuckDBStore`
+- `codeboarding.state.manifest.ManifestManager`
+- `codeboarding.state.job_repository.JobRepository`
+
+
+### Config Provider
+Centralizes the loading and validation of system environment variables and LLM‑specific configurations (OpenAI, Anthropic, Ollama, etc.). It ensures that credentials and model parameters are correctly injected into the orchestrator.
+
+
+**Related Classes/Methods**:
+
+- `codeboarding.config.llm_config.LLMConfig`
+- `codeboarding.config.env_loader.EnvLoader`
+- `codeboarding.config.validator.ConfigValidator`
+
+
+### Monitoring & Observability
+A tracing framework specifically designed for LLM‑powered systems. It tracks token usage, execution costs, and step‑by‑step agentic reasoning, persisting telemetry for audit and debugging.
+
+
+**Related Classes/Methods**:
+
+- `codeboarding.monitoring.tracer.Tracer`
+- `codeboarding.monitoring.usage_tracker.UsageTracker`
+- `codeboarding.monitoring.logger.TelemetryLogger`
 
 
 
