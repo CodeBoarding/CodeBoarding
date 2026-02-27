@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -15,11 +14,9 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.agent_responses import AnalysisInsights
 from agents.prompts import get_validation_feedback_message
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
-from agents.validation import ValidationContext
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.llm_config import MONITORING_CALLBACK
