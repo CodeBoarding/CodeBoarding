@@ -1,21 +1,21 @@
 import logging
 from pathlib import Path
 
-from utils import get_cache_dir
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
-from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.constants import Language
+from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
+from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.lsp_client.java_client import JavaClient
+from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
-from static_analyzer.java_config_scanner import JavaConfigScanner
+from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,72 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
+        self._clients_started: bool = False
+
+    def start_clients(self) -> None:
+        """Start all LSP server processes.
+
+        Call once before invoking analyze() or analyze_with_cluster_changes().
+        Idempotent — safe to call even if clients are already running.
+        """
+        if self._clients_started:
+            return
+        for client in self.clients:
+            try:
+                logger.info(f"Starting LSP client for {client.language.language}")
+                client.start()
+                if isinstance(client, JavaClient):
+                    client.wait_for_import()  # timeout auto-computed based on project size
+            except Exception as e:
+                logger.error(f"Failed to start LSP client for {client.language.language}: {e}")
+        self._clients_started = True
+
+    def stop_clients(self) -> None:
+        """Gracefully shut down all LSP server processes.
+
+        Call when you are done with all analysis — e.g. at the end of a CLI run
+        or when the IDE session is torn down. Idempotent.
+        """
+        if not self._clients_started:
+            return
+        for client in self.clients:
+            try:
+                client.close()
+            except Exception as e:
+                logger.error(f"Error closing LSP client for {client.language.language}: {e}")
+        self._clients_started = False
+
+    def notify_file_changed(self, file_path: Path, content: str) -> None:
+        """Forward a textDocument/didChange notification to the matching LSP client.
+
+        Used by long-lived callers (e.g. extensions of the core) to keep LSP servers aware
+        of unsaved editor changes so that publishDiagnostics reflect the latest
+        file state.
+
+        Args:
+            file_path: Absolute path to the changed file.
+            content:   Full current text content of the file.
+        """
+        for client in self.clients:
+            handled_suffixes = {s.lstrip("*").lstrip(".") for s in client.language_suffix_pattern}
+            if file_path.suffix.lstrip(".") not in handled_suffixes:
+                continue
+            file_uri = file_path.as_uri()
+            client._send_notification(
+                "textDocument/didChange",
+                {
+                    "textDocument": {"uri": file_uri, "version": 2},
+                    "contentChanges": [{"text": content}],
+                },
+            )
+            logger.debug(f"Sent didChange for {file_path} to {client.language.language} LSP")
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """
         Analyze the repository using LSP clients.
+
+        Assumes clients are already running (call start_clients() first).
+        get_static_analysis() does this automatically for CLI callers.
 
         Args:
             cache_dir: Optional cache directory for incremental analysis.
@@ -133,11 +195,6 @@ class StaticAnalyzer:
         for client in self.clients:
             try:
                 logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
-                client.start()
-
-                # Java-specific: wait for JDTLS to import the project
-                if isinstance(client, JavaClient):
-                    client.wait_for_import()  # timeout auto-computed based on project size
 
                 # Determine cache path for this client if caching is enabled
                 cache_path = None
@@ -226,11 +283,6 @@ class StaticAnalyzer:
         client = self.clients[0]
         try:
             logger.info(f"Starting cluster change analysis for {client.language.language} in {self.repository_path}")
-            client.start()
-
-            # Java-specific: wait for JDTLS to import the project
-            if isinstance(client, JavaClient):
-                client.wait_for_import()  # timeout auto-computed based on project size
 
             # Determine cache path
             cache_path = None
@@ -299,10 +351,13 @@ def get_static_analysis(
     repo_path: Path, cache_dir: Path | None = None, skip_cache: bool = False
 ) -> StaticAnalysisResults:
     """
-    Orchestrator: Get static analysis results using incremental git-based caching.
+    CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
-    Uses the incremental analysis cache which tracks changes via git commits,
-    providing efficient updates when only some files have changed.
+    Starts LSP clients, runs analysis, and stops clients — all in one call.
+    This is the right entry point for the CLI and DiagramGenerator (one-shot runs).
+
+    Long-lived callers (e.g. extensions of the core) should instead create a StaticAnalyzer
+    directly, call start_clients() once, and call stop_clients() when done.
 
     Args:
         repo_path: Path to the repository to analyze.
@@ -312,24 +367,16 @@ def get_static_analysis(
     Returns:
         StaticAnalysisResults using incremental cache when available.
     """
-    if skip_cache:
-        # Force full analysis without any caching
-        analyzer = StaticAnalyzer(repo_path)
-        results = analyzer.analyze(cache_dir=None)
-        # Attach diagnostics to results for convenient access
-        results.diagnostics = analyzer.collected_diagnostics
-        return results
-
-    # Determine actual cache directory to use
-    if cache_dir is None:
-        # Default behavior: use standard cache location
-        actual_cache_dir = get_cache_dir(repo_path)
-    else:
-        actual_cache_dir = cache_dir
-
-    # Use incremental analysis - it handles cache internally via IncrementalAnalysisOrchestrator
     analyzer = StaticAnalyzer(repo_path)
-    results = analyzer.analyze(cache_dir=actual_cache_dir)
-    # Attach diagnostics to results for convenient access
+    analyzer.start_clients()
+    try:
+        if skip_cache:
+            results = analyzer.analyze(cache_dir=None)
+        else:
+            actual_cache_dir = cache_dir if cache_dir is not None else get_cache_dir(repo_path)
+            results = analyzer.analyze(cache_dir=actual_cache_dir)
+    finally:
+        analyzer.stop_clients()
+
     results.diagnostics = analyzer.collected_diagnostics
     return results

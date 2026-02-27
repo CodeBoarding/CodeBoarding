@@ -35,9 +35,10 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import generate_run_id, get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import get_static_analysis
+from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
+from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class DiagramGenerator:
         project_name: str | None = None,
         run_id: str | None = None,
         monitoring_enabled: bool = False,
+        static_analyzer: StaticAnalyzer | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -63,6 +65,10 @@ class DiagramGenerator:
         self.run_id = run_id
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
+        # Optional pre-started StaticAnalyzer injected by long-lived callers (e.g. the
+        # wrapper). When set, pre_analysis() uses it directly instead of creating a new
+        # one-shot analyzer via get_static_analysis().
+        self._static_analyzer: StaticAnalyzer | None = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
@@ -157,14 +163,32 @@ class DiagramGenerator:
         )
         self._monitoring_agents["MetaAgent"] = self.meta_agent
 
-        # Run static analysis and meta analysis in parallel
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        # Decide how to obtain static analysis results, then run it in parallel
+        # with the meta-context computation so neither blocks the other.
+        if self._static_analyzer is not None:
+            # Long-lived caller (e.g. wrapper): clients already running, skip lifecycle.
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+
+            cache_dir = get_cache_dir(self.repo_location)
+
+            def _get_static() -> StaticAnalysisResults:
+                result = self._static_analyzer.analyze(  # type: ignore[union-attr]
+                    cache_dir=None if self.force_full_analysis else cache_dir,
+                )
+                result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
+                return result
+
+        else:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
-            static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
-            meta_future = executor.submit(self.meta_agent.get_meta_context, refresh=self.force_full_analysis)
 
+            def _get_static() -> StaticAnalysisResults:
+                return get_static_analysis(self.repo_location, skip_cache=skip_cache)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            static_future = executor.submit(_get_static)
+            meta_future = executor.submit(self.meta_agent.get_meta_context, refresh=self.force_full_analysis)
             static_analysis = static_future.result()
             meta_context = meta_future.result()
 
@@ -413,7 +437,11 @@ class DiagramGenerator:
         # recompute file assignments with cluster matching. Load it first.
         static_analysis = None
         try:
-            static_analysis = get_static_analysis(self.repo_location)
+            if self._static_analyzer is not None:
+                static_analysis = self._static_analyzer.analyze(cache_dir=get_cache_dir(self.repo_location))
+                static_analysis.diagnostics = self._static_analyzer.collected_diagnostics
+            else:
+                static_analysis = get_static_analysis(self.repo_location)
             logger.info("Loaded static analysis for incremental update")
         except Exception as e:
             logger.warning(f"Could not load static analysis: {e}")
