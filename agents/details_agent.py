@@ -14,7 +14,7 @@ from agents.agent_responses import (
 )
 from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from caching.detail_cache import FinalAnalysisCache, ClusterCache
+from caching.details_cache import FinalAnalysisCache, ClusterCache
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,

@@ -427,7 +427,8 @@ Examples:
 
     # Derive output directory from repo path
     if is_local:
-        output_dir = args.local.resolve() / ".codeboarding"
+        local_repo_path = args.local.resolve()
+        output_dir = local_repo_path / ".codeboarding"
     else:
         # Remote: will be set per-repo inside the loop below
         output_dir = None
@@ -469,10 +470,10 @@ Examples:
         initialize_codeboardingignore(output_dir)
 
         # Derive project name from the repo directory name
-        project_name = args.local.resolve().name
+        project_name = local_repo_path.name
 
         process_local_repository(
-            repo_path=args.local,
+            repo_path=local_repo_path,
             output_dir=output_dir,
             project_name=project_name,
             depth_level=args.depth_level,
