@@ -106,8 +106,7 @@ Create final component architecture for `{project_name}` optimized for flow repr
 - Focus on highest level architectural components
 - Exclude utility/logging components
 - Components must translate well to flow diagram representation
-
-Note: assigned_files will be populated later via deterministic file classification."""
+"""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert.
 
@@ -234,32 +233,6 @@ Find which file contains the code reference `{qname}`.
    - Use the `readFile` tool to locate its definition.
    - Include the start and end line numbers of the definition."""
 
-UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """You are classifying source files into software components.
-
-# Context
-The following files were not automatically assigned to any component during cluster-based analysis:
-
-{unassigned_files}
-
-# Available Components
-{components}
-
-# Task
-For EACH unassigned file listed above, determine which component it logically belongs to based on:
-- File name and directory structure
-- Likely functionality (inferred from path/name)
-- Best architectural fit with the component descriptions
-
-# Critical Rules (must follow all)
-1. Assign EVERY file to exactly ONE component.
-2. Use the exact component name from the "Available Components" list above.
-3. Use the exact file path from the unassigned files list above.
-4. Do NOT invent new component names.
-5. Do NOT skip any files.
-
-# Output format
-Return a ComponentFiles object with file_paths list containing FileClassification for each file."""
-
 VALIDATION_FEEDBACK_MESSAGE = """# Original result
 {original_output}
 
@@ -372,9 +345,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
-
-    def get_unassigned_files_classification_message(self) -> str:
-        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
 
     def get_validation_feedback_message(self) -> str:
         return VALIDATION_FEEDBACK_MESSAGE

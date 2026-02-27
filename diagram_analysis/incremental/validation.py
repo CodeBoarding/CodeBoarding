@@ -3,7 +3,12 @@
 import logging
 
 from agents.agent_responses import AnalysisInsights
-from agents.validation import ValidationContext, validate_component_relationships, validate_key_entities
+from agents.validation import (
+    ValidationContext,
+    validate_component_relationships,
+    validate_key_entities,
+    validate_qualified_names,
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 
@@ -23,9 +28,10 @@ def validate_incremental_update(analysis: AnalysisInsights, static_analysis: Sta
     context = ValidationContext(
         cluster_results=cluster_results,
         cfg_graphs={lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()},
+        static_analysis=static_analysis,
     )
 
-    validators = [validate_component_relationships, validate_key_entities]
+    validators = [validate_component_relationships, validate_key_entities, validate_qualified_names]
     all_valid = True
 
     for validator in validators:

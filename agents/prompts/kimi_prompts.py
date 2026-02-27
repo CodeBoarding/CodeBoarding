@@ -100,8 +100,6 @@ Required outputs:
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
 - Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
 
-Note: assigned_files will be populated later via deterministic file classification.
-
 Constraints:
 - Focus on highest level architectural components
 - Exclude utility/logging components
@@ -240,33 +238,6 @@ Reason carefully, then execute:
    - Use the `readFile` tool to locate its definition.
    - Include the start and end line numbers of the definition."""
 
-UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
-
-Context:
-The following files were not automatically assigned to any component during cluster-based analysis:
-
-{unassigned_files}
-
-Available Components:
-{components}
-
-Task: For EACH unassigned file listed above, determine which component it logically belongs to.
-
-Reason step-by-step. Consider:
-- File name and directory structure
-- Likely functionality (inferred from path/name)
-- Best architectural fit with the component descriptions
-
-Critical Rules:
-1. Assign EVERY file to exactly ONE component.
-2. Use the exact component name from the "Available Components" list above.
-3. Use the exact file path from the unassigned files list above.
-4. Do NOT invent new component names.
-5. Do NOT skip any files.
-
-Output Format:
-Return a ComponentFiles object with file_paths list containing FileClassification for each file."""
-
 VALIDATION_FEEDBACK_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Original result:
@@ -383,9 +354,6 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
-
-    def get_unassigned_files_classification_message(self) -> str:
-        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
 
     def get_validation_feedback_message(self) -> str:
         return VALIDATION_FEEDBACK_MESSAGE

@@ -8,6 +8,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
     Component,
+    FileMethodGroup,
     MetaAnalysisInsights,
     SourceCodeReference,
     ValidationInsights,
@@ -50,7 +51,10 @@ class TestDetailsAgent(unittest.TestCase):
             name="TestComponent",
             description="Test component",
             key_entities=[ref],
-            assigned_files=["test.py", "test_utils.py"],
+            file_methods=[
+                FileMethodGroup(file_path="test.py"),
+                FileMethodGroup(file_path="test_utils.py"),
+            ],
         )
 
     def tearDown(self):
@@ -90,7 +94,7 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
         # Mock StaticAnalysis and CFG behavior
-        abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
+        abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
         mock_cluster_result = MagicMock()
         mock_cluster_result.get_cluster_ids.return_value = {1}
         mock_cluster_result.get_files_for_cluster.return_value = abs_assigned
@@ -178,7 +182,7 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
         # Mock StaticAnalysis and CFG behavior for run
-        abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
+        abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
         mock_cluster_result = MagicMock()
         mock_cluster_result.get_cluster_ids.return_value = {1}
         mock_cluster_result.get_files_for_cluster.return_value = abs_assigned

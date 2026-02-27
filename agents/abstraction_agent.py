@@ -24,6 +24,7 @@ from agents.validation import (
     validate_key_entities,
     validate_cluster_ids_populated,
     validate_relation_component_names,
+    validate_qualified_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -86,6 +87,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cluster_results=cluster_results,
                 expected_cluster_ids=get_all_cluster_ids(cluster_results),
             ),
+            max_validation_retries=3,
         )
         return cluster_analysis
 
@@ -111,6 +113,8 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+            expected_cluster_ids=get_all_cluster_ids(cluster_results),
+            static_analysis=self.static_analysis,
         )
 
         return self._validation_invoke(
@@ -120,7 +124,8 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_relation_component_names,
                 validate_component_relationships,
                 validate_key_entities,
-                validate_cluster_ids_populated,
+                validate_cluster_coverage,
+                validate_qualified_names,
             ],
             context=context,
         )
@@ -138,6 +143,16 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
         # Step 3b: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
+
+        # Log node coverage
+        all_nodes = self._collect_all_cfg_nodes(cluster_results)
+        total_nodes = len(all_nodes)
+        assigned_nodes = sum(len(m) for comp in analysis.components for fg in comp.file_methods for m in [fg.methods])
+        pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
+        logger.info(
+            f"[AbstractionAgent] Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components"
+        )
+
         # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
         # Step 5: Ensure unique key entities across components
