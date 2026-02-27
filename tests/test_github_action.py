@@ -69,13 +69,11 @@ class TestGenerateMarkdown(unittest.TestCase):
                         "name": "ComponentA",
                         "description": "Component A",
                         "key_entities": [],
-                        "assigned_files": [],
                         "components": [
                             {
                                 "name": "SubComp1",
                                 "description": "Sub component 1",
                                 "key_entities": [],
-                                "assigned_files": [],
                             }
                         ],
                         "components_relations": [],
@@ -84,7 +82,6 @@ class TestGenerateMarkdown(unittest.TestCase):
                         "name": "ComponentB",
                         "description": "Component B",
                         "key_entities": [],
-                        "assigned_files": [],
                     },
                 ],
                 "components_relations": [],
