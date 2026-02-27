@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -15,11 +14,9 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.agent_responses import AnalysisInsights
 from agents.prompts import get_validation_feedback_message
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
-from agents.validation import ValidationContext
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.llm_config import MONITORING_CALLBACK
@@ -27,6 +24,10 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 logger = logging.getLogger(__name__)
+
+
+class EmptyExtractorMessageError(ValueError):
+    """Raised when extractor returns an empty message payload."""
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
@@ -278,9 +279,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             if "messages" in result and len(result["messages"]) != 0:
                 message = result["messages"][0].content
                 parser = PydanticOutputParser(pydantic_object=return_type)
+                if not message:
+                    raise EmptyExtractorMessageError("Extractor returned empty message content")
                 return self._try_parse(message, parser)
             parser = PydanticOutputParser(pydantic_object=return_type)
             return self._try_parse(response, parser)
+        except EmptyExtractorMessageError as e:
+            logger.warning(f"{e} (attempt {attempt + 1}/{max_retries})")
+            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except AttributeError as e:
             # Workaround for trustcall bug: https://github.com/hinthornw/trustcall/issues/47
             # 'ExtractionState' object has no attribute 'tool_call_id' occurs during validation retry

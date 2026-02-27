@@ -1,16 +1,13 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
-import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
-if TYPE_CHECKING:
-    from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +26,7 @@ class ValidationContext:
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
-    static_analysis: "StaticAnalysisResults | None" = None  # For qualified name validation
+    static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
 
 
 @dataclass
