@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, FileMethodGroup
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_sub_analysis,
@@ -42,13 +42,13 @@ def assign_new_files(
 
         for component in analysis.components:
             # Count files in the same directory
-            match_count = sum(1 for f in component.assigned_files if str(Path(f).parent) == file_dir)
+            match_count = sum(1 for fg in component.file_methods if str(Path(fg.file_path).parent) == file_dir)
             if match_count > best_match_count:
                 best_match_count = match_count
                 best_component = component
 
         if best_component:
-            best_component.assigned_files.append(file_path)
+            best_component.file_methods.append(FileMethodGroup(file_path=file_path))
             manifest.add_file(file_path, best_component.component_id)
             assigned_count += 1
             components_with_new_files.add(best_component.component_id)
@@ -71,10 +71,10 @@ def remove_deleted_files(
         component_id = manifest.remove_file(file_path)
 
         if component_id:
-            # Remove from component's assigned_files
+            # Remove from component's file_methods
             for component in analysis.components:
                 if component.component_id == component_id:
-                    component.assigned_files = [f for f in component.assigned_files if f != file_path]
+                    component.file_methods = [fg for fg in component.file_methods if fg.file_path != file_path]
                     # Also remove from key_entities if referenced
                     component.key_entities = [e for e in component.key_entities if e.reference_file != file_path]
                     break
@@ -144,13 +144,14 @@ def create_component_cluster_results(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
 ) -> dict:
-    """Create cluster results for a component's assigned files."""
-    if not component.assigned_files:
+    """Create cluster results for a component's file_methods."""
+    component_files = [fg.file_path for fg in component.file_methods]
+    if not component_files:
         return {}
 
-    # Convert assigned files to absolute paths for comparison
+    # Convert files to absolute paths for comparison
     assigned_file_set = set()
-    for f in component.assigned_files:
+    for f in component_files:
         abs_path = os.path.join(repo_dir, f) if not os.path.isabs(f) else f
         assigned_file_set.add(abs_path)
 
@@ -187,8 +188,7 @@ def get_new_files_for_component(
     if not component:
         return []
 
-    # Get the component's current assigned files
-    component_files = set(component.assigned_files)
+    component_files = {fg.file_path for fg in component.file_methods}
 
     # Filter added files to those in this component
     new_files = []
