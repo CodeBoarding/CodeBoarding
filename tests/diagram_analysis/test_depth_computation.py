@@ -18,7 +18,6 @@ def create_analysis_with_components(names: list[str], parent_id: str = "TEST") -
                     reference_end_line=10,
                 )
             ],
-            assigned_files=[],
             source_cluster_ids=[],
         )
         for name in names

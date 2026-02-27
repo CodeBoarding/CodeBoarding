@@ -1,13 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-02-26T15:24:18.353893+00:00",
+  "generated_at": "2026-02-27T02:37:40.548135+00:00",
   "analyzed_files": [
-    "agents/__init__.py",
     "agents/abstraction_agent.py",
     "agents/agent.py",
     "agents/agent_responses.py",
     "agents/cluster_methods_mixin.py",
-    "agents/constants.py",
     "agents/dependency_discovery.py",
     "agents/details_agent.py",
     "agents/llm_config.py",
@@ -22,24 +20,14 @@
     "agents/prompts/gpt_prompts.py",
     "agents/prompts/kimi_prompts.py",
     "agents/prompts/prompt_factory.py",
-    "agents/tools/__init__.py",
-    "agents/tools/base.py",
     "agents/tools/get_external_deps.py",
-    "agents/tools/get_method_invocations.py",
     "agents/tools/read_cfg.py",
-    "agents/tools/read_docs.py",
-    "agents/tools/read_file.py",
-    "agents/tools/read_file_structure.py",
-    "agents/tools/read_git_diff.py",
-    "agents/tools/read_packages.py",
     "agents/tools/read_source.py",
-    "agents/tools/read_structure.py",
     "agents/tools/toolkit.py",
     "agents/validation.py",
     "caching/__init__.py",
     "caching/cache.py",
     "caching/meta_cache.py",
-    "constants.py",
     "core/__init__.py",
     "core/plugin_loader.py",
     "core/protocols.py",
@@ -47,83 +35,31 @@
     "diagram_analysis/__init__.py",
     "diagram_analysis/analysis_json.py",
     "diagram_analysis/diagram_generator.py",
-    "diagram_analysis/file_coverage.py",
     "diagram_analysis/incremental/__init__.py",
     "diagram_analysis/incremental/component_checker.py",
     "diagram_analysis/incremental/file_manager.py",
-    "diagram_analysis/incremental/impact_analyzer.py",
     "diagram_analysis/incremental/io_utils.py",
-    "diagram_analysis/incremental/models.py",
     "diagram_analysis/incremental/path_patching.py",
     "diagram_analysis/incremental/reexpansion.py",
     "diagram_analysis/incremental/scoped_analysis.py",
     "diagram_analysis/incremental/updater.py",
     "diagram_analysis/incremental/validation.py",
     "diagram_analysis/manifest.py",
-    "diagram_analysis/version.py",
-    "duckdb_crud.py",
     "github_action.py",
-    "health/__init__.py",
-    "health/checks/__init__.py",
-    "health/checks/circular_deps.py",
-    "health/checks/cohesion.py",
-    "health/checks/coupling.py",
-    "health/checks/function_size.py",
-    "health/checks/god_class.py",
-    "health/checks/inheritance.py",
-    "health/checks/instability.py",
-    "health/checks/unused_code_diagnostics.py",
-    "health/config.py",
-    "health/constants.py",
-    "health/models.py",
     "health/runner.py",
     "health_main.py",
     "install.py",
-    "logging_config.py",
     "main.py",
-    "monitoring/__init__.py",
-    "monitoring/callbacks.py",
-    "monitoring/context.py",
-    "monitoring/mixin.py",
-    "monitoring/paths.py",
-    "monitoring/stats.py",
-    "monitoring/writers.py",
-    "output_generators/__init__.py",
     "output_generators/html.py",
-    "output_generators/html_template.py",
     "output_generators/markdown.py",
     "output_generators/mdx.py",
     "output_generators/sphinx.py",
     "repo_utils/__init__.py",
-    "repo_utils/change_detector.py",
-    "repo_utils/errors.py",
-    "repo_utils/git_diff.py",
-    "repo_utils/ignore.py",
     "static_analyzer/__init__.py",
-    "static_analyzer/analysis_cache.py",
-    "static_analyzer/analysis_result.py",
-    "static_analyzer/cluster_change_analyzer.py",
-    "static_analyzer/cluster_helpers.py",
-    "static_analyzer/constants.py",
-    "static_analyzer/git_diff_analyzer.py",
-    "static_analyzer/graph.py",
-    "static_analyzer/incremental_orchestrator.py",
-    "static_analyzer/java_config_scanner.py",
-    "static_analyzer/java_utils.py",
-    "static_analyzer/lsp_client/__init__.py",
-    "static_analyzer/lsp_client/client.py",
-    "static_analyzer/lsp_client/diagnostics.py",
-    "static_analyzer/lsp_client/java_client.py",
-    "static_analyzer/lsp_client/language_settings.py",
-    "static_analyzer/lsp_client/typescript_client.py",
-    "static_analyzer/programming_language.py",
     "static_analyzer/reference_resolve_mixin.py",
-    "static_analyzer/scanner.py",
-    "static_analyzer/typescript_config_scanner.py",
     "tool_registry.py",
     "user_config.py",
-    "utils.py",
-    "vscode_constants.py"
+    "utils.py"
   ],
   "not_analyzed_files": [
     {
@@ -155,11 +91,131 @@
       "reason": "other"
     },
     {
+      "path": "agents/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/constants.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/base.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/get_method_invocations.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_docs.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_file.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_file_structure.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_git_diff.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_packages.py",
+      "reason": "other"
+    },
+    {
+      "path": "agents/tools/read_structure.py",
+      "reason": "other"
+    },
+    {
+      "path": "constants.py",
+      "reason": "other"
+    },
+    {
+      "path": "diagram_analysis/file_coverage.py",
+      "reason": "other"
+    },
+    {
+      "path": "diagram_analysis/incremental/impact_analyzer.py",
+      "reason": "other"
+    },
+    {
+      "path": "diagram_analysis/incremental/models.py",
+      "reason": "other"
+    },
+    {
+      "path": "diagram_analysis/version.py",
+      "reason": "other"
+    },
+    {
       "path": "docs/architecture.md",
       "reason": "other"
     },
     {
       "path": "docs/development/architecture.md",
+      "reason": "other"
+    },
+    {
+      "path": "duckdb_crud.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/circular_deps.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/cohesion.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/coupling.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/function_size.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/god_class.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/inheritance.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/instability.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/checks/unused_code_diagnostics.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/config.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/constants.py",
+      "reason": "other"
+    },
+    {
+      "path": "health/models.py",
       "reason": "other"
     },
     {
@@ -171,7 +227,147 @@
       "reason": "other"
     },
     {
+      "path": "logging_config.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/callbacks.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/context.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/mixin.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/paths.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/stats.py",
+      "reason": "other"
+    },
+    {
+      "path": "monitoring/writers.py",
+      "reason": "other"
+    },
+    {
+      "path": "output_generators/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "output_generators/html_template.py",
+      "reason": "other"
+    },
+    {
+      "path": "package-lock.json",
+      "reason": "other"
+    },
+    {
+      "path": "package.json",
+      "reason": "other"
+    },
+    {
       "path": "pyproject.toml",
+      "reason": "other"
+    },
+    {
+      "path": "repo_utils/change_detector.py",
+      "reason": "other"
+    },
+    {
+      "path": "repo_utils/errors.py",
+      "reason": "other"
+    },
+    {
+      "path": "repo_utils/git_diff.py",
+      "reason": "other"
+    },
+    {
+      "path": "repo_utils/ignore.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/analysis_cache.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/analysis_result.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/cluster_change_analyzer.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/cluster_helpers.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/constants.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/git_diff_analyzer.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/graph.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/incremental_orchestrator.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/java_config_scanner.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/java_utils.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/__init__.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/client.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/diagnostics.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/java_client.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/language_settings.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/lsp_client/typescript_client.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/programming_language.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/scanner.py",
+      "reason": "other"
+    },
+    {
+      "path": "static_analyzer/typescript_config_scanner.py",
       "reason": "other"
     },
     {
@@ -675,6 +871,10 @@
       "reason": "test_or_infrastructure"
     },
     {
+      "path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
+      "reason": "test_or_infrastructure"
+    },
+    {
       "path": "tests/static_analyzer/test_utils.py",
       "reason": "test_or_infrastructure"
     },
@@ -705,15 +905,19 @@
     {
       "path": "tests/test_windows_compatibility.py",
       "reason": "test_or_infrastructure"
+    },
+    {
+      "path": "vscode_constants.py",
+      "reason": "other"
     }
   ],
   "summary": {
-    "total_files": 267,
-    "analyzed": 122,
-    "not_analyzed": 145,
+    "total_files": 270,
+    "analyzed": 58,
+    "not_analyzed": 212,
     "not_analyzed_by_reason": {
-      "other": 12,
-      "test_or_infrastructure": 133
+      "other": 78,
+      "test_or_infrastructure": 134
     }
   }
 }

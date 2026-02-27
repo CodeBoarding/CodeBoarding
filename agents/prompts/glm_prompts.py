@@ -112,8 +112,7 @@ CONSTRAINTS (MUST obey):
 - Focus on highest level architectural components
 - Exclude utility/logging components
 - Components MUST translate well to flow diagram representation
-
-Note: assigned_files will be populated later via deterministic file classification."""
+"""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture evaluator. STRICTLY follow these rules:
 
@@ -248,32 +247,6 @@ REQUIRED STEPS (execute in order):
    - MUST use the `readFile` tool to locate its definition.
    - MUST include the start and end line numbers of the definition."""
 
-UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """You are a file classifier. STRICTLY follow these rules:
-
-Context:
-The following files were not automatically assigned to any component during cluster-based analysis:
-
-{unassigned_files}
-
-Available Components:
-{components}
-
-MANDATORY TASK:
-For EACH unassigned file listed above, determine which component it logically belongs to based on:
-- File name and directory structure
-- Likely functionality (inferred from path/name)
-- Best architectural fit with the component descriptions
-
-CRITICAL RULES (MUST follow ALL):
-1. MUST assign EVERY file to exactly ONE component.
-2. MUST use the exact component name from the "Available Components" list above.
-3. MUST use the exact file path from the unassigned files list above.
-4. STRICTLY do NOT invent new component names.
-5. STRICTLY do NOT skip any files.
-
-OUTPUT FORMAT (MUST use):
-Return a ComponentFiles object with file_paths list containing FileClassification for each file."""
-
 VALIDATION_FEEDBACK_MESSAGE = """Original result:
 {original_output}
 
@@ -390,9 +363,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
-
-    def get_unassigned_files_classification_message(self) -> str:
-        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
 
     def get_validation_feedback_message(self) -> str:
         return VALIDATION_FEEDBACK_MESSAGE

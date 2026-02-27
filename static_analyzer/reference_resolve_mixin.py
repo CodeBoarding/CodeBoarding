@@ -1,5 +1,4 @@
 import logging
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -21,11 +20,18 @@ class ReferenceResolverMixin:
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
         for component in analysis.components:
             for reference in component.key_entities:
-                # Check if the file is already resolved
-                if reference.reference_file is not None and os.path.exists(reference.reference_file):
+                # Check if the reference is already fully resolved (file + line numbers)
+                if (
+                    reference.reference_file is not None
+                    and os.path.exists(reference.reference_file)
+                    and reference.reference_start_line is not None
+                    and reference.reference_end_line is not None
+                ):
                     continue
 
-                self._resolve_single_reference(reference, component.assigned_files)
+                # Extract file paths from file_methods as candidates
+                file_candidates = [fm.file_path for fm in component.file_methods] if component.file_methods else None
+                self._resolve_single_reference(reference, file_candidates)
 
         # Remove unresolved references
         self._remove_unresolved_references(analysis)

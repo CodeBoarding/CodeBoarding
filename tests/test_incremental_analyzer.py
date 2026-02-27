@@ -1,15 +1,20 @@
 """Tests for the incremental analyzer module."""
 
 import pytest
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, SourceCodeReference
 from diagram_analysis.incremental import patch_sub_analysis
+
+
+def _get_file_paths(component: Component) -> list[str]:
+    """Helper to extract file paths from a component's file_methods."""
+    return [fg.file_path for fg in component.file_methods]
 
 
 class TestPatchSubAnalysis:
     """Test the patch_sub_analysis function."""
 
-    def test_removes_deleted_files_from_assigned_files(self):
-        """Deleted files should be removed from assigned_files."""
+    def test_removes_deleted_files_from_file_methods(self):
+        """Deleted files should be removed from file_methods."""
         sub = AnalysisInsights(
             description="Test",
             components=[
@@ -17,10 +22,10 @@ class TestPatchSubAnalysis:
                     name="Test Component",
                     description="Test",
                     key_entities=[],
-                    assigned_files=[
-                        "file1.py",
-                        "file2.py",
-                        "file3.py",
+                    file_methods=[
+                        FileMethodGroup(file_path="file1.py"),
+                        FileMethodGroup(file_path="file2.py"),
+                        FileMethodGroup(file_path="file3.py"),
                     ],
                 ),
             ],
@@ -30,7 +35,7 @@ class TestPatchSubAnalysis:
         changed = patch_sub_analysis(sub, deleted_files=["file2.py"], renames={})
 
         assert changed is True
-        assert sub.components[0].assigned_files == ["file1.py", "file3.py"]
+        assert _get_file_paths(sub.components[0]) == ["file1.py", "file3.py"]
 
     def test_removes_key_entities_referencing_deleted_files(self):
         """Key entities referencing deleted files should be removed."""
@@ -54,7 +59,6 @@ class TestPatchSubAnalysis:
                             reference_end_line=10,
                         ),
                     ],
-                    assigned_files=[],
                 ),
             ],
             components_relations=[],
@@ -66,8 +70,8 @@ class TestPatchSubAnalysis:
         assert len(sub.components[0].key_entities) == 1
         assert sub.components[0].key_entities[0].qualified_name == "mod.Kept"
 
-    def test_applies_renames_to_assigned_files(self):
-        """Renamed files should be updated in assigned_files."""
+    def test_applies_renames_to_file_methods(self):
+        """Renamed files should be updated in file_methods."""
         sub = AnalysisInsights(
             description="Test",
             components=[
@@ -75,7 +79,10 @@ class TestPatchSubAnalysis:
                     name="Test Component",
                     description="Test",
                     key_entities=[],
-                    assigned_files=["old_name.py", "other.py"],
+                    file_methods=[
+                        FileMethodGroup(file_path="old_name.py"),
+                        FileMethodGroup(file_path="other.py"),
+                    ],
                 ),
             ],
             components_relations=[],
@@ -84,7 +91,7 @@ class TestPatchSubAnalysis:
         changed = patch_sub_analysis(sub, deleted_files=[], renames={"old_name.py": "new_name.py"})
 
         assert changed is True
-        assert sub.components[0].assigned_files == ["new_name.py", "other.py"]
+        assert _get_file_paths(sub.components[0]) == ["new_name.py", "other.py"]
 
     def test_applies_renames_to_key_entities(self):
         """Renamed files should be updated in key_entities."""
@@ -102,7 +109,6 @@ class TestPatchSubAnalysis:
                             reference_end_line=10,
                         ),
                     ],
-                    assigned_files=[],
                 ),
             ],
             components_relations=[],
@@ -122,9 +128,9 @@ class TestPatchSubAnalysis:
                     name="Test Component",
                     description="Test",
                     key_entities=[],
-                    assigned_files=[
-                        "repos/MyProject/agents/file.py",
-                        "agents/file.py",
+                    file_methods=[
+                        FileMethodGroup(file_path="repos/MyProject/agents/file.py"),
+                        FileMethodGroup(file_path="agents/file.py"),
                     ],
                 ),
             ],
@@ -135,7 +141,7 @@ class TestPatchSubAnalysis:
         changed = patch_sub_analysis(sub, deleted_files=["agents/file.py"], renames={})
 
         assert changed is True
-        assert sub.components[0].assigned_files == []
+        assert _get_file_paths(sub.components[0]) == []
 
     def test_no_changes_returns_false(self):
         """When no changes are needed, should return False."""
@@ -146,7 +152,7 @@ class TestPatchSubAnalysis:
                     name="Test Component",
                     description="Test",
                     key_entities=[],
-                    assigned_files=["file.py"],
+                    file_methods=[FileMethodGroup(file_path="file.py")],
                 ),
             ],
             components_relations=[],
@@ -155,7 +161,7 @@ class TestPatchSubAnalysis:
         changed = patch_sub_analysis(sub, deleted_files=["other.py"], renames={"nonexistent.py": "new.py"})
 
         assert changed is False
-        assert sub.components[0].assigned_files == ["file.py"]
+        assert _get_file_paths(sub.components[0]) == ["file.py"]
 
     def test_combined_deletes_and_renames(self):
         """Should handle both deletes and renames in the same call."""
@@ -179,10 +185,10 @@ class TestPatchSubAnalysis:
                             reference_end_line=10,
                         ),
                     ],
-                    assigned_files=[
-                        "agents/prompts/claude_prompts_unidirectional.py",
-                        "agents/prompts/gemini_flash_prompts_unidirectional.py",
-                        "agents/prompts/abstract_prompt_factory.py",
+                    file_methods=[
+                        FileMethodGroup(file_path="agents/prompts/claude_prompts_unidirectional.py"),
+                        FileMethodGroup(file_path="agents/prompts/gemini_flash_prompts_unidirectional.py"),
+                        FileMethodGroup(file_path="agents/prompts/abstract_prompt_factory.py"),
                     ],
                 ),
             ],
@@ -199,6 +205,6 @@ class TestPatchSubAnalysis:
         )
 
         assert changed is True
-        assert sub.components[0].assigned_files == ["agents/prompts/base_factory.py"]
+        assert _get_file_paths(sub.components[0]) == ["agents/prompts/base_factory.py"]
         assert len(sub.components[0].key_entities) == 1
         assert sub.components[0].key_entities[0].reference_file == "agents/prompts/base_factory.py"

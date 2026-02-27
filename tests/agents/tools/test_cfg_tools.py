@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import Component
+from agents.agent_responses import Component, FileMethodGroup
 from agents.tools import GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
@@ -55,7 +55,6 @@ class TestCFGTools(unittest.TestCase):
             name="TestComponent",
             description="Test component for CFG testing",
             key_entities=[],
-            assigned_files=[],
         )
 
         # Get some files from the analysis
@@ -64,7 +63,7 @@ class TestCFGTools(unittest.TestCase):
             if cfg and cfg.nodes:
                 # Add first node's file to component
                 first_node = next(iter(cfg.nodes.values()))
-                component.assigned_files.append(first_node.file_path)
+                component.file_methods.append(FileMethodGroup(file_path=first_node.file_path))
                 break
 
         result = self.read_cfg.component_cfg(component)
@@ -75,7 +74,7 @@ class TestCFGTools(unittest.TestCase):
         # Test when static_analysis is None
         context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=None)
         tool = GetCFGTool(context=context)
-        component = Component(name="Test", description="Test component", key_entities=[], assigned_files=[])
+        component = Component(name="Test", description="Test component", key_entities=[])
         result = tool.component_cfg(component)
         self.assertEqual(result, "No static analysis data available.")
 
@@ -85,7 +84,7 @@ class TestCFGTools(unittest.TestCase):
             name="EmptyComponent",
             description="Empty test component",
             key_entities=[],
-            assigned_files=["nonexistent.py"],
+            file_methods=[FileMethodGroup(file_path="nonexistent.py")],
         )
         result = self.read_cfg.component_cfg(component)
         self.assertIn("No control flow graph data available for this component", result)

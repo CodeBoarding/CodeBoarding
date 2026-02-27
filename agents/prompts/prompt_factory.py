@@ -159,10 +159,6 @@ def get_file_classification_message() -> str:
     return get_global_factory()._prompt_factory.get_file_classification_message()
 
 
-def get_unassigned_files_classification_message() -> str:
-    return get_global_factory()._prompt_factory.get_unassigned_files_classification_message()
-
-
 def get_validation_feedback_message() -> str:
     return get_global_factory()._prompt_factory.get_validation_feedback_message()
 

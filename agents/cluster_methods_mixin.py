@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from agents.agent_responses import Component, AnalysisInsights, MethodEntry, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Node
+from static_analyzer.constants import Node, NodeType
 from static_analyzer.graph import ClusterResult
 from static_analyzer.cluster_helpers import get_all_cluster_ids
 
@@ -74,7 +74,7 @@ class ClusterMethodsMixin:
 
         If a key_entity (identified by qualified_name) appears in multiple components,
         keep it only in the component where it's most relevant:
-        1. If it's in the component's assigned_files -> keep it there (highest priority)
+        1. If it's in the component's file_methods -> keep it there (highest priority)
         2. Otherwise, keep it in the first component that references it
 
         This prevents confusion in documentation where the same class/method
@@ -97,12 +97,10 @@ class ClusterMethodsMixin:
                     original_component = seen_entities[qname]
                     ref_file = key_entity.reference_file
 
-                    current_has_file = ref_file and any(
-                        ref_file in assigned_file for assigned_file in component.assigned_files
-                    )
-                    original_has_file = ref_file and any(
-                        ref_file in assigned_file for assigned_file in original_component.assigned_files
-                    )
+                    component_files = [fg.file_path for fg in component.file_methods]
+                    original_files = [fg.file_path for fg in original_component.file_methods]
+                    current_has_file = ref_file and any(ref_file in f for f in component_files)
+                    original_has_file = ref_file and any(ref_file in f for f in original_files)
 
                     if current_has_file and not original_has_file:
                         # Move to current component
@@ -157,23 +155,24 @@ class ClusterMethodsMixin:
 
     def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
         """
-        Create a strict subgraph containing ONLY nodes from the component's assigned files.
+        Create a strict subgraph containing ONLY nodes from the component's file_methods.
         This ensures the analysis is strictly scoped to the component's boundaries.
 
         Args:
-            component: Component with assigned_files to filter by
+            component: Component with file_methods to filter by
 
         Returns:
             Tuple of (formatted cluster string, cluster_results dict)
             where cluster_results maps language -> ClusterResult for the subgraph
         """
-        if not component.assigned_files:
-            logger.warning(f"[ClusterMethodsMixin] Component {component.name} has no assigned_files")
+        component_files = [fg.file_path for fg in component.file_methods]
+        if not component_files:
+            logger.warning(f"[ClusterMethodsMixin] Component {component.name} has no file_methods")
             return "No assigned files found for this component.", {}
 
-        # Convert assigned files to absolute paths for comparison
+        # Convert files to absolute paths for comparison
         assigned_file_set = set()
-        for f in component.assigned_files:
+        for f in component_files:
             abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
             assigned_file_set.add(abs_path)
 
@@ -201,7 +200,7 @@ class ClusterMethodsMixin:
 
         if not result.strip():
             logger.warning(
-                f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component.assigned_files)} assigned files"
+                f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component_files)} files"
             )
             return "No relevant CFG clusters found for this component.", cluster_results
 
@@ -260,10 +259,17 @@ class ClusterMethodsMixin:
         return best_cluster
 
     def _build_file_methods_from_nodes(self, nodes: list[Node]) -> list[FileMethodGroup]:
-        """Group a flat list of Nodes into FileMethodGroups sorted by file then line."""
+        """Group a flat list of Nodes into FileMethodGroups sorted by file then line.
+
+        Only includes methods, functions, and classes/interfaces — variables,
+        constants, properties, and fields are excluded.
+        """
+        allowed_types = NodeType.CALLABLE_TYPES | NodeType.CLASS_TYPES
         by_file: dict[str, list[MethodEntry]] = defaultdict(list)
         seen: set[str] = set()
         for node in nodes:
+            if node.type not in allowed_types:
+                continue
             if node.fully_qualified_name in seen:
                 continue
             seen.add(node.fully_qualified_name)
@@ -288,47 +294,66 @@ class ClusterMethodsMixin:
     def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
         """Deterministically populate ``file_methods`` on every component.
 
-        1. For each component, resolve all nodes from its ``source_cluster_ids``.
-        2. Collect orphan nodes (present in the call-graph but not in any cluster).
-        3. Assign each orphan to the component whose cluster is nearest by graph
-           distance.
-        4. Build ``FileMethodGroup`` lists grouped by file path.
+        Node-centric approach guaranteeing 100% coverage:
+        1. Build cluster_id → component mapping from source_cluster_ids.
+        2. Distribute any unmapped clusters round-robin among components.
+        3. For each node, assign via its cluster → component mapping.
+        4. Orphan nodes (not in any cluster) go to the nearest cluster's component
+           or fall back to the first component.
+        5. Build ``FileMethodGroup`` lists grouped by file path.
         """
         all_nodes = self._collect_all_cfg_nodes(cluster_results)
-        clustered_names = self._collect_clustered_node_names(cluster_results)
 
-        # ---- Step 1: Resolve clustered nodes per component ----
-        component_nodes: dict[str, list[Node]] = defaultdict(list)
-        # Build cluster_id -> component mapping
+        # ---- Step 1: Build cluster_id -> component mapping ----
         cluster_to_component: dict[int, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
                 cluster_to_component[cid] = comp
-            # Gather nodes from this component's clusters
-            for cid in comp.source_cluster_ids:
-                for cr in cluster_results.values():
-                    for qname in cr.get_nodes_for_cluster(cid):
-                        node = all_nodes.get(qname)
-                        if node:
-                            component_nodes[comp.name].append(node)
 
-        # ---- Step 2 & 3: Assign orphans to nearest cluster's component ----
-        orphan_names = set(all_nodes.keys()) - clustered_names
-        if orphan_names:
-            logger.info(f"[ClusterMethodsMixin] Assigning {len(orphan_names)} orphan node(s) by graph distance")
-        for qname in orphan_names:
+        # ---- Step 2: Distribute unmapped clusters round-robin ----
+        all_cluster_ids: set[int] = set()
+        node_to_cluster: dict[str, int] = {}
+        for cr in cluster_results.values():
+            for cid, members in cr.clusters.items():
+                all_cluster_ids.add(cid)
+                for name in members:
+                    node_to_cluster[name] = cid
+
+        unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))
+        if unmapped_cluster_ids:
+            logger.warning(
+                f"[ClusterMethodsMixin] {len(unmapped_cluster_ids)}/{len(all_cluster_ids)} clusters not mapped "
+                f"via source_cluster_ids, distributing round-robin among {len(analysis.components)} components"
+            )
+            for i, cid in enumerate(unmapped_cluster_ids):
+                comp = analysis.components[i % len(analysis.components)]
+                cluster_to_component[cid] = comp
+                comp.source_cluster_ids.append(cid)
+
+        # ---- Step 3: Assign every node via cluster -> component ----
+        component_nodes: dict[str, list[Node]] = defaultdict(list)
+        unassigned: list[str] = []
+
+        for qname, node in all_nodes.items():
+            cid = node_to_cluster.get(qname)
+            if cid is not None and cid in cluster_to_component:
+                comp = cluster_to_component[cid]
+                component_nodes[comp.name].append(node)
+            else:
+                unassigned.append(qname)
+
+        # ---- Step 4: Assign orphan nodes by graph distance or fallback ----
+        if unassigned:
+            logger.info(f"[ClusterMethodsMixin] Assigning {len(unassigned)} orphan node(s) by graph distance")
+        for qname in unassigned:
             nearest_cid = self._find_nearest_cluster(qname, cluster_results)
             if nearest_cid is not None and nearest_cid in cluster_to_component:
                 comp = cluster_to_component[nearest_cid]
-                node = all_nodes[qname]
-                component_nodes[comp.name].append(node)
-                logger.debug(
-                    f"[ClusterMethodsMixin] Orphan '{qname}' -> component '{comp.name}' (cluster {nearest_cid})"
-                )
+                component_nodes[comp.name].append(all_nodes[qname])
             else:
-                logger.debug(f"[ClusterMethodsMixin] Orphan '{qname}' has no reachable cluster, skipping")
+                fallback_comp = analysis.components[0]
+                component_nodes[fallback_comp.name].append(all_nodes[qname])
 
-        # ---- Step 4: Build FileMethodGroup lists and derive assigned_files ----
+        # ---- Step 5: Build FileMethodGroup lists ----
         for comp in analysis.components:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.name, []))
-            comp.assigned_files = [fg.file_path for fg in comp.file_methods]

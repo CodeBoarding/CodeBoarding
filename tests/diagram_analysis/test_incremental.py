@@ -26,6 +26,7 @@ from repo_utils.change_detector import (
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     Relation,
     SourceCodeReference,
     hash_component_id,
@@ -55,7 +56,10 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=50,
                     )
                 ],
-                assigned_files=["src/module_a.py", "src/module_a_utils.py"],
+                file_methods=[
+                    FileMethodGroup(file_path="src/module_a.py"),
+                    FileMethodGroup(file_path="src/module_a_utils.py"),
+                ],
                 source_cluster_ids=[1, 2],
             ),
             Component(
@@ -70,7 +74,7 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=None,
                     )
                 ],
-                assigned_files=["src/module_b.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                 source_cluster_ids=[3],
             ),
         ],
@@ -214,9 +218,10 @@ class TestPathPatching:
         renames = {"src/module_a.py": "src/renamed_a.py"}
         patched = patch_paths_in_analysis(sample_analysis, renames)
 
-        # Check assigned_files updated
-        assert "src/renamed_a.py" in patched.components[0].assigned_files
-        assert "src/module_a.py" not in patched.components[0].assigned_files
+        # Check file_methods updated
+        file_paths = [fg.file_path for fg in patched.components[0].file_methods]
+        assert "src/renamed_a.py" in file_paths
+        assert "src/module_a.py" not in file_paths
 
         # Check key_entities reference_file updated
         assert patched.components[0].key_entities[0].reference_file == "src/renamed_a.py"
@@ -260,7 +265,7 @@ class TestBugFixes:
                     component_id=COMP_A_ID,
                     description="A",
                     key_entities=[],
-                    assigned_files=["src/old_name.py"],
+                    file_methods=[FileMethodGroup(file_path="src/old_name.py")],
                     source_cluster_ids=[1],
                 ),
                 Component(
@@ -268,7 +273,7 @@ class TestBugFixes:
                     component_id=COMP_B_ID,
                     description="B",
                     key_entities=[],
-                    assigned_files=["src/module_b.py"],
+                    file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                     source_cluster_ids=[2],
                 ),
             ],

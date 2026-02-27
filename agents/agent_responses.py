@@ -172,13 +172,6 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
-    # Deterministic from static analysis: ALL files belonging to this component
-    assigned_files: list[str] = Field(
-        description="All source files assigned to this component (derived from file_methods).",
-        default_factory=list,
-        exclude=True,
-    )
-
     file_methods: list[FileMethodGroup] = Field(
         description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
         default_factory=list,

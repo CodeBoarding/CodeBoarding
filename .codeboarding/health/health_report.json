@@ -1,101 +1,36 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-26T15:01:44.374435+00:00",
-  "overall_score": 0.9722222222222222,
+  "timestamp": "2026-02-27T02:32:01.246361+00:00",
+  "overall_score": 0.9001883239171374,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 802,
-      "findings_count": 4,
-      "warning_count": 4,
-      "score": 0.9950124688279302,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 150,
-          "description": "Functions exceeding 150.0 lines",
-          "entities": [
-            {
-              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 823,
-              "line_end": 1125,
-              "metric_value": 302
-            },
-            {
-              "entity_name": "static_analyzer.incremental_orchestrator._perform_incremental_update",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 325,
-              "line_end": 514,
-              "metric_value": 189
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client.build_static_analysis",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 639,
-              "line_end": 821,
-              "metric_value": 182
-            },
-            {
-              "entity_name": "static_analyzer.analysis_cache.invalidate_files",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 169,
-              "line_end": 320,
-              "metric_value": 151
-            }
-          ]
-        }
-      ]
+      "total_entities_checked": 282,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
     },
     {
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 802,
-      "findings_count": 3,
-      "warning_count": 3,
-      "score": 0.9962593516209476,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 10,
-          "description": "Functions calling more than 10.0 other functions",
-          "entities": [
-            {
-              "entity_name": "main.main",
-              "file_path": "main.py",
-              "line_start": 390,
-              "line_end": 524,
-              "metric_value": 22
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 823,
-              "line_end": 1125,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "github_action.generate_analysis",
-              "file_path": "github_action.py",
-              "line_start": 117,
-              "line_end": 171,
-              "metric_value": 10
-            }
-          ]
-        }
-      ]
+      "total_entities_checked": 282,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
     },
     {
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 802,
-      "findings_count": 5,
-      "warning_count": 5,
-      "score": 0.9937655860349127,
+      "total_entities_checked": 282,
+      "findings_count": 2,
+      "warning_count": 2,
+      "score": 0.9929078014184397,
       "finding_groups": [
         {
           "severity": "warning",
@@ -110,32 +45,11 @@
               "metric_value": 17
             },
             {
-              "entity_name": "static_analyzer.lsp_client.client._send_request",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 133,
-              "line_end": 153,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._wait_for_response",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 211,
-              "line_end": 222,
-              "metric_value": 15
-            },
-            {
               "entity_name": "agents.prompts.prompt_factory.get_global_factory",
               "file_path": "agents/prompts/prompt_factory.py",
               "line_start": 113,
               "line_end": 120,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._send_notification",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 155,
-              "line_end": 168,
-              "metric_value": 12
+              "metric_value": 13
             }
           ]
         }
@@ -155,7 +69,7 @@
       "check_name": "inheritance_depth",
       "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
       "check_type": "standard",
-      "total_entities_checked": 156,
+      "total_entities_checked": 73,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -167,19 +81,18 @@
       "check_type": "circular_dependencies",
       "cycles": [
         "health -> core -> health",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents"
+        "static_analyzer -> agents -> static_analyzer"
       ],
-      "packages_checked": 25,
-      "packages_in_cycles": 5
+      "packages_checked": 18,
+      "packages_in_cycles": 4
     },
     {
       "check_name": "package_instability",
       "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
       "check_type": "standard",
-      "total_entities_checked": 24,
-      "findings_count": 4,
-      "warning_count": 4,
+      "total_entities_checked": 18,
+      "findings_count": 3,
+      "warning_count": 3,
       "score": 0.8333333333333334,
       "finding_groups": [
         {
@@ -197,11 +110,7 @@
             },
             {
               "entity_name": "diagram_analysis",
-              "metric_value": 0.842
-            },
-            {
-              "entity_name": "monitoring",
-              "metric_value": 0.833
+              "metric_value": 0.857
             }
           ]
         }
@@ -211,7 +120,7 @@
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
       "check_type": "standard",
-      "total_entities_checked": 20,
+      "total_entities_checked": 24,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -221,9 +130,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 58,
-      "findings_count": 58,
-      "warning_count": 58,
+      "total_entities_checked": 101,
+      "findings_count": 101,
+      "warning_count": 101,
       "score": 0.0,
       "finding_groups": [
         {
@@ -232,31 +141,311 @@
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"result\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 74,
-              "line_end": 74,
+              "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 0,
+              "line_end": 0,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"result\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 74,
-              "line_end": 74,
+              "entity_name": "[unused_variable] \"AnalysisManifest\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 168,
-              "line_end": 168,
+              "entity_name": "[unused_variable] \"IncrementalUpdater\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 168,
-              "line_end": 168,
+              "entity_name": "[unused_variable] \"matches\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
+              "line_start": 285,
+              "line_end": 285,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"metrics\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
+              "line_start": 288,
+              "line_end": 288,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"total_changes\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
+              "line_start": 309,
+              "line_end": 309,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"total_changes\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
+              "line_start": 309,
+              "line_end": 309,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Edge\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 407,
+              "line_end": 407,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 407,
+              "line_end": 407,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 410,
+              "line_end": 410,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 410,
+              "line_end": 410,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 496,
+              "line_end": 496,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 496,
+              "line_end": 496,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"config\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/health/checks/unused_code_diagnostics.py",
+              "line_start": 249,
+              "line_end": 249,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py",
+              "line_start": 292,
+              "line_end": 292,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py",
+              "line_start": 547,
+              "line_end": 547,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py",
+              "line_start": 581,
+              "line_end": 581,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"all_classes\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py",
+              "line_start": 1336,
+              "line_end": 1336,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"DiagnosticPosition\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"DiagnosticRange\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"FileDiagnosticsMap\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"LSPDiagnostic\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"plan_analysis\" is not accessed",
+              "file_path": "diagram_analysis/incremental/reexpansion.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 83,
+              "line_end": 83,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 83,
+              "line_end": 83,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 336,
+              "line_end": 336,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 336,
+              "line_end": 336,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"AnalysisInsights\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ValidationContext\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 21,
+              "line_end": 21,
               "metric_value": 0.0
             },
             {
@@ -288,192 +477,94 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"matches\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 285,
-              "line_end": 285,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 74,
+              "line_end": 74,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"metrics\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 288,
-              "line_end": 288,
+              "entity_name": "[unused_variable] Variable \"result\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 74,
+              "line_end": 74,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"total_changes\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 309,
-              "line_end": 309,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"total_changes\" is not accessed",
-              "file_path": "static_analyzer/cluster_change_analyzer.py",
-              "line_start": 309,
-              "line_end": 309,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Edge\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 407,
-              "line_end": 407,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 407,
-              "line_end": 407,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 410,
-              "line_end": 410,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 410,
-              "line_end": 410,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 496,
-              "line_end": 496,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"node_name\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 496,
-              "line_end": 496,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
+              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
+              "file_path": "output_generators/mdx.py",
               "line_start": 8,
               "line_end": 8,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
+              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
+              "entity_name": "[unused_variable] Variable \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
+              "entity_name": "[unused_variable] \"MetaAnalysisInsights\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 12,
+              "line_end": 12,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
+              "entity_name": "[unused_variable] \"subgraph_clusters\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 159,
+              "line_end": 159,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] Variable \"subgraph_clusters\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 159,
+              "line_end": 159,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
+              "entity_name": "[unused_variable] \"validate_cluster_ids_populated\" is not accessed",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 24,
+              "line_end": 24,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "agents/validation.py",
               "line_start": 3,
               "line_end": 3,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 145,
+              "line_end": 145,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
+              "entity_name": "[unused_variable] \"_context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 285,
+              "line_end": 285,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"DiagnosticPosition\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"DiagnosticRange\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "entity_name": "[unused_variable] \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/path_patching.py",
               "line_start": 8,
               "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"FileDiagnosticsMap\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"LSPDiagnostic\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
               "metric_value": 0.0
             }
           ]
@@ -483,6 +574,174 @@
           "threshold": 0,
           "description": "Unused import statements that should be removed",
           "entities": [
+            {
+              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagnosticRange\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileDiagnosticsMap\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"LSPDiagnostic\" is not accessed",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"plan_analysis\" is not accessed",
+              "file_path": "diagram_analysis/incremental/reexpansion.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisInsights\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ValidationContext\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
             {
               "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
@@ -512,122 +771,31 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 15,
-              "line_end": 15,
+              "entity_name": "[unused_import] Import \"MetaAnalysisInsights\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 12,
+              "line_end": 12,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 8,
-              "line_end": 8,
+              "entity_name": "[unused_import] Import \"validate_cluster_ids_populated\" is not accessed",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 24,
+              "line_end": 24,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "agents/validation.py",
               "line_start": 3,
               "line_end": 3,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"DiagnosticRange\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/path_patching.py",
               "line_start": 8,
               "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"FileDiagnosticsMap\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"LSPDiagnostic\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
               "metric_value": 0.0
             }
           ]
@@ -639,16 +807,58 @@
           "entities": [
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "static_analyzer/constants.py",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/constants.py",
               "line_start": 159,
               "line_end": 159,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "static_analyzer/constants.py",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/constants.py",
               "line_start": 159,
               "line_end": 159,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 79,
+              "line_end": 79,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 79,
+              "line_end": 79,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 78,
+              "line_end": 78,
               "metric_value": 0.0
             }
           ]
@@ -658,16 +868,28 @@
   ],
   "file_summaries": [
     {
-      "file_path": "agents/tools/__init__.py",
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py",
       "total_findings": 16,
       "warning_findings": 16,
       "composite_risk_score": 100.0
     },
     {
-      "file_path": "static_analyzer/analysis_cache.py",
-      "total_findings": 9,
-      "warning_findings": 9,
-      "composite_risk_score": 95.0
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py",
+      "total_findings": 8,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py",
+      "total_findings": 8,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py",
+      "total_findings": 8,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
     },
     {
       "file_path": "diagram_analysis/__init__.py",
@@ -676,34 +898,58 @@
       "composite_risk_score": 90.0
     },
     {
-      "file_path": "monitoring/__init__.py",
-      "total_findings": 8,
-      "warning_findings": 8,
-      "composite_risk_score": 90.0
-    },
-    {
-      "file_path": "static_analyzer/lsp_client/__init__.py",
-      "total_findings": 8,
-      "warning_findings": 8,
-      "composite_risk_score": 90.0
-    },
-    {
-      "file_path": "static_analyzer/lsp_client/client.py",
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py",
       "total_findings": 6,
       "warning_findings": 6,
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "static_analyzer/cluster_change_analyzer.py",
+      "file_path": "agents/agent.py",
+      "total_findings": 6,
+      "warning_findings": 6,
+      "composite_risk_score": 80.0
+    },
+    {
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py",
       "total_findings": 4,
       "warning_findings": 4,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "main.py",
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "agents/validation.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "agents/prompts/prompt_factory.py",
       "total_findings": 3,
       "warning_findings": 3,
       "composite_risk_score": 45.0
+    },
+    {
+      "file_path": "diagram_analysis/incremental/reexpansion.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
     },
     {
       "file_path": "install.py",
@@ -712,34 +958,34 @@
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/constants.py",
+      "file_path": "main.py",
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
+      "file_path": "agents/abstraction_agent.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
     },
     {
-      "file_path": "github_action.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
+      "file_path": "diagram_analysis/incremental/path_patching.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
     },
     {
-      "file_path": "agents/agent_responses.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/static_analyzer/constants.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
     },
     {
-      "file_path": "agents/prompts/prompt_factory.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
+      "file_path": "../../../../Users/imilev/StartUp/CodeBoarding/agents/prompts/prompt_factory.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
     }
   ]
 }

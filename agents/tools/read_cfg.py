@@ -42,6 +42,7 @@ class GetCFGTool(BaseRepoTool):
         items = 0
         result = f"Control flow graph for {component.name}:\n"
         skip_nodes: list = []
+        component_files = {fg.file_path for fg in component.file_methods}
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)
@@ -49,7 +50,7 @@ class GetCFGTool(BaseRepoTool):
                 logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
             for _, node in cfg.nodes.items():
-                if node.file_path not in component.assigned_files:
+                if node.file_path not in component_files:
                     skip_nodes.append(node)
             result += f"{lang}:\n{cfg.llm_str(skip_nodes=skip_nodes)}\n"
             items += len(cfg.nodes) - len(skip_nodes)

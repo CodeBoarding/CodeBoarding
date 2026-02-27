@@ -67,7 +67,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[reference],
-            assigned_files=["test.py"],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -218,7 +217,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[reference],
-            assigned_files=["test.py"],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -242,7 +240,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[reference],
-            assigned_files=[],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -283,12 +280,11 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[reference],
-            assigned_files=["test.py"],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
 
-        # Mock python to fail, should try typescript
+        # Make python to fail, should try typescript
         self.mock_static_analysis.get_reference.side_effect = [
             ValueError("Not in python"),
             ValueError("Not in typescript"),
@@ -335,7 +331,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[resolved_ref, unresolved_ref_none, unresolved_ref_invalid],
-            assigned_files=["test.py"],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
@@ -369,7 +364,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
             name="TestComponent",
             description="Test",
             key_entities=[good_ref, bad_ref],
-            assigned_files=["test.py"],
         )
 
         analysis = AnalysisInsights(description="Test", components=[component], components_relations=[])
