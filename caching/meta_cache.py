@@ -94,7 +94,7 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
 
     def is_record_stale(self, record: MetaCacheKey) -> bool:
         """Return True if metadata file fingerprints differ from the cached record."""
-        if not record.watch_files:
+        if not record.metadata_files:
             logging.warning("Found no metadata files for cached meta cache record; recomputing...")
             return True
         if not record.metadata_content_hash:

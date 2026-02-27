@@ -16,8 +16,6 @@ from agents.prompts import get_system_details_message, get_cfg_details_message, 
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
 from caching.details_cache import (
-    AnalysisInsightsValue,
-    ClusterAnalysisValue,
     FinalAnalysisCache,
     ClusterCache,
 )
@@ -107,7 +105,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
         self._cluster_cache.store(
             cache_key,
-            ClusterAnalysisValue(**cluster_analysis.model_dump(), run_id=self.run_id),
+            cluster_analysis,
+            run_id=self.run_id,
         )
         return cluster_analysis
 
@@ -157,7 +156,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
         self._analysis_cache.store(
             cache_key,
-            AnalysisInsightsValue(**result.model_dump(), run_id=self.run_id),
+            result,
+            run_id=self.run_id,
         )
         return result
 

@@ -269,6 +269,7 @@ def process_remote_repository(
         if upload:
             upload_onboarding_materials(repo_name, temp_folder, "results")
     finally:
+        prune_details_caches(repo_dir=repo_path, only_keep_run_id=run_id)
         remove_temp_repo_folder(str(temp_folder))
 
 
@@ -490,7 +491,10 @@ Examples:
             ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
-    run_id = _load_existing_run_id() if args.incremental else generate_run_id()
+    if is_local and args.incremental:
+        run_id = _load_existing_run_id(local_repo_path) or generate_run_id()
+    else:
+        run_id = generate_run_id()
 
     if is_local:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -512,6 +516,7 @@ Examples:
             run_id=run_id,
             log_path=log_path,
         )
+        prune_details_caches(repo_dir=local_repo_path, only_keep_run_id=run_id)
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
@@ -555,8 +560,6 @@ Examples:
             logger.info("All repositories processed successfully!")
         else:
             logger.error("No repositories specified")
-
-    prune_details_caches(repo_dir=Path.cwd(), only_keep_run_id=run_id)
 
 
 if __name__ == "__main__":

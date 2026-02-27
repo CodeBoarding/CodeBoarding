@@ -1,19 +1,24 @@
 import hashlib
 import json
 import logging
-import sqlite3
+import threading
 from pathlib import Path
 from typing import Generic, TypeVar
+
 from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
-from langchain_community.cache import SQLiteCache
-from langchain_core.outputs import Generation
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import Column, Index, MetaData, String, Table, delete, select, text
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.engine import Engine, create_engine
+from sqlalchemy.exc import SQLAlchemyError
 
-K = TypeVar("K")
+K = TypeVar("K", bound=BaseModel)
 V = TypeVar("V", bound=BaseModel)
 CACHE_VERSION = 1
+_DEFAULT_NAMESPACE = "__default__"
+_CACHE_TABLE = "cache_entries"
 
 logger = logging.getLogger(__name__)
 
@@ -21,86 +26,204 @@ logger = logging.getLogger(__name__)
 class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
 
-    def __init__(self, filename: str, value_type: type[V], repo_dir: Path):
+    _CLEAR_BEFORE_STORE = True
+    _REQUIRE_RUN_ID = False
+
+    def __init__(
+        self,
+        filename: str,
+        value_type: type[V],
+        repo_dir: Path,
+        namespace: str | None = None,
+    ):
         self.cache_dir = get_cache_dir(repo_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.file_path = self.cache_dir / filename
         self._value_type = value_type
-        self._sqlite_cache: SQLiteCache | None = None
+        self._namespace = namespace
+        self._sqlite_cache: Engine | None = None
+        self._init_lock = threading.Lock()
+        self._metadata = MetaData()
+        self._cache_entries = Table(
+            _CACHE_TABLE,
+            self._metadata,
+            Column("namespace", String, primary_key=True),
+            Column("key_sig", String, primary_key=True),
+            Column("run_id", String, nullable=False),
+            Column("value_json", String, nullable=False),
+            Index(f"idx_{_CACHE_TABLE}_namespace", "namespace"),
+            Index(f"idx_{_CACHE_TABLE}_namespace_run_id", "namespace", "run_id"),
+        )
         self._sqlite_disabled = False
 
-    def _open_sqlite(self) -> SQLiteCache | None:
+    def _open_sqlite(self) -> Engine | None:
         if self._sqlite_disabled:
             return None
 
         if self._sqlite_cache is not None:
             return self._sqlite_cache
 
-        try:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            self._sqlite_cache = SQLiteCache(database_path=str(self.file_path))
-            logger.info("Cache initialized at %s", self.file_path)
-            return self._sqlite_cache
-        except (OSError, sqlite3.Error) as e:
-            logger.warning("Cache disabled: %s", e)
-            self._sqlite_disabled = True
-            return None
+        with self._init_lock:
+            if self._sqlite_disabled:
+                return None
+            if self._sqlite_cache is not None:
+                return self._sqlite_cache
+
+            try:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                engine = create_engine(f"sqlite:///{self.file_path}", future=True)
+                self._metadata.create_all(engine)
+                self._reset_if_incompatible_schema(engine)
+                self._sqlite_cache = engine
+                logger.info("Cache initialized at %s", self.file_path)
+                return self._sqlite_cache
+            except (OSError, SQLAlchemyError) as e:
+                logger.warning("Cache disabled: %s", e)
+                self._sqlite_disabled = True
+                return None
+
+    def _reset_if_incompatible_schema(self, engine: Engine) -> None:
+        """Reset cache table if schema doesn't match the strict expected columns."""
+        with engine.connect() as conn:
+            columns = conn.execute(text(f"PRAGMA table_info({_CACHE_TABLE})")).all()
+        if not columns:
+            return
+
+        expected = {"namespace", "key_sig", "run_id", "value_json"}
+        actual = {str(row[1]) for row in columns}
+        if actual == expected:
+            return
+
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS {_CACHE_TABLE}"))
+        self._metadata.create_all(engine)
 
     def signature(self, payload: K) -> str:
         encoded = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    def load(self, key: K) -> V | None:
-        cache = self._open_sqlite()
-        if cache is None:
+    def _resolve_namespace(self, namespace: str | None = None) -> str:
+        if namespace is not None:
+            return namespace
+        if self._namespace is not None:
+            return self._namespace
+        return _DEFAULT_NAMESPACE
+
+    def _lookup(self, key_sig: str, namespace: str | None = None) -> str | None:
+        engine = self._open_sqlite()
+        if engine is None:
             return None
 
+        ns = self._resolve_namespace(namespace)
+        stmt = (
+            select(self._cache_entries.c.value_json)
+            .where(
+                self._cache_entries.c.namespace == ns,
+                self._cache_entries.c.key_sig == key_sig,
+            )
+            .limit(1)
+        )
+        with engine.connect() as conn:
+            value_json = conn.execute(stmt).scalar_one_or_none()
+        return str(value_json) if value_json is not None else None
+
+    def _upsert(self, key_sig: str, value_json: str, run_id: str, namespace: str | None = None) -> None:
+        engine = self._open_sqlite()
+        if engine is None:
+            return
+
+        ns = self._resolve_namespace(namespace)
+        stmt = insert(self._cache_entries).values(
+            namespace=ns,
+            key_sig=key_sig,
+            run_id=run_id,
+            value_json=value_json,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["namespace", "key_sig"],
+            set_={"run_id": run_id, "value_json": value_json},
+        )
+        with engine.begin() as conn:
+            conn.execute(stmt)
+
+    def _clear_namespace(self, namespace: str | None = None, keep_run_ids: list[str] | None = None) -> int:
+        engine = self._open_sqlite()
+        if engine is None:
+            return 0
+
+        ns = self._resolve_namespace(namespace)
+        if keep_run_ids:
+            stmt = delete(self._cache_entries).where(
+                self._cache_entries.c.namespace == ns,
+                self._cache_entries.c.run_id.not_in(keep_run_ids),
+            )
+        else:
+            stmt = delete(self._cache_entries).where(self._cache_entries.c.namespace == ns)
+        with engine.begin() as conn:
+            result = conn.execute(stmt)
+        return int(result.rowcount or 0)
+
+    def load(self, key: K) -> V | None:
         try:
             key_signature = self.signature(key)
-            raw = cache.lookup(key_signature, None)
-            if not raw:
+            value_json = self._lookup(key_signature)
+            if value_json is None:
                 logger.info("Cache miss: %s key=%s", self.file_path.name, key_signature)
                 return None
-            value = self._value_type.model_validate_json(raw[0].text)
+            value = self._value_type.model_validate_json(value_json)
             logger.info("Cache load success: %s key=%s", self.file_path.name, key_signature)
             return value
         except Exception as e:
             logger.warning("Cache load failed: %s", e)
             return None
 
-    def store(self, key: K, value: V) -> None:
-        cache = self._open_sqlite()
-        if cache is None:
-            return
-
+    def store(self, key: K, value: V, run_id: str = "") -> None:
         try:
+            if self._REQUIRE_RUN_ID and not run_id:
+                raise ValueError("run_id is required for this cache")
             key_sig = self.signature(key)
-            cache.clear()
-            cache.update(key_sig, None, [Generation(text=value.model_dump_json())])
+            if self._CLEAR_BEFORE_STORE:
+                self._clear_namespace()
+            self._upsert(key_sig, value.model_dump_json(), run_id=run_id)
             logger.info("Cache store success: %s key=%s", self.file_path.name, key_sig)
         except Exception as e:
             logger.warning("Cache store failed: %s", e)
 
-    def is_stale(self, key: K) -> bool:
-        cache = self._open_sqlite()
-        if cache is None:
-            return True
-
+    def clear(self, keep_run_ids: list[str] | None = None) -> int:
         try:
-            return cache.lookup(self.signature(key), None) is None
+            return self._clear_namespace(keep_run_ids=keep_run_ids)
+        except Exception as e:
+            logger.warning("Cache clear failed: %s", e)
+            return 0
+
+    def load_existing_ids(self, namespace: str) -> list[str]:
+        try:
+            engine = self._open_sqlite()
+            if engine is None:
+                return []
+
+            stmt = (
+                select(self._cache_entries.c.run_id)
+                .where(
+                    self._cache_entries.c.namespace == namespace,
+                    self._cache_entries.c.run_id != "",
+                )
+                .distinct()
+                .order_by(self._cache_entries.c.run_id)
+            )
+            with engine.connect() as conn:
+                run_ids = conn.execute(stmt).scalars().all()
+            return [str(run_id) for run_id in run_ids if run_id is not None]
+        except Exception as e:
+            logger.warning("Cache run_id load failed for namespace=%s: %s", namespace, e)
+            return []
+
+    def is_stale(self, key: K) -> bool:
+        try:
+            return self._lookup(self.signature(key)) is None
         except Exception as e:
             logger.warning("Cache staleness check failed: %s", e)
             return True
-
-    def clear(self) -> None:
-        cache = self._open_sqlite()
-        if cache is None:
-            return
-
-        try:
-            cache.clear()
-        except Exception as e:
-            logger.warning("Cache clear failed: %s", e)
 
     def close(self) -> None:
         cache = self._sqlite_cache
@@ -108,7 +231,7 @@ class BaseCache(Generic[K, V]):
             return
 
         try:
-            cache.engine.dispose()
+            cache.dispose()
         except Exception as e:
             logger.warning("Cache close failed: %s", e)
         finally:
