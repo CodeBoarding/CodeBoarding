@@ -85,6 +85,7 @@ def handle_scoped_component_update(
     output_dir: Path,
     static_analysis: StaticAnalysisResults | None,
     repo_dir: Path,
+    run_id: str,
 ) -> None:
     """Apply scoped impact decisions for expanded components.
 
@@ -150,6 +151,7 @@ def handle_scoped_component_update(
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            run_id=run_id,
         )
 
         # Find the component object in the main analysis to preserve metadata
@@ -190,6 +192,7 @@ def run_scoped_component_impacts(
     output_dir: Path,
     static_analysis: StaticAnalysisResults | None,
     repo_dir: Path,
+    run_id: str,
 ) -> None:
     """Run impact analysis inside each component scope and log summaries.
 
@@ -224,4 +227,5 @@ def run_scoped_component_impacts(
                 output_dir=output_dir,
                 static_analysis=static_analysis,
                 repo_dir=repo_dir,
+                run_id=run_id,
             )

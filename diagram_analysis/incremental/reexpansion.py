@@ -98,6 +98,7 @@ def reexpand_components(
     component_ids: set[str],
     repo_dir: Path,
     context: ReexpansionContext,
+    run_id: str,
 ) -> list[str]:
     """Re-run DetailsAgent for components needing sub-analysis regeneration.
 
@@ -130,6 +131,7 @@ def reexpand_components(
         meta_context=meta_context,
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
+        run_id=run_id,
     )
 
     reexpanded: list[str] = []

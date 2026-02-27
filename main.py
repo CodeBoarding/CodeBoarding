@@ -9,6 +9,7 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
+from caching.details_cache import _load_existing_run_id, prune_details_caches
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
@@ -16,7 +17,7 @@ from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_a
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from monitoring.paths import generate_log_path, get_monitoring_run_dir
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -28,6 +29,7 @@ from repo_utils import (
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import (
     create_temp_repo_folder,
+    generate_run_id,
     monitoring_enabled,
     remove_temp_repo_folder,
     sanitize,
@@ -50,20 +52,25 @@ def generate_analysis(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
+    run_id: str,
+    log_path: str | None = None,
     depth_level: int = 1,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
     force_full: bool = False,
 ) -> list[Path]:
-    generator = DiagramGenerator(
-        repo_location=repo_path,
-        temp_folder=output_dir,
-        repo_name=repo_name,
-        output_dir=output_dir,
-        depth_level=depth_level,
-        run_id=run_id,
-        monitoring_enabled=monitoring_enabled,
-    )
+    generator_kwargs: dict = {
+        "repo_location": repo_path,
+        "temp_folder": output_dir,
+        "repo_name": repo_name,
+        "output_dir": output_dir,
+        "depth_level": depth_level,
+        "run_id": run_id,
+        "monitoring_enabled": monitoring_enabled,
+    }
+    if log_path is not None:
+        generator_kwargs["log_path"] = log_path
+
+    generator = DiagramGenerator(**generator_kwargs)
     generator.force_full_analysis = force_full
     generated_files = generator.generate_analysis()
     return [Path(path) for path in generated_files]
@@ -123,18 +130,25 @@ def partial_update(
     output_dir: Path,
     project_name: str,
     component_id: str,
+    run_id: str,
+    log_path: str | None = None,
     depth_level: int = 1,
 ):
     """
     Update a specific component in an existing analysis.
     """
-    generator = DiagramGenerator(
-        repo_location=repo_path,
-        temp_folder=output_dir,
-        repo_name=project_name,
-        output_dir=output_dir,
-        depth_level=depth_level,
-    )
+    generator_kwargs: dict = {
+        "repo_location": repo_path,
+        "temp_folder": output_dir,
+        "repo_name": project_name,
+        "output_dir": output_dir,
+        "depth_level": depth_level,
+        "run_id": run_id,
+    }
+    if log_path is not None:
+        generator_kwargs["log_path"] = log_path
+
+    generator = DiagramGenerator(**generator_kwargs)
     generator.pre_analysis()
 
     # Load the full unified analysis (root + all sub-analyses)
@@ -178,8 +192,9 @@ def partial_update(
 def generate_docs_remote(
     repo_url: str,
     temp_repo_folder: Path,
+    run_id: str,
+    log_path: str | None = None,
     local_dev: bool = False,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
 ):
     """
@@ -192,17 +207,19 @@ def generate_docs_remote(
         upload=not local_dev,  # Only upload if not in local dev mode
         cache_check=True,
         run_id=run_id,
+        log_path=log_path,
         monitoring_enabled=monitoring_enabled,
     )
 
 
 def process_remote_repository(
     repo_url: str,
+    run_id: str,
+    log_path: str | None = None,
     output_dir: Path | None = None,
     depth_level: int = 1,
     upload: bool = False,
     cache_check: bool = True,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
 ):
     """
@@ -230,6 +247,7 @@ def process_remote_repository(
             output_dir=temp_folder,
             depth_level=depth_level,
             run_id=run_id,
+            log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
 
@@ -258,6 +276,8 @@ def process_local_repository(
     repo_path: Path,
     output_dir: Path,
     project_name: str,
+    run_id: str,
+    log_path: str,
     depth_level: int = 1,
     component_id: str | None = None,
     monitoring_enabled: bool = False,
@@ -272,6 +292,8 @@ def process_local_repository(
             project_name=project_name,
             component_id=component_id,
             depth_level=depth_level,
+            run_id=run_id,
+            log_path=log_path,
         )
         return
 
@@ -283,6 +305,8 @@ def process_local_repository(
             repo_name=project_name,
             output_dir=output_dir,
             depth_level=depth_level,
+            run_id=run_id,
+            log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
         generator.force_full_analysis = force_full
@@ -299,6 +323,8 @@ def process_local_repository(
         repo_path=repo_path,
         output_dir=output_dir,
         depth_level=depth_level,
+        run_id=run_id,
+        log_path=log_path,
         monitoring_enabled=monitoring_enabled,
         force_full=force_full,
     )
@@ -464,6 +490,7 @@ Examples:
             ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
+    run_id = _load_existing_run_id() if args.incremental else generate_run_id()
 
     if is_local:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -471,6 +498,7 @@ Examples:
 
         # Derive project name from the repo directory name
         project_name = local_repo_path.name
+        log_path = generate_log_path(project_name)
 
         process_local_repository(
             repo_path=local_repo_path,
@@ -481,6 +509,8 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
+            run_id=run_id,
+            log_path=log_path,
         )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
@@ -497,9 +527,9 @@ Examples:
                 repo_output_dir = Path.cwd() / repo_name / ".codeboarding"
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
                 initialize_codeboardingignore(repo_output_dir)
+                log_path = generate_log_path(repo_name)
 
-                run_id = generate_run_id(repo_name)
-                monitoring_dir = get_monitoring_run_dir(run_id, create=should_monitor)
+                monitoring_dir = get_monitoring_run_dir(log_path, create=should_monitor)
 
                 with monitor_execution(
                     run_id=run_id,
@@ -511,10 +541,11 @@ Examples:
                     try:
                         process_remote_repository(
                             repo_url=repo,
+                            run_id=run_id,
+                            log_path=log_path,
                             output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
-                            run_id=run_id,
                             monitoring_enabled=should_monitor,
                         )
                     except Exception as e:
@@ -524,6 +555,8 @@ Examples:
             logger.info("All repositories processed successfully!")
         else:
             logger.error("No repositories specified")
+
+    prune_details_caches(repo_dir=Path.cwd(), only_keep_run_id=run_id)
 
 
 if __name__ == "__main__":

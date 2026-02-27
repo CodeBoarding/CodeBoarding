@@ -3,6 +3,7 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
+from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent_responses import MetaAnalysisInsights
@@ -42,14 +43,14 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
         repo_dir: Path,
         ignore_manager: RepoIgnoreManager,
     ):
-        super().__init__("meta_agent_llm.sqlite", value_type=MetaAnalysisInsights)
+        super().__init__("meta_agent_llm.sqlite", value_type=MetaAnalysisInsights, repo_dir=repo_dir)
         self._repo_dir = repo_dir
         self._ignore_manager = ignore_manager
 
     def discover_metadata_files(self) -> list[Path]:
         """Return dependency and README files whose changes invalidate this cache."""
         files = {
-            discovered.path.relative_to(self._repo_dir).as_posix()
+            discovered.path.relative_to(self._repo_dir)
             for discovered in discover_dependency_files(self._repo_dir, self._ignore_manager, roles=_CACHE_WATCH_ROLES)
         }
 
@@ -58,7 +59,20 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
             if path.is_file() and not self._ignore_manager.should_ignore(path):
                 files.add(path.relative_to(self._repo_dir))
 
-        return files
+        return sorted(files)
+
+    def build_key(self, prompt: str, llm: BaseChatModel) -> MetaCacheKey:
+        metadata_files = self.discover_metadata_files()
+        metadata_content_hash = self._compute_metadata_content_hash(metadata_files) or ""
+        model = getattr(llm, "model_name", None) or getattr(llm, "model", None) or llm.__class__.__name__
+        model_settings = ModelSettings.from_chat_model(provider="unknown", llm=llm)
+        return MetaCacheKey(
+            prompt=prompt,
+            model=str(model),
+            model_settings=model_settings,
+            metadata_files=[path.as_posix() for path in metadata_files],
+            metadata_content_hash=metadata_content_hash,
+        )
 
     def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str | None:
         """Return a deterministic fingerprint for watched file contents."""

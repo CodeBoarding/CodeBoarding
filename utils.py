@@ -67,3 +67,7 @@ def get_config(item_key: str):
 def sanitize(name: str) -> str:
     """Replace non-alphanumerics with underscores so IDs are valid identifiers."""
     return re.sub(r"\W+", "_", name)
+
+
+def generate_run_id() -> str:
+    return uuid.uuid4().hex

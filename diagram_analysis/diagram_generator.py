@@ -32,7 +32,7 @@ from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import get_static_analysis
@@ -50,8 +50,9 @@ class DiagramGenerator:
         repo_name: str,
         output_dir: Path,
         depth_level: int,
+        run_id: str,
+        log_path: str,
         project_name: str | None = None,
-        run_id: str | None = None,
         monitoring_enabled: bool = False,
     ):
         self.repo_location = repo_location
@@ -61,6 +62,7 @@ class DiagramGenerator:
         self.depth_level = depth_level
         self.project_name = project_name
         self.run_id = run_id
+        self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
 
@@ -193,6 +195,7 @@ class DiagramGenerator:
             meta_context=meta_context,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            run_id=self.run_id,
         )
         self._monitoring_agents["DetailsAgent"] = self.details_agent
         self.abstraction_agent = AbstractionAgent(
@@ -215,14 +218,7 @@ class DiagramGenerator:
             )
 
         if self.monitoring_enabled:
-            # Create run directory using unified path utilities
-            if self.run_id:
-                run_id = self.run_id
-            else:
-                run_name = self.project_name or self.repo_name
-                run_id = generate_run_id(name=run_name)
-
-            monitoring_dir = get_monitoring_run_dir(run_id, create=True)
+            monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
 
             # Save code_stats.json
@@ -430,6 +426,7 @@ class DiagramGenerator:
             output_dir=self.output_dir,
             static_analysis=static_analysis,
             force_full=self.force_full_analysis,
+            run_id=self.run_id,
         )
 
         if not updater.can_run_incremental():

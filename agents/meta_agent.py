@@ -50,10 +50,11 @@ class MetaAgent(CodeBoardingAgent):
         logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
 
         prompt = self.meta_analysis_prompt.format(project_name=self.project_name)
-        if not skip_cache and (cached := self._meta_cache.load(prompt)) is not None:
+        cache_key = self._meta_cache.build_key(prompt, self.agent_llm)
+        if not skip_cache and (cached := self._meta_cache.load(cache_key)) is not None:
             return cached
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
-        self._meta_cache.store(prompt, analysis)
+        self._meta_cache.store(cache_key, analysis)
 
         logger.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
         return analysis

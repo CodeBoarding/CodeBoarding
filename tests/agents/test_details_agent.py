@@ -70,6 +70,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         self.assertEqual(agent.project_name, self.project_name)
@@ -88,6 +89,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
         # Mock StaticAnalysis and CFG behavior
         abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
@@ -129,6 +131,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
         mock_response = ClusterAnalysis(cluster_components=[])
         mock_validation_invoke.return_value = mock_response
@@ -150,6 +153,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
         mock_response = AnalysisInsights(
             description="Structure analysis",
@@ -179,6 +183,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
         # Mock StaticAnalysis and CFG behavior for run
         abs_assigned = {str(self.repo_dir / f) for f in self.test_component.assigned_files}
@@ -235,6 +240,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         key_entity = SourceCodeReference(

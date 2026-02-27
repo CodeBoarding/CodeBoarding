@@ -2,8 +2,9 @@ import hashlib
 import json
 import logging
 import sqlite3
+from pathlib import Path
 from typing import Generic, TypeVar
-from utils import get_cache_dir, get_project_root
+from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
 from langchain_community.cache import SQLiteCache
@@ -20,8 +21,8 @@ logger = logging.getLogger(__name__)
 class BaseCache(Generic[K, V]):
     """Minimal key/value cache interface."""
 
-    def __init__(self, filename: str, value_type: type[V]):
-        self.cache_dir = get_cache_dir(get_project_root())
+    def __init__(self, filename: str, value_type: type[V], repo_dir: Path):
+        self.cache_dir = get_cache_dir(repo_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.file_path = self.cache_dir / filename
         self._value_type = value_type
@@ -45,10 +46,8 @@ class BaseCache(Generic[K, V]):
             self._sqlite_disabled = True
             return None
 
-    def signature(self, payload: object) -> str:
-        if isinstance(payload, BaseModel):
-            payload = payload.model_dump(mode="json")
-        encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"), ensure_ascii=True)
+    def signature(self, payload: K) -> str:
+        encoded = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def load(self, key: K) -> V | None:
@@ -137,7 +136,7 @@ class ModelSettings(BaseModel):
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
 
     @classmethod
-    def from_chat_model(cls, provider: str, llm: BaseChatModel | None) -> "ModelSettings":
+    def from_chat_model(cls, provider: str, llm: BaseChatModel) -> "ModelSettings":
         if llm is None:
             return cls(provider=provider, chat_class="NoneType", model_name="unknown")
 

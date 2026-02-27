@@ -64,6 +64,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 repo_path=repo_path,
                 output_dir=output_dir,
+                run_id="test-run-id",
                 depth_level=2,
             )
 
@@ -74,14 +75,14 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 output_dir=output_dir,
                 depth_level=2,
-                run_id=None,
+                run_id="test-run-id",
                 monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
-            self.assertTrue(mock_generator.use_meta_cache)
+            self.assertEqual(result, [Path("analysis1.json"), Path("analysis2.json")])
 
     @patch("main.DiagramGenerator")
-    def test_generate_analysis_ignores_meta_cache_when_requested(self, mock_generator_class):
+    def test_generate_analysis_with_force_full(self, mock_generator_class):
         mock_generator = MagicMock()
         mock_generator.generate_analysis.return_value = [Path("analysis.json")]
         mock_generator_class.return_value = mock_generator
@@ -96,10 +97,11 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 repo_path=repo_path,
                 output_dir=output_dir,
-                use_meta_cache=False,
+                run_id="test-run-id",
+                force_full=True,
             )
 
-        self.assertFalse(mock_generator.use_meta_cache)
+        self.assertTrue(mock_generator.force_full_analysis)
 
 
 class TestGenerateMarkdownDocs(unittest.TestCase):
@@ -191,6 +193,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="test_comp_id",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -256,6 +259,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="nested_comp_id",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -281,6 +285,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="TestComponent",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -317,6 +322,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
         process_remote_repository(
             repo_url="https://github.com/test/repo",
+            run_id="test-run-id",
             cache_check=True,
         )
 
@@ -358,6 +364,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
             process_remote_repository(
                 repo_url="https://github.com/test/repo",
+                run_id="test-run-id",
                 upload=True,
                 cache_check=False,
             )
@@ -382,6 +389,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -389,10 +397,10 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_name="test_project",
                 repo_path=repo_path,
                 output_dir=output_dir,
+                run_id="test-run-id",
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
-                use_meta_cache=True,
             )
             self.assertTrue(output_dir.exists())
 
@@ -408,6 +416,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
+                run_id="test-run-id",
                 depth_level=2,
                 component_id="TestComponent",
             )
@@ -417,8 +426,8 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="TestComponent",
+                run_id="test-run-id",
                 depth_level=2,
-                use_meta_cache=True,
             )
 
 
