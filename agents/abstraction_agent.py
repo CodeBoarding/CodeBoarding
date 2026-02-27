@@ -21,6 +21,7 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_group_name_coverage,
     validate_key_entities,
     validate_relation_component_names,
     validate_qualified_names,
@@ -114,6 +115,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
             expected_cluster_ids=get_all_cluster_ids(cluster_results),
             static_analysis=self.static_analysis,
+            cluster_analysis=cluster_analysis,
         )
 
         return self._validation_invoke(
@@ -121,9 +123,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             AnalysisInsights,
             validators=[
                 validate_relation_component_names,
+                validate_group_name_coverage,
                 validate_component_relationships,
                 validate_key_entities,
-                validate_cluster_coverage,
                 validate_qualified_names,
             ],
             context=context,
@@ -139,9 +141,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Sanitize cluster IDs (remove invalid ones)
-        self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
-        # Step 3b: Populate file_methods deterministically from cluster results + orphan assignment
+        # Step 3: Resolve cluster IDs deterministically from group names
+        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        # Step 3c: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
         # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)

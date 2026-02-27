@@ -5,7 +5,7 @@ import networkx as nx
 
 from collections import defaultdict
 
-from agents.agent_responses import Component, AnalysisInsights, MethodEntry, FileMethodGroup
+from agents.agent_responses import ClusterAnalysis, Component, AnalysisInsights, MethodEntry, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Node, NodeType
 from static_analyzer.graph import ClusterResult
@@ -123,36 +123,33 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
-    def _sanitize_component_cluster_ids(
-        self,
-        analysis: AnalysisInsights,
-        valid_cluster_ids: set[int] | None = None,
-        cluster_results: dict[str, ClusterResult] | None = None,
+    def _resolve_cluster_ids_from_groups(
+        self, analysis: "AnalysisInsights", cluster_analysis: "ClusterAnalysis"
     ) -> None:
-        """
-        Sanitize cluster IDs in the analysis by removing invalid ones.
-        Removes cluster IDs that don't exist in the static analysis.
-
-        Args:
-            analysis: The analysis to sanitize
-            valid_cluster_ids: Optional set of valid IDs. If None, derives from cluster_results.
-            cluster_results: dict mapping language -> ClusterResult. Required if valid_cluster_ids is None.
-        """
-        if valid_cluster_ids is None:
-            if cluster_results is None:
-                logger.error("Must provide either valid_cluster_ids or cluster_results")
-                return
-            valid_cluster_ids = get_all_cluster_ids(cluster_results)
+        """Resolve source_cluster_ids deterministically from source_group_names via ClusterAnalysis lookup."""
+        group_name_to_ids: dict[str, list[int]] = {
+            cc.name: cc.cluster_ids for cc in cluster_analysis.cluster_components
+        }
+        # Build case-insensitive fallback lookup
+        group_name_lower_to_ids: dict[str, list[int]] = {
+            cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
+        }
 
         for component in analysis.components:
-            if component.source_cluster_ids:
-                original_ids = component.source_cluster_ids.copy()
-                component.source_cluster_ids = [cid for cid in component.source_cluster_ids if cid in valid_cluster_ids]
-                removed_ids = set(original_ids) - set(component.source_cluster_ids)
-                if removed_ids:
+            resolved_ids: list[int] = []
+            for gname in component.source_group_names:
+                if gname in group_name_to_ids:
+                    resolved_ids.extend(group_name_to_ids[gname])
+                elif gname.lower() in group_name_lower_to_ids:
+                    resolved_ids.extend(group_name_lower_to_ids[gname.lower()])
                     logger.warning(
-                        f"[ClusterMethodsMixin] Removed invalid cluster IDs {removed_ids} from component '{component.name}'"
+                        f"[{self.__class__.__name__}] Fuzzy-matched group name '{gname}' for component '{component.name}'"
                     )
+                else:
+                    logger.warning(
+                        f"[{self.__class__.__name__}] Unresolved group name '{gname}' for component '{component.name}'"
+                    )
+            component.source_cluster_ids = sorted(set(resolved_ids))
 
     def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
         """

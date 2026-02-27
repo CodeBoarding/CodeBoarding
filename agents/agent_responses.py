@@ -102,16 +102,18 @@ class Relation(LLMBaseModel):
 class ClustersComponent(LLMBaseModel):
     """A grouped component from cluster analysis - may contain multiple clusters."""
 
+    name: str = Field(
+        description="Short, descriptive name for this cluster group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')"
+    )
     cluster_ids: list[int] = Field(
         description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
     )
     description: str = Field(
-        description="Explanation of what this component does, its main flow, and WHY these clusters are grouped together"
+        description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, and how it interacts with other cluster groups"
     )
 
     def llm_str(self):
-        ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
-        return f"**Clusters [{ids_str}]**\n   {self.description}"
+        return f"**{self.name}**\n   {self.description}"
 
 
 class ClusterAnalysis(LLMBaseModel):
@@ -167,9 +169,15 @@ class Component(LLMBaseModel):
         description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
 
-    source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses.",
+    source_group_names: list[str] = Field(
+        description="Names of the cluster groups from the grouping analysis that this component encompasses.",
         default_factory=list,
+    )
+
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
+        default_factory=list,
+        exclude=True,
     )
 
     file_methods: list[FileMethodGroup] = Field(
