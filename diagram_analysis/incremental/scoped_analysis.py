@@ -10,7 +10,7 @@ from pathlib import Path
 
 from agents.llm_config import initialize_llms
 
-from agents.agent_responses import AnalysisInsights, MetaAnalysisInsights
+from agents.agent_responses import AnalysisInsights, FileMethodGroup, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.meta_agent import MetaAgent
 from diagram_analysis.incremental.io_utils import (
@@ -165,16 +165,17 @@ def handle_scoped_component_update(
         # Update manifest slice with any new file assignments from the sub-analysis
         new_files: set[str] = set()
         for sub_comp in subgraph_analysis.components:
-            for f in sub_comp.assigned_files:
-                new_files.add(f)
-                manifest.add_file(f, component_id)
+            for fg in sub_comp.file_methods:
+                new_files.add(fg.file_path)
+                manifest.add_file(fg.file_path, component_id)
 
-        # Ensure parent analysis assigned_files reflect any new files
+        # Ensure parent analysis file_methods reflect any new files
         for comp in analysis.components:
             if comp.component_id == component_id:
+                existing_files = {fg.file_path for fg in comp.file_methods}
                 for f in new_files:
-                    if f not in comp.assigned_files:
-                        comp.assigned_files.append(f)
+                    if f not in existing_files:
+                        comp.file_methods.append(FileMethodGroup(file_path=f))
 
         # Save updated root analysis and manifest
         save_analysis(analysis, output_dir, manifest.expanded_components)

@@ -1,7 +1,7 @@
 """
 Tests for the deterministic planner_agent module.
 
-The planner uses CFG structure (source_cluster_ids, assigned_files) and parent context
+The planner uses CFG structure (source_cluster_ids, file_methods) and parent context
 to determine which components should be expanded - no LLM calls.
 
 Expansion Rules:
