@@ -18,6 +18,7 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_group_name_coverage,
     validate_key_entities,
     validate_relation_component_names,
     validate_qualified_names,
@@ -25,6 +26,7 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -46,24 +48,23 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.prompts = {
             "group_clusters": PromptTemplate(
                 template=get_cfg_details_message(),
-                input_variables=["project_name", "cfg_str", "component", "meta_context", "project_type"],
+                input_variables=["project_name", "cfg_clusters", "component", "meta_context", "project_type"],
             ),
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
-                input_variables=["insight_so_far", "component", "meta_context", "project_type"],
+                input_variables=["project_name", "cluster_analysis", "component", "meta_context", "project_type"],
             ),
         }
 
     @trace
-    def step_cluster_grouping(
-        self, component: Component, subgraph_cluster_str: str, subgraph_cluster_results: dict
+    def step_clusters_grouping(
+        self, component: Component, subgraph_cluster_results: dict[str, ClusterResult]
     ) -> ClusterAnalysis:
         """
         Group clusters within the component's subgraph into logical sub-components.
 
         Args:
             component: The component being analyzed
-            subgraph_cluster_str: String representation of the component's CFG subgraph
             subgraph_cluster_results: Cluster results for the subgraph (from _create_strict_component_subgraph)
 
         Returns:
@@ -73,9 +74,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
+        programming_langs = self.static_analysis.get_languages()
+
+        # Build cluster string using the pre-computed cluster results (same as AbstractionAgent)
+        cluster_str = self._build_cluster_string(programming_langs, subgraph_cluster_results)
+
         prompt = self.prompts["group_clusters"].format(
             project_name=self.project_name,
-            cfg_str=subgraph_cluster_str,
+            cfg_clusters=cluster_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -94,14 +100,17 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
     @trace
     def step_final_analysis(
-        self, component: Component, cluster_analysis: ClusterAnalysis, subgraph_cluster_results: dict
+        self,
+        component: Component,
+        cluster_analysis: ClusterAnalysis,
+        subgraph_cluster_results: dict[str, ClusterResult],
     ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
 
         Args:
             component: The component being analyzed
-            cluster_analysis: The clustered structure from step_cluster_grouping
+            cluster_analysis: The clustered structure from step_clusters_grouping
             subgraph_cluster_results: Cluster results for the subgraph (for validation)
 
         Returns:
@@ -114,7 +123,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
         prompt = self.prompts["final_analysis"].format(
-            insight_so_far=cluster_str,
+            project_name=self.project_name,
+            cluster_analysis=cluster_str,
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
@@ -126,6 +136,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
             expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
             static_analysis=self.static_analysis,
+            cluster_analysis=cluster_analysis,
         )
 
         return self._validation_invoke(
@@ -133,12 +144,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             AnalysisInsights,
             validators=[
                 validate_relation_component_names,
+                validate_group_name_coverage,
                 validate_component_relationships,
                 validate_key_entities,
                 validate_cluster_coverage,
                 validate_qualified_names,
             ],
             context=context,
+            max_validation_retries=3,
         )
 
     def run(self, component: Component):
@@ -160,13 +173,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         subgraph_str, subgraph_cluster_results = self._create_strict_component_subgraph(component)
 
         # Step 2: Group clusters within the subgraph
-        cluster_analysis = self.step_cluster_grouping(component, subgraph_str, subgraph_cluster_results)
+        cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)
 
         # Step 3: Generate detailed analysis from grouped clusters
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
 
-        # Step 4: Sanitize cluster IDs (remove invalid ones) - use subgraph's cluster results
-        self._sanitize_component_cluster_ids(analysis, cluster_results=subgraph_cluster_results)
+        # Step 4: Resolve cluster IDs deterministically from group names
+        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
         # Step 4b: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, subgraph_cluster_results)
@@ -176,6 +189,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 6: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
+
         # Step 7: Assign deterministic component IDs based on parent
         assign_component_ids(analysis, parent_id=component.component_id)
 
