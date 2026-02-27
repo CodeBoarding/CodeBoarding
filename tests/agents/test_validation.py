@@ -5,7 +5,6 @@ from agents.validation import (
     ValidationResult,
     validate_cluster_coverage,
     validate_component_relationships,
-    validate_cluster_ids_populated,
     validate_file_classifications,
     validate_relation_component_names,
     _check_edge_between_cluster_sets,
@@ -81,8 +80,8 @@ class TestValidateClusterCoverage(unittest.TestCase):
         """Test when all expected clusters are in the result."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(description="Component A description", cluster_ids=[1, 2]),
-                ClustersComponent(description="Component B description", cluster_ids=[3, 4]),
+                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2]),
+                ClustersComponent(name="Component B", description="Component B description", cluster_ids=[3, 4]),
             ]
         )
 
@@ -97,7 +96,7 @@ class TestValidateClusterCoverage(unittest.TestCase):
         """Test when some clusters are missing from the result."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(description="Component A description", cluster_ids=[1, 2]),
+                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2]),
             ]
         )
 
@@ -133,8 +132,8 @@ class TestValidateClusterCoverage(unittest.TestCase):
         """Test when cluster IDs appear in multiple components (should still count as covered)."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(description="Component A description", cluster_ids=[1, 2, 3]),
-                ClustersComponent(description="Component B description", cluster_ids=[2, 3, 4]),
+                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2, 3]),
+                ClustersComponent(name="Component B", description="Component B description", cluster_ids=[2, 3, 4]),
             ]
         )
 
@@ -428,72 +427,6 @@ class TestValidateFileClassifications(unittest.TestCase):
         self.assertFalse(result.is_valid)
         # Should mention truncation
         self.assertIn("and 5 more", result.feedback_messages[0])
-
-
-class TestValidateClusterIdsPopulated(unittest.TestCase):
-    """Test validate_cluster_ids_populated function."""
-
-    def test_all_clusters_assigned(self):
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1]),
-                Component(name="CompB", description="B", key_entities=[], source_cluster_ids=[2, 3]),
-            ],
-            components_relations=[],
-        )
-
-        cluster_result = ClusterResult(clusters={1: {"a"}, 2: {"b"}, 3: {"c"}})
-        context = ValidationContext(cluster_results={"python": cluster_result})
-
-        result = validate_cluster_ids_populated(analysis, context)
-
-        self.assertTrue(result.is_valid)
-        self.assertEqual(result.feedback_messages, [])
-
-    def test_unassigned_clusters(self):
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1]),
-            ],
-            components_relations=[],
-        )
-
-        cluster_result = ClusterResult(clusters={1: {"a"}, 2: {"b"}, 3: {"c"}})
-        context = ValidationContext(cluster_results={"python": cluster_result})
-
-        result = validate_cluster_ids_populated(analysis, context)
-
-        self.assertFalse(result.is_valid)
-        self.assertEqual(len(result.feedback_messages), 1)
-        self.assertIn("2, 3", result.feedback_messages[0])
-        self.assertIn("not assigned", result.feedback_messages[0])
-
-    def test_no_cluster_results(self):
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1])],
-            components_relations=[],
-        )
-        context = ValidationContext(cluster_results={})
-
-        result = validate_cluster_ids_populated(analysis, context)
-
-        self.assertTrue(result.is_valid)
-
-    def test_empty_cluster_ids(self):
-        analysis = AnalysisInsights(
-            description="Test",
-            components=[Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1])],
-            components_relations=[],
-        )
-        cluster_result = ClusterResult(clusters={})
-        context = ValidationContext(cluster_results={"python": cluster_result})
-
-        result = validate_cluster_ids_populated(analysis, context)
-
-        self.assertTrue(result.is_valid)
 
 
 class TestCheckEdgeBetweenClusterSets(unittest.TestCase):

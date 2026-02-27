@@ -7,6 +7,7 @@ from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
+    ClustersComponent,
     Component,
     FileMethodGroup,
     MetaAnalysisInsights,
@@ -122,8 +123,8 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.assert_called_once()
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
-    def test_step_cluster_grouping(self, mock_validation_invoke):
-        # Test step_cluster_grouping
+    def test_step_clusters_grouping(self, mock_validation_invoke):
+        # Test step_clusters_grouping
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -137,7 +138,15 @@ class TestDetailsAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(cluster_components=[])
         mock_validation_invoke.return_value = mock_response
 
-        result = agent.step_cluster_grouping(self.test_component, "Mock CFG data", {})
+        # Mock CFG to return a proper cluster string
+        mock_cfg = MagicMock()
+        mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
+        self.mock_static_analysis.get_cfg.return_value = mock_cfg
+
+        mock_cluster_result = MagicMock()
+        subgraph_cluster_results = {"python": mock_cluster_result}
+
+        result = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results)
 
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
@@ -168,9 +177,89 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
 
-    @patch("agents.details_agent.DetailsAgent._parse_invoke")
+    def test_resolve_cluster_ids_from_groups(self):
+        # Test _resolve_cluster_ids_from_groups
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="GroupA", cluster_ids=[1, 2], description="Group A"),
+                ClustersComponent(name="GroupB", cluster_ids=[3, 4], description="Group B"),
+            ]
+        )
+
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="Comp1",
+                    description="Comp1",
+                    key_entities=[],
+                    source_group_names=["GroupA", "GroupB"],
+                ),
+                Component(
+                    name="Comp2",
+                    description="Comp2",
+                    key_entities=[],
+                    source_group_names=["GroupA"],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+
+        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2, 3, 4])
+        self.assertEqual(analysis.components[1].source_cluster_ids, [1, 2])
+
+    def test_resolve_cluster_ids_from_groups_case_insensitive(self):
+        # Test case-insensitive fallback
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="GroupA", cluster_ids=[1, 2], description="Group A"),
+            ]
+        )
+
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="Comp1",
+                    description="Comp1",
+                    key_entities=[],
+                    source_group_names=["groupa"],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+
+        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2])
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
-    def test_run(self, mock_fix_ref, mock_parse_invoke):
+    def test_run(self, mock_fix_ref, mock_validation_invoke):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -197,25 +286,33 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result
         mock_cfg.filter_by_files.return_value = mock_subgraph
+        # _build_cluster_string calls cfg.to_cluster_string on the original cfg
+        mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
         # Mock responses for grouping and final analysis
         cluster_response = ClusterAnalysis(cluster_components=[])
+        final_component = Component(
+            name="SubComp",
+            description="A sub-component",
+            key_entities=[],
+            source_group_names=[],
+        )
         final_response = AnalysisInsights(
             description="Final",
-            components=[],
+            components=[final_component],
             components_relations=[],
         )
 
-        mock_parse_invoke.side_effect = [cluster_response, final_response]
+        mock_validation_invoke.side_effect = [cluster_response, final_response]
         mock_fix_ref.return_value = final_response
 
         analysis, subgraph_results = agent.run(self.test_component)
 
         self.assertEqual(analysis, final_response)
-        self.assertEqual(mock_parse_invoke.call_count, 2)
+        self.assertEqual(mock_validation_invoke.call_count, 2)
         mock_fix_ref.assert_called_once()
 
 

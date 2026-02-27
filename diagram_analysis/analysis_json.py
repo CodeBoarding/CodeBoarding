@@ -25,6 +25,10 @@ class RelationJson(Relation):
 class ComponentJson(Component):
     # Override to include in JSON serialization (parent has exclude=True)
     component_id: str = Field(description="Deterministic unique identifier for this component.")
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from CFG analysis that this component encompasses.",
+        default_factory=list,
+    )
     can_expand: bool = Field(
         description="Whether the component can be expanded in detail or not.",
         default=False,
@@ -33,6 +37,8 @@ class ComponentJson(Component):
         description="All methods/functions belonging to this component, grouped by file.",
         default_factory=list,
     )
+    # Exclude intermediate field from JSON output
+    source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
     components: list["ComponentJson"] | None = Field(
         description="Sub-components if expanded, None otherwise.", default=None

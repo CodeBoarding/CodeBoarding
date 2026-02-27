@@ -27,6 +27,7 @@ class ValidationContext:
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
+    cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
 
 
 @dataclass
@@ -59,11 +60,11 @@ def validate_cluster_coverage(
     # Extract all cluster IDs from the result
     result_cluster_ids: set[int] = set()
     if isinstance(result, ClusterAnalysis):
-        for component in result.cluster_components:
-            result_cluster_ids.update(component.cluster_ids)
-    if isinstance(result, AnalysisInsights):
-        for component in result.components:
-            result_cluster_ids.update(component.source_cluster_ids)
+        for cc in result.cluster_components:
+            result_cluster_ids.update(cc.cluster_ids)
+    elif isinstance(result, AnalysisInsights):
+        for comp in result.components:
+            result_cluster_ids.update(comp.source_cluster_ids)
 
     # Find missing clusters
     missing_clusters = context.expected_cluster_ids - result_cluster_ids
@@ -81,6 +82,76 @@ def validate_cluster_coverage(
 
     logger.warning(f"[Validation] Missing clusters: {missing_str}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
+def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """
+    Validate bidirectional coverage between cluster groups and components:
+    1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
+    2. Every Component must have at least one source_group_name assigned.
+
+    Args:
+        result: AnalysisInsights containing components with source_group_names
+        context: ValidationContext with cluster_analysis
+
+    Returns:
+        ValidationResult with targeted feedback depending on the issue
+    """
+    if not context.cluster_analysis:
+        logger.warning("[Validation] No cluster_analysis provided for group name coverage validation")
+        return ValidationResult(is_valid=True)
+
+    expected_group_names = {cc.name for cc in context.cluster_analysis.cluster_components}
+    referenced_group_names: set[str] = set()
+    for component in result.components:
+        referenced_group_names.update(component.source_group_names)
+
+    # Check 1: Cluster groups not referenced by any component (case-insensitive)
+    expected_lower = {name.lower(): name for name in expected_group_names}
+    referenced_lower = {name.lower() for name in referenced_group_names}
+    missing_groups = {original for lower, original in expected_lower.items() if lower not in referenced_lower}
+
+    # Check 2: Components without any source_group_names
+    empty_components = [comp.name for comp in result.components if not comp.source_group_names]
+
+    if not missing_groups and not empty_components:
+        logger.info("[Validation] All cluster groups and components have proper bidirectional coverage")
+        return ValidationResult(is_valid=True)
+
+    feedback_messages: list[str] = []
+
+    if missing_groups and not empty_components:
+        missing_str = ", ".join(sorted(missing_groups))
+        feedback_messages.append(
+            f"The following cluster groups are not assigned to any component: {missing_str}. "
+            f"Please revisit whether they were missed or whether they require a new component of their own."
+        )
+        logger.warning(f"[Validation] Unassigned cluster groups: {missing_str}")
+
+    if empty_components and not missing_groups:
+        empty_str = ", ".join(sorted(empty_components))
+        feedback_messages.append(
+            f"The following components have no source_group_names assigned: {empty_str}. "
+            f"All cluster groups are already covered, so these components have no source code backing them. "
+            f"Please revisit the component structure — consider removing these components or "
+            f"redistributing cluster groups to include them."
+        )
+        logger.warning(f"[Validation] Components without source groups: {empty_str}")
+
+    if missing_groups and empty_components:
+        missing_str = ", ".join(sorted(missing_groups))
+        empty_str = ", ".join(sorted(empty_components))
+        all_names_str = ", ".join(sorted(expected_group_names))
+        feedback_messages.append(
+            f"Cluster groups not assigned to any component: {missing_str}. "
+            f"Components without any source_group_names: {empty_str}. "
+            f"All available cluster group names are: {all_names_str}. "
+            f"Please ensure every cluster group is assigned to a component via source_group_names "
+            f"and every component references at least one cluster group."
+        )
+        logger.warning(f"[Validation] Unassigned groups: {missing_str}; empty components: {empty_str}")
+
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
 def validate_component_relationships(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -173,49 +244,6 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
     )
 
     logger.warning(f"[Validation] Components without key entities: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
-
-
-def validate_cluster_ids_populated(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that every cluster is assigned to at least one component.
-
-    Args:
-        result: AnalysisInsights containing components
-        context: ValidationContext with cluster_results to get available cluster IDs
-
-    Returns:
-        ValidationResult with feedback for unassigned clusters
-    """
-    if not context.cluster_results:
-        logger.warning("[Validation] No cluster results provided for cluster ID validation")
-        return ValidationResult(is_valid=True)
-
-    all_cluster_ids: set[int] = set()
-    for lang_result in context.cluster_results.values():
-        all_cluster_ids.update(lang_result.get_cluster_ids())
-
-    if not all_cluster_ids:
-        logger.warning("[Validation] No cluster IDs available for cluster ID validation")
-        return ValidationResult(is_valid=True)
-
-    assigned_cluster_ids: set[int] = set()
-    for component in result.components:
-        assigned_cluster_ids.update(component.source_cluster_ids or [])
-
-    unassigned_clusters = all_cluster_ids - assigned_cluster_ids
-
-    if not unassigned_clusters:
-        logger.info("[Validation] All clusters are assigned to components")
-        return ValidationResult(is_valid=True)
-
-    missing_str = ", ".join(str(cid) for cid in sorted(unassigned_clusters))
-    feedback = (
-        f"The following cluster IDs are not assigned to any component: {missing_str}. "
-        f"Please assign every cluster to a component based on which code clusters belong to it."
-    )
-
-    logger.warning(f"[Validation] Unassigned clusters: {missing_str}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
