@@ -69,7 +69,7 @@ class TestMetaAgent(unittest.TestCase):
         mock_meta_insights = self._meta_insights("library")
         mock_parse_invoke.return_value = mock_meta_insights
 
-        result = agent.analyze_project_metadata()
+        result = agent.analyze_project_metadata(skip_cache=False)
 
         self.assertEqual(result, mock_meta_insights)
         self.assertEqual(result.project_type, "library")
@@ -91,7 +91,7 @@ class TestMetaAgent(unittest.TestCase):
         )
         mock_parse_invoke.return_value = mock_meta_insights
 
-        result = agent.analyze_project_metadata()
+        result = agent.analyze_project_metadata(skip_cache=False)
 
         self.assertEqual(result, mock_meta_insights)
         self.assertEqual(result.project_type, "web application")
@@ -244,7 +244,7 @@ class TestMetaAgent(unittest.TestCase):
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
         self.assertEqual(loaded_second.model_dump(), second.model_dump())
 
-    def test_get_meta_context_recomputes_when_gitpython_unavailable(self):
+    def test_get_meta_context_uses_cache_when_gitpython_unavailable(self):
         agent = self._build_agent()
         first = self._meta_insights("library")
         second = self._meta_insights("web application")
@@ -256,22 +256,16 @@ class TestMetaAgent(unittest.TestCase):
             loaded_first = agent.get_meta_context()
             loaded_second = agent.get_meta_context()
 
-        self.assertEqual(analyze_mock.call_count, 2)
+        self.assertEqual(analyze_mock.call_count, 1)
         self.assertEqual(loaded_first.model_dump(), first.model_dump())
-        self.assertEqual(loaded_second.model_dump(), second.model_dump())
+        self.assertEqual(loaded_second.model_dump(), first.model_dump())
 
     def test_discover_watch_files_includes_manifests_and_configs(self):
         agent = self._build_agent()
         (self.repo_dir / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
         (self.repo_dir / "tsconfig.json").write_text("{}\n", encoding="utf-8")
 
-        repo_mock = MagicMock()
-        repo_mock.git.ls_files.return_value = "setup.py\ntsconfig.json\n"
-        repo_mock.untracked_files = []
-        with (
-            patch("caching.meta_cache.Repo", return_value=repo_mock),
-            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
-        ):
+        with patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False):
             watch = agent._cache.discover_watch_files()
 
         self.assertIn("setup.py", watch)
@@ -283,13 +277,7 @@ class TestMetaAgent(unittest.TestCase):
         (self.repo_dir / "uv.lock").write_text("...", encoding="utf-8")
         (self.repo_dir / "poetry.lock").write_text("...", encoding="utf-8")
 
-        repo_mock = MagicMock()
-        repo_mock.git.ls_files.return_value = "pyproject.toml\nuv.lock\npoetry.lock\n"
-        repo_mock.untracked_files = []
-        with (
-            patch("caching.meta_cache.Repo", return_value=repo_mock),
-            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
-        ):
+        with patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False):
             watch = agent._cache.discover_watch_files()
 
         self.assertIn("pyproject.toml", watch)
@@ -300,13 +288,7 @@ class TestMetaAgent(unittest.TestCase):
         agent = self._build_agent()
         (self.repo_dir / "README.md").write_text("# My Project\n", encoding="utf-8")
 
-        repo_mock = MagicMock()
-        repo_mock.git.ls_files.return_value = "README.md\n"
-        repo_mock.untracked_files = []
-        with (
-            patch("caching.meta_cache.Repo", return_value=repo_mock),
-            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
-        ):
+        with patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False):
             watch = agent._cache.discover_watch_files()
 
         self.assertIn("README.md", watch)
@@ -317,13 +299,7 @@ class TestMetaAgent(unittest.TestCase):
         (self.repo_dir / "package.json").write_text('{"name":"x"}\n', encoding="utf-8")
         (self.repo_dir / "README.md").write_text("# My Project\n", encoding="utf-8")
 
-        repo_mock = MagicMock()
-        repo_mock.git.ls_files.return_value = "setup.py\n"
-        repo_mock.untracked_files = ["package.json", "README.md", "notes.txt"]
-        with (
-            patch("caching.meta_cache.Repo", return_value=repo_mock),
-            patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False),
-        ):
+        with patch.object(agent._cache._ignore_manager, "should_ignore", return_value=False):
             watch = agent._cache.discover_watch_files()
 
         self.assertIn("setup.py", watch)
@@ -339,7 +315,7 @@ class TestMetaAgent(unittest.TestCase):
     def test_is_stale_returns_false_for_matching_watch_fingerprint(self):
         agent = self._build_agent()
         watch_files = ["pyproject.toml"]
-        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        watch_state_hash = agent._cache._compute_metadata_content_hash(watch_files)
         self.assertIsNotNone(watch_state_hash)
 
         record = MetaCacheRecord(
@@ -360,7 +336,7 @@ class TestMetaAgent(unittest.TestCase):
     def test_is_stale_detects_watch_file_content_change(self):
         agent = self._build_agent()
         watch_files = ["pyproject.toml"]
-        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        watch_state_hash = agent._cache._compute_metadata_content_hash(watch_files)
         self.assertIsNotNone(watch_state_hash)
 
         record = MetaCacheRecord(
@@ -375,7 +351,7 @@ class TestMetaAgent(unittest.TestCase):
     def test_is_stale_detects_watch_file_set_change(self):
         agent = self._build_agent()
         watch_files = ["pyproject.toml"]
-        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        watch_state_hash = agent._cache._compute_metadata_content_hash(watch_files)
         self.assertIsNotNone(watch_state_hash)
 
         record = MetaCacheRecord(
@@ -390,7 +366,7 @@ class TestMetaAgent(unittest.TestCase):
     def test_is_stale_returns_true_when_watch_file_missing(self):
         agent = self._build_agent()
         watch_files = ["pyproject.toml"]
-        watch_state_hash = agent._cache.compute_watch_state_hash(watch_files)
+        watch_state_hash = agent._cache._compute_metadata_content_hash(watch_files)
         self.assertIsNotNone(watch_state_hash)
 
         record = MetaCacheRecord(

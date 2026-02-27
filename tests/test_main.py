@@ -64,6 +64,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 repo_path=repo_path,
                 output_dir=output_dir,
+                run_id="test-run-id",
                 depth_level=2,
             )
 
@@ -74,10 +75,33 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_name="test_repo",
                 output_dir=output_dir,
                 depth_level=2,
-                run_id=None,
+                run_id="test-run-id",
                 monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
+            self.assertEqual(result, [Path("analysis1.json"), Path("analysis2.json")])
+
+    @patch("main.DiagramGenerator")
+    def test_generate_analysis_with_force_full(self, mock_generator_class):
+        mock_generator = MagicMock()
+        mock_generator.generate_analysis.return_value = [Path("analysis.json")]
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            generate_analysis(
+                repo_name="test_repo",
+                repo_path=repo_path,
+                output_dir=output_dir,
+                run_id="test-run-id",
+                force_full=True,
+            )
+
+        self.assertTrue(mock_generator.force_full_analysis)
 
 
 class TestGenerateMarkdownDocs(unittest.TestCase):
@@ -169,6 +193,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="test_comp_id",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -234,6 +259,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="nested_comp_id",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -259,6 +285,7 @@ class TestPartialUpdate(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="TestComponent",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -295,6 +322,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
         process_remote_repository(
             repo_url="https://github.com/test/repo",
+            run_id="test-run-id",
             cache_check=True,
         )
 
@@ -336,6 +364,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
             process_remote_repository(
                 repo_url="https://github.com/test/repo",
+                run_id="test-run-id",
                 upload=True,
                 cache_check=False,
             )
@@ -360,6 +389,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
+                run_id="test-run-id",
                 depth_level=1,
             )
 
@@ -367,6 +397,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_name="test_project",
                 repo_path=repo_path,
                 output_dir=output_dir,
+                run_id="test-run-id",
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
@@ -385,6 +416,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
+                run_id="test-run-id",
                 depth_level=2,
                 component_id="TestComponent",
             )
@@ -394,6 +426,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 component_id="TestComponent",
+                run_id="test-run-id",
                 depth_level=2,
             )
 

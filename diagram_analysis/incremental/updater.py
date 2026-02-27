@@ -61,11 +61,15 @@ class IncrementalUpdater:
         output_dir: Path,
         static_analysis: StaticAnalysisResults | None = None,
         force_full: bool = False,
+        run_id: str = "",
     ):
+        if not run_id:
+            raise ValueError("run_id must be generated at entrypoint and passed down")
         self.repo_dir = repo_dir
         self.output_dir = output_dir
         self.static_analysis = static_analysis
         self.force_full = force_full
+        self.run_id = run_id
 
         self.manifest: AnalysisManifest | None = None
         self.analysis: AnalysisInsights | None = None
@@ -331,7 +335,12 @@ class IncrementalUpdater:
                 impact=self.impact,
                 static_analysis=self.static_analysis,
             )
-            reexpanded_components = reexpand_components(components_to_reexpand, self.repo_dir, context)
+            reexpanded_components = reexpand_components(
+                components_to_reexpand,
+                self.repo_dir,
+                context,
+                run_id=self.run_id,
+            )
 
         # Step 5a: Sanity check
         for comp_id in reexpanded_components:
@@ -348,6 +357,7 @@ class IncrementalUpdater:
             self.output_dir,
             self.static_analysis,
             self.repo_dir,
+            run_id=self.run_id,
         )
 
         # Step 6: Patch components that don't need full re-expansion

@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import shutil
+import hashlib
 import uuid
 from pathlib import Path
 
@@ -38,6 +39,18 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent
 
 
+@staticmethod
+def fingerprint_file(path: Path) -> bytes | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.digest()
+    except OSError:
+        return None
+
+
 def monitoring_enabled():
     logger.info("Monitoring enabled: %s", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
@@ -55,3 +68,7 @@ def get_config(item_key: str):
 def sanitize(name: str) -> str:
     """Replace non-alphanumerics with underscores so IDs are valid identifiers."""
     return re.sub(r"\W+", "_", name)
+
+
+def generate_run_id() -> str:
+    return uuid.uuid4().hex

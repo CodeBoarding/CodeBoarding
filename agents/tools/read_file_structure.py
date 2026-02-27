@@ -36,7 +36,7 @@ class FileStructureTool(BaseRepoTool):
         # Ensure they are sorted by depth for is_subsequence logic
         return sorted(dirs, key=lambda x: len(x.parts))
 
-    def _run(self, dir: str | None = None) -> str:
+    def _run(self, dir: str) -> str:
         """
         Run the tool with the given input.
         """
@@ -75,7 +75,6 @@ class FileStructureTool(BaseRepoTool):
                         logger.info(f"[File Structure Tool] Found directory {d}")
                         searching_dir = d
                         break
-
         if searching_dir is None:
             logger.error(f"[File Structure Tool] Directory {dir} not found in cached directories.")
             cached_str = ", ".join([str(d) for d in self.cached_dirs]) if self.cached_dirs else "None"
