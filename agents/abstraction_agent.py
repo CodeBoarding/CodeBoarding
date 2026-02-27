@@ -22,7 +22,6 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_component_relationships,
     validate_key_entities,
-    validate_cluster_ids_populated,
     validate_relation_component_names,
     validate_qualified_names,
 )
@@ -128,6 +127,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_qualified_names,
             ],
             context=context,
+            max_validation_retries=3,
         )
 
     def run(self):
@@ -143,15 +143,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
         # Step 3b: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
-
-        # Log node coverage
-        all_nodes = self._collect_all_cfg_nodes(cluster_results)
-        total_nodes = len(all_nodes)
-        assigned_nodes = sum(len(m) for comp in analysis.components for fg in comp.file_methods for m in [fg.methods])
-        pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
-        logger.info(
-            f"[AbstractionAgent] Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components"
-        )
 
         # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)

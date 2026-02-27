@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+import networkx as nx
 
 from collections import defaultdict
 
@@ -214,14 +215,6 @@ class ClusterMethodsMixin:
             all_nodes.update(cfg.nodes)
         return all_nodes
 
-    def _collect_clustered_node_names(self, cluster_results: dict[str, ClusterResult]) -> set[str]:
-        """Return the set of all qualified names that belong to at least one cluster."""
-        clustered: set[str] = set()
-        for cr in cluster_results.values():
-            for node_names in cr.clusters.values():
-                clustered.update(node_names)
-        return clustered
-
     def _find_nearest_cluster(self, node_name: str, cluster_results: dict[str, ClusterResult]) -> int | None:
         """Find the cluster whose members are closest to *node_name* in the call graph.
 
@@ -229,8 +222,6 @@ class ClusterMethodsMixin:
         are considered.  Returns the cluster_id of the nearest cluster, or None
         if the node is completely disconnected.
         """
-        import networkx as nx
-
         best_cluster: int | None = None
         best_dist = float("inf")
 
@@ -291,26 +282,16 @@ class ClusterMethodsMixin:
             groups.append(FileMethodGroup(file_path=file_path, methods=methods))
         return groups
 
-    def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
-        """Deterministically populate ``file_methods`` on every component.
-
-        Node-centric approach guaranteeing 100% coverage:
-        1. Build cluster_id → component mapping from source_cluster_ids.
-        2. Distribute any unmapped clusters round-robin among components.
-        3. For each node, assign via its cluster → component mapping.
-        4. Orphan nodes (not in any cluster) go to the nearest cluster's component
-           or fall back to the first component.
-        5. Build ``FileMethodGroup`` lists grouped by file path.
-        """
-        all_nodes = self._collect_all_cfg_nodes(cluster_results)
-
-        # ---- Step 1: Build cluster_id -> component mapping ----
+    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[int, Component]:
+        """Build cluster_id → Component mapping from source_cluster_ids."""
         cluster_to_component: dict[int, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
                 cluster_to_component[cid] = comp
+        return cluster_to_component
 
-        # ---- Step 2: Distribute unmapped clusters round-robin ----
+    def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:
+        """Build node_name → cluster_id mapping and collect all cluster IDs."""
         all_cluster_ids: set[int] = set()
         node_to_cluster: dict[str, int] = {}
         for cr in cluster_results.values():
@@ -318,42 +299,78 @@ class ClusterMethodsMixin:
                 all_cluster_ids.add(cid)
                 for name in members:
                     node_to_cluster[name] = cid
+        return node_to_cluster, all_cluster_ids
 
+    def _validate_cluster_coverage(self, cluster_to_component: dict[int, Component], all_cluster_ids: set[int]) -> None:
+        """Log an error if any cluster IDs are not mapped to a component."""
         unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))
         if unmapped_cluster_ids:
-            logger.warning(
+            logger.error(
                 f"[ClusterMethodsMixin] {len(unmapped_cluster_ids)}/{len(all_cluster_ids)} clusters not mapped "
-                f"via source_cluster_ids, distributing round-robin among {len(analysis.components)} components"
+                f"via source_cluster_ids: {unmapped_cluster_ids}. This should never happen — all clusters must be "
+                f"assigned to components by the LLM."
             )
-            for i, cid in enumerate(unmapped_cluster_ids):
-                comp = analysis.components[i % len(analysis.components)]
-                cluster_to_component[cid] = comp
-                comp.source_cluster_ids.append(cid)
 
-        # ---- Step 3: Assign every node via cluster -> component ----
+    def _assign_nodes_to_components(
+        self,
+        all_nodes: dict[str, Node],
+        node_to_cluster: dict[str, int],
+        cluster_to_component: dict[int, Component],
+        cluster_results: dict[str, ClusterResult],
+        fallback_component: Component,
+    ) -> dict[str, list[Node]]:
+        """Assign every node to a component via its cluster, or by graph distance for orphans."""
         component_nodes: dict[str, list[Node]] = defaultdict(list)
         unassigned: list[str] = []
 
         for qname, node in all_nodes.items():
             cid = node_to_cluster.get(qname)
             if cid is not None and cid in cluster_to_component:
-                comp = cluster_to_component[cid]
-                component_nodes[comp.name].append(node)
+                component_nodes[cluster_to_component[cid].name].append(node)
             else:
                 unassigned.append(qname)
 
-        # ---- Step 4: Assign orphan nodes by graph distance or fallback ----
         if unassigned:
             logger.info(f"[ClusterMethodsMixin] Assigning {len(unassigned)} orphan node(s) by graph distance")
         for qname in unassigned:
             nearest_cid = self._find_nearest_cluster(qname, cluster_results)
             if nearest_cid is not None and nearest_cid in cluster_to_component:
                 comp = cluster_to_component[nearest_cid]
-                component_nodes[comp.name].append(all_nodes[qname])
             else:
-                fallback_comp = analysis.components[0]
-                component_nodes[fallback_comp.name].append(all_nodes[qname])
+                comp = fallback_component
+            component_nodes[comp.name].append(all_nodes[qname])
 
-        # ---- Step 5: Build FileMethodGroup lists ----
+        return component_nodes
+
+    def _log_node_coverage(self, analysis: AnalysisInsights, total_nodes: int) -> None:
+        """Log the percentage of nodes assigned to components."""
+        assigned_nodes = sum(len(fg.methods) for comp in analysis.components for fg in comp.file_methods)
+        pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
+        logger.info(
+            f"[ClusterMethodsMixin] Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components"
+        )
+
+    def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
+        """Deterministically populate ``file_methods`` on every component.
+
+        Node-centric approach guaranteeing 100% coverage:
+        1. Build cluster_id → component mapping from source_cluster_ids.
+        2. Validate that all clusters are mapped (log error if not).
+        3. For each node, assign via its cluster → component mapping.
+        4. Orphan nodes (not in any cluster) go to the nearest cluster's component
+           or fall back to the first component.
+        5. Build ``FileMethodGroup`` lists grouped by file path.
+        """
+        all_nodes = self._collect_all_cfg_nodes(cluster_results)
+        cluster_to_component = self._build_cluster_to_component_map(analysis)
+        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results)
+        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
+
+        component_nodes = self._assign_nodes_to_components(
+            all_nodes, node_to_cluster, cluster_to_component, cluster_results, analysis.components[0]
+        )
+
         for comp in analysis.components:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.name, []))
+
+        self._log_node_coverage(analysis, len(all_nodes))
