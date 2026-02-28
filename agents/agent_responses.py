@@ -113,7 +113,8 @@ class ClustersComponent(LLMBaseModel):
     )
 
     def llm_str(self):
-        return f"**{self.name}**\n   {self.description}"
+        ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
+        return f"**{self.name}** (cluster_ids: [{ids_str}])\n   {self.description}"
 
 
 class ClusterAnalysis(LLMBaseModel):
@@ -195,11 +196,14 @@ class Component(LLMBaseModel):
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
+        sg = ""
+        if self.source_group_names:
+            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
         qn = ""
         if self.key_entities:
             qn += "   - *Key Entities*: "
             qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
-        return "\n".join([n, d, qn]).strip()
+        return "\n".join([n, d, sg, qn]).strip()
 
 
 class AnalysisInsights(LLMBaseModel):
