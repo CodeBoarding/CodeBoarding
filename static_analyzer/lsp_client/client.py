@@ -115,6 +115,9 @@ class LSPClient(ABC):
         # Initialize diagnostics collection for health checks
         self.diagnostics: FileDiagnosticsMap = {}
 
+        # Track per-document versions for textDocument/didChange notifications
+        self._document_versions: dict[str, int] = {}
+
     def start(self):
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
