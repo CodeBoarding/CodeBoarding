@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-26T19:28:22.954242+00:00",
-  "overall_score": 0.9647102526002972,
+  "timestamp": "2026-02-28T11:43:34.420079+00:00",
+  "overall_score": 0.9629217649239896,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -166,7 +166,7 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "health -> core -> health",
+        "core -> health -> core",
         "caching -> agents -> caching",
         "static_analyzer -> agents -> static_analyzer"
       ],
@@ -221,9 +221,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 79,
-      "findings_count": 79,
-      "warning_count": 79,
+      "total_entities_checked": 84,
+      "findings_count": 84,
+      "warning_count": 84,
       "score": 0.0,
       "finding_groups": [
         {
@@ -285,34 +285,6 @@
               "file_path": "static_analyzer/cluster_change_analyzer.py",
               "line_start": 309,
               "line_end": 309,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"used_old_ids\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 274,
-              "line_end": 274,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"used_old_ids\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 274,
-              "line_end": 274,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"name\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 414,
-              "line_end": 414,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"name\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 414,
-              "line_end": 414,
               "metric_value": 0.0
             },
             {
@@ -421,6 +393,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 8,
@@ -512,6 +491,34 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"MetaAnalysisInsights\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"subgraph_clusters\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 159,
+              "line_end": 159,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"subgraph_clusters\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 159,
+              "line_end": 159,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"get_expandable_components\" is not accessed",
+              "file_path": "diagram_analysis/incremental/reexpansion.py",
+              "line_start": 14,
+              "line_end": 14,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
               "file_path": "agents/tools/__init__.py",
               "line_start": 0,
@@ -565,6 +572,13 @@
               "file_path": "agents/tools/__init__.py",
               "line_start": 7,
               "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_class_name\" is not accessed",
+              "file_path": "health/checks/god_class.py",
+              "line_start": 42,
+              "line_end": 42,
               "metric_value": 0.0
             },
             {
@@ -652,6 +666,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 0,
+              "line_end": 0,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 8,
@@ -705,6 +726,20 @@
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 3,
               "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MetaAnalysisInsights\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"get_expandable_components\" is not accessed",
+              "file_path": "diagram_analysis/incremental/reexpansion.py",
+              "line_start": 14,
+              "line_end": 14,
               "metric_value": 0.0
             },
             {
@@ -834,12 +869,6 @@
       "composite_risk_score": 90.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
-      "total_findings": 5,
-      "warning_findings": 5,
-      "composite_risk_score": 75.0
-    },
-    {
       "file_path": "static_analyzer/cluster_change_analyzer.py",
       "total_findings": 4,
       "warning_findings": 4,
@@ -864,6 +893,12 @@
       "composite_risk_score": 60.0
     },
     {
+      "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
       "file_path": "main.py",
       "total_findings": 3,
       "warning_findings": 3,
@@ -874,6 +909,24 @@
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
+    },
+    {
+      "file_path": "monitoring/paths.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
+      "file_path": "diagram_analysis/incremental/reexpansion.py",
+      "total_findings": 2,
+      "warning_findings": 2,
+      "composite_risk_score": 30.0
+    },
+    {
+      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
     },
     {
       "file_path": "agents/prompts/prompt_factory.py",
@@ -894,7 +947,7 @@
       "composite_risk_score": 15.0
     },
     {
-      "file_path": "static_analyzer/lsp_client/typescript_client.py",
+      "file_path": "health/checks/god_class.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
