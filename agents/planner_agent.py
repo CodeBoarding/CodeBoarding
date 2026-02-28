@@ -50,7 +50,7 @@ def should_expand_component(
         True if the component should be expanded, False otherwise
     """
     has_clusters = bool(component.source_cluster_ids)
-    has_files = len(component.assigned_files) >= min_files
+    has_files = len(component.file_methods) >= min_files
 
     # Must have some content (clusters or files)
     if not has_clusters and not has_files:
@@ -61,7 +61,7 @@ def should_expand_component(
     if has_clusters:
         logger.debug(
             f"Component '{component.name}' is expandable: "
-            f"{len(component.source_cluster_ids)} clusters, {len(component.assigned_files)} files"
+            f"{len(component.source_cluster_ids)} clusters, {len(component.file_methods)} file groups"
         )
         return True
 
@@ -70,7 +70,7 @@ def should_expand_component(
     if parent_had_clusters:
         logger.debug(
             f"Component '{component.name}' is expandable (file-level): "
-            f"no clusters but {len(component.assigned_files)} files, parent had clusters"
+            f"no clusters but {len(component.file_methods)} file groups, parent had clusters"
         )
         return True
 
@@ -79,7 +79,7 @@ def should_expand_component(
     return False
 
 
-def get_expandable_components(
+def plan_analysis(
     analysis: AnalysisInsights,
     parent_had_clusters: bool = True,
     min_files: int = DEFAULT_MIN_FILES,

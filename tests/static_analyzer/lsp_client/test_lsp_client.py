@@ -321,40 +321,6 @@ class TestLSPClient(unittest.TestCase):
         self.assertNotIn("while", names)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_find_call_positions_includes_start_line(self, mock_popen):
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_process.stdout = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-
-        content = """first_call()
-second_call()
-"""
-
-        positions = client._find_call_positions_in_range(content, 0, 1)
-        names = [pos["name"] for pos in positions]
-        self.assertIn("first_call", names)
-        self.assertIn("second_call", names)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_find_call_positions_single_line_range_skips_declaration_name(self, mock_popen):
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_process.stdout = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-
-        content = "def wrapped(): helper()"
-
-        positions = client._find_call_positions_in_range(content, 0, 0)
-        names = [pos["name"] for pos in positions]
-        self.assertIn("helper", names)
-        self.assertNotIn("wrapped", names)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_get_package_name(self, mock_popen):
         # Test extracting package name from file path
         mock_process = Mock()

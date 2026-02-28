@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, Relation
 from agents.validation import ValidationResult
 from diagram_analysis.incremental.validation import validate_incremental_update
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -19,14 +19,14 @@ def sample_analysis() -> AnalysisInsights:
                 name="ComponentA",
                 description="Test component A",
                 key_entities=[],
-                assigned_files=["src/a.py"],
+                file_methods=[FileMethodGroup(file_path="src/a.py")],
                 source_cluster_ids=[1],
             ),
             Component(
                 name="ComponentB",
                 description="Test component B",
                 key_entities=[],
-                assigned_files=["src/b.py"],
+                file_methods=[FileMethodGroup(file_path="src/b.py")],
                 source_cluster_ids=[2],
             ),
         ],

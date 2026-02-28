@@ -111,7 +111,6 @@ def mock_llm_provider():
                                         name="Mock Subcomponent",
                                         description="Mock",
                                         key_entities=[],
-                                        assigned_files=[],
                                     )
                                 ],
                                 components_relations=[],
@@ -171,8 +170,8 @@ def has_uncommitted_changes(repo_dir: Path) -> bool:
     return len(status.strip()) > 0
 
 
-def _collect_assigned_files(analysis: AnalysisInsights) -> set[str]:
-    return {file_path for component in analysis.components for file_path in component.assigned_files}
+def _collect_file_paths(analysis: AnalysisInsights) -> set[str]:
+    return {fg.file_path for component in analysis.components for fg in component.file_methods}
 
 
 def _is_file_path(file_path: str) -> bool:
@@ -182,14 +181,14 @@ def _is_file_path(file_path: str) -> bool:
 
 def _validate_manifest_and_analysis(manifest: AnalysisManifest, analysis: AnalysisInsights) -> None:
     manifest_files = set(manifest.file_to_component.keys())
-    analysis_files = _collect_assigned_files(analysis)
+    analysis_files = _collect_file_paths(analysis)
 
     assert manifest_files == analysis_files, "Manifest and analysis must track the same files"
     component_names = {c.name for c in analysis.components}
     for file_path, component_name in manifest.file_to_component.items():
         assert component_name in component_names, f"Manifest component '{component_name}' missing in analysis"
     for component in analysis.components:
-        assert component.assigned_files, f"Component '{component.name}' must have assigned files"
+        assert component.file_methods, f"Component '{component.name}' must have file_methods"
 
 
 def _validate_subanalyses(output_dir: Path, manifest: AnalysisManifest, root_analysis: AnalysisInsights) -> None:
@@ -201,8 +200,8 @@ def _validate_subanalyses(output_dir: Path, manifest: AnalysisManifest, root_ana
             continue
 
         sub_analysis = AnalysisInsights.model_validate_json(sub_path.read_text())
-        sub_files = _collect_assigned_files(sub_analysis)
-        assert sub_files, f"Sub-analysis {sub_path.name} has no assigned files"
+        sub_files = _collect_file_paths(sub_analysis)
+        assert sub_files, f"Sub-analysis {sub_path.name} has no file_methods"
 
         for file_path in sub_files:
             if not _is_file_path(file_path):

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
+from static_analyzer.constants import NodeType
 from utils import sanitize
 
 
@@ -97,6 +98,22 @@ def generate_markdown(
             detail_lines.append(f"\n\n**Related Classes/Methods**:\n\n{references}")
         else:
             detail_lines.append(f"\n\n**Related Classes/Methods**: _None_")
+        if comp.file_methods:
+            fm_lines = "\n\n**Source Files:**\n\n"
+            for fg in comp.file_methods:
+                if repo_ref:
+                    fm_lines += f"- [`{fg.file_path}`]({repo_ref}{fg.file_path})\n"
+                else:
+                    fm_lines += f"- `{fg.file_path}`\n"
+                for method in fg.methods:
+                    label = NodeType.ENTITY_LABELS.get(method.node_type, "Function")
+                    line_ref = f"L{method.start_line}-L{method.end_line}"
+                    if repo_ref:
+                        line_link = f"[{line_ref}]({repo_ref}{fg.file_path}#{line_ref})"
+                    else:
+                        line_link = line_ref
+                    fm_lines += f"  - `{method.qualified_name}` ({line_link}) - {label}\n"
+            detail_lines.append(fm_lines)
         detail_lines.append("")  # blank line between components
 
     detail_lines.append(

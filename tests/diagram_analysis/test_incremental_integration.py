@@ -14,6 +14,7 @@ import pytest
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     Relation,
     SourceCodeReference,
 )
@@ -90,7 +91,7 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=2,
                     )
                 ],
-                assigned_files=["src/module_a.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_a.py")],
                 source_cluster_ids=[1],
             ),
             Component(
@@ -104,7 +105,7 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=2,
                     )
                 ],
-                assigned_files=["src/module_b.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                 source_cluster_ids=[2],
             ),
         ],
@@ -243,8 +244,9 @@ class TestIncrementalUpdaterIntegration:
 
         # Check ComponentA has the renamed file
         comp_a = next(c for c in updated_analysis.components if c.name == "ComponentA")
-        assert "src/renamed_a.py" in comp_a.assigned_files
-        assert "src/module_a.py" not in comp_a.assigned_files
+        comp_a_files = [fg.file_path for fg in comp_a.file_methods]
+        assert "src/renamed_a.py" in comp_a_files
+        assert "src/module_a.py" not in comp_a_files
 
         # Check key_entity was updated
         assert comp_a.key_entities[0].reference_file == "src/renamed_a.py"
@@ -360,7 +362,8 @@ class TestEndToEndScenarios:
         analysis = load_root_analysis(output_dir)
         assert analysis is not None
         comp_a = next(c for c in analysis.components if c.name == "ComponentA")
-        assert "src/component_a.py" in comp_a.assigned_files
+        comp_a_files = [fg.file_path for fg in comp_a.file_methods]
+        assert "src/component_a.py" in comp_a_files
 
     def test_workflow_add_file_to_existing_component(self, git_repo: Path, sample_analysis: AnalysisInsights):
         """

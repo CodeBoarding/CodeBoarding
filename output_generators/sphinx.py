@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
+from static_analyzer.constants import NodeType
 from utils import sanitize
 
 
@@ -128,6 +129,26 @@ def generate_rst(
             lines.append("")
         else:
             lines.append("**Related Classes/Methods**: *None*")
+            lines.append("")
+
+        if comp.file_methods:
+            lines.append("**Source Files:**")
+            lines.append("")
+            url = "/".join(repo_ref.split("/")[:7]) if repo_ref else ""
+            for group in comp.file_methods:
+                if url:
+                    lines.append(f"* `{group.file_path} <{url}/{group.file_path}>`_")
+                else:
+                    lines.append(f"* ``{group.file_path}``")
+                for method in group.methods:
+                    label = NodeType.ENTITY_LABELS.get(method.node_type, "Function")
+                    line_ref = f"L{method.start_line}-L{method.end_line}"
+                    if url:
+                        lines.append(
+                            f"   * ``{method.qualified_name}`` (`{line_ref} <{url}/{group.file_path}#L{method.start_line}-L{method.end_line}>`_) - {label}"
+                        )
+                    else:
+                        lines.append(f"   * ``{method.qualified_name}`` ({line_ref}) - {label}")
             lines.append("")
 
     return "\n".join(lines)

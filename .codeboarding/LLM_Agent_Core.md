@@ -1,20 +1,21 @@
 ```mermaid
 graph LR
-    Agent_Orchestration_Engine["Agent Orchestration Engine"]
-    Specialized_Semantic_Agents["Specialized Semantic Agents"]
-    Prompt_Management_System["Prompt Management System"]
-    Semantic_Validation_Engine["Semantic Validation Engine"]
-    LLM_Infrastructure_Config["LLM Infrastructure & Config"]
-    Static_Analysis_Cluster_Utils["Static Analysis & Cluster Utils"]
-    Semantic_Data_Models["Semantic Data Models"]
-    Dependency_Discovery_Service["Dependency Discovery Service"]
-    Agent_Orchestration_Engine -- "delegates granular analysis tasks" --> Specialized_Semantic_Agents
-    Specialized_Semantic_Agents -- "retrieves task‑specific templates" --> Prompt_Management_System
-    Specialized_Semantic_Agents -- "fetches code snippets and subgraph data for context" --> Static_Analysis_Cluster_Utils
-    Semantic_Validation_Engine -- "validates LLM‑derived components against CFG facts" --> Static_Analysis_Cluster_Utils
-    LLM_Infrastructure_Config -- "supplies initialized model clients for execution" --> Specialized_Semantic_Agents
-    Specialized_Semantic_Agents -- "serializes LLM responses into structured objects" --> Semantic_Data_Models
-    Dependency_Discovery_Service -- "provides high‑level project metadata to seed the analysis" --> Agent_Orchestration_Engine
+    Orchestration_Engine["Orchestration Engine"]
+    Analysis_Strategy_Planner["Analysis Strategy Planner"]
+    Semantic_Analysis_Trio["Semantic Analysis Trio"]
+    Structural_Validation_Engine["Structural Validation Engine"]
+    Multi_Provider_Prompt_System["Multi-Provider Prompt System"]
+    LLM_Runtime_Configuration["LLM Runtime Configuration"]
+    Static_Discovery_Bridge["Static Discovery Bridge"]
+    Standardized_Data_Schema["Standardized Data Schema"]
+    Orchestration_Engine -- "requests execution strategy from" --> Analysis_Strategy_Planner
+    Orchestration_Engine -- "delegates semantic analysis tasks to" --> Semantic_Analysis_Trio
+    Semantic_Analysis_Trio -- "produces architectural descriptions formatted according to" --> Standardized_Data_Schema
+    Structural_Validation_Engine -- "validates output of" --> Semantic_Analysis_Trio
+    Structural_Validation_Engine -- "cross-references against data from" --> Static_Discovery_Bridge
+    Multi_Provider_Prompt_System -- "provides prompt templates to" --> Semantic_Analysis_Trio
+    LLM_Runtime_Configuration -- "supplies authenticated model instances to" --> Orchestration_Engine
+    Static_Discovery_Bridge -- "feeds ground-truth structural data into" --> Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -23,82 +24,81 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Agent Orchestration Engine
-Coordinates the analysis workflow, manages agent lifecycles, and ensures full coverage of CFG clusters.
+### Orchestration Engine
+The central lifecycle manager that coordinates the analysis flow, manages state, and sequences the execution of specialized agents. It handles retry logic and maintains the overall progress of the codebase visualization task.
 
 
 **Related Classes/Methods**:
 
-- `agents.code_boarding.CodeBoardingAgent`
+- `repos.codeboarding.agent.CodeBoardingAgent`
+- `repos.codeboarding.agent.AgentState`
 
 
-### Specialized Semantic Agents
-Task‑specific agents (Abstraction, Meta, Details) that perform targeted analysis of code components.
-
-
-**Related Classes/Methods**:
-
-- `agents.abstraction.AbstractionAgent`
-- `agents.meta.MetaAgent`
-- `agents.details.DetailsAgent`
-
-
-### Prompt Management System
-Decouples prompt engineering from logic, providing provider‑specific templates (OpenAI, Gemini, etc.).
+### Analysis Strategy Planner
+Evaluates repository characteristics (file density, cluster count) to determine the optimal analysis strategy, such as whether components should be processed as flat lists or recursive sub-graphs.
 
 
 **Related Classes/Methods**:
 
-- `prompts.prompt_generator.PromptGenerator`
-- `prompts.prompt_factory.PromptFactory`:49-99
+- `repos.codeboarding.agent.PlannerAgent`
 
 
-### Semantic Validation Engine
-Cross‑references LLM interpretations with static analysis facts to ensure no clusters are missed or hallucinated.
-
-
-**Related Classes/Methods**:
-
-- `validation.ValidationContext`:14-27
-
-
-### LLM Infrastructure & Config
-Manages provider configurations, API keys, and model initialization (Ollama, Anthropic, etc.).
+### Semantic Analysis Trio
+A specialized group of agents that interpret the codebase at three granularities: project metadata (Meta), high-level abstractions (Abstraction), and implementation details (Details).
 
 
 **Related Classes/Methods**:
 
-- `config.llm_config.LLMConfig`
-- `config.initialize_llms`:319-322
+- `repos.codeboarding.agent.MetaAgent`
+- `repos.codeboarding.agent.AbstractionAgent`
+- `repos.codeboarding.agent.DetailsAgent`
 
 
-### Static Analysis & Cluster Utils
-Provides utility methods for agents to map clusters to file sets and extract relevant code subgraphs.
-
-
-**Related Classes/Methods**:
-
-- `utils.cluster_utils`
-
-
-### Semantic Data Models
-Defines the structured Pydantic schemas for LLM communication and final documentation output.
+### Structural Validation Engine
+Acts as a deterministic gatekeeper, cross-referencing LLM-generated mappings against the static Control Flow Graph (CFG) to prevent hallucinations and ensure structural integrity.
 
 
 **Related Classes/Methods**:
 
-- `models.analysis_insights.AnalysisInsights`
-- `models.component.Component`
-- `models.relation.Relation`
+- `repos.codeboarding.agent.ValidationContext`
 
 
-### Dependency Discovery Service
-Scans for manifest files (e.g., package.json) to provide ecosystem context to the agents.
+### Multi-Provider Prompt System
+A decoupled management layer that serves provider-specific templates (OpenAI, Gemini, Anthropic, etc.) to agents via a factory pattern, ensuring the system is model‑agnostic.
 
 
 **Related Classes/Methods**:
 
-- `discovery.discover_dependency_files`:103-159
+- `repos.codeboarding.prompts.PromptFactory`
+- `repos.codeboarding.prompts.AbstractPromptFactory`
+
+
+### LLM Runtime Configuration
+Handles the initialization of LLM providers, API key resolution, and global model settings such as token limits and temperature.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.config.LLMConfig`
+
+
+### Static Discovery Bridge
+Identifies the project ecosystem and extracts specific sub‑graphs from the codebase to deliver ground‑truth structural data to the agents.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.discovery.DependencyDiscovery`
+- `repos.codeboarding.discovery.ClusterMethodsMixin`
+
+
+### Standardized Data Schema
+Defines the shared Pydantic models that ensure all agents produce and consume data in a consistent, validated format across the pipeline.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.models.AnalysisInsights`
 
 
 

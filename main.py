@@ -66,7 +66,7 @@ def generate_analysis(
     )
     generator.force_full_analysis = force_full
     generated_files = generator.generate_analysis()
-    return generated_files
+    return [Path(path) for path in generated_files]
 
 
 def generate_markdown_docs(

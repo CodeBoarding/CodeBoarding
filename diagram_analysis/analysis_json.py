@@ -3,7 +3,14 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
-from agents.agent_responses import Component, Relation, AnalysisInsights, assign_component_ids
+from agents.agent_responses import (
+    Component,
+    Relation,
+    AnalysisInsights,
+    FileMethodGroup,
+    SourceCodeReference,
+    assign_component_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +25,20 @@ class RelationJson(Relation):
 class ComponentJson(Component):
     # Override to include in JSON serialization (parent has exclude=True)
     component_id: str = Field(description="Deterministic unique identifier for this component.")
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from CFG analysis that this component encompasses.",
+        default_factory=list,
+    )
     can_expand: bool = Field(
         description="Whether the component can be expanded in detail or not.",
         default=False,
     )
-    assigned_files: list[str] = Field(
-        description="A list of source code names of files assigned to the component.",
+    file_methods: list["FileMethodGroup"] = Field(
+        description="All methods/functions belonging to this component, grouped by file.",
         default_factory=list,
     )
+    # Exclude intermediate field from JSON output
+    source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
     components: list["ComponentJson"] | None = Field(
         description="Sub-components if expanded, None otherwise.", default=None
@@ -123,7 +136,7 @@ def from_component_to_json_component(
         description=component.description,
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
-        assigned_files=component.assigned_files,
+        file_methods=component.file_methods,
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -322,13 +335,24 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
     components: list[Component] = []
 
     for comp_data in data.get("components", []):
+        file_methods = [FileMethodGroup(**fm) for fm in comp_data.get("file_methods", [])]
+        key_entities = [
+            SourceCodeReference(
+                qualified_name=ke["qualified_name"],
+                reference_file=ke.get("reference_file"),
+                reference_start_line=ke.get("reference_start_line", 0),
+                reference_end_line=ke.get("reference_end_line", 0),
+            )
+            for ke in comp_data.get("key_entities", [])
+        ]
+
         # Create the component for this level (non-nested)
         component = Component(
             name=comp_data["name"],
             component_id=comp_data.get("component_id", ""),
             description=comp_data["description"],
-            key_entities=comp_data.get("key_entities", []),
-            assigned_files=comp_data.get("assigned_files", []),
+            key_entities=key_entities,
+            file_methods=file_methods,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )
         components.append(component)

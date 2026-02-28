@@ -21,9 +21,10 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_component_relationships,
+    validate_group_name_coverage,
     validate_key_entities,
-    validate_cluster_ids_populated,
     validate_relation_component_names,
+    validate_qualified_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -86,6 +87,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cluster_results=cluster_results,
                 expected_cluster_ids=get_all_cluster_ids(cluster_results),
             ),
+            max_validation_retries=3,
         )
         return cluster_analysis
 
@@ -111,6 +113,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+            expected_cluster_ids=get_all_cluster_ids(cluster_results),
+            static_analysis=self.static_analysis,
+            cluster_analysis=cluster_analysis,
         )
 
         return self._validation_invoke(
@@ -118,11 +123,13 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             AnalysisInsights,
             validators=[
                 validate_relation_component_names,
+                validate_group_name_coverage,
                 validate_component_relationships,
                 validate_key_entities,
-                validate_cluster_ids_populated,
+                validate_qualified_names,
             ],
             context=context,
+            max_validation_retries=3,
         )
 
     def run(self):
@@ -134,17 +141,16 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Sanitize cluster IDs (remove invalid ones)
-        self._sanitize_component_cluster_ids(analysis, cluster_results=cluster_results)
-        # Step 4: Assign files to components (deterministic + LLM-based with validation)
-        self.classify_files(analysis, cluster_results, self.static_analysis.get_all_source_files())
-        # Step 5: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 3: Resolve cluster IDs deterministically from group names
+        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        # Step 3c: Populate file_methods deterministically from cluster results + orphan assignment
+        self.populate_file_methods(analysis, cluster_results)
+
+        # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 6: Ensure unique key entities across components
+        # Step 5: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
-        # Step 7: Ensure unique file assignments across components
-        self._ensure_unique_file_assignments(analysis)
-        # Step 8: Assign deterministic component IDs
+        # Step 6: Assign deterministic component IDs
         assign_component_ids(analysis)
 
         return analysis, cluster_results

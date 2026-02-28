@@ -39,7 +39,6 @@ def get_project_root() -> Path:
 
 
 def monitoring_enabled():
-    logger.info("Monitoring enabled: %s", os.getenv("ENABLE_MONITORING", "false"))
     return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
 
 

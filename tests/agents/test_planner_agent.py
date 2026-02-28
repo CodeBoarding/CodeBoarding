@@ -1,7 +1,7 @@
 """
 Tests for the deterministic planner_agent module.
 
-The planner uses CFG structure (source_cluster_ids, assigned_files) and parent context
+The planner uses CFG structure (source_cluster_ids, file_methods) and parent context
 to determine which components should be expanded - no LLM calls.
 
 Expansion Rules:
@@ -12,10 +12,11 @@ Expansion Rules:
 
 import unittest
 
-from agents.planner_agent import should_expand_component, get_expandable_components
+from agents.planner_agent import should_expand_component, plan_analysis
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     SourceCodeReference,
 )
 
@@ -41,7 +42,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description=f"Test component {name}",
             key_entities=[ref],
             source_cluster_ids=cluster_ids or [],
-            assigned_files=[f"file{i}.py" for i in range(file_count)],
+            file_methods=[FileMethodGroup(file_path=f"file{i}.py", methods=[]) for i in range(file_count)],
         )
 
     def test_expand_with_clusters(self):
@@ -86,7 +87,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description="Agent for detailed analysis",
             key_entities=[],
             source_cluster_ids=[],  # No clusters
-            assigned_files=["agents/details_agent.py"],  # Single file
+            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],  # Single file
         )
         # Parent (Agents component) had clusters → can expand to explain file internals
         self.assertTrue(should_expand_component(component, parent_had_clusters=True))
@@ -98,7 +99,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description="Main run method of DetailsAgent",
             key_entities=[],
             source_cluster_ids=[],  # No clusters
-            assigned_files=[],  # No files (it's a method, not a file)
+            file_methods=[],  # No files (it's a method, not a file)
         )
         # Parent (DetailsAgent) had no clusters → we're at leaf level
         self.assertFalse(should_expand_component(component, parent_had_clusters=False))
@@ -119,7 +120,9 @@ class TestPlanAnalysis(unittest.TestCase):
             description=f"Test component {name}",
             key_entities=[],
             source_cluster_ids=cluster_ids or [],
-            assigned_files=[f"{name.lower()}_file{i}.py" for i in range(file_count)],
+            file_methods=[
+                FileMethodGroup(file_path=f"{name.lower()}_file{i}.py", methods=[]) for i in range(file_count)
+            ],
         )
 
     def test_plan_analysis_top_level_with_clusters(self):
@@ -134,7 +137,7 @@ class TestPlanAnalysis(unittest.TestCase):
         )
 
         # Top-level: parent_had_clusters defaults to True
-        result = get_expandable_components(analysis)
+        result = plan_analysis(analysis)
 
         self.assertEqual(len(result), 2)
 
@@ -150,7 +153,7 @@ class TestPlanAnalysis(unittest.TestCase):
         )
 
         # Parent had clusters → both should expand
-        result = get_expandable_components(analysis, parent_had_clusters=True)
+        result = plan_analysis(analysis, parent_had_clusters=True)
         self.assertEqual(len(result), 2)
 
     def test_plan_analysis_file_only_from_non_clustered_parent(self):
@@ -165,7 +168,7 @@ class TestPlanAnalysis(unittest.TestCase):
         )
 
         # Parent had no clusters → these are leaves
-        result = get_expandable_components(analysis, parent_had_clusters=False)
+        result = plan_analysis(analysis, parent_had_clusters=False)
         self.assertEqual(len(result), 0)
 
     def test_plan_analysis_empty_components(self):
@@ -176,7 +179,7 @@ class TestPlanAnalysis(unittest.TestCase):
             components_relations=[],
         )
 
-        result = get_expandable_components(analysis)
+        result = plan_analysis(analysis)
         self.assertEqual(len(result), 0)
 
     def test_hierarchical_expansion_scenario(self):
@@ -193,7 +196,7 @@ class TestPlanAnalysis(unittest.TestCase):
             components=[agents_component],
             components_relations=[],
         )
-        level0_expandable = get_expandable_components(level0_analysis, parent_had_clusters=True)
+        level0_expandable = plan_analysis(level0_analysis, parent_had_clusters=True)
         self.assertEqual(len(level0_expandable), 1)
         self.assertEqual(level0_expandable[0].name, "Agents")
 
@@ -203,7 +206,7 @@ class TestPlanAnalysis(unittest.TestCase):
             description="Details agent module",
             key_entities=[],
             source_cluster_ids=[],  # No clusters at this level
-            assigned_files=["agents/details_agent.py"],
+            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],
         )
         level1_analysis = AnalysisInsights(
             description="Agents detail",
@@ -212,7 +215,7 @@ class TestPlanAnalysis(unittest.TestCase):
         )
         # Parent (Agents) had clusters
         parent_had_clusters = bool(agents_component.source_cluster_ids)
-        level1_expandable = get_expandable_components(level1_analysis, parent_had_clusters=parent_had_clusters)
+        level1_expandable = plan_analysis(level1_analysis, parent_had_clusters=parent_had_clusters)
         self.assertEqual(len(level1_expandable), 1)  # Can expand to show file internals
 
         # Level 2: Sub-component from "DetailsAgent" - no clusters, no files
@@ -221,7 +224,7 @@ class TestPlanAnalysis(unittest.TestCase):
             description="Main run method",
             key_entities=[],
             source_cluster_ids=[],
-            assigned_files=[],  # Methods don't have files
+            file_methods=[],  # Methods don't have files
         )
         level2_analysis = AnalysisInsights(
             description="DetailsAgent internals",
@@ -230,7 +233,7 @@ class TestPlanAnalysis(unittest.TestCase):
         )
         # Parent (DetailsAgent) had no clusters
         parent_had_clusters = bool(details_agent.source_cluster_ids)
-        level2_expandable = get_expandable_components(level2_analysis, parent_had_clusters=parent_had_clusters)
+        level2_expandable = plan_analysis(level2_analysis, parent_had_clusters=parent_had_clusters)
         self.assertEqual(len(level2_expandable), 0)  # Should NOT expand - we're at leaf
 
 

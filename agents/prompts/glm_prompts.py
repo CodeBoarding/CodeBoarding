@@ -60,20 +60,23 @@ REQUIRED STEPS (execute in order):
 2. Group related clusters into meaningful components.
 3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
 4. For each grouped component, MUST provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
    - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
    - **description**: Comprehensive explanation MUST include:
      * What this component does
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (MUST provide clear rationale)
+     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
 
 FOCUS AREAS (prioritize):
 - Create cohesive, logical groupings that reflect the actual {project_type} architecture
 - Base decisions on semantic meaning from method names, call patterns, and architectural context
 - MUST provide clear justification for why clusters belong together
+- MUST describe inter-group interactions based on the inter-cluster connections
 
 OUTPUT FORMAT (MUST use):
 Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component MUST have cluster_ids (list) and description (comprehensive explanation with rationale)."""
+Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
 
 FINAL_ANALYSIS_MESSAGE = """You are a software architecture designer. STRICTLY follow these rules:
 
@@ -87,15 +90,15 @@ Cluster Analysis:
 {cluster_analysis}
 
 REQUIRED STEPS (execute in order):
-1. Review the cluster interpretations above.
-2. Decide which clusters MUST be merged into components.
-3. For each component, specify which cluster_ids it includes.
+1. Review the named cluster groups above.
+2. Decide which named groups MUST be merged into final components.
+3. For each component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
 5. Define relationships between components.
 
 GUIDELINES for {project_type} projects (MUST follow):
 - Aim for 5-8 final components
-- Merge related clusters that serve a common purpose
+- Merge related cluster groups that serve a common purpose
 - Each component MUST have clear boundaries
 - Include ONLY architecturally significant relationships
 
@@ -104,7 +107,7 @@ REQUIRED OUTPUTS (complete all):
 - Components: Each MUST have:
   * name: Clear component name
   * description: What this component does
-  * source_cluster_ids: Which cluster IDs belong to this component
+  * source_group_names: Which named cluster groups from the analysis above this component encompasses (MUST use exact group names)
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
 - Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
@@ -112,8 +115,7 @@ CONSTRAINTS (MUST obey):
 - Focus on highest level architectural components
 - Exclude utility/logging components
 - Components MUST translate well to flow diagram representation
-
-Note: assigned_files will be populated later via deterministic file classification."""
+"""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture evaluator. STRICTLY follow these rules:
 
@@ -248,32 +250,6 @@ REQUIRED STEPS (execute in order):
    - MUST use the `readFile` tool to locate its definition.
    - MUST include the start and end line numbers of the definition."""
 
-UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """You are a file classifier. STRICTLY follow these rules:
-
-Context:
-The following files were not automatically assigned to any component during cluster-based analysis:
-
-{unassigned_files}
-
-Available Components:
-{components}
-
-MANDATORY TASK:
-For EACH unassigned file listed above, determine which component it logically belongs to based on:
-- File name and directory structure
-- Likely functionality (inferred from path/name)
-- Best architectural fit with the component descriptions
-
-CRITICAL RULES (MUST follow ALL):
-1. MUST assign EVERY file to exactly ONE component.
-2. MUST use the exact component name from the "Available Components" list above.
-3. MUST use the exact file path from the unassigned files list above.
-4. STRICTLY do NOT invent new component names.
-5. STRICTLY do NOT skip any files.
-
-OUTPUT FORMAT (MUST use):
-Return a ComponentFiles object with file_paths list containing FileClassification for each file."""
-
 VALIDATION_FEEDBACK_MESSAGE = """Original result:
 {original_output}
 
@@ -307,49 +283,79 @@ REQUIRED OUTPUTS (complete all):
 FOCUS:
 MUST analyze subsystem-specific functionality. STRICTLY avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """You are a CFG interaction analyzer. STRICTLY follow these rules:
+CFG_DETAILS_MESSAGE = """You are a CFG cluster grouping analyst. STRICTLY follow these rules:
 
 MANDATORY TASK:
-Analyze CFG interactions for `{project_name}` subsystem.
+Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
 
 Project Context:
+Project Type: {project_type}
+
 {meta_context}
 
-CFG Data:
-{cfg_str}
+Background:
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
 
 REQUIRED STEPS (execute in order):
-1. Analyze provided CFG data for subsystem patterns.
-2. Use getClassHierarchy ONLY if interaction details are unclear.
-
-REQUIRED OUTPUTS (complete all):
-- Subsystem modules/functions from CFG
-- Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair - STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
-- Justification based on {project_type} patterns
+1. Analyze the clusters shown above—identify which ones work together or are functionally related.
+2. Group related clusters into meaningful sub-components.
+3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
+4. For each grouped sub-component, MUST provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation MUST include:
+     * What this sub-component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (MUST provide clear rationale)
+     * How this group interacts with other cluster groups
 
 FOCUS:
-MUST analyze core subsystem functionality only."""
+MUST analyze core subsystem functionality only. STRICTLY avoid cross-cutting concerns like logging or error handling.
 
-DETAILS_MESSAGE = """You are a component overview synthesizer. STRICTLY follow these rules:
+OUTPUT FORMAT (MUST use):
+Return a ClusterAnalysis with cluster_components using ClustersComponent model.
+Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+
+DETAILS_MESSAGE = """You are a sub-component architecture designer. STRICTLY follow these rules:
 
 MANDATORY TASK:
-Create final component overview for {component}.
+Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
 
 Project Context:
 {meta_context}
 
-Analysis summary:
-{insight_so_far}
+Cluster Analysis:
+{cluster_analysis}
 
-INSTRUCTIONS:
-No tools required—MUST use provided analysis summary only.
+REQUIRED STEPS (execute in order):
+1. Review the named cluster groups above.
+2. Decide which named groups MUST be merged into final sub-components.
+3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
+4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+5. Define relationships between sub-components.
 
-REQUIRED OUTPUTS (complete ALL):
-1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns
-3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair - STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
+GUIDELINES for {project_type} projects (MUST follow):
+- Aim for 3-8 final sub-components
+- Merge related cluster groups that serve a common purpose
+- Each sub-component MUST have clear boundaries
+- Include ONLY architecturally significant relationships
+
+REQUIRED OUTPUTS (complete all):
+- Description: One paragraph explaining the subsystem's main flow and purpose
+- Components: Each MUST have:
+  * name: Clear sub-component name
+  * description: What this sub-component does
+  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (MUST use exact group names)
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
+
+CONSTRAINTS (MUST obey):
+- Focus on subsystem-specific functionality
+- Exclude utility/logging sub-components
+- Sub-components MUST translate well to flow diagram representation
 
 JUSTIFICATION:
 MUST base component choices on fundamental architectural importance."""
@@ -390,9 +396,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
-
-    def get_unassigned_files_classification_message(self) -> str:
-        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
 
     def get_validation_feedback_message(self) -> str:
         return VALIDATION_FEEDBACK_MESSAGE

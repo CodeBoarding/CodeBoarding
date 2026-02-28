@@ -1,12 +1,13 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
-import os
 from dataclasses import dataclass, field
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
+
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class ValidationContext:
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
+    static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
+    cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
 
 
 @dataclass
@@ -35,12 +38,16 @@ class ValidationResult:
     feedback_messages: list[str] = field(default_factory=list)
 
 
-def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
+def validate_cluster_coverage(
+    result: ClusterAnalysis | AnalysisInsights, context: ValidationContext
+) -> ValidationResult:
     """
-    Validate that all expected clusters are represented in the ClusterAnalysis.
+    Validate that all expected clusters are represented in the result.
+
+    Handles both ClusterAnalysis (cluster_components) and AnalysisInsights (components with source_cluster_ids).
 
     Args:
-        result: ClusterAnalysis containing cluster_components
+        result: ClusterAnalysis or AnalysisInsights
         context: ValidationContext with expected_cluster_ids
 
     Returns:
@@ -51,9 +58,13 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     # Extract all cluster IDs from the result
-    result_cluster_ids = set()
-    for component in result.cluster_components:
-        result_cluster_ids.update(component.cluster_ids)
+    result_cluster_ids: set[int] = set()
+    if isinstance(result, ClusterAnalysis):
+        for cc in result.cluster_components:
+            result_cluster_ids.update(cc.cluster_ids)
+    elif isinstance(result, AnalysisInsights):
+        for comp in result.components:
+            result_cluster_ids.update(comp.source_cluster_ids)
 
     # Find missing clusters
     missing_clusters = context.expected_cluster_ids - result_cluster_ids
@@ -66,11 +77,81 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
     missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
     feedback = (
         f"The following cluster IDs are missing from the analysis: {missing_str}. "
-        f"Please ensure all clusters are assigned to a component or create new components for them."
+        f"Please ensure all clusters are assigned to a component via source_cluster_ids."
     )
 
     logger.warning(f"[Validation] Missing clusters: {missing_str}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
+def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """
+    Validate bidirectional coverage between cluster groups and components:
+    1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
+    2. Every Component must have at least one source_group_name assigned.
+
+    Args:
+        result: AnalysisInsights containing components with source_group_names
+        context: ValidationContext with cluster_analysis
+
+    Returns:
+        ValidationResult with targeted feedback depending on the issue
+    """
+    if not context.cluster_analysis:
+        logger.warning("[Validation] No cluster_analysis provided for group name coverage validation")
+        return ValidationResult(is_valid=True)
+
+    expected_group_names = {cc.name for cc in context.cluster_analysis.cluster_components}
+    referenced_group_names: set[str] = set()
+    for component in result.components:
+        referenced_group_names.update(component.source_group_names)
+
+    # Check 1: Cluster groups not referenced by any component (case-insensitive)
+    expected_lower = {name.lower(): name for name in expected_group_names}
+    referenced_lower = {name.lower() for name in referenced_group_names}
+    missing_groups = {original for lower, original in expected_lower.items() if lower not in referenced_lower}
+
+    # Check 2: Components without any source_group_names
+    empty_components = [comp.name for comp in result.components if not comp.source_group_names]
+
+    if not missing_groups and not empty_components:
+        logger.info("[Validation] All cluster groups and components have proper bidirectional coverage")
+        return ValidationResult(is_valid=True)
+
+    feedback_messages: list[str] = []
+
+    if missing_groups and not empty_components:
+        missing_str = ", ".join(sorted(missing_groups))
+        feedback_messages.append(
+            f"The following cluster groups are not assigned to any component: {missing_str}. "
+            f"Please revisit whether they were missed or whether they require a new component of their own."
+        )
+        logger.warning(f"[Validation] Unassigned cluster groups: {missing_str}")
+
+    if empty_components and not missing_groups:
+        empty_str = ", ".join(sorted(empty_components))
+        feedback_messages.append(
+            f"The following components have no source_group_names assigned: {empty_str}. "
+            f"All cluster groups are already covered, so these components have no source code backing them. "
+            f"Please revisit the component structure — consider removing these components or "
+            f"redistributing cluster groups to include them."
+        )
+        logger.warning(f"[Validation] Components without source groups: {empty_str}")
+
+    if missing_groups and empty_components:
+        missing_str = ", ".join(sorted(missing_groups))
+        empty_str = ", ".join(sorted(empty_components))
+        all_names_str = ", ".join(sorted(expected_group_names))
+        feedback_messages.append(
+            f"Cluster groups not assigned to any component: {missing_str}. "
+            f"Components without any source_group_names: {empty_str}. "
+            f"All available cluster group names are: {all_names_str}. "
+            f"Please ensure every cluster group is assigned to a component via source_group_names "
+            f"and every component references at least one cluster group."
+        )
+        logger.warning(f"[Validation] Unassigned groups: {missing_str}; empty components: {empty_str}")
+
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
 def validate_component_relationships(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -163,49 +244,6 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
     )
 
     logger.warning(f"[Validation] Components without key entities: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
-
-
-def validate_cluster_ids_populated(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that every cluster is assigned to at least one component.
-
-    Args:
-        result: AnalysisInsights containing components
-        context: ValidationContext with cluster_results to get available cluster IDs
-
-    Returns:
-        ValidationResult with feedback for unassigned clusters
-    """
-    if not context.cluster_results:
-        logger.warning("[Validation] No cluster results provided for cluster ID validation")
-        return ValidationResult(is_valid=True)
-
-    all_cluster_ids: set[int] = set()
-    for lang_result in context.cluster_results.values():
-        all_cluster_ids.update(lang_result.get_cluster_ids())
-
-    if not all_cluster_ids:
-        logger.warning("[Validation] No cluster IDs available for cluster ID validation")
-        return ValidationResult(is_valid=True)
-
-    assigned_cluster_ids: set[int] = set()
-    for component in result.components:
-        assigned_cluster_ids.update(component.source_cluster_ids or [])
-
-    unassigned_clusters = all_cluster_ids - assigned_cluster_ids
-
-    if not unassigned_clusters:
-        logger.info("[Validation] All clusters are assigned to components")
-        return ValidationResult(is_valid=True)
-
-    missing_str = ", ".join(str(cid) for cid in sorted(unassigned_clusters))
-    feedback = (
-        f"The following cluster IDs are not assigned to any component: {missing_str}. "
-        f"Please assign every cluster to a component based on which code clusters belong to it."
-    )
-
-    logger.warning(f"[Validation] Unassigned clusters: {missing_str}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
@@ -313,6 +351,54 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
+def validate_qualified_names(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """
+    Validate that qualified names in key_entities exist in static analysis references.
+
+    Args:
+        result: AnalysisInsights containing components with key_entities
+        context: ValidationContext with static_analysis to check references
+
+    Returns:
+        ValidationResult with feedback for invalid qualified names
+    """
+    if not context.static_analysis:
+        logger.warning("[Validation] No static analysis provided for qualified name validation")
+        return ValidationResult(is_valid=True)
+
+    invalid_references: list[str] = []
+    for component in result.components:
+        for key_entity in component.key_entities:
+            qname = key_entity.qualified_name.replace("/", ".")
+            found = False
+
+            # Check if qualified name exists in any language
+            for lang in context.static_analysis.get_languages():
+                try:
+                    context.static_analysis.get_reference(lang, qname)
+                    found = True
+                    break
+                except (ValueError, FileExistsError):
+                    continue
+
+            if not found:
+                invalid_references.append(f"{component.name}: '{key_entity.qualified_name}'")
+
+    if not invalid_references:
+        logger.info("[Validation] All qualified names exist in static analysis references")
+        return ValidationResult(is_valid=True)
+
+    invalid_str = "; ".join(invalid_references[:10])
+    more_msg = f" and {len(invalid_references) - 10} more" if len(invalid_references) > 10 else ""
+    feedback = (
+        f"The following qualified names do not exist in the static analysis: {invalid_str}{more_msg}. "
+        f"Please ensure all key_entities use qualified names that were found during static analysis."
+    )
+
+    logger.warning(f"[Validation] Invalid qualified names: {len(invalid_references)} found")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 

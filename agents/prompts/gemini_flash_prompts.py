@@ -54,20 +54,23 @@ Instructions:
 2. Group related clusters into meaningful components
 3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
 4. For each grouped component, provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
    - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
    - **description**: Comprehensive explanation including:
      * What this component does
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
+     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
 
 Focus on:
 - Creating cohesive, logical groupings that reflect the actual {project_type} architecture
 - Semantic meaning based on method names, call patterns, and architectural context
 - Clear justification for why clusters belong together
+- Describing inter-group interactions based on the inter-cluster connections
 
 Output Format:
 Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have cluster_ids (list) and description (comprehensive explanation with rationale)."""
+Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
 
 FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
 
@@ -78,15 +81,15 @@ Cluster Analysis:
 {cluster_analysis}
 
 Instructions:
-1. Review the cluster interpretations above
-2. Decide which clusters should be merged into components
-3. For each component, specify which cluster_ids it includes
+1. Review the named cluster groups above
+2. Decide which named groups should be merged into final components
+3. For each component, specify which named cluster groups it encompasses via source_group_names
 4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
 5. Define relationships between components
 
 Guidelines for {project_type} projects:
 - Aim for 5-8 final components
-- Merge related clusters that serve a common purpose
+- Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 
@@ -95,11 +98,9 @@ Required outputs:
 - Components: Each with:
   * name: Clear component name
   * description: What this component does
-  * source_cluster_ids: Which cluster IDs belong to this component
+  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
   * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
 - Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
-
-Note: assigned_files will be populated later via deterministic file classification.
 
 Constraints:
 - Focus on highest level architectural components
@@ -216,34 +217,6 @@ Instructions:
    - Include the start and end line numbers of the definition.
 """
 
-UNASSIGNED_FILES_CLASSIFICATION_MESSAGE = """
-You are classifying source files into software components.
-
-Context:
-The following files were not automatically assigned to any component during cluster-based analysis:
-
-{unassigned_files}
-
-Available Components:
-{components}
-
-Task:
-For EACH unassigned file listed above, determine which component it logically belongs to based on:
-- File name and directory structure
-- Likely functionality (inferred from path/name)
-- Best architectural fit with the component descriptions
-
-Critical Rules:
-1. You MUST assign EVERY file to exactly ONE component
-2. You MUST use the exact component name from the "Available Components" list above
-3. You MUST use the exact file path from the unassigned files list above
-4. Do NOT invent new component names
-5. Do NOT skip any files
-
-Output Format:
-Return a ComponentFiles object with file_paths list containing FileClassification for each file.
-"""
-
 VALIDATION_FEEDBACK_MESSAGE = """The result produced by analyzing is:
 {original_output}
 
@@ -271,41 +244,74 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """Analyze CFG interactions for `{project_name}` subsystem.
+CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
 
 Project Context:
 {meta_context}
 
-{cfg_str}
+Project Type: {project_type}
+
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Your Task:
+GROUP similar clusters together into logical sub-components based on their relationships and purpose within this subsystem.
 
 Instructions:
-1. Analyze provided CFG data for subsystem patterns
-2. Use getClassHierarchy if interaction details are unclear
+1. Analyze the clusters shown above and identify which ones work together or are functionally related
+2. Group related clusters into meaningful sub-components
+3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+4. For each grouped sub-component, provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation including:
+     * What this sub-component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (provide clear rationale)
+     * How this group interacts with other cluster groups
 
-Required outputs:
-- Subsystem modules/functions from CFG
-- Components with clear responsibilities
-- Component interactions (max 10 components, 2 relationships per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
-- Justification based on {project_type} patterns
+Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 
-Focus on core subsystem functionality only."""
+Output Format:
+Return a ClusterAnalysis with cluster_components using ClustersComponent model.
+Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
 
-DETAILS_MESSAGE = """Final component overview for {component}.
+DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
 
 Project Context:
 {meta_context}
 
-Analysis summary:
-{insight_so_far}
+Cluster Analysis:
+{cluster_analysis}
 
 Instructions:
-No tools required - use provided analysis summary only.
+1. Review the named cluster groups above
+2. Decide which named groups should be merged into final sub-components
+3. For each sub-component, specify which named cluster groups it encompasses via source_group_names
+4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference
+5. Define relationships between sub-components
+
+Guidelines for {project_type} projects:
+- Aim for 3-8 final sub-components
+- Merge related cluster groups that serve a common purpose
+- Each sub-component should have clear boundaries
+- Include only architecturally significant relationships
 
 Required outputs:
-1. Final component structure from provided data
-2. Max 8 components following {project_type} patterns
-3. Clear component descriptions and source files
-4. Component interactions (max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
+- Description: One paragraph explaining the subsystem's main flow and purpose
+- Components: Each with:
+  * name: Clear sub-component name
+  * description: What this sub-component does
+  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
+  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+
+Constraints:
+- Focus on subsystem-specific functionality
+- Exclude utility/logging sub-components
+- Sub-components should translate well to flow diagram representation
 
 Justify component choices based on fundamental architectural importance."""
 
@@ -345,9 +351,6 @@ class GeminiFlashPromptFactory(AbstractPromptFactory):
 
     def get_file_classification_message(self) -> str:
         return FILE_CLASSIFICATION_MESSAGE
-
-    def get_unassigned_files_classification_message(self) -> str:
-        return UNASSIGNED_FILES_CLASSIFICATION_MESSAGE
 
     def get_validation_feedback_message(self) -> str:
         return VALIDATION_FEEDBACK_MESSAGE
