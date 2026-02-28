@@ -236,14 +236,18 @@ The goal is to accurately locate the definition to provide precise references fo
 5. Ensure accuracy as this will be used for interactive navigation
 </instructions>"""
 
-VALIDATION_FEEDBACK_MESSAGE = """Your previous analysis produced the following result:
+VALIDATION_FEEDBACK_MESSAGE = """IMPORTANT: You must CORRECT the output below. Do NOT regenerate from scratch — preserve all correct parts and only fix the listed issues.
+
+## Your Previous Output
 {original_output}
 
-However, upon validation, the following issues were identified:
+## Issues That Must Be Fixed
 {feedback_list}
 
-Please provide a corrected analysis that addresses these validation issues while maintaining the quality and depth of your original analysis.
+## Correction Instructions
+Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
 
+## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
