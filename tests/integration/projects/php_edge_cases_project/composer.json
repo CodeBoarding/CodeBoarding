@@ -1,0 +1,6 @@
+{
+    "name": "edge-cases/php",
+    "require": {
+        "php": ">=8.1"
+    }
+}
