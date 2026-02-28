@@ -172,11 +172,19 @@ class StaticAnalyzer:
         self._clients_started = False
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
-        """Forward a textDocument/didChange notification to the matching LSP client.
+        """Notify the LSP server that the editor has saved new content for a file.
 
-        Used by long-lived callers (e.g. extensions of the core) to keep LSP servers aware
-        of unsaved editor changes so that publishDiagnostics reflect the latest
-        file state.
+        Sends textDocument/didOpen (so pyright registers the file if it is not
+        already open) followed by textDocument/didChange (so pyright re-type-checks
+        with the new content and emits a fresh publishDiagnostics notification).
+
+        The LSP spec requires a file to be open before didChange is sent.  After
+        the analysis loop closes all files, a bare didChange would be silently
+        ignored by pyright, which is why we always re-open first.
+
+        The resulting publishDiagnostics notification is captured by the reader
+        thread into ``client.diagnostics`` and will be picked up by the next
+        call to ``analyze()`` / ``refresh_health_report()``.
 
         Args:
             file_path: Absolute path to the changed file.
@@ -187,16 +195,28 @@ class StaticAnalyzer:
             if file_path.suffix.lstrip(".") not in handled_suffixes:
                 continue
             file_uri = file_path.as_uri()
-            next_version = client._document_versions.get(file_uri, 1) + 1
-            client._document_versions[file_uri] = next_version
+            # Re-open the file so pyright tracks it (safe to call even if already open;
+            # in that case pyright ignores the duplicate open per the LSP spec).
+            client._send_notification(
+                "textDocument/didOpen",
+                {
+                    "textDocument": {
+                        "uri": file_uri,
+                        "languageId": client.language_id,
+                        "version": 1,
+                        "text": content,
+                    }
+                },
+            )
+            # Send the change so pyright re-type-checks with the new content.
             client._send_notification(
                 "textDocument/didChange",
                 {
-                    "textDocument": {"uri": file_uri, "version": next_version},
+                    "textDocument": {"uri": file_uri, "version": 2},
                     "contentChanges": [{"text": content}],
                 },
             )
-            logger.debug(f"Sent didChange for {file_path} to {client.language.language} LSP")
+            logger.debug(f"Sent didOpen+didChange for {file_path} to {client.language.language} LSP")
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """
@@ -257,25 +277,61 @@ class StaticAnalyzer:
                 results.add_source_files(client.language.language, analysis.get("source_files", []))
 
                 # Collect diagnostics for health checks.
-                # Prefer diagnostics from the analysis result (populated by incremental cache),
-                # fall back to freshly collected ones from the LSP client.
+                #
+                # Strategy: start with the cache (covers files not re-opened this
+                # session), then overlay the LSP client's in-memory diagnostics
+                # (which reflect the latest notify_file_changed content).
+                #
+                # The in-memory dict is the ground truth for any file that has
+                # been opened during this session: if a file is present there,
+                # its entry replaces the cached one even if the value is "no
+                # issues" (i.e. the file key was removed by an empty
+                # publishDiagnostics notification).  Files that were never
+                # opened remain covered by the cache.
+                cache_diags: dict = {}
                 if "diagnostics" in analysis and analysis["diagnostics"]:
-                    cached_diags = analysis["diagnostics"]
+                    cache_diags = analysis["diagnostics"]
                     logger.info(
-                        f"Using {len(cached_diags)} files with diagnostics from cache for {client.language.language}"
+                        f"Loaded {len(cache_diags)} files with diagnostics from cache for {client.language.language}"
                     )
-                    self.collected_diagnostics[client.language.language] = cached_diags
+
+                live_diags = client.get_collected_diagnostics()
+
+                # Build the merged view: cache as base, live overwrites per file.
+                # Also remove files that pyright cleared (present in cache but
+                # no longer in live after the client has seen them at least once).
+                merged_diags: dict = dict(cache_diags)
+                # Track which files the LSP client has observed this session so
+                # we know which cache entries to trust vs evict.
+                # We use the union of opened files (those that had a didOpen sent
+                # during build_static_analysis or notify_file_changed).
+                for file_path, diags in live_diags.items():
+                    merged_diags[file_path] = diags  # live wins
+
+                # Evict cache entries for files the client has cleared (empty
+                # publishDiagnostics means "file is now clean").  We detect this
+                # by checking which files were opened (had diagnostics in a
+                # previous live run) but are now absent from live_diags.
+                # Use the previous live snapshot stored on the client to identify
+                # which files have been actively cleared vs simply not seen.
+                previously_live: set[str] = getattr(client, "_previous_live_diagnostics", set())
+                for file_path in previously_live:
+                    if file_path not in live_diags:
+                        merged_diags.pop(file_path, None)
+
+                # Remember which files the client tracked this cycle.
+                client._previous_live_diagnostics = set(live_diags.keys()) | previously_live  # type: ignore[attr-defined]
+
+                if merged_diags:
+                    total_diags = sum(len(d) for d in merged_diags.values())
+                    logger.info(
+                        f"Diagnostics for {client.language.language}: "
+                        f"{len(merged_diags)} files, {total_diags} items "
+                        f"(cache={len(cache_diags)}, live={len(live_diags)})"
+                    )
                 else:
-                    diagnostics = client.get_collected_diagnostics()
-                    if diagnostics:
-                        logger.info(
-                            f"Collected {len(diagnostics)} files with diagnostics for {client.language.language}"
-                        )
-                        total_diags = sum(len(d) for d in diagnostics.values())
-                        logger.info(f"Total diagnostic items: {total_diags}")
-                        self.collected_diagnostics[client.language.language] = diagnostics
-                    else:
-                        logger.warning(f"No diagnostics collected for {client.language.language}")
+                    logger.debug(f"No diagnostics for {client.language.language}")
+                self.collected_diagnostics[client.language.language] = merged_diags
             except Exception as e:
                 logger.error(f"Error during analysis with {client.language.language}: {e}")
         logger.info(f"Static analysis complete: {results}")
