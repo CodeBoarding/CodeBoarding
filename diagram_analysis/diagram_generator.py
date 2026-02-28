@@ -68,7 +68,7 @@ class DiagramGenerator:
         # Optional pre-started StaticAnalyzer injected by long-lived callers (e.g. the
         # wrapper). When set, pre_analysis() uses it directly instead of creating a new
         # one-shot analyzer via get_static_analysis().
-        self._static_analyzer: StaticAnalyzer | None = static_analyzer
+        self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
@@ -170,23 +170,23 @@ class DiagramGenerator:
         )
         self._monitoring_agents["MetaAgent"] = self.meta_agent
 
-        # Decide how to obtain static analysis results, then run it in parallel
-        # with the meta-context computation so neither blocks the other.
-        if self._static_analyzer is not None:
-            # Long-lived caller (e.g. wrapper): clients already running, skip lifecycle.
-            logger.info("Using injected StaticAnalyzer (clients already running)")
+        def get_static_with_injected_analyzer() -> StaticAnalysisResults:
+            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
+            return self._get_static_from_injected_analyzer(cache_dir)
 
-            cache_dir = get_cache_dir(self.repo_location)
-            static_callable = lambda: self._get_static_from_injected_analyzer(
-                None if self.force_full_analysis else cache_dir
-            )
-
-        else:
+        def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
+            return get_static_analysis(self.repo_location, skip_cache=skip_cache)
 
-            static_callable = lambda: get_static_analysis(self.repo_location, skip_cache=skip_cache)
+        # Decide how to obtain static analysis results, then run it in parallel
+        # with the meta-context computation so neither blocks the other.
+        if self._static_analyzer is not None:
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+            static_callable = get_static_with_injected_analyzer
+        else:
+            static_callable = get_static_with_new_analyzer
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             static_future = executor.submit(static_callable)

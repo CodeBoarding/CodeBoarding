@@ -132,15 +132,28 @@ class StaticAnalyzer:
         Idempotent — safe to call even if clients are already running.
         """
         if self._clients_started:
+            logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
+
+        started_clients: list[LSPClient] = []
         for client in self.clients:
             try:
                 logger.info(f"Starting LSP client for {client.language.language}")
                 client.start()
+                started_clients.append(client)
                 if isinstance(client, JavaClient):
                     client.wait_for_import()  # timeout auto-computed based on project size
             except Exception as e:
-                logger.error(f"Failed to start LSP client for {client.language.language}: {e}")
+                logger.exception(f"Failed to start LSP client for {client.language.language}")
+                # Clean up already-started clients
+                for started in reversed(started_clients):
+                    try:
+                        started.close()
+                    except Exception:
+                        logger.exception(f"Error closing client for {started.language.language}")
+                self._clients_started = False
+                raise RuntimeError(f"Failed to start LSP client for {client.language.language}") from e
+
         self._clients_started = True
 
     def stop_clients(self) -> None:
@@ -174,10 +187,12 @@ class StaticAnalyzer:
             if file_path.suffix.lstrip(".") not in handled_suffixes:
                 continue
             file_uri = file_path.as_uri()
+            next_version = client._document_versions.get(file_uri, 1) + 1
+            client._document_versions[file_uri] = next_version
             client._send_notification(
                 "textDocument/didChange",
                 {
-                    "textDocument": {"uri": file_uri, "version": 2},
+                    "textDocument": {"uri": file_uri, "version": next_version},
                     "contentChanges": [{"text": content}],
                 },
             )
@@ -187,7 +202,8 @@ class StaticAnalyzer:
         """
         Analyze the repository using LSP clients.
 
-        Assumes clients are already running (call start_clients() first).
+        Clients must be running before calling this method. Use start_clients() or
+        the context manager (``with StaticAnalyzer(...) as sa:``) to start them.
         get_static_analysis() does this automatically for CLI callers.
 
         Args:
@@ -198,6 +214,11 @@ class StaticAnalyzer:
         Returns:
             StaticAnalysisResults containing all analysis data.
         """
+        if not self._clients_started:
+            raise RuntimeError(
+                "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
+                "('with StaticAnalyzer(...) as sa:') before calling analyze()."
+            )
         results = StaticAnalysisResults()
         for client in self.clients:
             try:
