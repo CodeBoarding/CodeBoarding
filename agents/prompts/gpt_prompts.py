@@ -325,14 +325,18 @@ For each file:
 
 **Goal:** Understand file organization to inform component analysis and diagram generation."""
 
-VALIDATION_FEEDBACK_MESSAGE = """The result you produced:
+VALIDATION_FEEDBACK_MESSAGE = """IMPORTANT: You must CORRECT the output below. Do NOT regenerate from scratch — preserve all correct parts and only fix the listed issues.
+
+## Your Previous Output
 {original_output}
 
-Validation identified these issues:
+## Issues That Must Be Fixed
 {feedback_list}
 
-Please correct the output to address all validation issues.
+## Correction Instructions
+Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
 
+## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.

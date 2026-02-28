@@ -242,17 +242,18 @@ Reason carefully, then execute:
 
 VALIDATION_FEEDBACK_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Original result:
+IMPORTANT: You must CORRECT the output below. Do NOT regenerate from scratch — preserve all correct parts and only fix the listed issues.
+
+## Your Previous Output
 {original_output}
 
-Issues found:
+## Issues That Must Be Fixed
 {feedback_list}
 
-Task: Correct the output based on the above issues.
+## Correction Instructions
+Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
 
-Reason carefully about what went wrong, then fix it.
-
-Original prompt:
+## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
 
 SYSTEM_DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
