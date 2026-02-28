@@ -217,14 +217,18 @@ Instructions:
    - Include the start and end line numbers of the definition.
 """
 
-VALIDATION_FEEDBACK_MESSAGE = """The result produced by analyzing is:
+VALIDATION_FEEDBACK_MESSAGE = """IMPORTANT: You must CORRECT the output below. Do NOT regenerate from scratch — preserve all correct parts and only fix the listed issues.
+
+## Your Previous Output
 {original_output}
 
-However, the following issues were found:
+## Issues That Must Be Fixed
 {feedback_list}
 
-Please correct the output based on the above issues.
+## Correction Instructions
+Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
 
+## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
 
 SYSTEM_DETAILS_MESSAGE = """You are a software architecture expert analyzing a subsystem of `{project_name}`.
