@@ -53,7 +53,7 @@ class ClusteringConfig:
     MIN_MAX_CLUSTER_SIZE = 10  # Absolute minimum for max cluster size
 
     # Display limits
-    MAX_DISPLAY_CLUSTERS = 25  # Maximum clusters to show in output (readability limit)
+    MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
 
     # Language-specific delimiters for qualified names
     DEFAULT_DELIMITER = "."  # Works for Python, Java, C#
