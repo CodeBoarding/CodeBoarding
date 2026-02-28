@@ -149,6 +149,13 @@ class DiagramGenerator:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
+    def _get_static_from_injected_analyzer(self, cache_dir: Path | None) -> StaticAnalysisResults:
+        result = self._static_analyzer.analyze(  # type: ignore[union-attr]
+            cache_dir=cache_dir,
+        )
+        result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
+        return result
+
     def pre_analysis(self):
         analysis_start_time = time.time()
 
@@ -170,24 +177,19 @@ class DiagramGenerator:
             logger.info("Using injected StaticAnalyzer (clients already running)")
 
             cache_dir = get_cache_dir(self.repo_location)
-
-            def _get_static() -> StaticAnalysisResults:
-                result = self._static_analyzer.analyze(  # type: ignore[union-attr]
-                    cache_dir=None if self.force_full_analysis else cache_dir,
-                )
-                result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
-                return result
+            static_callable = lambda: self._get_static_from_injected_analyzer(
+                None if self.force_full_analysis else cache_dir
+            )
 
         else:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
 
-            def _get_static() -> StaticAnalysisResults:
-                return get_static_analysis(self.repo_location, skip_cache=skip_cache)
+            static_callable = lambda: get_static_analysis(self.repo_location, skip_cache=skip_cache)
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            static_future = executor.submit(_get_static)
+            static_future = executor.submit(static_callable)
             meta_future = executor.submit(self.meta_agent.get_meta_context, refresh=self.force_full_analysis)
             static_analysis = static_future.result()
             meta_context = meta_future.result()

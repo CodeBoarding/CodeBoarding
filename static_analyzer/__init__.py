@@ -118,6 +118,13 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
 
+    def __enter__(self) -> "StaticAnalyzer":
+        self.start_clients()
+        return self
+
+    def __exit__(self, _exc_type: type | None, _exc_val: Exception | None, _exc_tb: object | None) -> None:
+        self.stop_clients()
+
     def start_clients(self) -> None:
         """Start all LSP server processes.
 
@@ -367,16 +374,9 @@ def get_static_analysis(
     Returns:
         StaticAnalysisResults using incremental cache when available.
     """
+    actual_cache_dir = None if skip_cache else (cache_dir if cache_dir is not None else get_cache_dir(repo_path))
     analyzer = StaticAnalyzer(repo_path)
-    analyzer.start_clients()
-    try:
-        if skip_cache:
-            results = analyzer.analyze(cache_dir=None)
-        else:
-            actual_cache_dir = cache_dir if cache_dir is not None else get_cache_dir(repo_path)
-            results = analyzer.analyze(cache_dir=actual_cache_dir)
-    finally:
-        analyzer.stop_clients()
-
+    with analyzer:
+        results = analyzer.analyze(cache_dir=actual_cache_dir)
     results.diagnostics = analyzer.collected_diagnostics
     return results
