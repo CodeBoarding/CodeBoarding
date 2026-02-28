@@ -9,7 +9,6 @@ from agents.agent_responses import ClusterAnalysis, Component, AnalysisInsights,
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Node, NodeType
 from static_analyzer.graph import ClusterResult
-from static_analyzer.cluster_helpers import get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -123,32 +122,21 @@ class ClusterMethodsMixin:
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
 
-    def _resolve_cluster_ids_from_groups(
-        self, analysis: "AnalysisInsights", cluster_analysis: "ClusterAnalysis"
-    ) -> None:
-        """Resolve source_cluster_ids deterministically from source_group_names via ClusterAnalysis lookup."""
+    def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
+        """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
         group_name_to_ids: dict[str, list[int]] = {
-            cc.name: cc.cluster_ids for cc in cluster_analysis.cluster_components
-        }
-        # Build case-insensitive fallback lookup
-        group_name_lower_to_ids: dict[str, list[int]] = {
             cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
         }
 
         for component in analysis.components:
-            resolved_ids: list[int] = []
-            for gname in component.source_group_names:
-                if gname in group_name_to_ids:
-                    resolved_ids.extend(group_name_to_ids[gname])
-                elif gname.lower() in group_name_lower_to_ids:
-                    resolved_ids.extend(group_name_lower_to_ids[gname.lower()])
-                    logger.warning(
-                        f"[{self.__class__.__name__}] Fuzzy-matched group name '{gname}' for component '{component.name}'"
-                    )
-                else:
-                    logger.warning(
-                        f"[{self.__class__.__name__}] Unresolved group name '{gname}' for component '{component.name}'"
-                    )
+            resolved_ids = [
+                cid for gname in component.source_group_names for cid in group_name_to_ids.get(gname.lower(), [])
+            ]
+            unresolved = [g for g in component.source_group_names if g.lower() not in group_name_to_ids]
+            for gname in unresolved:
+                logger.warning(
+                    f"[{self.__class__.__name__}] Unresolved group name '{gname}' for component '{component.name}'"
+                )
             component.source_cluster_ids = sorted(set(resolved_ids))
 
     def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
@@ -308,6 +296,24 @@ class ClusterMethodsMixin:
                 f"assigned to components by the LLM."
             )
 
+    def _find_component_by_file(
+        self,
+        node: Node,
+        cluster_results: dict[str, ClusterResult],
+        cluster_to_component: dict[int, Component],
+    ) -> Component | None:
+        """Try to assign a node to a component based on its file already belonging to a cluster."""
+        file_path = node.file_path
+        if not file_path:
+            return None
+        for cr in cluster_results.values():
+            cluster_ids = cr.get_clusters_for_file(file_path)
+            for cid in cluster_ids:
+                comp = cluster_to_component.get(cid)
+                if comp is not None:
+                    return comp
+        return None
+
     def _assign_nodes_to_components(
         self,
         all_nodes: dict[str, Node],
@@ -316,7 +322,7 @@ class ClusterMethodsMixin:
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
     ) -> dict[str, list[Node]]:
-        """Assign every node to a component via its cluster, or by graph distance for orphans."""
+        """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
         component_nodes: dict[str, list[Node]] = defaultdict(list)
         unassigned: list[str] = []
 
@@ -328,14 +334,46 @@ class ClusterMethodsMixin:
                 unassigned.append(qname)
 
         if unassigned:
-            logger.info(f"[ClusterMethodsMixin] Assigning {len(unassigned)} orphan node(s) by graph distance")
+            logger.info(f"[ClusterMethodsMixin] Assigning {len(unassigned)} orphan node(s)")
+
+        assigned_by_file = 0
+        assigned_by_graph = 0
+        assigned_by_fallback = 0
+        fallback_files: set[str] = set()
+
         for qname in unassigned:
+            node = all_nodes[qname]
+
+            # 1. Try file co-location: if the node's file already belongs to a cluster/component
+            comp = self._find_component_by_file(node, cluster_results, cluster_to_component)
+            if comp is not None:
+                assigned_by_file += 1
+                component_nodes[comp.name].append(node)
+                continue
+
+            # 2. Try graph distance: find the nearest cluster in the call graph
             nearest_cid = self._find_nearest_cluster(qname, cluster_results)
             if nearest_cid is not None and nearest_cid in cluster_to_component:
                 comp = cluster_to_component[nearest_cid]
-            else:
-                comp = fallback_component
-            component_nodes[comp.name].append(all_nodes[qname])
+                assigned_by_graph += 1
+                component_nodes[comp.name].append(node)
+                continue
+
+            # 3. Last resort: fallback component
+            assigned_by_fallback += 1
+            fallback_files.add(node.file_path)
+            component_nodes[fallback_component.name].append(node)
+
+        if unassigned:
+            logger.info(
+                f"[ClusterMethodsMixin] Orphan assignment: {assigned_by_file} by file, "
+                f"{assigned_by_graph} by graph distance, {assigned_by_fallback} to fallback"
+            )
+        if assigned_by_fallback:
+            logger.warning(
+                f"[ClusterMethodsMixin] {assigned_by_fallback} node(s) fell back to '{fallback_component.name}' "
+                f"— files: {sorted(fallback_files)}"
+            )
 
         return component_nodes
 

@@ -87,7 +87,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             project_type=project_type,
         )
 
-        # Build validation context using subgraph cluster results
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
             expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
@@ -134,7 +133,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
-            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
             static_analysis=self.static_analysis,
             cluster_analysis=cluster_analysis,
         )
@@ -147,7 +145,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_group_name_coverage,
                 validate_component_relationships,
                 validate_key_entities,
-                validate_cluster_coverage,
                 validate_qualified_names,
             ],
             context=context,
