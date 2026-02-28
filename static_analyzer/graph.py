@@ -100,9 +100,19 @@ class CallGraph:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
 
+    @staticmethod
+    def _compute_target_clusters(total_nodes: int) -> int:
+        """Compute target cluster count based on graph size.
+
+        Scales linearly: 1 cluster per 100 nodes, clamped to [10, 50].
+        This avoids the fixed-20 cap that leaves most nodes as orphans
+        in larger codebases.
+        """
+        return max(10, min(50, total_nodes // 100))
+
     def cluster(
         self,
-        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
+        target_clusters: int | None = None,
         min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
     ) -> ClusterResult:
         """
@@ -112,7 +122,8 @@ class CallGraph:
         Cluster IDs are stable and start from 1.
 
         Args:
-            target_clusters: Target number of clusters to find
+            target_clusters: Target number of clusters to find. If None, computed
+                             dynamically based on graph size.
             min_cluster_size: Minimum nodes per cluster
 
         Returns:
@@ -126,6 +137,9 @@ class CallGraph:
             logger.warning("No nodes available for clustering.")
             self._cluster_cache = ClusterResult(strategy="empty")
             return self._cluster_cache
+
+        if target_clusters is None:
+            target_clusters = self._compute_target_clusters(nx_graph.number_of_nodes())
 
         communities, strategy_used = self._adaptive_clustering(
             nx_graph,
@@ -157,7 +171,13 @@ class CallGraph:
                         file_to_clusters[file_path].add(cluster_id)
                         cluster_to_files[cluster_id].add(file_path)
 
-        logger.info(f"Clustered {nx_graph.number_of_nodes()} nodes into {len(clusters)} clusters using {strategy_used}")
+        clustered_nodes = sum(len(c) for c in clusters.values())
+        total = nx_graph.number_of_nodes()
+        coverage_pct = (clustered_nodes / total * 100) if total else 0
+        logger.info(
+            f"Clustered {total} nodes into {len(clusters)} clusters using {strategy_used} "
+            f"({clustered_nodes}/{total} nodes covered, {coverage_pct:.1f}%)"
+        )
 
         self._cluster_cache = ClusterResult(
             clusters=clusters,
