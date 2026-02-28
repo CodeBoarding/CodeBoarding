@@ -1000,21 +1000,17 @@ Generates documentation output in reStructuredText (RST) format for Sphinx, crea
 
 ```mermaid
 graph LR
-    Output_Dispatcher["Output Dispatcher"]
-    Markdown_Engine["Markdown Engine"]
-    Sphinx_Engine["Sphinx Engine"]
-    HTML_Visualization_Engine["HTML Visualization Engine"]
-    Diagram_Synthesis_Engine["Diagram Synthesis Engine"]
-    Graph_Data_Processor["Graph Data Processor"]
-    Template_Manager["Template Manager"]
-    Output_Dispatcher -- "Routes analysis data to" --> Markdown_Engine
-    Output_Dispatcher -- "Routes analysis data to" --> HTML_Visualization_Engine
-    Markdown_Engine -- "Requests visual definitions from" --> Diagram_Synthesis_Engine
-    HTML_Visualization_Engine -- "Consumes formatted graph data from" --> Graph_Data_Processor
-    HTML_Visualization_Engine -- "Requests visual definitions from" --> Diagram_Synthesis_Engine
-    Sphinx_Engine -- "Utilizes shared assets from" --> Template_Manager
-    Graph_Data_Processor -- "Feeds processed JSON to" --> HTML_Visualization_Engine
-    Output_Dispatcher -- "Maintains registry of" --> Sphinx_Engine
+    Output_Orchestration_Dispatcher["Output Orchestration Dispatcher"]
+    Visual_Model_Generator["Visual Model Generator"]
+    Interactive_HTML_Provider["Interactive HTML Provider"]
+    Static_Markdown_Provider["Static Markdown Provider"]
+    Sphinx_Documentation_Provider["Sphinx Documentation Provider"]
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Interactive_HTML_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Static_Markdown_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Sphinx_Documentation_Provider
+    Visual_Model_Generator -- "supplies data to" --> Interactive_HTML_Provider
+    Visual_Model_Generator -- "supplies data to" --> Static_Markdown_Provider
+    Visual_Model_Generator -- "supplies data to" --> Sphinx_Documentation_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1023,49 +1019,18 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### Output Dispatcher
-Acts as the central routing hub that receives structured analysis data from the Orchestrator and delegates it to the appropriate format engine based on user configuration.
+### Output Orchestration Dispatcher
+The central controller that receives the final analysis manifest and routes data to the appropriate output generators based on user-defined configurations (e.g., `--format html,markdown`).
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.output.OutputDispatcher`
-- `repos.codeboarding.output.GeneratorRegistry`
+- `repos.codeboarding.output.MultiFormatDocumenter`
+- `repos.codeboarding.output.OutputGenerator`
 
 
-### Markdown Engine
-Synthesizes GitHub‑flavored Markdown and MDX documentation, handling front‑matter generation and embedding Mermaid.js strings for static rendering.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.output.MarkdownOutputGenerator`
-- `repos.codeboarding.output.MDXGenerator`
-- `repos.codeboarding.output.FrontMatterHandler`
-
-
-### Sphinx Engine
-Transforms analysis results into ReStructuredText (RST) and Sphinx‑compatible directives to ensure compatibility with professional technical manual pipelines.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.output.SphinxOutputGenerator`
-- `repos.codeboarding.output.RSTDirectiveHandler`
-
-
-### HTML Visualization Engine
-Assembles interactive web reports using HTML/CSS templates and consumes processed graph structures for dynamic visual exploration.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.output.HTMLReportGenerator`
-- `repos.codeboarding.output.WebViewRenderer`
-
-
-### Diagram Synthesis Engine
-Generates visual definitions (Mermaid, Cytoscape) from structured architectural data, serving as a shared utility for both static and interactive outputs.
+### Visual Model Generator
+The engine responsible for translating static analysis relationships into graph‑based syntax. It generates the raw Mermaid.js strings and Cytoscape JSON structures used by the providers.
 
 
 **Related Classes/Methods**:
@@ -1074,24 +1039,35 @@ Generates visual definitions (Mermaid, Cytoscape) from structured architectural 
 - `repos.codeboarding.output.MermaidGenerator`
 
 
-### Graph Data Processor
-Normalizes node and edge data into formats compatible with interactive graph libraries (e.g., Cytoscape JSON).
+### Interactive HTML Provider
+Generates standalone, interactive web documentation. It embeds Cytoscape.js for dynamic diagram manipulation and manages CSS/JS assets for the UI.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.output.GraphDataProcessor`
-- `repos.codeboarding.output.CytoscapeDataFormatter`
+- `repos.codeboarding.output.html.HTMLOutputGenerator`
+- `repos.codeboarding.output.html.CytoscapeGenerator`
+- `repos.codeboarding.output.html.TemplateEngine`
 
 
-### Template Manager
-Manages shared assets including CSS, HTML templates, and front‑matter configurations used across different output formats.
+### Static Markdown Provider
+Produces Markdown and MDX files optimized for static hosting (GitHub, Docusaurus). It embeds Mermaid.js code blocks for native rendering.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.output.TemplateManager`
-- `repos.codeboarding.output.AssetLoader`
+- `repos.codeboarding.output.markdown.MarkdownOutputGenerator`
+- `repos.codeboarding.output.markdown.MdxOutputGenerator`
+
+
+### Sphinx Documentation Provider
+A specialized generator that produces ReStructuredText (RST) files, allowing the tool's output to be seamlessly integrated into existing Python Sphinx documentation suites.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.output.sphinx.SphinxOutputGenerator`
+- `repos.codeboarding.output.sphinx.RstGenerator`
 
 
 
@@ -2300,18 +2276,19 @@ A data model encapsulating parsed configuration details of a single Java project
 
 ```mermaid
 graph LR
-    Static_Analysis_Facade["Static Analysis Facade"]
-    Project_Discovery_Engine["Project Discovery Engine"]
-    LSP_Communication_Framework["LSP Communication Framework"]
-    Semantic_Graph_Engine["Semantic Graph Engine"]
-    Code_Health_Quality_Suite["Code Health & Quality Suite"]
-    Incremental_Analysis_Controller["Incremental Analysis Controller"]
-    Static_Analysis_Facade -- "triggers" --> Project_Discovery_Engine
-    Static_Analysis_Facade -- "initializes" --> LSP_Communication_Framework
-    Project_Discovery_Engine -- "provides configuration to" --> LSP_Communication_Framework
-    LSP_Communication_Framework -- "streams symbols to" --> Semantic_Graph_Engine
-    Semantic_Graph_Engine -- "builds call graph for" --> Code_Health_Quality_Suite
-    Incremental_Analysis_Controller -- "filters workload for" --> Static_Analysis_Facade
+    Static_Analysis_Orchestrator["Static Analysis Orchestrator"]
+    LSP_Protocol_Handler["LSP Protocol Handler"]
+    Language_Specialists["Language Specialists"]
+    Incremental_State_Manager["Incremental State Manager"]
+    Graph_Abstraction_Engine["Graph & Abstraction Engine"]
+    Code_Quality_Analyzer["Code Quality Analyzer"]
+    Analysis_Data_Store["Analysis Data Store"]
+    Static_Analysis_Orchestrator -- "invokes" --> Incremental_State_Manager
+    LSP_Protocol_Handler -- "uses" --> Language_Specialists
+    Language_Specialists -- "feeds" --> Graph_Abstraction_Engine
+    Graph_Abstraction_Engine -- "provides" --> Code_Quality_Analyzer
+    Code_Quality_Analyzer -- "pushes" --> Analysis_Data_Store
+    Incremental_State_Manager -- "updates" --> Analysis_Data_Store
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -2320,63 +2297,75 @@ graph LR
 
 Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.
 
-### Static Analysis Facade
-Primary entry point orchestrating discovery, LSP initialization, and the analysis pipeline, returning results to callers.
+### Static Analysis Orchestrator
+The central entry point that manages the lifecycle of analysis runs. It coordinates project discovery, determines the programming languages present, and triggers the incremental update logic to minimize processing time.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.StaticAnalyzer`
+- `ProjectScanner`:13-95
+- `ProgrammingLanguage`:23-75
 
 
-### Project Discovery Engine
-Scans the filesystem to detect programming languages, build tools, and project roots, providing configuration for later stages.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.RepositoryScanner`
-- `static_analyzer.java_config_scanner.LanguageDetector`
-
-
-### LSP Communication Framework
-Manages asynchronous LSP client lifecycles and JSON‑RPC communication to retrieve symbols and diagnostics from language servers.
+### LSP Protocol Handler
+Manages low-level communication with Language Servers. It abstracts JSON-RPC messaging, document synchronization, and provides a mixin-based approach for resolving semantic references across files.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.LSPClient`
-- `static_analyzer.java_config_scanner.SymbolTranslator`
+- `LSPClient`:64-1650
+- `ReferenceResolverMixin`:13-166
 
 
-### Semantic Graph Engine
-Builds a directed call graph from LSP symbols, resolves cross‑file references, and clusters related entities using community detection.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.CallGraphBuilder`
-- `static_analyzer.java_config_scanner.ReferenceResolverMixin`
-
-
-### Code Health & Quality Suite
-Runs structural checks (unused code, God class, coupling, etc.) against the semantic graph and LSP diagnostics, producing a health report.
+### Language Specialists
+Concrete strategies that handle the nuances of specific languages and their build systems (e.g., Maven, Gradle, tsconfig). They provide the necessary environment bootstrapping for the LSP servers.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.UnusedCodeAnalyzer`
-- `static_analyzer.java_config_scanner.HealthRunner`
+- `JavaConfigScanner`:33-218
+- `TSConfigScanner`
 
 
-### Incremental Analysis Controller
-Uses Git diffs and a cache to limit re‑analysis to modified files, directing the Facade to process only necessary parts.
+### Incremental State Manager
+Optimizes performance by tracking changes in the codebase. It uses Git history to identify modified files and manages a local cache to ensure only affected components are re-analyzed.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.GitDiffAnalyzer`
-- `static_analyzer.java_config_scanner.AnalysisCache`
+- `GitDiffAnalyzer`:16-224
+- `AnalysisCache`:14-50
+
+
+### Graph & Abstraction Engine
+The "brain" of the subsystem that constructs a global Call Graph from raw symbols. It applies adaptive clustering to group low-level code elements into high-level architectural modules.
+
+
+**Related Classes/Methods**:
+
+- `CallGraphBuilder`
+- `AdaptiveClustering`
+
+
+### Code Quality Analyzer
+A composite engine that runs diagnostic checks. It identifies structural flaws such as circular dependencies, "God Classes," and dead code, contributing to the overall health score of the project.
+
+
+**Related Classes/Methods**:
+
+- `HealthCheckRunner`
+- `UnusedCodeAnalyzer`
+- `CircularDependencyDetector`
+
+
+### Analysis Data Store
+Manages the persistence of all analysis outputs. It defines unified Data Transfer Objects (DTOs) that allow both the VS Code UI and LLM agents to query the results of the static analysis.
+
+
+**Related Classes/Methods**:
+
+- `StaticAnalysisResults`:53-269
+- `HealthReport`:122-135
 
 
 

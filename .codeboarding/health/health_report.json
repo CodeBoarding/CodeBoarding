@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-28T11:43:34.420079+00:00",
-  "overall_score": 0.9629217649239896,
+  "timestamp": "2026-02-28T23:03:51.684711+00:00",
+  "overall_score": 0.9646669120353331,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 804,
+      "total_entities_checked": 812,
       "findings_count": 4,
       "warning_count": 4,
-      "score": 0.9950248756218906,
+      "score": 0.9950738916256158,
       "finding_groups": [
         {
           "severity": "warning",
@@ -20,8 +20,8 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 828,
-              "line_end": 1130,
+              "line_start": 831,
+              "line_end": 1133,
               "metric_value": 302
             },
             {
@@ -34,8 +34,8 @@
             {
               "entity_name": "static_analyzer.lsp_client.client.build_static_analysis",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 644,
-              "line_end": 826,
+              "line_start": 647,
+              "line_end": 829,
               "metric_value": 182
             },
             {
@@ -53,10 +53,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 804,
+      "total_entities_checked": 812,
       "findings_count": 2,
       "warning_count": 2,
-      "score": 0.9975124378109452,
+      "score": 0.9975369458128078,
       "finding_groups": [
         {
           "severity": "warning",
@@ -73,8 +73,8 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 828,
-              "line_end": 1130,
+              "line_start": 831,
+              "line_end": 1133,
               "metric_value": 16
             }
           ]
@@ -85,10 +85,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 804,
+      "total_entities_checked": 812,
       "findings_count": 6,
       "warning_count": 6,
-      "score": 0.9925373134328358,
+      "score": 0.9926108374384236,
       "finding_groups": [
         {
           "severity": "warning",
@@ -98,15 +98,15 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._send_request",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 133,
-              "line_end": 153,
+              "line_start": 136,
+              "line_end": 156,
               "metric_value": 22
             },
             {
               "entity_name": "static_analyzer.lsp_client.client._wait_for_response",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 211,
-              "line_end": 222,
+              "line_start": 214,
+              "line_end": 225,
               "metric_value": 17
             },
             {
@@ -126,15 +126,15 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._send_notification",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 155,
-              "line_end": 168,
+              "line_start": 158,
+              "line_end": 171,
               "metric_value": 12
             },
             {
               "entity_name": "static_analyzer.lsp_client.client._create_qualified_name",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 634,
-              "line_end": 642,
+              "line_start": 637,
+              "line_end": 645,
               "metric_value": 12
             }
           ]
@@ -166,9 +166,9 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "core -> health -> core",
-        "caching -> agents -> caching",
-        "static_analyzer -> agents -> static_analyzer"
+        "health -> core -> health",
+        "agents -> caching -> agents",
+        "agents -> static_analyzer -> agents"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -197,7 +197,7 @@
             },
             {
               "entity_name": "diagram_analysis",
-              "metric_value": 0.842
+              "metric_value": 0.85
             },
             {
               "entity_name": "monitoring",
@@ -221,9 +221,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 84,
-      "findings_count": 84,
-      "warning_count": 84,
+      "total_entities_checked": 80,
+      "findings_count": 80,
+      "warning_count": 80,
       "score": 0.0,
       "finding_groups": [
         {
@@ -231,20 +231,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 168,
-              "line_end": 168,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 168,
-              "line_end": 168,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"result\" is not accessed",
               "file_path": "install.py",
@@ -257,6 +243,20 @@
               "file_path": "install.py",
               "line_start": 74,
               "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] Variable \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 168,
+              "line_end": 168,
               "metric_value": 0.0
             },
             {
@@ -334,27 +334,6 @@
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 496,
               "line_end": 496,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"context\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 134,
-              "line_end": 134,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_context\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 274,
-              "line_end": 274,
               "metric_value": 0.0
             },
             {
@@ -437,29 +416,29 @@
             {
               "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 83,
-              "line_end": 83,
+              "line_start": 89,
+              "line_end": 89,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 83,
-              "line_end": 83,
+              "line_start": 89,
+              "line_end": 89,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 336,
-              "line_end": 336,
+              "line_start": 362,
+              "line_end": 362,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 336,
-              "line_end": 336,
+              "line_start": 362,
+              "line_end": 362,
               "metric_value": 0.0
             },
             {
@@ -619,29 +598,29 @@
             {
               "entity_name": "[unused_variable] \"method\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 292,
-              "line_end": 292,
+              "line_start": 295,
+              "line_end": 295,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 552,
-              "line_end": 552,
+              "line_start": 555,
+              "line_end": 555,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 586,
-              "line_end": 586,
+              "line_start": 589,
+              "line_end": 589,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"all_classes\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 1341,
-              "line_end": 1341,
+              "line_start": 1344,
+              "line_end": 1344,
               "metric_value": 0.0
             }
           ]
@@ -656,13 +635,6 @@
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 15,
               "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 3,
-              "line_end": 3,
               "metric_value": 0.0
             },
             {
@@ -875,12 +847,6 @@
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "agents/validation.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
       "file_path": "monitoring/callbacks.py",
       "total_findings": 4,
       "warning_findings": 4,
@@ -948,6 +914,12 @@
     },
     {
       "file_path": "health/checks/god_class.py",
+      "total_findings": 1,
+      "warning_findings": 1,
+      "composite_risk_score": 15.0
+    },
+    {
+      "file_path": "static_analyzer/lsp_client/typescript_client.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0

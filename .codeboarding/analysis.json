@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-02-26T19:29:50.171322+00:00",
+    "generated_at": "2026-02-28T23:07:41.482347+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -643,196 +643,263 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Static Analysis Facade",
-          "description": "Primary entry point orchestrating discovery, LSP initialization, and the analysis pipeline, returning results to callers.",
+          "name": "Static Analysis Orchestrator",
+          "description": "The central entry point that manages the lifecycle of analysis runs. It coordinates project discovery, determines the programming languages present, and triggers the incremental update logic to minimize processing time.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.StaticAnalyzer",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "ProjectScanner",
+              "reference_file": "static_analyzer/scanner.py",
+              "reference_start_line": 13,
+              "reference_end_line": 95
+            },
+            {
+              "qualified_name": "ProgrammingLanguage",
+              "reference_file": "static_analyzer/programming_language.py",
+              "reference_start_line": 23,
+              "reference_end_line": 75
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
             "static_analyzer/__init__.py",
-            "static_analyzer/analysis_result.py",
-            "static_analyzer/constants.py"
+            "static_analyzer/programming_language.py",
+            "static_analyzer/scanner.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "30f83ae661ff039a",
+          "source_cluster_ids": [
+            6,
+            12,
+            17
+          ],
+          "component_id": "c6ea8aab248d159c",
           "can_expand": true
         },
         {
-          "name": "Project Discovery Engine",
-          "description": "Scans the filesystem to detect programming languages, build tools, and project roots, providing configuration for later stages.",
+          "name": "LSP Protocol Handler",
+          "description": "Manages low-level communication with Language Servers. It abstracts JSON-RPC messaging, document synchronization, and provides a mixin-based approach for resolving semantic references across files.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.RepositoryScanner",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "LSPClient",
+              "reference_file": "static_analyzer/lsp_client/client.py",
+              "reference_start_line": 64,
+              "reference_end_line": 1650
             },
             {
-              "qualified_name": "static_analyzer.java_config_scanner.LanguageDetector",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "ReferenceResolverMixin",
+              "reference_file": "static_analyzer/reference_resolve_mixin.py",
+              "reference_start_line": 13,
+              "reference_end_line": 166
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
+            "static_analyzer/lsp_client/client.py",
+            "static_analyzer/reference_resolve_mixin.py",
+            "static_analyzer/lsp_client/diagnostics.py",
+            "static_analyzer/lsp_client/__init__.py",
+            "static_analyzer/lsp_client/language_settings.py"
+          ],
+          "source_cluster_ids": [
+            1,
+            15,
+            24
+          ],
+          "component_id": "71c922a4342d0c9f",
+          "can_expand": true
+        },
+        {
+          "name": "Language Specialists",
+          "description": "Concrete strategies that handle the nuances of specific languages and their build systems (e.g., Maven, Gradle, tsconfig). They provide the necessary environment bootstrapping for the LSP servers.",
+          "key_entities": [
+            {
+              "qualified_name": "JavaConfigScanner",
+              "reference_file": "static_analyzer/java_config_scanner.py",
+              "reference_start_line": 33,
+              "reference_end_line": 218
+            },
+            {
+              "qualified_name": "TSConfigScanner",
+              "reference_file": "static_analyzer/lsp_client/java_client.py"
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/lsp_client/java_client.py",
+            "static_analyzer/lsp_client/typescript_client.py",
             "static_analyzer/java_utils.py",
-            "static_analyzer/programming_language.py",
-            "static_analyzer/scanner.py",
+            "static_analyzer/java_config_scanner.py",
             "static_analyzer/typescript_config_scanner.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "88a4f32f593c08e2",
+          "source_cluster_ids": [
+            4,
+            10,
+            13,
+            14
+          ],
+          "component_id": "1dee8eb4d1a6b264",
           "can_expand": true
         },
         {
-          "name": "LSP Communication Framework",
-          "description": "Manages asynchronous LSP client lifecycles and JSON‑RPC communication to retrieve symbols and diagnostics from language servers.",
+          "name": "Incremental State Manager",
+          "description": "Optimizes performance by tracking changes in the codebase. It uses Git history to identify modified files and manages a local cache to ensure only affected components are re-analyzed.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.LSPClient",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "GitDiffAnalyzer",
+              "reference_file": "static_analyzer/git_diff_analyzer.py",
+              "reference_start_line": 16,
+              "reference_end_line": 224
             },
             {
-              "qualified_name": "static_analyzer.java_config_scanner.SymbolTranslator",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "AnalysisCache",
+              "reference_file": "static_analyzer/analysis_result.py",
+              "reference_start_line": 14,
+              "reference_end_line": 50
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/lsp_client/__init__.py",
-            "static_analyzer/lsp_client/client.py",
-            "static_analyzer/lsp_client/diagnostics.py",
-            "static_analyzer/lsp_client/java_client.py",
-            "static_analyzer/lsp_client/language_settings.py",
-            "static_analyzer/lsp_client/typescript_client.py"
+            "static_analyzer/git_diff_analyzer.py",
+            "static_analyzer/incremental_orchestrator.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "47ae21cee191fa9b",
+          "source_cluster_ids": [
+            23,
+            3
+          ],
+          "component_id": "ba3b9044e5917c25",
           "can_expand": true
         },
         {
-          "name": "Semantic Graph Engine",
-          "description": "Builds a directed call graph from LSP symbols, resolves cross‑file references, and clusters related entities using community detection.",
+          "name": "Graph & Abstraction Engine",
+          "description": "The \"brain\" of the subsystem that constructs a global Call Graph from raw symbols. It applies adaptive clustering to group low-level code elements into high-level architectural modules.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.CallGraphBuilder",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "CallGraphBuilder",
+              "reference_file": "static_analyzer/graph.py"
             },
             {
-              "qualified_name": "static_analyzer.java_config_scanner.ReferenceResolverMixin",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "AdaptiveClustering",
+              "reference_file": "static_analyzer/graph.py"
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/cluster_helpers.py",
             "static_analyzer/graph.py",
-            "static_analyzer/reference_resolve_mixin.py"
+            "static_analyzer/constants.py",
+            "static_analyzer/cluster_helpers.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "9f2e9b644ccedda7",
+          "source_cluster_ids": [
+            2,
+            7
+          ],
+          "component_id": "ecb4d5a4c3d111b8",
           "can_expand": true
         },
         {
-          "name": "Code Health & Quality Suite",
-          "description": "Runs structural checks (unused code, God class, coupling, etc.) against the semantic graph and LSP diagnostics, producing a health report.",
+          "name": "Code Quality Analyzer",
+          "description": "A composite engine that runs diagnostic checks. It identifies structural flaws such as circular dependencies, \"God Classes,\" and dead code, contributing to the overall health score of the project.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.UnusedCodeAnalyzer",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "HealthCheckRunner",
+              "reference_file": "health/config.py"
             },
             {
-              "qualified_name": "static_analyzer.java_config_scanner.HealthRunner",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "UnusedCodeAnalyzer",
+              "reference_file": "health/config.py"
+            },
+            {
+              "qualified_name": "CircularDependencyDetector",
+              "reference_file": "health/config.py"
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
+            "health/config.py",
+            "health/checks/cohesion.py",
+            "health/checks/function_size.py",
+            "health/runner.py",
             "health/__init__.py",
             "health/checks/__init__.py",
             "health/checks/circular_deps.py",
-            "health/checks/cohesion.py",
             "health/checks/coupling.py",
-            "health/checks/function_size.py",
             "health/checks/god_class.py",
             "health/checks/inheritance.py",
             "health/checks/instability.py",
             "health/checks/unused_code_diagnostics.py",
-            "health/config.py",
-            "health/constants.py",
-            "health/models.py",
-            "health/runner.py"
+            "health/constants.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "0cd193352212fa72",
+          "source_cluster_ids": [
+            11,
+            18,
+            25,
+            19
+          ],
+          "component_id": "f603535bcb663102",
           "can_expand": true
         },
         {
-          "name": "Incremental Analysis Controller",
-          "description": "Uses Git diffs and a cache to limit re‑analysis to modified files, directing the Facade to process only necessary parts.",
+          "name": "Analysis Data Store",
+          "description": "Manages the persistence of all analysis outputs. It defines unified Data Transfer Objects (DTOs) that allow both the VS Code UI and LLM agents to query the results of the static analysis.",
           "key_entities": [
             {
-              "qualified_name": "static_analyzer.java_config_scanner.GitDiffAnalyzer",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "StaticAnalysisResults",
+              "reference_file": "static_analyzer/analysis_result.py",
+              "reference_start_line": 53,
+              "reference_end_line": 269
             },
             {
-              "qualified_name": "static_analyzer.java_config_scanner.AnalysisCache",
-              "reference_file": "static_analyzer/java_config_scanner.py"
+              "qualified_name": "HealthReport",
+              "reference_file": "health/models.py",
+              "reference_start_line": 122,
+              "reference_end_line": 135
             }
           ],
           "assigned_files": [
-            "static_analyzer/java_config_scanner.py",
-            "static_analyzer/git_diff_analyzer.py",
-            "static_analyzer/incremental_orchestrator.py"
+            "health/models.py",
+            "static_analyzer/analysis_result.py"
           ],
-          "source_cluster_ids": [],
-          "component_id": "ea2c1348594d0991",
+          "source_cluster_ids": [
+            8,
+            9
+          ],
+          "component_id": "42e91dbe5eb4acfc",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers",
-          "src_name": "Static Analysis Facade",
-          "dst_name": "Project Discovery Engine",
-          "src_id": "30f83ae661ff039a",
-          "dst_id": "88a4f32f593c08e2"
+          "relation": "invokes",
+          "src_name": "Static Analysis Orchestrator",
+          "dst_name": "Incremental State Manager",
+          "src_id": "c6ea8aab248d159c",
+          "dst_id": "ba3b9044e5917c25"
         },
         {
-          "relation": "initializes",
-          "src_name": "Static Analysis Facade",
-          "dst_name": "LSP Communication Framework",
-          "src_id": "30f83ae661ff039a",
-          "dst_id": "47ae21cee191fa9b"
+          "relation": "uses",
+          "src_name": "LSP Protocol Handler",
+          "dst_name": "Language Specialists",
+          "src_id": "71c922a4342d0c9f",
+          "dst_id": "1dee8eb4d1a6b264"
         },
         {
-          "relation": "provides configuration to",
-          "src_name": "Project Discovery Engine",
-          "dst_name": "LSP Communication Framework",
-          "src_id": "88a4f32f593c08e2",
-          "dst_id": "47ae21cee191fa9b"
+          "relation": "feeds",
+          "src_name": "Language Specialists",
+          "dst_name": "Graph & Abstraction Engine",
+          "src_id": "1dee8eb4d1a6b264",
+          "dst_id": "ecb4d5a4c3d111b8"
         },
         {
-          "relation": "streams symbols to",
-          "src_name": "LSP Communication Framework",
-          "dst_name": "Semantic Graph Engine",
-          "src_id": "47ae21cee191fa9b",
-          "dst_id": "9f2e9b644ccedda7"
+          "relation": "provides",
+          "src_name": "Graph & Abstraction Engine",
+          "dst_name": "Code Quality Analyzer",
+          "src_id": "ecb4d5a4c3d111b8",
+          "dst_id": "f603535bcb663102"
         },
         {
-          "relation": "builds call graph for",
-          "src_name": "Semantic Graph Engine",
-          "dst_name": "Code Health & Quality Suite",
-          "src_id": "9f2e9b644ccedda7",
-          "dst_id": "0cd193352212fa72"
+          "relation": "pushes",
+          "src_name": "Code Quality Analyzer",
+          "dst_name": "Analysis Data Store",
+          "src_id": "f603535bcb663102",
+          "dst_id": "42e91dbe5eb4acfc"
         },
         {
-          "relation": "filters workload for",
-          "src_name": "Incremental Analysis Controller",
-          "dst_name": "Static Analysis Facade",
-          "src_id": "ea2c1348594d0991",
-          "dst_id": "30f83ae661ff039a"
+          "relation": "updates",
+          "src_name": "Incremental State Manager",
+          "dst_name": "Analysis Data Store",
+          "src_id": "ba3b9044e5917c25",
+          "dst_id": "42e91dbe5eb4acfc"
         }
       ]
     },
@@ -1296,235 +1363,162 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Output Dispatcher",
-          "description": "Acts as the central routing hub that receives structured analysis data from the Orchestrator and delegates it to the appropriate format engine based on user configuration.",
+          "name": "Output Orchestration Dispatcher",
+          "description": "The central controller that receives the final analysis manifest and routes data to the appropriate output generators based on user-defined configurations (e.g., `--format html,markdown`).",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.output.OutputDispatcher",
-              "reference_file": "output_generators/mdx.py"
+              "qualified_name": "repos.codeboarding.output.MultiFormatDocumenter",
+              "reference_file": "diagram_analysis/manifest.py"
             },
             {
-              "qualified_name": "repos.codeboarding.output.GeneratorRegistry",
-              "reference_file": "output_generators/mdx.py"
+              "qualified_name": "repos.codeboarding.output.OutputGenerator",
+              "reference_file": "diagram_analysis/manifest.py"
             }
           ],
           "assigned_files": [
-            "output_generators/mdx.py",
-            "output_generators/markdown.py",
+            "diagram_analysis/manifest.py",
+            "diagram_analysis/version.py",
             "github_action.py",
-            "output_generators/sphinx.py",
             "main.py",
-            "output_generators/html.py",
             "output_generators/__init__.py"
           ],
-          "source_cluster_ids": [
-            3
-          ],
-          "component_id": "988951e51c6b6455",
+          "source_cluster_ids": [],
+          "component_id": "e64106d4a5ae3350",
           "can_expand": true
         },
         {
-          "name": "Markdown Engine",
-          "description": "Synthesizes GitHub‑flavored Markdown and MDX documentation, handling front‑matter generation and embedding Mermaid.js strings for static rendering.",
+          "name": "Visual Model Generator",
+          "description": "The engine responsible for translating static analysis relationships into graph‑based syntax. It generates the raw Mermaid.js strings and Cytoscape JSON structures used by the providers.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.output.MarkdownOutputGenerator",
-              "reference_file": "output_generators/markdown.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.MDXGenerator",
-              "reference_file": "output_generators/markdown.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.FrontMatterHandler",
-              "reference_file": "output_generators/markdown.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/markdown.py",
-            "output_generators/mdx.py"
-          ],
-          "source_cluster_ids": [
-            6,
-            8
-          ],
-          "component_id": "8aded5706c56a1f3",
-          "can_expand": true
-        },
-        {
-          "name": "Sphinx Engine",
-          "description": "Transforms analysis results into ReStructuredText (RST) and Sphinx‑compatible directives to ensure compatibility with professional technical manual pipelines.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.SphinxOutputGenerator",
+              "qualified_name": "repos.codeboarding.output.DiagramGenerator",
               "reference_file": "output_generators/sphinx.py"
             },
             {
-              "qualified_name": "repos.codeboarding.output.RSTDirectiveHandler",
+              "qualified_name": "repos.codeboarding.output.MermaidGenerator",
+              "reference_file": "output_generators/sphinx.py"
+            }
+          ],
+          "assigned_files": [
+            "output_generators/sphinx.py",
+            "diagram_analysis/__init__.py",
+            "diagram_analysis/diagram_generator.py",
+            "diagram_analysis/file_coverage.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "3fa3cc5def887e3c",
+          "can_expand": true
+        },
+        {
+          "name": "Interactive HTML Provider",
+          "description": "Generates standalone, interactive web documentation. It embeds Cytoscape.js for dynamic diagram manipulation and manages CSS/JS assets for the UI.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.output.html.HTMLOutputGenerator",
+              "reference_file": "output_generators/html.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.output.html.CytoscapeGenerator",
+              "reference_file": "output_generators/html.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.output.html.TemplateEngine",
+              "reference_file": "output_generators/html.py"
+            }
+          ],
+          "assigned_files": [
+            "output_generators/html.py",
+            "output_generators/html_template.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "5b3a83830025d35b",
+          "can_expand": true
+        },
+        {
+          "name": "Static Markdown Provider",
+          "description": "Produces Markdown and MDX files optimized for static hosting (GitHub, Docusaurus). It embeds Mermaid.js code blocks for native rendering.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.output.markdown.MarkdownOutputGenerator",
+              "reference_file": "output_generators/markdown.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.output.markdown.MdxOutputGenerator",
+              "reference_file": "output_generators/sphinx.py"
+            }
+          ],
+          "assigned_files": [
+            "output_generators/sphinx.py",
+            "output_generators/markdown.py",
+            "output_generators/mdx.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "5ef353ad8e8d6ba9",
+          "can_expand": true
+        },
+        {
+          "name": "Sphinx Documentation Provider",
+          "description": "A specialized generator that produces ReStructuredText (RST) files, allowing the tool's output to be seamlessly integrated into existing Python Sphinx documentation suites.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.output.sphinx.SphinxOutputGenerator",
+              "reference_file": "output_generators/sphinx.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.output.sphinx.RstGenerator",
               "reference_file": "output_generators/sphinx.py"
             }
           ],
           "assigned_files": [
             "output_generators/sphinx.py"
           ],
-          "source_cluster_ids": [
-            9
-          ],
-          "component_id": "b406a44b330b8b5f",
-          "can_expand": true
-        },
-        {
-          "name": "HTML Visualization Engine",
-          "description": "Assembles interactive web reports using HTML/CSS templates and consumes processed graph structures for dynamic visual exploration.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.HTMLReportGenerator",
-              "reference_file": "output_generators/html_template.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.WebViewRenderer",
-              "reference_file": "output_generators/html_template.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/html_template.py"
-          ],
-          "source_cluster_ids": [
-            2,
-            7
-          ],
-          "component_id": "6d71c7f7025eb403",
-          "can_expand": true
-        },
-        {
-          "name": "Diagram Synthesis Engine",
-          "description": "Generates visual definitions (Mermaid, Cytoscape) from structured architectural data, serving as a shared utility for both static and interactive outputs.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.DiagramGenerator",
-              "reference_file": "output_generators/mdx.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.MermaidGenerator",
-              "reference_file": "output_generators/mdx.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/mdx.py",
-            "diagram_analysis/__init__.py",
-            "diagram_analysis/diagram_generator.py",
-            "diagram_analysis/file_coverage.py",
-            "diagram_analysis/manifest.py",
-            "diagram_analysis/version.py"
-          ],
-          "source_cluster_ids": [
-            6
-          ],
-          "component_id": "e4d6362ee6109b2f",
-          "can_expand": true
-        },
-        {
-          "name": "Graph Data Processor",
-          "description": "Normalizes node and edge data into formats compatible with interactive graph libraries (e.g., Cytoscape JSON).",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.GraphDataProcessor",
-              "reference_file": "output_generators/html.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.CytoscapeDataFormatter",
-              "reference_file": "output_generators/html.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/html.py"
-          ],
-          "source_cluster_ids": [
-            10
-          ],
-          "component_id": "2125e729d2c807a1",
-          "can_expand": true
-        },
-        {
-          "name": "Template Manager",
-          "description": "Manages shared assets including CSS, HTML templates, and front‑matter configurations used across different output formats.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.output.TemplateManager",
-              "reference_file": "output_generators/html_template.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.output.AssetLoader",
-              "reference_file": "output_generators/html_template.py"
-            }
-          ],
-          "assigned_files": [
-            "output_generators/html_template.py"
-          ],
-          "source_cluster_ids": [
-            2,
-            7
-          ],
-          "component_id": "28f18a51bde95cae",
+          "source_cluster_ids": [],
+          "component_id": "ce325145cf610b7e",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "Routes analysis data to",
-          "src_name": "Output Dispatcher",
-          "dst_name": "Markdown Engine",
-          "src_id": "988951e51c6b6455",
-          "dst_id": "8aded5706c56a1f3"
+          "relation": "dispatches to",
+          "src_name": "Output Orchestration Dispatcher",
+          "dst_name": "Interactive HTML Provider",
+          "src_id": "e64106d4a5ae3350",
+          "dst_id": "5b3a83830025d35b"
         },
         {
-          "relation": "Routes analysis data to",
-          "src_name": "Output Dispatcher",
-          "dst_name": "HTML Visualization Engine",
-          "src_id": "988951e51c6b6455",
-          "dst_id": "6d71c7f7025eb403"
+          "relation": "dispatches to",
+          "src_name": "Output Orchestration Dispatcher",
+          "dst_name": "Static Markdown Provider",
+          "src_id": "e64106d4a5ae3350",
+          "dst_id": "5ef353ad8e8d6ba9"
         },
         {
-          "relation": "Requests visual definitions from",
-          "src_name": "Markdown Engine",
-          "dst_name": "Diagram Synthesis Engine",
-          "src_id": "8aded5706c56a1f3",
-          "dst_id": "e4d6362ee6109b2f"
+          "relation": "dispatches to",
+          "src_name": "Output Orchestration Dispatcher",
+          "dst_name": "Sphinx Documentation Provider",
+          "src_id": "e64106d4a5ae3350",
+          "dst_id": "ce325145cf610b7e"
         },
         {
-          "relation": "Consumes formatted graph data from",
-          "src_name": "HTML Visualization Engine",
-          "dst_name": "Graph Data Processor",
-          "src_id": "6d71c7f7025eb403",
-          "dst_id": "2125e729d2c807a1"
+          "relation": "supplies data to",
+          "src_name": "Visual Model Generator",
+          "dst_name": "Interactive HTML Provider",
+          "src_id": "3fa3cc5def887e3c",
+          "dst_id": "5b3a83830025d35b"
         },
         {
-          "relation": "Requests visual definitions from",
-          "src_name": "HTML Visualization Engine",
-          "dst_name": "Diagram Synthesis Engine",
-          "src_id": "6d71c7f7025eb403",
-          "dst_id": "e4d6362ee6109b2f"
+          "relation": "supplies data to",
+          "src_name": "Visual Model Generator",
+          "dst_name": "Static Markdown Provider",
+          "src_id": "3fa3cc5def887e3c",
+          "dst_id": "5ef353ad8e8d6ba9"
         },
         {
-          "relation": "Utilizes shared assets from",
-          "src_name": "Sphinx Engine",
-          "dst_name": "Template Manager",
-          "src_id": "b406a44b330b8b5f",
-          "dst_id": "28f18a51bde95cae"
-        },
-        {
-          "relation": "Feeds processed JSON to",
-          "src_name": "Graph Data Processor",
-          "dst_name": "HTML Visualization Engine",
-          "src_id": "2125e729d2c807a1",
-          "dst_id": "6d71c7f7025eb403"
-        },
-        {
-          "relation": "Maintains registry of",
-          "src_name": "Output Dispatcher",
-          "dst_name": "Sphinx Engine",
-          "src_id": "988951e51c6b6455",
-          "dst_id": "b406a44b330b8b5f"
+          "relation": "supplies data to",
+          "src_name": "Visual Model Generator",
+          "dst_name": "Sphinx Documentation Provider",
+          "src_id": "3fa3cc5def887e3c",
+          "dst_id": "ce325145cf610b7e"
         }
       ]
     }
