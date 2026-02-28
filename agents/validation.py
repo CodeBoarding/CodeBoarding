@@ -38,16 +38,12 @@ class ValidationResult:
     feedback_messages: list[str] = field(default_factory=list)
 
 
-def validate_cluster_coverage(
-    result: ClusterAnalysis | AnalysisInsights, context: ValidationContext
-) -> ValidationResult:
+def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
     """
-    Validate that all expected clusters are represented in the result.
-
-    Handles both ClusterAnalysis (cluster_components) and AnalysisInsights (components with source_cluster_ids).
+    Validate that all expected clusters are represented in the ClusterAnalysis.
 
     Args:
-        result: ClusterAnalysis or AnalysisInsights
+        result: ClusterAnalysis with cluster_components
         context: ValidationContext with expected_cluster_ids
 
     Returns:
@@ -57,27 +53,20 @@ def validate_cluster_coverage(
         logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
         return ValidationResult(is_valid=True)
 
-    # Extract all cluster IDs from the result
     result_cluster_ids: set[int] = set()
-    if isinstance(result, ClusterAnalysis):
-        for cc in result.cluster_components:
-            result_cluster_ids.update(cc.cluster_ids)
-    elif isinstance(result, AnalysisInsights):
-        for comp in result.components:
-            result_cluster_ids.update(comp.source_cluster_ids)
+    for cc in result.cluster_components:
+        result_cluster_ids.update(cc.cluster_ids)
 
-    # Find missing clusters
     missing_clusters = context.expected_cluster_ids - result_cluster_ids
 
     if not missing_clusters:
         logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
         return ValidationResult(is_valid=True)
 
-    # Build feedback message
     missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
     feedback = (
         f"The following cluster IDs are missing from the analysis: {missing_str}. "
-        f"Please ensure all clusters are assigned to a component via source_cluster_ids."
+        f"Please ensure all clusters are assigned to a component via cluster_ids."
     )
 
     logger.warning(f"[Validation] Missing clusters: {missing_str}")
@@ -89,6 +78,7 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
     Validate bidirectional coverage between cluster groups and components:
     1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
     2. Every Component must have at least one source_group_name assigned.
+    3. Every source_group_name referenced by a Component must exist in the cluster analysis.
 
     Args:
         result: AnalysisInsights containing components with source_group_names
@@ -114,7 +104,14 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
     # Check 2: Components without any source_group_names
     empty_components = [comp.name for comp in result.components if not comp.source_group_names]
 
-    if not missing_groups and not empty_components:
+    # Check 3: Components referencing non-existent group names (typos/hallucinations)
+    unknown_refs: dict[str, list[str]] = {}
+    for comp in result.components:
+        for gname in comp.source_group_names:
+            if gname.lower() not in expected_lower:
+                unknown_refs.setdefault(comp.name, []).append(gname)
+
+    if not missing_groups and not empty_components and not unknown_refs:
         logger.info("[Validation] All cluster groups and components have proper bidirectional coverage")
         return ValidationResult(is_valid=True)
 
@@ -151,6 +148,16 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         )
         logger.warning(f"[Validation] Unassigned groups: {missing_str}; empty components: {empty_str}")
 
+    if unknown_refs:
+        details = "; ".join(f"{comp}: {', '.join(names)}" for comp, names in sorted(unknown_refs.items()))
+        all_names_str = ", ".join(sorted(expected_group_names))
+        feedback_messages.append(
+            f"The following components reference non-existent cluster group names: {details}. "
+            f"Available cluster group names are: {all_names_str}. "
+            f"Please fix or remove the invalid source_group_names."
+        )
+        logger.warning(f"[Validation] Unknown source_group_names: {details}")
+
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
@@ -158,9 +165,12 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
     """
     Validate that component relationships have corresponding edges in the cluster graph.
 
+    Resolves cluster IDs from source_group_names via cluster_analysis, since source_cluster_ids
+    are populated deterministically after this validation step.
+
     Args:
         result: AnalysisInsights containing components and components_relations
-        context: ValidationContext with cluster_results and cfg_graphs
+        context: ValidationContext with cluster_results, cfg_graphs, and cluster_analysis
 
     Returns:
         ValidationResult with feedback for invalid relationships
@@ -169,10 +179,22 @@ def validate_component_relationships(result: AnalysisInsights, context: Validati
         logger.warning("[Validation] No CFG graphs or component relationships provided for relationship validation")
         return ValidationResult(is_valid=True)
 
-    # Build component name -> source_cluster_ids mapping
-    component_clusters: dict[str, list[int]] = {}
-    for component in result.components:
-        component_clusters[component.name] = component.source_cluster_ids
+    if not context.cluster_analysis:
+        logger.warning("[Validation] No cluster_analysis provided — cannot resolve cluster IDs for relationship check")
+        return ValidationResult(is_valid=True)
+
+    # Build case-insensitive group name -> cluster IDs lookup from cluster_analysis
+    group_name_to_ids: dict[str, list[int]] = {
+        cc.name.lower(): cc.cluster_ids for cc in context.cluster_analysis.cluster_components
+    }
+
+    # Resolve component name -> cluster IDs from source_group_names
+    component_clusters: dict[str, list[int]] = {
+        component.name: [
+            cid for gname in component.source_group_names for cid in group_name_to_ids.get(gname.lower(), [])
+        ]
+        for component in result.components
+    }
 
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
 
