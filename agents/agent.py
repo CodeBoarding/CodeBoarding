@@ -246,6 +246,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 logger.info(f"[Validation] All validations passed on attempt {attempt + 1}")
                 return result  # All validations passed
 
+            # On the last attempt, log that validation still failed but don't retry
+            if attempt == max_validation_retries - 1:
+                logger.warning(
+                    f"[Validation] Still {len(all_feedback)} issue(s) after {max_validation_retries} retries, "
+                    f"returning best result"
+                )
+                return result
+
             # Build feedback prompt using the prompt factory
             feedback_template = get_validation_feedback_message()
             feedback_prompt = feedback_template.format(

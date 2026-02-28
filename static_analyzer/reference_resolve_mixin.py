@@ -120,8 +120,7 @@ class ReferenceResolverMixin:
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        extra_paths = file_candidates or []
-        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref, *extra_paths]
+        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
 
         for path in paths:
             if os.path.exists(path):
@@ -130,6 +129,25 @@ class ReferenceResolverMixin:
                     f"[Reference Resolution] Path matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
                 )
                 return True
+
+        # Try matching file_candidates: check if any candidate's path matches a prefix of the qname
+        # e.g. qname "pkg.module.ClassName" should match candidate "pkg/module.py"
+        if file_candidates:
+            qname_segments = qname.split(".")
+            for candidate in file_candidates:
+                candidate_full = os.path.join(self.repo_dir, candidate) if not os.path.isabs(candidate) else candidate
+                if not os.path.exists(candidate_full):
+                    continue
+                candidate_stem = os.path.splitext(candidate)[0].replace("/", os.sep).replace("\\", os.sep)
+                # Try progressively shorter prefixes of the qname
+                for end in range(len(qname_segments), 0, -1):
+                    prefix_as_path = os.sep.join(qname_segments[:end])
+                    if candidate_stem.endswith(prefix_as_path):
+                        reference.reference_file = str(candidate_full)
+                        logger.info(
+                            f"[Reference Resolution] File candidate matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
+                        )
+                        return True
         return False
 
     def _remove_unresolved_references(self, analysis: AnalysisInsights):

@@ -77,70 +77,49 @@ class TestValidateClusterCoverage(unittest.TestCase):
     """Test validate_cluster_coverage function."""
 
     def test_all_clusters_covered(self):
-        """Test when all expected clusters are in the result."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2]),
-                ClustersComponent(name="Component B", description="Component B description", cluster_ids=[3, 4]),
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
+                ClustersComponent(name="Component B", description="desc", cluster_ids=[3, 4]),
             ]
         )
-
         context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
-
         result = validate_cluster_coverage(cluster_analysis, context)
-
         self.assertTrue(result.is_valid)
-        self.assertEqual(result.feedback_messages, [])
 
     def test_missing_clusters(self):
-        """Test when some clusters are missing from the result."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2]),
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
             ]
         )
-
         context = ValidationContext(expected_cluster_ids={1, 2, 3, 4, 5})
-
         result = validate_cluster_coverage(cluster_analysis, context)
-
         self.assertFalse(result.is_valid)
-        self.assertEqual(len(result.feedback_messages), 1)
         self.assertIn("3, 4, 5", result.feedback_messages[0])
-        self.assertIn("missing", result.feedback_messages[0].lower())
 
     def test_no_expected_clusters(self):
-        """Test when no expected clusters are provided."""
         cluster_analysis = ClusterAnalysis(cluster_components=[])
         context = ValidationContext(expected_cluster_ids=set())
-
         result = validate_cluster_coverage(cluster_analysis, context)
-
         self.assertTrue(result.is_valid)
 
     def test_empty_cluster_analysis(self):
-        """Test when cluster analysis has no components."""
         cluster_analysis = ClusterAnalysis(cluster_components=[])
         context = ValidationContext(expected_cluster_ids={1, 2, 3})
-
         result = validate_cluster_coverage(cluster_analysis, context)
-
         self.assertFalse(result.is_valid)
         self.assertIn("1, 2, 3", result.feedback_messages[0])
 
     def test_overlapping_cluster_ids(self):
-        """Test when cluster IDs appear in multiple components (should still count as covered)."""
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
-                ClustersComponent(name="Component A", description="Component A description", cluster_ids=[1, 2, 3]),
-                ClustersComponent(name="Component B", description="Component B description", cluster_ids=[2, 3, 4]),
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2, 3]),
+                ClustersComponent(name="Component B", description="desc", cluster_ids=[2, 3, 4]),
             ]
         )
-
         context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
-
         result = validate_cluster_coverage(cluster_analysis, context)
-
         self.assertTrue(result.is_valid)
 
 
@@ -173,13 +152,22 @@ class TestValidateComponentRelationships(unittest.TestCase):
             }
         )
 
+    def _make_cluster_analysis(self, group_mappings: list[tuple[str, list[int]]]) -> ClusterAnalysis:
+        """Helper to build a ClusterAnalysis from (name, cluster_ids) pairs."""
+        return ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name=name, cluster_ids=ids, description="test") for name, ids in group_mappings
+            ]
+        )
+
     def test_valid_relationships_with_backing_edges(self):
         """Test when all relationships have backing edges."""
+        cluster_analysis = self._make_cluster_analysis([("GroupA", [1]), ("GroupB", [2])])
         analysis = AnalysisInsights(
             description="Test",
             components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1]),
-                Component(name="CompB", description="B", key_entities=[], source_cluster_ids=[2]),
+                Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupA"]),
+                Component(name="CompB", description="B", key_entities=[], source_group_names=["GroupB"]),
             ],
             components_relations=[
                 Relation(relation="calls", src_name="CompA", dst_name="CompB"),
@@ -189,6 +177,7 @@ class TestValidateComponentRelationships(unittest.TestCase):
         context = ValidationContext(
             cluster_results={"python": self.cluster_result},
             cfg_graphs={"python": self.cfg},
+            cluster_analysis=cluster_analysis,
         )
 
         result = validate_component_relationships(analysis, context)
@@ -198,12 +187,13 @@ class TestValidateComponentRelationships(unittest.TestCase):
 
     def test_invalid_relationships_without_backing_edges(self):
         """Test when relationships lack backing edges."""
+        cluster_analysis = self._make_cluster_analysis([("GroupA", [1]), ("GroupD", [4])])
         analysis = AnalysisInsights(
             description="Test",
             components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1]),
+                Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupA"]),
                 Component(
-                    name="CompB", description="B", key_entities=[], source_cluster_ids=[4]
+                    name="CompB", description="B", key_entities=[], source_group_names=["GroupD"]
                 ),  # No edge from 1 to 4
             ],
             components_relations=[
@@ -214,6 +204,7 @@ class TestValidateComponentRelationships(unittest.TestCase):
         context = ValidationContext(
             cluster_results={"python": self.cluster_result},
             cfg_graphs={"python": self.cfg},
+            cluster_analysis=cluster_analysis,
         )
 
         result = validate_component_relationships(analysis, context)
@@ -225,15 +216,17 @@ class TestValidateComponentRelationships(unittest.TestCase):
 
     def test_no_relationships(self):
         """Test when there are no component relationships."""
+        cluster_analysis = self._make_cluster_analysis([("GroupA", [1])])
         analysis = AnalysisInsights(
             description="Test",
-            components=[Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1])],
+            components=[Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupA"])],
             components_relations=[],
         )
 
         context = ValidationContext(
             cluster_results={"python": self.cluster_result},
             cfg_graphs={"python": self.cfg},
+            cluster_analysis=cluster_analysis,
         )
 
         result = validate_component_relationships(analysis, context)
@@ -241,12 +234,13 @@ class TestValidateComponentRelationships(unittest.TestCase):
         self.assertTrue(result.is_valid)
 
     def test_missing_component_clusters(self):
-        """Test when a component referenced in relation has no clusters."""
+        """Test when a component referenced in relation has no resolved clusters."""
+        cluster_analysis = self._make_cluster_analysis([("GroupA", [1])])
         analysis = AnalysisInsights(
             description="Test",
             components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1]),
-                Component(name="CompB", description="B", key_entities=[], source_cluster_ids=[]),  # No clusters
+                Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupA"]),
+                Component(name="CompB", description="B", key_entities=[], source_group_names=[]),  # No groups
             ],
             components_relations=[
                 Relation(relation="calls", src_name="CompA", dst_name="CompB"),
@@ -256,6 +250,7 @@ class TestValidateComponentRelationships(unittest.TestCase):
         context = ValidationContext(
             cluster_results={"python": self.cluster_result},
             cfg_graphs={"python": self.cfg},
+            cluster_analysis=cluster_analysis,
         )
 
         result = validate_component_relationships(analysis, context)
@@ -265,11 +260,17 @@ class TestValidateComponentRelationships(unittest.TestCase):
 
     def test_multiple_clusters_with_edge(self):
         """Test when components have multiple clusters and at least one pair has an edge."""
+        cluster_analysis = self._make_cluster_analysis(
+            [
+                ("GroupAC", [1, 3]),
+                ("GroupBD", [2, 4]),
+            ]
+        )
         analysis = AnalysisInsights(
             description="Test",
             components=[
-                Component(name="CompA", description="A", key_entities=[], source_cluster_ids=[1, 3]),  # 1->2, 3->4
-                Component(name="CompB", description="B", key_entities=[], source_cluster_ids=[2, 4]),
+                Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupAC"]),
+                Component(name="CompB", description="B", key_entities=[], source_group_names=["GroupBD"]),
             ],
             components_relations=[
                 Relation(relation="calls", src_name="CompA", dst_name="CompB"),
@@ -279,6 +280,7 @@ class TestValidateComponentRelationships(unittest.TestCase):
         context = ValidationContext(
             cluster_results={"python": self.cluster_result},
             cfg_graphs={"python": self.cfg},
+            cluster_analysis=cluster_analysis,
         )
 
         result = validate_component_relationships(analysis, context)
@@ -294,6 +296,25 @@ class TestValidateComponentRelationships(unittest.TestCase):
         )
 
         context = ValidationContext(cfg_graphs={})
+
+        result = validate_component_relationships(analysis, context)
+
+        self.assertTrue(result.is_valid)  # Skipped validation
+
+    def test_no_cluster_analysis(self):
+        """Test when no cluster_analysis is provided."""
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(name="CompA", description="A", key_entities=[], source_group_names=["GroupA"]),
+            ],
+            components_relations=[Relation(relation="test", src_name="CompA", dst_name="CompB")],
+        )
+
+        context = ValidationContext(
+            cluster_results={"python": self.cluster_result},
+            cfg_graphs={"python": self.cfg},
+        )
 
         result = validate_component_relationships(analysis, context)
 

@@ -113,7 +113,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         context = ValidationContext(
             cluster_results=cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
-            expected_cluster_ids=get_all_cluster_ids(cluster_results),
             static_analysis=self.static_analysis,
             cluster_analysis=cluster_analysis,
         )
