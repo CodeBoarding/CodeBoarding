@@ -262,10 +262,28 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.mock_static_analysis.get_reference.side_effect = ValueError("Not found")
         self.mock_static_analysis.get_loose_reference.side_effect = Exception("Not found")
 
-        # Should fall back to other strategies; with no resolution keep as unresolved
+        # Should fall back to file candidate matching: qname prefix "module.file" matches "module/file.py"
         self.resolver._resolve_single_reference(reference, ["module/file.py"])
 
-        # Should remain unresolved without LLM
+        expected_path = str(self.repo_dir / "module" / "file.py")
+        self.assertEqual(reference.reference_file, expected_path)
+
+    def test_resolve_single_reference_cascade_no_match(self):
+        """Test that unrelated file candidates are NOT used as fallback"""
+        reference = SourceCodeReference(
+            qualified_name="totally.unrelated.ClassName",
+            reference_file=None,
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+
+        # Make exact and loose match fail
+        self.mock_static_analysis.get_reference.side_effect = ValueError("Not found")
+        self.mock_static_analysis.get_loose_reference.side_effect = Exception("Not found")
+
+        # File candidate doesn't match the qname — should remain unresolved
+        self.resolver._resolve_single_reference(reference, ["module/file.py"])
+
         self.assertIsNone(reference.reference_file)
 
     def test_fix_source_code_reference_lines_multiple_languages(self):
