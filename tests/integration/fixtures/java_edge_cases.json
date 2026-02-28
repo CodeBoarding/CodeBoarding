@@ -116,7 +116,27 @@
     "src.main.java.unused.DeadCode.DeadCode",
     "src.main.java.app.Main.Main"
   ],
-  "sample_hierarchy": {},
+  "sample_hierarchy": {
+    "src.main.java.core.Animal.Animal": {
+      "superclasses_contain": ["src.main.java.core.Speakable.Speakable"],
+      "subclasses_contain": ["src.main.java.core.Dog.Dog", "src.main.java.core.Cat.Cat", "src.main.java.core.Duck.Duck"]
+    },
+    "src.main.java.core.Dog.Dog": {
+      "superclasses_contain": ["src.main.java.core.Animal.Animal"]
+    },
+    "src.main.java.core.Cat.Cat": {
+      "superclasses_contain": ["src.main.java.core.Animal.Animal"]
+    },
+    "src.main.java.core.Duck.Duck": {
+      "superclasses_contain": ["src.main.java.core.Animal.Animal", "src.main.java.core.Swimmable.Swimmable"]
+    },
+    "src.main.java.core.Speakable.Speakable": {
+      "subclasses_contain": ["src.main.java.core.Animal.Animal"]
+    },
+    "src.main.java.core.Swimmable.Swimmable": {
+      "subclasses_contain": ["src.main.java.core.Duck.Duck"]
+    }
+  },
   "sample_edges": [
     ["src.main.java.core.Speakable.describe()", "src.main.java.core.Speakable.speak()"],
 
@@ -150,6 +170,7 @@
 
     ["src.main.java.core.Services.computeTotal(int, int, int, int)", "src.main.java.utils.Helpers.add(int, int)"],
     ["src.main.java.core.Services.computeTotal(int, int, int, int)", "src.main.java.utils.Helpers.clamp(int, int, int)"],
+    ["src.main.java.core.Services.buildQuery(String)", "src.main.java.core.QueryBuilder.QueryBuilder()"],
     ["src.main.java.core.Services.buildQuery(String)", "src.main.java.core.QueryBuilder.from(String)"],
     ["src.main.java.core.Services.buildQuery(String)", "src.main.java.core.QueryBuilder.where(String)"],
     ["src.main.java.core.Services.buildQuery(String)", "src.main.java.core.QueryBuilder.orderBy(String)"],
@@ -174,6 +195,7 @@
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.Container.Item(String)"],
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.Container.Metadata.format()"],
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.Container.Item.describe()"],
+    ["src.main.java.app.Main.main(String[])", "src.main.java.core.QueryBuilder.QueryBuilder()"],
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.QueryBuilder.from(String)"],
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.QueryBuilder.where(String)"],
     ["src.main.java.app.Main.main(String[])", "src.main.java.core.QueryBuilder.orderBy(String)"],

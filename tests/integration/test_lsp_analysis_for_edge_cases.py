@@ -14,10 +14,10 @@ independently without re-running the expensive LSP analysis.
 
 Usage:
     # Run all edge-case integration tests
-    STATIC_ANALYSIS_CONFIG=static_analysis_config.yml uv run pytest tests/integration/test_edge_cases.py -m integration -v
+    STATIC_ANALYSIS_CONFIG=static_analysis_config.yml uv run pytest tests/integration/test_lsp_analysis_for_edge_cases.py -m integration -v
 
     # Run only the Python edge-case test
-    STATIC_ANALYSIS_CONFIG=static_analysis_config.yml uv run pytest tests/integration/test_edge_cases.py -k python -m integration -v
+    STATIC_ANALYSIS_CONFIG=static_analysis_config.yml uv run pytest tests/integration/test_lsp_analysis_for_edge_cases.py -k python -m integration -v
 """
 
 import json
