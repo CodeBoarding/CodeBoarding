@@ -60,6 +60,7 @@ class FileAnalysisResult:
     body_edges: list[tuple] = field(default_factory=list)
     method_timings: dict[str, float] = field(default_factory=dict)
     error: str | None = None
+    content: str | None = None  # File content cached during analysis; cleared after post-processing
 
 
 class LSPClient(ABC):
@@ -126,6 +127,12 @@ class LSPClient(ABC):
         # rather than the function itself (e.g. `def log_call(func):` — both log_call and func are
         # on the same line but at different columns).
         self._definition_location_map: dict[str, dict[int, tuple[str, int]]] = {}
+
+        # Cache of document symbols fetched during _build_definition_location_map.
+        # Keyed by file URI → list of raw document symbol dicts.
+        # Populated once before parallel analysis and consumed by _analyze_single_file
+        # to avoid redundant textDocument/documentSymbol LSP requests.
+        self._cached_document_symbols: dict[str, list] = {}
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -486,12 +493,18 @@ class LSPClient(ABC):
         during parallel analysis.  The map is stored in self._definition_location_map.
         The sel_char is stored alongside the name so that same-line symbols (e.g. a function and its
         parameter on the same `def` line) can be distinguished by column.
+
+        As a side-effect, the raw document symbols for each file are cached in
+        ``self._cached_document_symbols`` so that ``_analyze_single_file`` can reuse
+        them without issuing another ``textDocument/documentSymbol`` request.
         """
         self._definition_location_map = {}
+        self._cached_document_symbols = {}
         for file_path in src_files:
             try:
                 file_uri = file_path.as_uri()
                 symbols = self._get_document_symbols(file_uri)
+                self._cached_document_symbols[file_uri] = symbols
                 file_map: dict[int, tuple[str, int]] = {}
                 self._collect_symbol_lines(symbols, file_path, file_map, parent_name=None)
                 self._definition_location_map[file_uri] = file_map
@@ -862,22 +875,12 @@ class LSPClient(ABC):
             except Exception as e:
                 logger.debug(f"Error pre-opening file {file_path}: {e}")
 
-        # Wait for the LSP server to finish indexing all pre-opened files.
-        # Many servers (e.g. Pyright) analyse files asynchronously after didOpen.
-        # Requesting documentSymbols for each file acts as a synchronisation
-        # barrier: the server can only respond once it has processed that file.
-        # We do this for every file (not just the first) because some servers
-        # (e.g. typescript-language-server) index files lazily on first access.
-        for barrier_file in src_files:
-            try:
-                self._get_document_symbols(barrier_file.as_uri())
-            except Exception as e:
-                logger.debug(f"Error waiting for LSP indexing of {barrier_file}: {e}")
-
         # Build a workspace-wide map from definition location (file URI + selection line) to
         # qualified name.  This lets _process_definition_response resolve method references to
         # their class-qualified names (e.g. Dog.create -> core.base.Dog.create) without issuing
         # additional LSP requests during the parallel analysis phase.
+        # This also serves as a synchronisation barrier: _get_document_symbols is called for every
+        # file, which forces the LSP server to finish indexing each one before we proceed.
         logger.info("Building definition location map...")
         self._build_definition_location_map(src_files)
         logger.info(f"Definition location map built for {len(self._definition_location_map)} files")
@@ -1042,6 +1045,11 @@ class LSPClient(ABC):
         # Language-specific post-processing (e.g. synthesising Java constructor nodes/edges)
         self._post_process_analysis(call_graph, reference_nodes, successful_results)
 
+        # Free cached data — no longer needed after analysis.
+        self._cached_document_symbols = {}
+        for r in successful_results:
+            r.content = None
+
         logger.info("Unified static analysis complete.")
         logger.info(
             f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
@@ -1077,13 +1085,15 @@ class LSPClient(ABC):
 
         try:
             content = file_path.read_text(encoding="utf-8")
+            result.content = content
 
             # Populate package name before symbol check so files without symbols
             # still get their correct package name (avoids phantom empty-string packages)
             result.package_name = self._get_package_name(file_path)
 
-            # Get all symbols in this file once
-            symbols = self._get_document_symbols(file_uri)
+            # Use cached symbols from _build_definition_location_map if available,
+            # otherwise fetch them (fallback for callers that skip the map-building step).
+            symbols = self._cached_document_symbols.get(file_uri) or self._get_document_symbols(file_uri)
             if not symbols:
                 return result
 

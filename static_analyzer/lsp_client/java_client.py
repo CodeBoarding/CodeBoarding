@@ -562,10 +562,13 @@ class JavaClient(LSPClient):
         if result.error:
             return
 
-        try:
-            content = file_path.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            return
+        # Use cached content from analysis if available, otherwise read from disk.
+        content = result.content
+        if content is None:
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                return
 
         LSP_KIND_CLASS = 5
         LSP_KIND_METHOD = 6
@@ -669,14 +672,14 @@ class JavaClient(LSPClient):
             # Synthesise accessor call edges from any method in this file that calls
             # the accessor methods.  We look for function symbols in this file and
             # check if they call accessor patterns like "name()" or "email()".
+            content_lines = content.split("\n")
             for func_sym in result.function_symbols:
                 func_fqn = self._create_qualified_name(file_path, func_sym.get("name", ""))
                 # Check if the function body contains calls to the record accessors
                 func_range = func_sym.get("range", {})
                 start_ln = func_range.get("start", {}).get("line", 0)
                 end_ln = func_range.get("end", {}).get("line", start_ln)
-                func_body_lines = content.split("\n")[start_ln : end_ln + 1]
-                func_body = "\n".join(func_body_lines)
+                func_body = "\n".join(content_lines[start_ln : end_ln + 1])
 
                 for acc_fqn, (_type_tok, comp_name) in zip(accessor_fqns, components):
                     # Look for accessor call pattern: "comp_name()"
@@ -744,44 +747,52 @@ class JavaClient(LSPClient):
         # e.g. "from" → ["src.main.java.core.QueryBuilder.from(String)"]
         name_to_fqns: dict[str, list[str]] = {}
         for fqn in call_graph.nodes:
-            # Extract the simple method name from the FQN
-            # e.g. "src.main.java.core.QueryBuilder.from(String)" → "from"
             simple = fqn.rsplit(".", 1)[-1]
-            # Drop the argument list to get just the method name
             method_name = simple.split("(")[0]
             if method_name:
                 name_to_fqns.setdefault(method_name, []).append(fqn)
+
+        # Build the set of existing edges ONCE (not per-file).
+        existing_edge_fqns: set[tuple[str, str]] = {
+            (e.src_node.fully_qualified_name, e.dst_node.fully_qualified_name) for e in call_graph.edges
+        }
+
+        # Pre-index: caller_fqn → set of callee class prefixes, for fast sibling lookups.
+        # e.g. "pkg.Foo.bar()" → {"pkg.Foo", "pkg.Baz"} means bar() already calls into Foo and Baz.
+        caller_to_callee_classes: dict[str, set[str]] = {}
+        for src_fqn, dst_fqn in existing_edge_fqns:
+            dst_class = dst_fqn.rsplit(".", 1)[0]
+            caller_to_callee_classes.setdefault(src_fqn, set()).add(dst_class)
+
+        # Pre-index: file_path → list of method/constructor nodes in the call graph.
+        file_path_to_nodes: dict[str, list[Node]] = {}
+        for node in call_graph.nodes.values():
+            if node.type in (6, 9):  # method / constructor
+                file_path_to_nodes.setdefault(node.file_path, []).append(node)
 
         # Process each file result
         for file_result in file_results:
             if file_result.error:
                 continue
-            try:
-                content = file_result.file_path.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
+
+            # Use cached content from analysis if available, otherwise read from disk.
+            content = file_result.content
+            if content is None:
+                try:
+                    content = file_result.file_path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
 
             lines = content.split("\n")
             file_path = file_result.file_path
-
-            # Build a set of edges already in the call graph for fast lookup
-            existing_edge_fqns: set[tuple[str, str]] = {
-                (e.src_node.fully_qualified_name, e.dst_node.fully_qualified_name) for e in call_graph.edges
-            }
-
-            # Iterate over call-graph nodes that belong to this file.
-            # We use nodes (not function_symbols) because JDTLS alias resolution
-            # may give inner-class methods FQNs like "Container.Item.describe()"
-            # that differ from what _create_qualified_name returns from the flat
-            # symbol name "describe".
             file_path_str = str(file_path)
-            file_nodes = [
-                node
-                for node in call_graph.nodes.values()
-                if node.file_path == file_path_str and node.type in (6, 9)  # method / constructor
-            ]
+
+            # Get nodes for this file from the pre-built index.
+            file_nodes = file_path_to_nodes.get(file_path_str, [])
+            if not file_nodes:
+                continue
+
             # Build a range lookup from function_symbols for body extraction
-            # keyed by (start_line, end_line)
             sym_ranges: list[tuple[int, int]] = [
                 (
                     fs.get("range", {}).get("start", {}).get("line", 0),
@@ -795,7 +806,6 @@ class JavaClient(LSPClient):
                 # Find the best matching function symbol range for this node
                 node_start = node.line_start
                 node_end = node.line_end
-                # Use the node's own line range, falling back to a matching sym range
                 best_start, best_end = node_start, node_end
                 for s, e in sym_ranges:
                     if s == node_start or e == node_end:
@@ -808,6 +818,7 @@ class JavaClient(LSPClient):
                 called_names: set[str] = {m.group(1) for m in self._METHOD_CALL_RE.finditer(func_body)}
 
                 # For each called method name, check if there's an unlinked edge in the graph
+                caller_classes = caller_to_callee_classes.get(caller_fqn, set())
                 for method_name in called_names:
                     candidates = name_to_fqns.get(method_name, [])
                     for candidate_fqn in candidates:
@@ -824,15 +835,16 @@ class JavaClient(LSPClient):
                         # (b) the caller is a nested class of the candidate's class
                         #     (inner class calling outer class method).
                         candidate_class = candidate_fqn.rsplit(".", 1)[0]
-                        caller_has_sibling = any(
-                            e[1].startswith(candidate_class + ".") for e in existing_edge_fqns if e[0] == caller_fqn
-                        )
+                        caller_has_sibling = candidate_class in caller_classes
                         caller_is_inner = caller_fqn.startswith(candidate_class + ".")
                         if not caller_has_sibling and not caller_is_inner:
                             continue
                         try:
                             call_graph.add_edge(caller_fqn, candidate_fqn)
                             existing_edge_fqns.add(edge_key)
+                            # Update the caller→callee-class index incrementally.
+                            caller_to_callee_classes.setdefault(caller_fqn, set()).add(candidate_class)
+                            caller_classes = caller_to_callee_classes[caller_fqn]
                             logger.debug(f"Java: synthesised missing call edge {caller_fqn} -> {candidate_fqn}")
                         except ValueError:
                             pass
@@ -841,7 +853,6 @@ class JavaClient(LSPClient):
                 #    and we have a parametrized constructor node for that class, add the edge.
                 for new_match in re.finditer(r"\bnew\s+(\w+)\s*\(", func_body):
                     class_name = new_match.group(1)
-                    # Look for parametrized constructor FQNs: "...ClassName.ClassName(T, ...)"
                     ctor_candidates = [
                         fqn
                         for fqn in name_to_fqns.get(class_name, [])
