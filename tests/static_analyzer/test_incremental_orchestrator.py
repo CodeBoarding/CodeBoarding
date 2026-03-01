@@ -10,7 +10,8 @@ from static_analyzer.cluster_change_analyzer import (
     ClusterChangeAnalyzer,
     ClusterChangeResult,
 )
-from static_analyzer.graph import CallGraph, ClusterResult, Node
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 
 
