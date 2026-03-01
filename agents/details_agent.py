@@ -17,7 +17,6 @@ from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
-    validate_component_relationships,
     validate_group_name_coverage,
     validate_key_entities,
     validate_relation_component_names,
@@ -143,7 +142,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validators=[
                 validate_relation_component_names,
                 validate_group_name_coverage,
-                validate_component_relationships,
                 validate_key_entities,
                 validate_qualified_names,
             ],

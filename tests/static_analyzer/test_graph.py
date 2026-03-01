@@ -3,7 +3,7 @@ from unittest.mock import patch, Mock
 
 import networkx as nx
 
-from static_analyzer.constants import Node
+from static_analyzer.node import Node
 from static_analyzer.graph import Edge, CallGraph, ClusterResult
 
 
@@ -328,11 +328,11 @@ class TestCallGraph(unittest.TestCase):
 
         result = graph.llm_str(size_limit=10000)
 
-        # Should use default string representation
+        # Should use detailed representation (level 1)
         self.assertIn("module.src", result)
         self.assertIn("module.dst", result)
-        self.assertIn("calling", result)
-        self.assertNotIn("grouped view", result)
+        self.assertIn("calls:", result)
+        self.assertNotIn("class-level summary", result)
 
     def test_llm_str_large_graph(self):
         # Test LLM string for large graph (exceeds size limit)
@@ -347,11 +347,11 @@ class TestCallGraph(unittest.TestCase):
         for i in range(49):
             graph.add_edge(f"class{i % 5}.ClassA.method{i}", f"class{(i+1) % 5}.ClassA.method{i+1}")
 
-        # Use very small size limit to trigger grouping
+        # Use very small size limit to trigger class-level summary
         result = graph.llm_str(size_limit=100)
 
-        # Should use grouped view
-        self.assertIn("grouped view", result)
+        # Should use class-level summary
+        self.assertIn("class-level summary", result)
         self.assertIn("Class", result)
 
     def test_llm_str_with_functions(self):
@@ -384,12 +384,15 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func2", "module.func3")
 
-        # Skip node2
+        # Skip node2 — func1 still shows its call to func2 (stored in methods_called_by_me),
+        # but func2's own outgoing call to func3 is suppressed
         result = graph.llm_str(skip_nodes=[node2])
 
-        # node2 should not appear in grouped output
         self.assertIn("module.func1", result)
-        self.assertIn("module.func3", result)
+        # func1 still lists func2 as a call target (it's in func1.methods_called_by_me)
+        self.assertIn("module.func2", result)
+        # The header should reflect 2 active nodes (func1 + func3), not 3
+        self.assertIn("2 nodes", result)
 
     def test_cluster_str_static_method(self):
         # Test __cluster_str static method

@@ -7,7 +7,8 @@ from collections import defaultdict
 
 from agents.agent_responses import ClusterAnalysis, Component, AnalysisInsights, MethodEntry, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Node, NodeType
+from static_analyzer.constants import NodeType
+from static_analyzer.node import Node
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class ClusterMethodsMixin:
         This prevents confusion in documentation where the same class/method
         is listed as a "key entity" for multiple components.
         """
-        logger.info("[ClusterMethodsMixin] Ensuring key_entities are unique across components")
+        logger.info("Ensuring key_entities are unique across components")
 
         seen_entities: dict[str, Component] = {}
 
@@ -108,14 +109,12 @@ class ClusterMethodsMixin:
                             e for e in original_component.key_entities if e.qualified_name != qname
                         ]
                         seen_entities[qname] = component
-                        logger.debug(
-                            f"[ClusterMethodsMixin] Moved key_entity '{qname}' from {original_component.name} to {component.name}"
-                        )
+                        logger.debug(f"Moved key_entity '{qname}' from {original_component.name} to {component.name}")
                     else:
                         # Keep in original component
                         entities_to_remove.append(key_entity)
                         logger.debug(
-                            f"[ClusterMethodsMixin] Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
+                            f"Removed duplicate key_entity '{qname}' from {component.name} (kept in {original_component.name})"
                         )
                 else:
                     seen_entities[qname] = component
@@ -153,7 +152,7 @@ class ClusterMethodsMixin:
         """
         component_files = [fg.file_path for fg in component.file_methods]
         if not component_files:
-            logger.warning(f"[ClusterMethodsMixin] Component {component.name} has no file_methods")
+            logger.warning(f"Component {component.name} has no file_methods")
             return "No assigned files found for this component.", {}
 
         # Convert files to absolute paths for comparison
@@ -185,9 +184,7 @@ class ClusterMethodsMixin:
         result = "".join(result_parts)
 
         if not result.strip():
-            logger.warning(
-                f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component_files)} files"
-            )
+            logger.warning(f"No CFG found for component {component.name} with {len(component_files)} files")
             return "No relevant CFG clusters found for this component.", cluster_results
 
         return result, cluster_results
@@ -291,7 +288,7 @@ class ClusterMethodsMixin:
         unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))
         if unmapped_cluster_ids:
             logger.error(
-                f"[ClusterMethodsMixin] {len(unmapped_cluster_ids)}/{len(all_cluster_ids)} clusters not mapped "
+                f"{len(unmapped_cluster_ids)}/{len(all_cluster_ids)} clusters not mapped "
                 f"via source_cluster_ids: {unmapped_cluster_ids}. This should never happen — all clusters must be "
                 f"assigned to components by the LLM."
             )
@@ -334,7 +331,7 @@ class ClusterMethodsMixin:
                 unassigned.append(qname)
 
         if unassigned:
-            logger.info(f"[ClusterMethodsMixin] Assigning {len(unassigned)} orphan node(s)")
+            logger.info(f"Assigning {len(unassigned)} orphan node(s)")
 
         assigned_by_file = 0
         assigned_by_graph = 0
@@ -366,12 +363,12 @@ class ClusterMethodsMixin:
 
         if unassigned:
             logger.info(
-                f"[ClusterMethodsMixin] Orphan assignment: {assigned_by_file} by file, "
+                f"Orphan assignment: {assigned_by_file} by file, "
                 f"{assigned_by_graph} by graph distance, {assigned_by_fallback} to fallback"
             )
         if assigned_by_fallback:
             logger.warning(
-                f"[ClusterMethodsMixin] {assigned_by_fallback} node(s) fell back to '{fallback_component.name}' "
+                f"{assigned_by_fallback} node(s) fell back to '{fallback_component.name}' "
                 f"— files: {sorted(fallback_files)}"
             )
 
@@ -381,9 +378,7 @@ class ClusterMethodsMixin:
         """Log the percentage of nodes assigned to components."""
         assigned_nodes = sum(len(fg.methods) for comp in analysis.components for fg in comp.file_methods)
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
-        logger.info(
-            f"[ClusterMethodsMixin] Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components"
-        )
+        logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
     def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
         """Deterministically populate ``file_methods`` on every component.

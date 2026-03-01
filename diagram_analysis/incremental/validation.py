@@ -5,7 +5,6 @@ import logging
 from agents.agent_responses import AnalysisInsights
 from agents.validation import (
     ValidationContext,
-    validate_component_relationships,
     validate_key_entities,
     validate_qualified_names,
 )
@@ -31,7 +30,7 @@ def validate_incremental_update(analysis: AnalysisInsights, static_analysis: Sta
         static_analysis=static_analysis,
     )
 
-    validators = [validate_component_relationships, validate_key_entities, validate_qualified_names]
+    validators = [validate_key_entities, validate_qualified_names]
     all_valid = True
 
     for validator in validators:

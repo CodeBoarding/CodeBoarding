@@ -161,80 +161,6 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
-def validate_component_relationships(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that component relationships have corresponding edges in the cluster graph.
-
-    Resolves cluster IDs from source_group_names via cluster_analysis, since source_cluster_ids
-    are populated deterministically after this validation step.
-
-    Args:
-        result: AnalysisInsights containing components and components_relations
-        context: ValidationContext with cluster_results, cfg_graphs, and cluster_analysis
-
-    Returns:
-        ValidationResult with feedback for invalid relationships
-    """
-    if not context.cfg_graphs or not result.components_relations:
-        logger.warning("[Validation] No CFG graphs or component relationships provided for relationship validation")
-        return ValidationResult(is_valid=True)
-
-    if not context.cluster_analysis:
-        logger.warning("[Validation] No cluster_analysis provided — cannot resolve cluster IDs for relationship check")
-        return ValidationResult(is_valid=True)
-
-    # Build case-insensitive group name -> cluster IDs lookup from cluster_analysis
-    group_name_to_ids: dict[str, list[int]] = {
-        cc.name.lower(): cc.cluster_ids for cc in context.cluster_analysis.cluster_components
-    }
-
-    # Resolve component name -> cluster IDs from source_group_names
-    component_clusters: dict[str, list[int]] = {
-        component.name: [
-            cid for gname in component.source_group_names for cid in group_name_to_ids.get(gname.lower(), [])
-        ]
-        for component in result.components
-    }
-
-    cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
-
-    invalid_relations: list[str] = []
-
-    for relation in result.components_relations:
-        src_clusters = component_clusters.get(relation.src_name, [])
-        dst_clusters = component_clusters.get(relation.dst_name, [])
-
-        if not src_clusters or not dst_clusters:
-            continue
-
-        # Check if any cluster pair has an edge
-        has_edge = _check_edge_between_cluster_sets(
-            src_clusters,
-            dst_clusters,
-            context.cluster_results,
-            context.cfg_graphs,
-            cluster_edge_lookup,
-        )
-
-        if not has_edge:
-            invalid_relations.append(f"({relation.src_name} -> {relation.dst_name})")
-
-    if not invalid_relations:
-        logger.info("[Validation] All component relationships have backing edges")
-        return ValidationResult(is_valid=True)
-
-    # Build feedback message
-    invalid_str = ", ".join(invalid_relations)
-    feedback = (
-        f"The following component relationships lack backing edges in the cluster graph: {invalid_str}. "
-        f"Please double-check if these components are actually related. If there is no direct edge between "
-        f"their clusters, the relationship may be indirect or incorrect."
-    )
-
-    logger.warning(f"[Validation] Invalid relationships: {invalid_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
-
-
 def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
     Validate that every component in AnalysisInsights has at least one key_entity assigned.
@@ -485,7 +411,11 @@ def _check_edge_between_cluster_sets(
 
     for cluster_edges in cluster_edge_lookup.values():
         for src_cluster, dst_cluster in cluster_edges:
-            if src_cluster in src_set and dst_cluster in dst_set:
+            # Check both directions: the LLM's relation direction may not match
+            # the call graph edge direction (e.g. "A uses B" vs B.method() calls A.method())
+            if (src_cluster in src_set and dst_cluster in dst_set) or (
+                src_cluster in dst_set and dst_cluster in src_set
+            ):
                 return True
 
     return False

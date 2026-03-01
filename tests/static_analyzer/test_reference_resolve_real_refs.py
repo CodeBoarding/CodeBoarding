@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Node
+from static_analyzer.node import Node
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 
