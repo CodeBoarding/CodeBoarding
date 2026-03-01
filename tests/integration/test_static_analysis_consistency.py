@@ -24,27 +24,27 @@ Usage:
 """
 
 import time
+from unittest.mock import patch
 
 import pytest
 from git import Repo
-from unittest.mock import patch
 
-from static_analyzer import get_static_analysis
 from repo_utils import clone_repository
+from static_analyzer import get_static_analysis
 
 from .conftest import (
-    RepositoryTestConfig,
     REPOSITORY_CONFIGS,
+    RepositoryTestConfig,
     create_mock_scanner,
-    load_fixture,
     extract_metrics,
+    load_fixture,
 )
 
 # Tolerance percentage for metric comparisons (2% = 0.02)
-METRIC_TOLERANCE = 0.02
+METRIC_TOLERANCE = 0
 
 # Minimum absolute tolerance for small numbers (e.g., 20 vs 19 is 5% diff, but only 1 unit)
-MIN_ABSOLUTE_TOLERANCE = 2
+MIN_ABSOLUTE_TOLERANCE = 0
 
 # Tolerance percentage for execution time comparisons (15% = 0.15)
 EXECUTION_TIME_TOLERANCE = 0.15

@@ -7,11 +7,11 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 2559,
+    "references_count": 2939,
     "classes_count": 111,
     "packages_count": 20,
-    "call_graph_nodes": 2563,
-    "call_graph_edges": 903,
+    "call_graph_nodes": 2943,
+    "call_graph_edges": 3904,
     "source_files_count": 80,
     "execution_time_seconds": 60
   },
