@@ -288,9 +288,8 @@ class StaticAnalyzer:
                 # issues" (i.e. the file key was removed by an empty
                 # publishDiagnostics notification).  Files that were never
                 # opened remain covered by the cache.
-                cache_diags: dict = {}
-                if "diagnostics" in analysis and analysis["diagnostics"]:
-                    cache_diags = analysis["diagnostics"]
+                cache_diags: dict = analysis.get("diagnostics") or {}
+                if cache_diags:
                     logger.info(
                         f"Loaded {len(cache_diags)} files with diagnostics from cache for {client.language.language}"
                     )
