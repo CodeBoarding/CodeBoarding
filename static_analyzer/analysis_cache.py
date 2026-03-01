@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.graph import CallGraph, ClusterResult, Node, Edge
+from static_analyzer.graph import CallGraph, ClusterResult, Edge
+from static_analyzer.node import Node
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)

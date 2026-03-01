@@ -15,7 +15,9 @@ import pathspec
 from tqdm import tqdm
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 from static_analyzer.lsp_client.language_settings import get_language_settings
 from static_analyzer.scanner import ProgrammingLanguage
@@ -109,7 +111,7 @@ class LSPClient(ABC):
 
         # Initialize CallGraph
         self.call_graph = CallGraph()
-        self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
+        self.symbol_kinds = list(NodeType.GRAPH_NODE_TYPES)  # only class, method, and function types
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
         # Initialize diagnostics collection for health checks
