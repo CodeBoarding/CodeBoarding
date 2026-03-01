@@ -800,7 +800,7 @@ class TestJavaClient(unittest.TestCase):
     @patch("time.sleep", return_value=None)
     @patch("time.time")
     def test_get_all_classes_with_retry(self, mock_time, mock_sleep):
-        """Test _get_all_classes_in_workspace with retry when not indexed."""
+        """Test _get_all_classes_in_workspace: single attempt with symbols returns them."""
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -811,33 +811,29 @@ class TestJavaClient(unittest.TestCase):
         # Not indexed initially
         self.assertFalse(client.workspace_indexed)
 
-        # Mock time
-        mock_time.side_effect = [0, 2, 4]
-
-        # Mock responses: first empty, then with symbols
-        responses = [
-            {"result": []},
-            {
-                "result": [
-                    {"name": "Class1", "kind": 5},
-                    {"name": "Interface1", "kind": 11},
-                ]
-            },
-        ]
+        # Mock response: symbols found on first (and only) attempt
+        response = {
+            "result": [
+                {"name": "Class1", "kind": 5},
+                {"name": "Interface1", "kind": 11},
+            ]
+        }
 
         with patch.object(client, "_send_request", return_value=1):
-            with patch.object(client, "_wait_for_response", side_effect=responses):
+            with patch.object(client, "_wait_for_response", return_value=response):
                 result = client._get_all_classes_in_workspace()
 
-                # Should have retried and found classes
+                # Should have found classes on single attempt
                 self.assertTrue(client.workspace_indexed)
-                self.assertEqual(len(result), 1)  # Only class symbols (kind 5)
-                self.assertEqual(result[0]["name"], "Class1")
+                # Both Class (kind=5) and Interface (kind=11) are in _CLASS_LIKE_KINDS
+                self.assertEqual(len(result), 2)
+                names = {r["name"] for r in result}
+                self.assertIn("Class1", names)
 
     @patch("time.sleep", return_value=None)
     @patch("time.time")
     def test_get_all_classes_retry_timeout(self, mock_time, mock_sleep):
-        """Test _get_all_classes_in_workspace timeout during retry."""
+        """Test _get_all_classes_in_workspace: single attempt with empty result returns []."""
         client = JavaClient(
             self.project_path,
             self.mock_language,
@@ -848,18 +844,12 @@ class TestJavaClient(unittest.TestCase):
         # Not indexed
         self.assertFalse(client.workspace_indexed)
 
-        # Mock time to simulate timeout - need more values for the loop
-        times = [0]  # start
-        for i in range(0, 35, 2):  # Generate times that will eventually exceed 30s timeout
-            times.append(i)
-        mock_time.side_effect = times
-
-        # Mock response to always return empty
+        # Mock response to return empty (simulating projects where workspace/symbol never returns)
         with patch.object(client, "_send_request", return_value=1):
             with patch.object(client, "_wait_for_response", return_value={"result": []}):
                 result = client._get_all_classes_in_workspace()
 
-                # Should timeout and return empty list
+                # Single attempt returned empty — should fall through to file-by-file analysis
                 self.assertFalse(client.workspace_indexed)
                 self.assertEqual(len(result), 0)
 

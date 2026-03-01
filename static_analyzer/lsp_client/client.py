@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -117,6 +118,14 @@ class LSPClient(ABC):
 
         # Track per-document versions for textDocument/didChange notifications
         self._document_versions: dict[str, int] = {}
+
+        # Maps file URI -> {selection_range_line -> (qualified_name, sel_char)} for all workspace
+        # symbols.  Built before parallel analysis so that _process_definition_response can resolve
+        # method definitions to their class-qualified names (e.g. core.base.Dog.create).
+        # The sel_char is stored so we can detect when a definition points to a same-line parameter
+        # rather than the function itself (e.g. `def log_call(func):` — both log_call and func are
+        # on the same line but at different columns).
+        self._definition_location_map: dict[str, dict[int, tuple[str, int]]] = {}
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -416,6 +425,14 @@ class LSPClient(ABC):
         # Add language-specific settings to enable unused code diagnostics
         settings = get_language_settings(self.language_id)
         if settings:
+            # For Python/Pyright, add the project root as an extra search path so that
+            # cross-package imports (e.g. `from utils.helpers import add`) resolve when
+            # there is no virtual-environment or installed package.  The project root is
+            # always a valid source root for first-party code.
+            if self.language_id.lower() == "python":
+                settings.setdefault("python", {}).setdefault("analysis", {}).setdefault("extraPaths", []).append(
+                    str(self.project_path)
+                )
             params["initializationOptions"] = settings
         init_id = self._send_request("initialize", params)
         # Use longer timeout for initialization as it may involve full workspace indexing
@@ -438,6 +455,11 @@ class LSPClient(ABC):
         if not settings:
             return
 
+        if self.language_id.lower() == "python":
+            settings.setdefault("python", {}).setdefault("analysis", {}).setdefault("extraPaths", []).append(
+                str(self.project_path)
+            )
+
         logger.info(f"Sending workspace configuration for {self.language_id}...")
 
         # Send configuration using workspace/didChangeConfiguration
@@ -455,6 +477,93 @@ class LSPClient(ABC):
         logger.debug(f"Requesting document symbols for {file_uri} with ID {req_id}")
         response = self._wait_for_response(req_id)
         return response.get("result", [])
+
+    def _build_definition_location_map(self, src_files: list[Path]) -> None:
+        """Build a mapping from file_uri -> {line -> (qualified_name, sel_char)} for all workspace symbols.
+
+        This allows _process_definition_response to resolve method definitions to their
+        class-qualified names (e.g. Dog.create -> core.base.Dog.create) without extra LSP round-trips
+        during parallel analysis.  The map is stored in self._definition_location_map.
+        The sel_char is stored alongside the name so that same-line symbols (e.g. a function and its
+        parameter on the same `def` line) can be distinguished by column.
+        """
+        self._definition_location_map = {}
+        for file_path in src_files:
+            try:
+                file_uri = file_path.as_uri()
+                symbols = self._get_document_symbols(file_uri)
+                file_map: dict[int, tuple[str, int]] = {}
+                self._collect_symbol_lines(symbols, file_path, file_map, parent_name=None)
+                self._definition_location_map[file_uri] = file_map
+            except Exception as e:
+                logger.debug(f"Error building definition location map for {file_path}: {e}")
+
+    # LSP symbol kinds that represent callable/navigable entities worth indexing.
+    # Class=5, Method=6, Function=12, Constructor=9.
+    # Variables (13), parameters, fields, etc. are intentionally excluded to avoid
+    # overwriting a method entry when a same-line parameter has the same selection line.
+    _DEFINITION_MAP_SYMBOL_KINDS = {5, 6, 9, 12}
+
+    # LSP symbol kind for Class.  Only class parents are included in the definition-map
+    # qualified name so that class methods get their class-qualified name (e.g. Dog.create)
+    # while nested functions keep their flat module-level name (e.g. wrapper, not log_call.wrapper).
+    _CLASS_KIND = 5
+
+    def _collect_symbol_lines(
+        self,
+        symbols: list,
+        file_path: Path,
+        file_map: dict[int, tuple[str, int]],
+        parent_name: str | None,
+        parent_kind: int = 0,
+    ) -> None:
+        """Recursively walk document symbols and populate file_map with line -> (qualified_name, sel_char).
+
+        Only callable/navigable symbol kinds (class, method, function, constructor) are
+        indexed.  Parameters and variables are skipped so that a method and its same-line
+        parameter do not compete for the same map entry.
+        The sel_char is stored so _process_definition_response can distinguish between a function
+        and a parameter on the same `def` line (they share the line but differ in column).
+
+        Parent context is only included in the qualified name when the parent is a class (kind=5).
+        Nested functions inside other functions use their flat name (e.g. `wrapper`, not
+        `log_call.wrapper`) so the definition map stays consistent with the flat node names
+        produced by _create_qualified_name in the REFERENCES section.
+        """
+        for sym in symbols:
+            name = sym.get("name", "")
+            kind = sym.get("kind", 0)
+            if not name:
+                continue
+            # Only propagate the parent prefix when the parent is a class, not a function.
+            # This ensures class methods get class-qualified names (Dog.create) while nested
+            # functions inside other functions keep their flat names (wrapper, not log_call.wrapper).
+            effective_parent = parent_name if parent_kind == self._CLASS_KIND else None
+            qualified_symbol = f"{effective_parent}.{name}" if effective_parent else name
+
+            if kind in self._DEFINITION_MAP_SYMBOL_KINDS:
+                # Map the selection range start line to (qualified_name, col) from project root.
+                # Only write if this line hasn't been claimed yet (first writer wins).
+                sel_range_start = sym.get("selectionRange", sym.get("range", {})).get("start", {})
+                sel_line = sel_range_start.get("line")
+                sel_char = sel_range_start.get("character", 0)
+                if sel_line is not None and sel_line not in file_map:
+                    # Avoid doubling the file stem in the qualified name.
+                    # E.g. for Animal.java: "Animal.getName" → just "getName" before
+                    # passing to _create_qualified_name, which will prepend "...Animal."
+                    stem = file_path.stem
+                    sym_for_name = qualified_symbol
+                    if sym_for_name.startswith(f"{stem}."):
+                        sym_for_name = sym_for_name[len(stem) + 1 :]
+                    full_name = self._create_qualified_name(file_path, sym_for_name)
+                    file_map[sel_line] = (full_name, sel_char)
+
+            # Always recurse into children so nested methods/classes are indexed
+            children = sym.get("children", [])
+            if children:
+                self._collect_symbol_lines(
+                    children, file_path, file_map, parent_name=qualified_symbol, parent_kind=kind
+                )
 
     def _prepare_call_hierarchy(self, file_uri: str, line: int, character: int) -> list:
         """Prepares a call hierarchy at a specific location."""
@@ -478,25 +587,61 @@ class LSPClient(ABC):
         response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
+    # Keywords to skip when scanning for call positions.
+    _CALL_SCAN_KEYWORDS = {
+        "if",
+        "for",
+        "while",
+        "def",
+        "class",
+        "function",
+        "return",
+        "yield",
+        "import",
+        "from",
+        "as",
+        "with",
+        "try",
+        "except",
+        "finally",
+        "raise",
+        "assert",
+        "lambda",
+        "pass",
+        "break",
+        "continue",
+    }
+
     def _find_call_positions_in_range(self, content: str, start_line: int, end_line: int) -> list[dict]:
         """
-        Find positions of function/method calls within a line range.
-        A call is identified by finding '(' and working backwards to get the identifier.
+        Find positions of function/method calls and callable references within a line range.
+
+        Three patterns are captured:
+        1. Direct calls:  identifier(  — the classic function-call pattern.
+        2. Return refs:   return <identifier>  — returning a closure/inner function without calling it.
+        3. Callable args: identifiers passed as standalone arguments (not followed by '('), which
+           arise in higher-order function calls like filter(is_positive, ...) or map(double, ...).
+
         Returns list of: {'line': int, 'char': int, 'name': str}
         """
         lines = content.split("\n")
         call_positions = []
+        seen: set[tuple[int, int]] = set()  # (line_idx, char) pairs already added
+
+        def add_position(line_idx: int, char: int, name: str) -> None:
+            if (line_idx, char) not in seen and name and not name[0].isdigit():
+                if name not in self._CALL_SCAN_KEYWORDS:
+                    seen.add((line_idx, char))
+                    call_positions.append({"line": line_idx, "char": char, "name": name})
 
         for line_idx in range(start_line, min(end_line + 1, len(lines))):
             line = lines[line_idx]
-
-            # Find all '(' in the line
+            # --- Pattern 1: direct calls  identifier( ---
             for char_idx in range(len(line)):
                 if line[char_idx] != "(":
                     continue
 
-                # Work backwards to find the identifier
-                # Skip whitespace before '('
+                # Work backwards to find the identifier before '('
                 name_end = char_idx - 1
                 while name_end >= 0 and line[name_end] in " \t":
                     name_end -= 1
@@ -504,7 +649,6 @@ class LSPClient(ABC):
                 if name_end < 0:
                     continue
 
-                # Extract identifier (alphanumeric + underscore)
                 name_start = name_end
                 while name_start >= 0 and (line[name_start].isalnum() or line[name_start] == "_"):
                     name_start -= 1
@@ -515,41 +659,35 @@ class LSPClient(ABC):
 
                 identifier = line[name_start : name_end + 1]
 
-                # Skip declaration names like "def foo(" or "class Bar(".
+                # Skip declaration names like "def foo(" or "class Bar("
                 decl_prefix = line[:name_start].rstrip()
                 if decl_prefix.endswith(("def", "class", "function")):
                     continue
 
-                # Skip keywords and invalid identifiers
-                if not identifier or identifier[0].isdigit():
-                    continue
+                add_position(line_idx, name_start, identifier)
 
-                keywords = {
-                    "if",
-                    "for",
-                    "while",
-                    "def",
-                    "class",
-                    "return",
-                    "yield",
-                    "import",
-                    "from",
-                    "as",
-                    "with",
-                    "try",
-                    "except",
-                    "finally",
-                    "raise",
-                    "assert",
-                    "lambda",
-                    "pass",
-                    "break",
-                    "continue",
-                }
-                if identifier in keywords:
-                    continue
+            # --- Pattern 2: return <identifier>  (closure / inner-function reference) ---
+            # Matches lines like `return wrapper` or `return multiplier` where the identifier
+            # is NOT immediately followed by '(' (which would already be caught by Pattern 1).
+            m = re.match(r"^\s*return\s+([A-Za-z_][A-Za-z0-9_]*)(\s*$|[^(\w])", line)
+            if m:
+                name = m.group(1)
+                char = line.index(name, line.index("return") + len("return"))
+                add_position(line_idx, char, name)
 
-                call_positions.append({"line": line_idx, "char": name_start, "name": identifier})
+            # --- Pattern 3: standalone identifier arguments to function calls ---
+            # Finds identifiers that appear as arguments (preceded by '(' or ',') and are
+            # NOT followed by '(' — meaning they are passed as callable values, not called.
+            # Example: filter(is_positive, values)  →  is_positive is a callable argument.
+            for m in re.finditer(r"(?<=[,(])\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?=[,)])", line):
+                name = m.group(1)
+                if name in self._CALL_SCAN_KEYWORDS:
+                    continue
+                # Find the column of the identifier in the original line
+                char = m.start(1)
+                # Skip if already captured as a direct call (identifier followed by '(' elsewhere)
+                # The add_position guard handles duplicates via the seen set.
+                add_position(line_idx, char, name)
 
         return call_positions
 
@@ -608,11 +746,31 @@ class LSPClient(ABC):
             # Check if path is within project
             try:
                 def_path.relative_to(self.project_path)
-                # Create qualified name for project files
-                return self._create_qualified_name(def_path, call_pos["name"])
             except ValueError:
-                # For external libraries or builtins, use simple name
-                return call_pos["name"]
+                # For external libraries or builtins, skip the edge
+                return None
+
+            # Prefer looking up the qualified name from the pre-built definition location map.
+            # This correctly handles methods nested inside classes
+            # (e.g. Dog.create -> core.base.Dog.create instead of core.base.create).
+            def_range_start = definition.get("range", {}).get("start", {})
+            def_line = def_range_start.get("line")
+            def_char = def_range_start.get("character", -1)
+            if def_line is not None and def_uri in self._definition_location_map:
+                entry = self._definition_location_map[def_uri].get(def_line)
+                if entry is not None:
+                    mapped_name, sel_char = entry
+                    # Only use the mapped name when the definition character column matches
+                    # the symbol's selection start column.  A mismatch means the definition
+                    # points to a parameter on the same line as the function declaration
+                    # (e.g. `def log_call(func):` — log_call is at col 4, func is at col 13).
+                    # In that case fall through to the call-site name fallback below.
+                    if def_char == sel_char:
+                        return mapped_name
+
+            # Fall back to the call-site name when the map has no entry or the character
+            # column doesn't match (parameter vs. function on the same line).
+            return self._create_qualified_name(def_path, call_pos["name"])
 
         except Exception as e:
             logger.debug(f"Error processing definition response: {e}")
@@ -683,6 +841,47 @@ class LSPClient(ABC):
         # Prepare for analysis (language-specific setup)
         self._prepare_for_analysis()
 
+        # Pre-open all source files so the LSP server indexes them before any
+        # textDocument/definition requests are made during parallel body analysis.
+        # Without this, cross-file definition lookups race against didOpen
+        # notifications from other threads, causing non-deterministic edge drops.
+        for file_path in src_files:
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                self._send_notification(
+                    "textDocument/didOpen",
+                    {
+                        "textDocument": {
+                            "uri": file_path.as_uri(),
+                            "languageId": self.language_id,
+                            "version": 1,
+                            "text": content,
+                        }
+                    },
+                )
+            except Exception as e:
+                logger.debug(f"Error pre-opening file {file_path}: {e}")
+
+        # Wait for the LSP server to finish indexing all pre-opened files.
+        # Many servers (e.g. Pyright) analyse files asynchronously after didOpen.
+        # Requesting documentSymbols for each file acts as a synchronisation
+        # barrier: the server can only respond once it has processed that file.
+        # We do this for every file (not just the first) because some servers
+        # (e.g. typescript-language-server) index files lazily on first access.
+        for barrier_file in src_files:
+            try:
+                self._get_document_symbols(barrier_file.as_uri())
+            except Exception as e:
+                logger.debug(f"Error waiting for LSP indexing of {barrier_file}: {e}")
+
+        # Build a workspace-wide map from definition location (file URI + selection line) to
+        # qualified name.  This lets _process_definition_response resolve method references to
+        # their class-qualified names (e.g. Dog.create -> core.base.Dog.create) without issuing
+        # additional LSP requests during the parallel analysis phase.
+        logger.info("Building definition location map...")
+        self._build_definition_location_map(src_files)
+        logger.info(f"Definition location map built for {len(self._definition_location_map)} files")
+
         # Get all classes in workspace for hierarchy analysis
         all_classes = self._get_all_classes_in_workspace()
         logger.info(f"Found {len(all_classes)} classes in workspace")
@@ -751,7 +950,7 @@ class LSPClient(ABC):
             package_relations[result.package_name]["files"].append(str(result.file_path))
 
             for imported_module in result.imports:
-                imported_package = self._extract_package_from_import(imported_module)
+                imported_package = self._extract_package_from_import(imported_module, result.file_path)
                 if imported_package and imported_package != result.package_name:
                     package_relations[result.package_name]["imports"].add(imported_package)
                     package_relations[result.package_name]["import_deps"].add(imported_package)
@@ -776,6 +975,32 @@ class LSPClient(ABC):
 
             # 4. CLASS HIERARCHIES
             class_hierarchies.update(result.class_hierarchies)
+
+        # Post-processing: Backfill subclasses from superclass relationships.
+        # _find_subclasses() only handles Python syntax; deriving subclasses from
+        # already-correct superclass lists covers all languages (TS, Go, Java, etc.).
+        for child_name, child_info in class_hierarchies.items():
+            for parent_name in child_info.get("superclasses", []):
+                if parent_name in class_hierarchies:
+                    if child_name not in class_hierarchies[parent_name]["subclasses"]:
+                        class_hierarchies[parent_name]["subclasses"].append(child_name)
+
+        # Post-processing: Ensure all intermediate parent packages exist.
+        # E.g. if "src.models" exists, also register "src" so callers that expect
+        # top-level namespace packages can find them.
+        parent_packages: dict[str, dict] = {}
+        for pkg in list(package_relations.keys()):
+            parts = pkg.split(".")
+            for i in range(1, len(parts)):
+                parent = ".".join(parts[:i])
+                if parent not in package_relations and parent not in parent_packages:
+                    parent_packages[parent] = {
+                        "imports": set(),
+                        "import_deps": set(),
+                        "imported_by": set(),
+                        "files": [],
+                    }
+        package_relations.update(parent_packages)
 
         # Post-processing: Build reverse relationships from import_deps
         for package, info in package_relations.items():
@@ -814,6 +1039,9 @@ class LSPClient(ABC):
             f"incoming={total_incoming_time:.1f}s, body={total_body_time:.1f}s"
         )
 
+        # Language-specific post-processing (e.g. synthesising Java constructor nodes/edges)
+        self._post_process_analysis(call_graph, reference_nodes, successful_results)
+
         logger.info("Unified static analysis complete.")
         logger.info(
             f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
@@ -850,19 +1078,6 @@ class LSPClient(ABC):
         try:
             content = file_path.read_text(encoding="utf-8")
 
-            # Thread-safe LSP communication (each thread gets its own connection context)
-            self._send_notification(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": file_uri,
-                        "languageId": self.language_id,
-                        "version": 1,
-                        "text": content,
-                    }
-                },
-            )
-
             # Populate package name before symbol check so files without symbols
             # still get their correct package name (avoids phantom empty-string packages)
             result.package_name = self._get_package_name(file_path)
@@ -897,6 +1112,24 @@ class LSPClient(ABC):
                     line_end=end_line,
                 )
                 result.symbols.append(node)
+
+                # Also register the class-qualified alias (e.g. core.base.Dog.create)
+                # so that edges resolved via the definition location map can find the node.
+                sel_range_start = symbol.get("selectionRange", symbol.get("range", {})).get("start", {})
+                sel_line = sel_range_start.get("line")
+                if sel_line is not None and file_uri in self._definition_location_map:
+                    entry = self._definition_location_map[file_uri].get(sel_line)
+                    if entry is not None:
+                        class_qualified = entry[0]
+                        if class_qualified != qualified_name:
+                            alias_node = Node(
+                                fully_qualified_name=class_qualified,
+                                node_type=symbol_kind,
+                                file_path=str(file_path),
+                                line_start=start_line,
+                                line_end=end_line,
+                            )
+                            result.symbols.append(alias_node)
 
             # 3. CALL GRAPH - Process function/method calls using batched LSP requests
             # Instead of sequential request-wait-request per symbol, we fire all requests
@@ -953,7 +1186,8 @@ class LSPClient(ABC):
                             callee_uri = callee_item["uri"]
                             if callee_uri.startswith("file://"):
                                 callee_path = uri_to_path(callee_uri)
-                                callee_qualified_name = self._create_qualified_name(callee_path, callee_item["name"])
+                                callee_name = self._normalize_call_item_name(callee_item)
+                                callee_qualified_name = self._create_qualified_name(callee_path, callee_name)
                                 edge = (current_qualified_name, callee_qualified_name)
                                 result.call_relationships.append(edge)
                                 result.outgoing_edges.append(edge)
@@ -979,7 +1213,8 @@ class LSPClient(ABC):
                             caller_uri = caller_item["uri"]
                             if caller_uri.startswith("file://"):
                                 caller_path = uri_to_path(caller_uri)
-                                caller_qualified_name = self._create_qualified_name(caller_path, caller_item["name"])
+                                caller_name = self._normalize_call_item_name(caller_item)
+                                caller_qualified_name = self._create_qualified_name(caller_path, caller_name)
                                 edge = (caller_qualified_name, current_qualified_name)
                                 result.call_relationships.append(edge)
                                 result.incoming_edges.append(edge)
@@ -1125,13 +1360,26 @@ class LSPClient(ABC):
 
                 result.class_hierarchies[qualified_name] = class_info
 
-            self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
-
         except Exception as e:
             result.error = str(e)
             logger.error(f"Error processing file {file_path}: {e}")
 
+        # Language-specific per-file post-processing (e.g. Java constructor synthesis)
+        self._post_process_file_result(result, file_path)
+
         return result
+
+    def _post_process_file_result(self, result: FileAnalysisResult, file_path: Path) -> None:
+        """Override in subclasses to perform language-specific per-file post-processing.
+
+        Called after all symbols, edges, and hierarchies have been collected for a file.
+        May add extra nodes to ``result.symbols`` or extra edges to ``result.call_relationships``.
+
+        Args:
+            result: The analysis result for this file (may be modified in-place).
+            file_path: The source file path.
+        """
+        pass
 
     def close(self):
         """Shuts down the language server gracefully."""
@@ -1162,6 +1410,36 @@ class LSPClient(ABC):
         """Override in subclasses to perform language-specific preparation before analysis."""
         pass
 
+    def _post_process_analysis(
+        self,
+        call_graph: CallGraph,
+        reference_nodes: list[Node],
+        file_results: list[FileAnalysisResult],
+    ) -> None:
+        """Override in subclasses to perform language-specific post-processing.
+
+        Called after all file analysis results have been assembled into the call graph
+        and reference list, but before the final result dict is returned.
+
+        Args:
+            call_graph: The assembled call graph (may be modified in-place).
+            reference_nodes: All collected reference nodes (may be extended in-place).
+            file_results: The per-file analysis results (read-only).
+        """
+        pass
+
+    def _normalize_call_item_name(self, item: dict) -> str:
+        """Return the display name to use for a callHierarchy item.
+
+        Override in subclasses to perform language-specific normalisation.
+        The base implementation returns ``item["name"]`` unchanged.
+
+        Args:
+            item: A callHierarchy item dict with at least a ``"name"`` key and
+                  optionally a ``"kind"`` key (LSP SymbolKind integer).
+        """
+        return item["name"]
+
     def _get_all_classes_in_workspace(self) -> list:
         """Get all class symbols in the workspace using workspace/symbol."""
         try:
@@ -1175,9 +1453,9 @@ class LSPClient(ABC):
                 logger.error(f"workspace/symbol failed: {error_msg}")
                 return []
 
-            symbols = response.get("result", [])
-            # Filter for class symbols
-            classes = [s for s in symbols if s.get("kind") == Node.CLASS_TYPE]
+            symbols = response.get("result") or []
+            # Filter for class-like symbols (class=5, interface=11, struct=23)
+            classes = [s for s in symbols if s.get("kind") in self._CLASS_LIKE_KINDS]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1200,7 +1478,12 @@ class LSPClient(ABC):
         return list(set(superclasses))  # Remove duplicates
 
     def _find_superclasses_via_definition(self, file_uri: str, class_symbol: dict, content: str) -> list:
-        """Use textDocument/definition to find parent classes."""
+        """Use textDocument/definition to find parent classes.
+
+        Handles both:
+        - Python syntax: ``class Foo(Bar, Baz):``
+        - TypeScript/Java/Go syntax: ``class Foo extends Bar implements Baz``
+        """
         superclasses: list[str] = []
 
         try:
@@ -1208,23 +1491,77 @@ class LSPClient(ABC):
             lines = content.split("\n")
             class_name = class_symbol["name"]
             class_line_idx = None
+            class_line = None
 
-            # Find the line with class definition
+            original_line: str | None = None
             for i, line in enumerate(lines):
-                if line.strip().startswith(f"class {class_name}(") and line.strip().endswith(":"):
+                stripped = line.strip()
+                # Python style: class Foo(Bar):
+                if stripped.startswith(f"class {class_name}(") and stripped.endswith(":"):
                     class_line_idx = i
+                    class_line = stripped
+                    original_line = line
+                    break
+                # TypeScript/JS style: class Foo extends Bar ... {
+                # Also matches `export class Foo extends Bar {`
+                if re.search(r"\bclass\s+" + re.escape(class_name) + r"\b", stripped) and (
+                    " extends " in stripped or " implements " in stripped or stripped.endswith("{")
+                ):
+                    class_line_idx = i
+                    class_line = stripped
+                    original_line = line
                     break
 
-            if class_line_idx is None:
+            if class_line_idx is None or class_line is None or original_line is None:
                 return superclasses
 
-            class_line = lines[class_line_idx].strip()
+            # --- TypeScript/Java extends + implements syntax ---
+            ts_extends = re.search(r"\bextends\s+([A-Za-z_$][A-Za-z0-9_$<>, ]*?)(?:\s+implements|\s*\{|$)", class_line)
+            # Java implements clause: "implements Foo, Bar" after any extends clause
+            java_implements = re.search(r"\bimplements\s+([A-Za-z_$][A-Za-z0-9_$<>, ]*?)(?:\s*\{|$)", class_line)
+            if ts_extends or java_implements:
+                # Build a list of (parent_name, search_start_keyword) tuples
+                parents_to_resolve: list[tuple[str, str]] = []
+                if ts_extends:
+                    for parent_raw in ts_extends.group(1).split(","):
+                        parent_name = parent_raw.strip().split("<")[0].strip()
+                        if parent_name:
+                            parents_to_resolve.append((parent_name, "extends"))
+                if java_implements:
+                    for parent_raw in java_implements.group(1).split(","):
+                        parent_name = parent_raw.strip().split("<")[0].strip()
+                        if parent_name:
+                            parents_to_resolve.append((parent_name, "implements"))
 
+                for parent_name, keyword in parents_to_resolve:
+                    # Use position in the ORIGINAL line (with leading whitespace) for LSP character offset
+                    keyword_pos = original_line.find(keyword)
+                    parent_pos = original_line.find(parent_name, keyword_pos) if keyword_pos != -1 else -1
+                    if parent_pos != -1:
+                        definition = self._get_definition_for_position(file_uri, class_line_idx, parent_pos)
+                        if definition:
+                            for def_item in definition:
+                                def_uri = def_item.get("uri", "")
+                                if def_uri.startswith("file://"):
+                                    def_path = uri_to_path(def_uri)
+                                    try:
+                                        def_path.relative_to(self.project_path)
+                                    except ValueError:
+                                        continue
+                                    resolved = self._create_qualified_name(def_path, parent_name)
+                                    superclasses.append(resolved)
+                        else:
+                            resolved = self._resolve_class_name(parent_name, file_uri, content)
+                            if resolved:
+                                superclasses.append(resolved)
+                return superclasses
+
+            # --- Python style: class Foo(Bar, Baz): ---
             # Extract parent class names from the line
-            start = class_line.find("(") + 1
-            end = class_line.rfind(")")
+            start = original_line.find("(") + 1
+            end = original_line.rfind(")")
             if 0 < start < end:
-                parents_str = class_line[start:end]
+                parents_str = original_line[start:end]
                 parent_names = [p.strip() for p in parents_str.split(",") if p.strip()]
 
                 # For each parent name, use LSP to get its definition
@@ -1232,8 +1569,8 @@ class LSPClient(ABC):
                     if parent_name == "object":
                         continue
 
-                    # Find the position of this parent name in the class line
-                    parent_start = class_line.find(parent_name, start)
+                    # Find the position of this parent name in the original line
+                    parent_start = original_line.find(parent_name, start)
                     if parent_start != -1:
                         # Calculate character position
                         char_pos = parent_start
@@ -1422,11 +1759,16 @@ class LSPClient(ABC):
         else:
             return class_name
 
+    # LSP symbol kinds that represent class-like entities for hierarchy analysis.
+    # Class=5, Interface=11, Struct=23 — covers Python/TS classes as well as
+    # Go interfaces and structs which use kinds 11 and 23 respectively.
+    _CLASS_LIKE_KINDS = {5, 11, 23}
+
     def _find_classes_in_symbols(self, symbols: list) -> list:
-        """Find all class symbols recursively."""
+        """Find all class-like symbols (class, interface, struct) recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get("kind") == Node.CLASS_TYPE:
+            if symbol.get("kind") in self._CLASS_LIKE_KINDS:
                 classes.append(symbol)
             if "children" in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol["children"]))
@@ -1460,17 +1802,50 @@ class LSPClient(ABC):
 
         # Also use text-based heuristics for common import patterns
         lines = content.split("\n")
-        for line in lines[:50]:  # Only check first 50 lines where imports usually are
-            line = line.strip()
-            if line.startswith("import ") or line.startswith("from "):
-                # Extract module name using simple parsing
-                if line.startswith("import "):
-                    parts = line[7:].split()
+        in_go_import_block = False
+        for line in lines[:100]:  # Check first 100 lines where imports usually are
+            stripped = line.strip()
+
+            # --- Go-style imports: import "path/to/pkg" or grouped import (...) ---
+            # Detect start of a grouped import block
+            if stripped == "import (" or stripped.startswith("import ("):
+                in_go_import_block = True
+                continue
+            if in_go_import_block:
+                if stripped == ")":
+                    in_go_import_block = False
+                    continue
+                # Lines inside the block are quoted import paths, possibly with aliases
+                # e.g.: `"example.com/edgecases/models"` or `m "example.com/edgecases/models"`
+                m = re.search(r'"([^"]+)"', stripped)
+                if m:
+                    imports.append(m.group(1))
+                continue
+            # Single-line Go import: import "pkg/path"
+            if stripped.startswith('import "') and stripped.endswith('"'):
+                path = stripped[8:-1]
+                imports.append(path)
+                continue
+
+            # --- TypeScript/JavaScript-style imports: import ... from 'path' ---
+            # Scan every line for `from 'path'` or `from "path"` — this covers:
+            #   single-line:  import { A, B } from './path'
+            #   multi-line closing: } from "./utils";
+            #   type imports: import type { A } from '../path'
+            m = re.search(r"""\bfrom\s+['"]([^'"]+)['"]""", stripped)
+            if m:
+                imports.append(m.group(1))
+                continue
+
+            # --- Python-style imports ---
+            if stripped.startswith("import ") or stripped.startswith("from "):
+                if stripped.startswith("import "):
+                    parts = stripped[7:].split()
                     if parts:
                         module = parts[0].split(".")[0]  # Get root module
                         imports.append(module)
-                elif line.startswith("from ") and " import " in line:
-                    module_part = line[5:].split(" import ")[0].strip()
+                elif stripped.startswith("from ") and " import " in stripped:
+                    module_part = stripped[5:].split(" import ")[0].strip()
                     if module_part and not module_part.startswith("."):
                         module = module_part.split(".")[0]  # Get root module
                         imports.append(module)
@@ -1508,13 +1883,36 @@ class LSPClient(ABC):
         except ValueError:
             return "external"
 
-    @staticmethod
-    def _extract_package_from_import(module_name: str) -> str:
-        """Extract top-level package from an import module name."""
-        if not module_name or module_name.startswith("."):
+    def _extract_package_from_import(self, module_name: str, importing_file: Path | None = None) -> str:
+        """Extract the relevant package name from an import path.
+
+        Handles:
+        - Python-style dotted names: "core.services" → "core"
+        - Go-style slash-separated module paths: "example.com/edgecases/models" → "models"
+        - TypeScript/JS relative paths: "./models" resolved via importing_file context
+          e.g. importing_file=src/index.ts, module_name="./models" → "src.models"
+        - TypeScript/JS relative paths with dots: "../utils" resolved similarly
+        """
+        if not module_name:
             return ""
 
-        # Get the top-level package
+        # TypeScript/JavaScript relative import: starts with "./" or "../"
+        if module_name.startswith(".") and importing_file is not None:
+            try:
+                # Resolve the import path relative to the importing file's directory.
+                # The resolved path may point to a directory (index.ts) or file without extension.
+                resolved = (importing_file.parent / module_name).resolve()
+                # Get relative path from project root and convert to dotted package name.
+                rel = resolved.relative_to(self.project_path)
+                return str(rel).replace(os.sep, ".")
+            except Exception:
+                return ""
+
+        # Go-style: slash-separated module path — return the last segment
+        if "/" in module_name:
+            return module_name.rstrip("/").rsplit("/", 1)[-1]
+
+        # Python/JS-style: dotted name — return the top-level package
         parts = module_name.split(".")
         return parts[0] if parts else ""
 

@@ -425,11 +425,12 @@ second_call()
         self.assertNotEqual(main_package, config_package)
 
     def test_extract_package_from_import(self):
-        self.assertEqual(LSPClient._extract_package_from_import("os.path.join"), "os")
-        self.assertEqual(LSPClient._extract_package_from_import("django.http.response"), "django")
-        self.assertEqual(LSPClient._extract_package_from_import("mypackage"), "mypackage")
-        self.assertEqual(LSPClient._extract_package_from_import(".module"), "")
-        self.assertEqual(LSPClient._extract_package_from_import("..package"), "")
+        client = LSPClient(self.project_path, self.mock_language)
+        self.assertEqual(client._extract_package_from_import("os.path.join"), "os")
+        self.assertEqual(client._extract_package_from_import("django.http.response"), "django")
+        self.assertEqual(client._extract_package_from_import("mypackage"), "mypackage")
+        self.assertEqual(client._extract_package_from_import(".module"), "")
+        self.assertEqual(client._extract_package_from_import("..package"), "")
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_filter_src_files(self, mock_popen):
@@ -1197,6 +1198,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file1, test_file2])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Create mock results
         result1 = FileAnalysisResult(
@@ -1272,6 +1276,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Create result with error
         error_result = FileAnalysisResult(
@@ -1320,6 +1327,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Mock future that raises exception
         mock_future = Mock()
@@ -1439,7 +1449,7 @@ def helper_function():
         test_file.write_text("def func(): pass")
 
         # Mock to raise exception
-        client._send_notification = Mock(side_effect=Exception("LSP error"))  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(side_effect=Exception("LSP error"))  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 

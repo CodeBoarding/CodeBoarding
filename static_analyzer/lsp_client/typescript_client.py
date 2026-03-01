@@ -13,6 +13,11 @@ class TypeScriptClient(LSPClient):
     Extends the base LSPClient with TypeScript-specific functionality.
     """
 
+    # TypeScript LSP uses kind=14 for class expressions assigned to variables
+    # (e.g. `export const Validator = class { ... }`), in addition to the standard
+    # class (5), interface (11), and struct (23) kinds used by the base class.
+    _CLASS_LIKE_KINDS = {5, 11, 14, 23}
+
     def handle_notification(self, method: str, params: dict):
         """
         Handle notifications from the TypeScript language server.
