@@ -11,9 +11,9 @@
     "classes_count": 565,
     "packages_count": 132,
     "call_graph_nodes": 32156,
-    "call_graph_edges": 38760,
+    "call_graph_edges": 35350,
     "source_files_count": 1644,
-    "execution_time_seconds": 300
+    "execution_time_seconds": 400
   },
   "sample_references": [
     "index.wp_use_themes",
