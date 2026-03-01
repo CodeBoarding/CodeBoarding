@@ -82,7 +82,7 @@ class TestLSPDiagnosticsCollector:
         assert len(issues) == 1
         assert issues[0].category == DeadCodeCategory.UNUSED_IMPORT
         assert issues[0].file_path == "/path/to/file.py"
-        assert issues[0].line_start == 5
+        assert issues[0].line_start == 6  # LSP 0-based line 5 -> 1-based line 6
 
     def test_process_diagnostics_unused_variable(self):
         """Test processing diagnostics for unused variable."""
@@ -119,6 +119,43 @@ class TestLSPDiagnosticsCollector:
         issues = collector.process_diagnostics()
 
         assert len(issues) == 1  # Should be deduplicated
+
+    def test_process_diagnostics_deduplication_cross_code(self):
+        """Test that diagnostics with different codes but same category and line are deduplicated.
+
+        Pyright can report the same unused variable twice: once via reportUnusedVariable
+        and once via the Unnecessary tag with a different message.
+        """
+        collector = LSPDiagnosticsCollector()
+        # Diagnostic via explicit code
+        diag1 = _make_diagnostic(
+            "reportUnusedVariable",
+            'Variable "node_name" is not accessed',
+            line=10,
+        )
+        # Diagnostic via Unnecessary tag (no specific code, just tag=1)
+        diag2 = _make_diagnostic(
+            "",
+            '"node_name" is not accessed',
+            line=10,
+            tags=[1],
+        )
+        collector.add_diagnostic("/path/to/file.py", diag1)
+        collector.add_diagnostic("/path/to/file.py", diag2)
+        issues = collector.process_diagnostics()
+
+        assert len(issues) == 1  # Should be deduplicated by category + line
+
+    def test_process_diagnostics_line_numbers_are_1_based(self):
+        """Test that LSP 0-based line numbers are converted to 1-based."""
+        collector = LSPDiagnosticsCollector()
+        diagnostic = _make_diagnostic("reportUnusedVariable", "Variable unused", line=0, end_line=0)
+        collector.add_diagnostic("/path/to/file.py", diagnostic)
+        issues = collector.process_diagnostics()
+
+        assert len(issues) == 1
+        assert issues[0].line_start == 1  # 0-based line 0 -> 1-based line 1
+        assert issues[0].line_end == 1
 
     def test_get_issues_by_category(self):
         """Test grouping issues by category."""
