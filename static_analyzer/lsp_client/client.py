@@ -115,6 +115,11 @@ class LSPClient(ABC):
         # Initialize diagnostics collection for health checks
         self.diagnostics: FileDiagnosticsMap = {}
 
+        # Files for which the server has sent at least one publishDiagnostics
+        # notification (including empty ones that signal "file is clean").
+        # Used by _wait_for_diagnostics to know when to stop waiting.
+        self._diagnostics_seen_files: set[str] = set()
+
         # Track which files had live diagnostics in previous analyze() cycles,
         # so the caller can evict stale cache entries for files that are now clean.
         self._previous_live_diagnostics: set[str] = set()
@@ -270,6 +275,7 @@ class LSPClient(ABC):
             raw_diagnostics = params.get("diagnostics", [])
 
             with self._response_condition:
+                self._diagnostics_seen_files.add(file_path)
                 if not raw_diagnostics:
                     # Empty list = server cleared all issues for this file.
                     self.diagnostics.pop(file_path, None)
@@ -645,16 +651,20 @@ class LSPClient(ABC):
         """Wait until every open file has received at least one publishDiagnostics
         notification from the server, or until *timeout* seconds have elapsed.
 
-        The reader thread populates ``self.diagnostics`` as notifications arrive
-        and wakes this method via ``self._response_condition``.  The wait is
+        The reader thread records every file URI that arrives in a
+        publishDiagnostics notification in ``self._diagnostics_seen_files`` and
+        wakes this method via ``self._response_condition``.  The wait is
         event-driven (no polling), so it returns as soon as all files have
         reported — typically 2-5 s for pyright on a small repo, never longer
         than *timeout*.
 
-        Files for which pyright has nothing to report will never appear in
-        ``self.diagnostics`` (pyright omits the notification when the diagnostics
-        list would be empty).  Once the global *timeout* has elapsed we consider
-        all remaining files clean.
+        We check ``_diagnostics_seen_files`` rather than ``self.diagnostics``
+        because clean files receive an empty diagnostics list which removes them
+        from ``self.diagnostics`` — they would otherwise never be "covered".
+
+        Some LSP servers omit the notification entirely for files they never
+        type-check.  Once the global *timeout* has elapsed we consider all
+        remaining files done.
 
         Args:
             expected_files: Source files that are currently open in the LSP server.
@@ -666,7 +676,7 @@ class LSPClient(ABC):
         expected_paths = {str(f) for f in expected_files}
 
         def all_covered() -> bool:
-            return expected_paths <= set(self.diagnostics.keys())
+            return expected_paths <= self._diagnostics_seen_files
 
         with self._response_condition:
             satisfied = self._response_condition.wait_for(all_covered, timeout=timeout)
@@ -675,7 +685,7 @@ class LSPClient(ABC):
             logger.debug(f"All {len(expected_paths)} file(s) reported diagnostics")
         else:
             with self._lock:
-                covered = expected_paths & set(self.diagnostics.keys())
+                covered = expected_paths & self._diagnostics_seen_files
             missing = expected_paths - covered
             if missing:
                 logger.debug(
@@ -696,6 +706,11 @@ class LSPClient(ABC):
             - 'references': list of Node objects for all symbols
         """
         logger.info("Starting unified static analysis with multithreading...")
+
+        # Reset the seen-files tracker so _wait_for_diagnostics only considers
+        # notifications from this analysis run, not stale ones from a prior run.
+        with self._lock:
+            self._diagnostics_seen_files.clear()
 
         # Initialize data structures with thread-safe locks
         call_graph = CallGraph()
