@@ -195,8 +195,11 @@ class StaticAnalyzer:
             if file_path.suffix.lstrip(".") not in handled_suffixes:
                 continue
             file_uri = file_path.as_uri()
-            # Re-open the file so pyright tracks it (safe to call even if already open;
-            # in that case pyright ignores the duplicate open per the LSP spec).
+            # Re-open the file so pyright tracks it.  Strictly, LSP 3.17 says a
+            # second didOpen for the same URI is an error, but pyright tolerates
+            # it in practice (it simply resets its internal state for the file).
+            # A proper fix would track open-file state and skip the didOpen when
+            # the file is already open, but for now this works with pyright.
             client._send_notification(
                 "textDocument/didOpen",
                 {
