@@ -115,6 +115,10 @@ class LSPClient(ABC):
         # Initialize diagnostics collection for health checks
         self.diagnostics: FileDiagnosticsMap = {}
 
+        # Track which files had live diagnostics in previous analyze() cycles,
+        # so the caller can evict stale cache entries for files that are now clean.
+        self._previous_live_diagnostics: set[str] = set()
+
     def start(self):
         """Starts the language server process and the message reader thread."""
         logger.info(f"Starting server {' '.join(self.server_start_params)}...")
@@ -265,13 +269,14 @@ class LSPClient(ABC):
             file_path = str(uri_to_path(uri))
             raw_diagnostics = params.get("diagnostics", [])
 
-            with self._lock:
+            with self._response_condition:
                 if not raw_diagnostics:
                     # Empty list = server cleared all issues for this file.
                     self.diagnostics.pop(file_path, None)
                 else:
                     # Replace (not merge) so that fixed issues are removed.
                     self.diagnostics[file_path] = [LSPDiagnostic.from_lsp_dict(d) for d in raw_diagnostics]
+                self._response_condition.notify_all()
         except Exception as e:
             logger.debug(f"Error handling diagnostics notification: {e}")
 
@@ -640,15 +645,16 @@ class LSPClient(ABC):
         """Wait until every open file has received at least one publishDiagnostics
         notification from the server, or until *timeout* seconds have elapsed.
 
-        The reader thread populates ``self.diagnostics`` as notifications arrive.
-        We poll that dict (under ``self._lock``) rather than sleeping blindly, so
-        the wait ends as soon as all files have reported in — typically 2-5 s for
-        pyright on a small repo, never longer than *timeout*.
+        The reader thread populates ``self.diagnostics`` as notifications arrive
+        and wakes this method via ``self._response_condition``.  The wait is
+        event-driven (no polling), so it returns as soon as all files have
+        reported — typically 2-5 s for pyright on a small repo, never longer
+        than *timeout*.
 
         Files for which pyright has nothing to report will never appear in
         ``self.diagnostics`` (pyright omits the notification when the diagnostics
-        list would be empty).  We handle this by tracking a per-file "deadline":
-        once *timeout* has elapsed we consider all remaining files done.
+        list would be empty).  Once the global *timeout* has elapsed we consider
+        all remaining files clean.
 
         Args:
             expected_files: Source files that are currently open in the LSP server.
@@ -658,33 +664,25 @@ class LSPClient(ABC):
             return
 
         expected_paths = {str(f) for f in expected_files}
-        deadline = time.monotonic() + timeout
-        poll_interval = 0.2
 
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                with self._lock:
-                    covered = expected_paths & set(self.diagnostics.keys())
-                missing = expected_paths - covered
-                if missing:
-                    logger.debug(
-                        f"Diagnostic wait timed out after {timeout:.1f}s; "
-                        f"{len(missing)} file(s) produced no diagnostics (clean or not type-checked): "
-                        f"{[Path(p).name for p in missing]}"
-                    )
-                return
+        def all_covered() -> bool:
+            return expected_paths <= set(self.diagnostics.keys())
 
+        with self._response_condition:
+            satisfied = self._response_condition.wait_for(all_covered, timeout=timeout)
+
+        if satisfied:
+            logger.debug(f"All {len(expected_paths)} file(s) reported diagnostics")
+        else:
             with self._lock:
                 covered = expected_paths & set(self.diagnostics.keys())
-
-            if covered >= expected_paths:
+            missing = expected_paths - covered
+            if missing:
                 logger.debug(
-                    f"All {len(expected_paths)} file(s) reported diagnostics " f"({timeout - remaining:.1f}s elapsed)"
+                    f"Diagnostic wait timed out after {timeout:.1f}s; "
+                    f"{len(missing)} file(s) produced no diagnostics (clean or not type-checked): "
+                    f"{[Path(p).name for p in missing]}"
                 )
-                return
-
-            time.sleep(poll_interval)
 
     def build_static_analysis(self, source_files_override: list[Path] | None = None) -> dict:
         """

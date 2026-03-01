@@ -314,13 +314,13 @@ class StaticAnalyzer:
                 # previous live run) but are now absent from live_diags.
                 # Use the previous live snapshot stored on the client to identify
                 # which files have been actively cleared vs simply not seen.
-                previously_live: set[str] = getattr(client, "_previous_live_diagnostics", set())
+                previously_live = client._previous_live_diagnostics
                 for file_path in previously_live:
                     if file_path not in live_diags:
                         merged_diags.pop(file_path, None)
 
                 # Remember which files the client tracked this cycle.
-                client._previous_live_diagnostics = set(live_diags.keys()) | previously_live  # type: ignore[attr-defined]
+                client._previous_live_diagnostics = set(live_diags.keys()) | previously_live
 
                 if merged_diags:
                     total_diags = sum(len(d) for d in merged_diags.values())
