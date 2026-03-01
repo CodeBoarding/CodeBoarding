@@ -9,7 +9,8 @@ from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 
 
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> Node:
