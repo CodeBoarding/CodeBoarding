@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-28T23:03:51.684711+00:00",
-  "overall_score": 0.9646669120353331,
+  "timestamp": "2026-03-02T22:26:20.920907+00:00",
+  "overall_score": 0.9682305134835612,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -167,8 +167,8 @@
       "check_type": "circular_dependencies",
       "cycles": [
         "health -> core -> health",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents"
+        "static_analyzer -> agents -> static_analyzer",
+        "caching -> agents -> caching"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -221,9 +221,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 80,
-      "findings_count": 80,
-      "warning_count": 80,
+      "total_entities_checked": 70,
+      "findings_count": 70,
+      "warning_count": 70,
       "score": 0.0,
       "finding_groups": [
         {
@@ -337,6 +337,27 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 134,
+              "line_end": 134,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 274,
+              "line_end": 274,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
               "file_path": "output_generators/mdx.py",
               "line_start": 7,
@@ -372,13 +393,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 8,
@@ -407,41 +421,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"name\" is not accessed",
-              "file_path": "monitoring/context.py",
-              "line_start": 32,
-              "line_end": 32,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 89,
-              "line_end": 89,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 89,
-              "line_end": 89,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 362,
-              "line_end": 362,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 362,
-              "line_end": 362,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 0,
@@ -467,34 +446,6 @@
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 3,
               "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"MetaAnalysisInsights\" is not accessed",
-              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"subgraph_clusters\" is not accessed",
-              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 159,
-              "line_end": 159,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"subgraph_clusters\" is not accessed",
-              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 159,
-              "line_end": 159,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"get_expandable_components\" is not accessed",
-              "file_path": "diagram_analysis/incremental/reexpansion.py",
-              "line_start": 14,
-              "line_end": 14,
               "metric_value": 0.0
             },
             {
@@ -551,13 +502,6 @@
               "file_path": "agents/tools/__init__.py",
               "line_start": 7,
               "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_class_name\" is not accessed",
-              "file_path": "health/checks/god_class.py",
-              "line_start": 42,
-              "line_end": 42,
               "metric_value": 0.0
             },
             {
@@ -639,9 +583,9 @@
             },
             {
               "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
+              "file_path": "agents/validation.py",
+              "line_start": 3,
+              "line_end": 3,
               "metric_value": 0.0
             },
             {
@@ -698,20 +642,6 @@
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 3,
               "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MetaAnalysisInsights\" is not accessed",
-              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"get_expandable_components\" is not accessed",
-              "file_path": "diagram_analysis/incremental/reexpansion.py",
-              "line_start": 14,
-              "line_end": 14,
               "metric_value": 0.0
             },
             {
@@ -847,19 +777,13 @@
       "composite_risk_score": 60.0
     },
     {
+      "file_path": "agents/validation.py",
+      "total_findings": 4,
+      "warning_findings": 4,
+      "composite_risk_score": 60.0
+    },
+    {
       "file_path": "monitoring/callbacks.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "diagram_analysis/incremental/scoped_analysis.py",
       "total_findings": 4,
       "warning_findings": 4,
       "composite_risk_score": 60.0
@@ -872,18 +796,6 @@
     },
     {
       "file_path": "install.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "monitoring/paths.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
-    },
-    {
-      "file_path": "diagram_analysis/incremental/reexpansion.py",
       "total_findings": 2,
       "warning_findings": 2,
       "composite_risk_score": 30.0
@@ -902,18 +814,6 @@
     },
     {
       "file_path": "output_generators/mdx.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
-    },
-    {
-      "file_path": "monitoring/context.py",
-      "total_findings": 1,
-      "warning_findings": 1,
-      "composite_risk_score": 15.0
-    },
-    {
-      "file_path": "health/checks/god_class.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
