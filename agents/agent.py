@@ -32,6 +32,10 @@ from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 logger = logging.getLogger(__name__)
 
 
+class EmptyExtractorMessageError(ValueError):
+    """Raised when extractor returns an empty message payload."""
+
+
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def __init__(
         self,
@@ -281,9 +285,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             if "messages" in result and len(result["messages"]) != 0:
                 message = result["messages"][0].content
                 parser = PydanticOutputParser(pydantic_object=return_type)
+                if not message:
+                    raise EmptyExtractorMessageError("Extractor returned empty message content")
                 return self._try_parse(message, parser)
             parser = PydanticOutputParser(pydantic_object=return_type)
             return self._try_parse(response, parser)
+        except EmptyExtractorMessageError as e:
+            logger.warning(f"{e} (attempt {attempt + 1}/{max_retries})")
+            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except AttributeError as e:
             # Workaround for trustcall bug: https://github.com/hinthornw/trustcall/issues/47
             # 'ExtractionState' object has no attribute 'tool_call_id' occurs during validation retry

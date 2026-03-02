@@ -429,22 +429,20 @@ Primary entry point for the CodeBoarding tool; parses CLI arguments, validates e
 
 ```mermaid
 graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    Repository_Manager["Repository Manager"]
-    Change_Detector["Change Detector"]
-    Tooling_Registry["Tooling Registry"]
-    Analysis_Schema_Engine["Analysis Schema Engine"]
-    Persistence_Controller["Persistence Controller"]
-    Configuration_Provider["Configuration Provider"]
-    Integration_Diagnostics["Integration & Diagnostics"]
-    Analysis_Orchestrator -- "triggers" --> Repository_Manager
-    Repository_Manager -- "utilizes" --> Change_Detector
-    Analysis_Orchestrator -- "requests" --> Tooling_Registry
-    Integration_Diagnostics -- "verifies" --> Tooling_Registry
-    Analysis_Orchestrator -- "feeds" --> Analysis_Schema_Engine
-    Analysis_Orchestrator -- "updates" --> Persistence_Controller
-    Configuration_Provider -- "supplies" --> Analysis_Orchestrator
-    Change_Detector -- "stores" --> Persistence_Controller
+    Orchestration_Engine["Orchestration Engine"]
+    Repository_Change_Manager["Repository & Change Manager"]
+    Tool_Registry_Installer["Tool Registry & Installer"]
+    Analysis_Transformer["Analysis Transformer"]
+    State_Manager["State Manager"]
+    Config_Provider["Config Provider"]
+    Monitoring_Observability["Monitoring & Observability"]
+    Orchestration_Engine -- "queries" --> Tool_Registry_Installer
+    Orchestration_Engine -- "triggers ingestion" --> Repository_Change_Manager
+    Repository_Change_Manager -- "compares hashes against persisted manifest" --> State_Manager
+    Orchestration_Engine -- "passes raw static analysis results" --> Analysis_Transformer
+    Orchestration_Engine -- "persists final structured analysis and job completion status" --> State_Manager
+    Config_Provider -- "supplies validated LLM credentials and pipeline settings" --> Orchestration_Engine
+    Orchestration_Engine -- "streams execution telemetry and LLM usage metrics" --> Monitoring_Observability
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -453,76 +451,81 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Analysis Orchestrator
-Coordinates the end-to-end workflow, from initialization to final schema generation.
+### Orchestration Engine
+Acts as the central controller for the agentic pipeline. It validates CLI arguments, manages the high‑level workflow (Clone → Analyze → Document), and updates environment‑specific configurations like VS Code settings.
 
 
 **Related Classes/Methods**:
 
-- `analysis.orchestrator`
+- `codeboarding.main.main`
+- `codeboarding.orchestrator.PipelineManager`
+- `codeboarding.vscode_config.VSCodeConfigUpdater`
 
 
-### Repository Manager
-Handles Git operations (clone, pull) and manages the local workspace.
-
-
-**Related Classes/Methods**:
-
-- `repo_utils.repository_manager`
-
-
-### Change Detector
-Calculates file hashes and diffs to enable incremental analysis updates.
+### Repository & Change Manager
+Manages the lifecycle of the target source code. It handles Git operations (cloning/checkout), applies exclusion filters (.gitignore), and performs structural diffing to identify modified components for incremental analysis.
 
 
 **Related Classes/Methods**:
 
-- `repo_utils.change_detector`
+- `codeboarding.repo_utils.change_detector.ChangeDetector`
+- `codeboarding.repo_utils.git_operations.GitHandler`
+- `codeboarding.repo_utils.filter.PathFilter`
 
 
-### Tooling Registry
-Provisions and resolves paths for static analysis binaries (e.g., Pyright, JDTLS).
-
-
-**Related Classes/Methods**:
-
-- `tools.registry`
-
-
-### Analysis Schema Engine
-Transforms raw analysis data into the UnifiedAnalysisJson format.
+### Tool Registry & Installer
+A plugin‑style registry that manages the lifecycle of Language Server Protocol (LSP) binaries and other static analysis tools. It handles platform‑specific dependency checks (e.g., NPM, VCPP) and automated installations.
 
 
 **Related Classes/Methods**:
 
-- `schema.engine`
+- `codeboarding.tool_registry.Registry`
+- `codeboarding.installers.base_installer.BaseInstaller`
+- `codeboarding.installers.npm_installer.NPMInstaller`
 
 
-### Persistence Controller
-Manages long-term storage of job states and metadata using DuckDB.
-
-
-**Related Classes/Methods**:
-
-- `persistence.db`
-
-
-### Configuration Provider
-Resolves and validates LLM provider settings and environment variables.
+### Analysis Transformer
+Normalizes raw output from various static analysis tools into a UnifiedAnalysisJson schema. It also calculates component hierarchies and generates Mermaid.js diagrams for visual documentation.
 
 
 **Related Classes/Methods**:
 
-- `config.provider`
+- `codeboarding.transformers.unified_transformer.UnifiedTransformer`
+- `codeboarding.transformers.mermaid_generator.MermaidGenerator`
+- `codeboarding.transformers.hierarchy_builder.HierarchyBuilder`
 
 
-### Integration & Diagnostics
-Performs system health checks and ensures VS Code compatibility.
+### State Manager
+Provides a persistence layer for job metadata, file hashes, and analysis results using DuckDB. It ensures that the system can recover from interruptions and track the status of long‑running documentation tasks.
 
 
 **Related Classes/Methods**:
 
-- `diagnostics.health`
+- `codeboarding.state.duckdb_store.DuckDBStore`
+- `codeboarding.state.manifest.ManifestManager`
+- `codeboarding.state.job_repository.JobRepository`
+
+
+### Config Provider
+Centralizes the loading and validation of system environment variables and LLM‑specific configurations (OpenAI, Anthropic, Ollama, etc.). It ensures that credentials and model parameters are correctly injected into the orchestrator.
+
+
+**Related Classes/Methods**:
+
+- `codeboarding.config.llm_config.LLMConfig`
+- `codeboarding.config.env_loader.EnvLoader`
+- `codeboarding.config.validator.ConfigValidator`
+
+
+### Monitoring & Observability
+A tracing framework specifically designed for LLM‑powered systems. It tracks token usage, execution costs, and step‑by‑step agentic reasoning, persisting telemetry for audit and debugging.
+
+
+**Related Classes/Methods**:
+
+- `codeboarding.monitoring.tracer.Tracer`
+- `codeboarding.monitoring.usage_tracker.UsageTracker`
+- `codeboarding.monitoring.logger.TelemetryLogger`
 
 
 
@@ -997,24 +1000,17 @@ Generates documentation output in reStructuredText (RST) format for Sphinx, crea
 
 ```mermaid
 graph LR
-    DiagramGenerator["DiagramGenerator"]
-    AnalysisManifest["AnalysisManifest"]
-    SphinxGenerator["SphinxGenerator"]
-    MarkdownGenerator["MarkdownGenerator"]
-    HTMLGenerator["HTMLGenerator"]
-    MDXGenerator["MDXGenerator"]
-    FileCoverage["FileCoverage"]
-    MermaidRenderer["MermaidRenderer"]
-    DiagramGenerator -- "retrieves structured architectural data" --> AnalysisManifest
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> SphinxGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> MarkdownGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> HTMLGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> MDXGenerator
-    SphinxGenerator -- "queries component metadata" --> AnalysisManifest
-    MarkdownGenerator -- "queries component metadata" --> AnalysisManifest
-    HTMLGenerator -- "queries component metadata" --> AnalysisManifest
-    DiagramGenerator -- "consults coverage data" --> FileCoverage
-    MarkdownGenerator -- "passes relationship data for formatting" --> MermaidRenderer
+    Output_Orchestration_Dispatcher["Output Orchestration Dispatcher"]
+    Visual_Model_Generator["Visual Model Generator"]
+    Interactive_HTML_Provider["Interactive HTML Provider"]
+    Static_Markdown_Provider["Static Markdown Provider"]
+    Sphinx_Documentation_Provider["Sphinx Documentation Provider"]
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Interactive_HTML_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Static_Markdown_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Sphinx_Documentation_Provider
+    Visual_Model_Generator -- "supplies data to" --> Interactive_HTML_Provider
+    Visual_Model_Generator -- "supplies data to" --> Static_Markdown_Provider
+    Visual_Model_Generator -- "supplies data to" --> Sphinx_Documentation_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1023,76 +1019,55 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### DiagramGenerator
-The central orchestrator of the output phase; coordinates the transformation of CFG data into visual Mermaid diagrams and documentation structures.
+### Output Orchestration Dispatcher
+The central controller that receives the final analysis manifest and routes data to the appropriate output generators based on user-defined configurations (e.g., `--format html,markdown`).
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.DiagramGenerator`
+- `repos.codeboarding.output.MultiFormatDocumenter`
+- `repos.codeboarding.output.OutputGenerator`
 
 
-### AnalysisManifest
-The source‑of‑truth data structure containing the hierarchical map of architectural components, relationships, and LLM‑generated insights.
-
-
-**Related Classes/Methods**:
-
-- `core.manifest.AnalysisManifest`
-
-
-### SphinxGenerator
-Specialized generator that produces reStructuredText and configuration files for integration with the Sphinx documentation framework.
+### Visual Model Generator
+The engine responsible for translating static analysis relationships into graph‑based syntax. It generates the raw Mermaid.js strings and Cytoscape JSON structures used by the providers.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.SphinxGenerator`
+- `repos.codeboarding.output.DiagramGenerator`
+- `repos.codeboarding.output.MermaidGenerator`
 
 
-### MarkdownGenerator
-Transforms analysis data into standard Markdown files, embedding Mermaid.js code blocks for visual representation in Git platforms.
-
-
-**Related Classes/Methods**:
-
-- `output_generators.sphinx.MarkdownGenerator`
-
-
-### HTMLGenerator
-Produces standalone, interactive HTML reports that allow users to navigate the codebase hierarchy and view diagrams in a browser.
+### Interactive HTML Provider
+Generates standalone, interactive web documentation. It embeds Cytoscape.js for dynamic diagram manipulation and manages CSS/JS assets for the UI.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.html.HTMLGenerator`
+- `repos.codeboarding.output.html.HTMLOutputGenerator`
+- `repos.codeboarding.output.html.CytoscapeGenerator`
+- `repos.codeboarding.output.html.TemplateEngine`
 
 
-### MDXGenerator
-Generates React‑compatible Markdown (MDX) files, optimized for modern documentation sites like Docusaurus or Next.js.
-
-
-**Related Classes/Methods**:
-
-- `output_generators.mdx.MDXGenerator`
-
-
-### FileCoverage
-Tracks which source files have been successfully analyzed and documented, ensuring the output reflects the current state of the repository.
+### Static Markdown Provider
+Produces Markdown and MDX files optimized for static hosting (GitHub, Docusaurus). It embeds Mermaid.js code blocks for native rendering.
 
 
 **Related Classes/Methods**:
 
-- `core.coverage.FileCoverage`
+- `repos.codeboarding.output.markdown.MarkdownOutputGenerator`
+- `repos.codeboarding.output.markdown.MdxOutputGenerator`
 
 
-### MermaidRenderer
-(Logic within DiagramGenerator) Specifically handles the conversion of Control Flow Graph (CFG) nodes and edges into Mermaid.js syntax.
+### Sphinx Documentation Provider
+A specialized generator that produces ReStructuredText (RST) files, allowing the tool's output to be seamlessly integrated into existing Python Sphinx documentation suites.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.MermaidRenderer`
+- `repos.codeboarding.output.sphinx.SphinxOutputGenerator`
+- `repos.codeboarding.output.sphinx.RstGenerator`
 
 
 
@@ -1442,22 +1417,18 @@ Validates the integrity and correctness of the incremental update process and it
 
 ```mermaid
 graph LR
-    Incremental_Orchestrator["Incremental Orchestrator"]
-    Change_Impact_Analyzer["Change Impact Analyzer"]
-    Analysis_State_Manager["Analysis State Manager"]
-    Update_Strategy_Router["Update Strategy Router"]
-    Lightweight_Patcher["Lightweight Patcher"]
-    Agentic_Re_expansion_Engine["Agentic Re-expansion Engine"]
-    File_Component_Mapper["File-Component Mapper"]
-    Incremental_Schema["Incremental Schema"]
-    Incremental_Orchestrator -- "requests a delta analysis to classify the scope of repository changes" --> Change_Impact_Analyzer
-    Change_Impact_Analyzer -- "retrieves the "last known good" state to calculate similarity thresholds" --> Analysis_State_Manager
-    Incremental_Orchestrator -- "passes identified "dirty" components to determine the most efficient update path" --> Update_Strategy_Router
-    Update_Strategy_Router -- "triggers manifest updates when changes are limited to file paths or metadata" --> Lightweight_Patcher
-    Update_Strategy_Router -- "triggers LLM re-analysis when code logic or structural boundaries shift significantly" --> Agentic_Re_expansion_Engine
-    Agentic_Re_expansion_Engine -- "persists newly generated AI summaries and updated call graphs to the cache" --> Analysis_State_Manager
-    Lightweight_Patcher -- "updates file references in the persistent store without re-running analysis" --> Analysis_State_Manager
-    Incremental_Orchestrator -- "resolves modified file paths to their corresponding architectural clusters" --> File_Component_Mapper
+    Incremental_Update_Orchestrator["Incremental Update Orchestrator"]
+    Static_Analysis_Cache_Manager["Static Analysis Cache Manager"]
+    Structural_Change_Analyzer["Structural Change Analyzer"]
+    Agentic_Re_expansion_Engine["Agentic Re‑expansion Engine"]
+    File_Path_Patching_Service["File & Path Patching Service"]
+    Incremental_Persistence_Layer["Incremental Persistence Layer"]
+    Integrity_Validator["Integrity Validator"]
+    Incremental_Update_Orchestrator -- "triggers analysis to define UpdateAction" --> Structural_Change_Analyzer
+    Incremental_Update_Orchestrator -- "invokes engine when changes exceed SMALL threshold" --> Agentic_Re_expansion_Engine
+    Agentic_Re_expansion_Engine -- "streams updated component fragments to persistence layer" --> Incremental_Persistence_Layer
+    File_Path_Patching_Service -- "directly modifies cache's file‑to‑component mappings" --> Static_Analysis_Cache_Manager
+    Integrity_Validator -- "inspects final state of cache before update completion" --> Static_Analysis_Cache_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1466,76 +1437,67 @@ graph LR
 
 Optimizes analysis performance by managing the caching of static analysis results and orchestrating re-analysis only for changed parts of the codebase, ensuring efficiency and speed.
 
-### Incremental Orchestrator
-The central controller that drives the update pipeline, coordinates sub‑components, and performs final integrity validation.
+### Incremental Update Orchestrator
+Central controller (IncrementalUpdater) that manages the update lifecycle, deciding between patching, re‑expansion, or full re‑analysis.
 
 
 **Related Classes/Methods**:
 
-- `IncrementalUpdater`:55-464
+- `diagram_analysis.incremental.updater.IncrementalUpdater`
 
 
-### Change Impact Analyzer
-Quantifies structural shifts using similarity metrics and classifies changes into categories (e.g., structural vs. internal).
-
-
-**Related Classes/Methods**:
-
-- `ImpactAnalyzer`
-
-
-### Analysis State Manager
-Manages the persistence and retrieval of historical analysis artifacts (call graphs, hierarchies) from the cache.
+### Static Analysis Cache Manager
+Manages the AnalysisCache, acting as the source‑of‑truth for call graphs, class hierarchies, and previous diagnostics.
 
 
 **Related Classes/Methods**:
 
-- `AnalysisCacheManager`:31-699
+- `diagram_analysis.incremental.updater.AnalysisCache`
 
 
-### Update Strategy Router
-Evaluates "dirty" components to decide between a lightweight patch or a full AI‑driven re‑analysis.
-
-
-**Related Classes/Methods**:
-
-- `ComponentChecker`
-
-
-### Lightweight Patcher
-Executes fast‑path updates for file renames or moves by patching internal manifests and analysis files.
+### Structural Change Analyzer
+Evaluates differences (ClusterChangeAnalyzer) between iterations to classify changes (SMALL/MEDIUM/BIG) and map file diffs to architectural impacts.
 
 
 **Related Classes/Methods**:
 
-- `PathPatcher`
+- `diagram_analysis.incremental.updater.ClusterChangeAnalyzer`
 
 
-### Agentic Re-expansion Engine
-Orchestrates LLM‑based agents to re‑document components that have undergone significant structural changes.
-
-
-**Related Classes/Methods**:
-
-- `ReexpansionEngine`
-
-
-### File-Component Mapper
-Maintains the alignment between physical source files and the abstract architectural components defined in the cache.
+### Agentic Re‑expansion Engine
+LLM‑driven component that re‑synthesizes descriptions and relationships for "dirty" components using meta‑agents.
 
 
 **Related Classes/Methods**:
 
-- `FileManager`
+- `diagram_analysis.incremental.updater.AgenticReexpansionEngine`
 
 
-### Incremental Schema
-Defines the shared domain language (ChangeImpact, UpdateAction) used to communicate state across the engine.
+### File & Path Patching Service
+Handles low‑level state updates such as file renames and deletions that do not require LLM intervention.
 
 
 **Related Classes/Methods**:
 
-- `IncrementalModels`
+- `diagram_analysis.incremental.updater.FilePathPatchingService`
+
+
+### Incremental Persistence Layer
+Provides thread‑safe I/O (_AnalysisFileStore) for atomic loading and saving of root and sub‑analysis fragments.
+
+
+**Related Classes/Methods**:
+
+- `diagram_analysis.incremental.updater._AnalysisFileStore`
+
+
+### Integrity Validator
+Performs post‑update consistency checks on the merged call graph and component mappings to prevent state corruption.
+
+
+**Related Classes/Methods**:
+
+- `diagram_analysis.incremental.updater.IntegrityValidator`
 
 
 
@@ -1544,22 +1506,21 @@ Defines the shared domain language (ChangeImpact, UpdateAction) used to communic
 
 ```mermaid
 graph LR
-    Orchestration_Engine["Orchestration Engine"]
-    Analysis_Strategy_Planner["Analysis Strategy Planner"]
-    Semantic_Analysis_Trio["Semantic Analysis Trio"]
-    Structural_Validation_Engine["Structural Validation Engine"]
-    Multi_Provider_Prompt_System["Multi-Provider Prompt System"]
-    LLM_Runtime_Configuration["LLM Runtime Configuration"]
-    Static_Discovery_Bridge["Static Discovery Bridge"]
-    Standardized_Data_Schema["Standardized Data Schema"]
-    Orchestration_Engine -- "requests execution strategy from" --> Analysis_Strategy_Planner
-    Orchestration_Engine -- "delegates semantic analysis tasks to" --> Semantic_Analysis_Trio
-    Semantic_Analysis_Trio -- "produces architectural descriptions formatted according to" --> Standardized_Data_Schema
-    Structural_Validation_Engine -- "validates output of" --> Semantic_Analysis_Trio
-    Structural_Validation_Engine -- "cross-references against data from" --> Static_Discovery_Bridge
-    Multi_Provider_Prompt_System -- "provides prompt templates to" --> Semantic_Analysis_Trio
-    LLM_Runtime_Configuration -- "supplies authenticated model instances to" --> Orchestration_Engine
-    Static_Discovery_Bridge -- "feeds ground-truth structural data into" --> Orchestration_Engine
+    Agent_Orchestration_Engine["Agent Orchestration Engine"]
+    Specialized_Semantic_Agents["Specialized Semantic Agents"]
+    Prompt_Management_System["Prompt Management System"]
+    Semantic_Validation_Engine["Semantic Validation Engine"]
+    LLM_Infrastructure_Config["LLM Infrastructure & Config"]
+    Static_Analysis_Cluster_Utils["Static Analysis & Cluster Utils"]
+    Semantic_Data_Models["Semantic Data Models"]
+    Dependency_Discovery_Service["Dependency Discovery Service"]
+    Agent_Orchestration_Engine -- "delegates granular analysis tasks" --> Specialized_Semantic_Agents
+    Specialized_Semantic_Agents -- "retrieves task‑specific templates" --> Prompt_Management_System
+    Specialized_Semantic_Agents -- "fetches code snippets and subgraph data for context" --> Static_Analysis_Cluster_Utils
+    Semantic_Validation_Engine -- "validates LLM‑derived components against CFG facts" --> Static_Analysis_Cluster_Utils
+    LLM_Infrastructure_Config -- "supplies initialized model clients for execution" --> Specialized_Semantic_Agents
+    Specialized_Semantic_Agents -- "serializes LLM responses into structured objects" --> Semantic_Data_Models
+    Dependency_Discovery_Service -- "provides high‑level project metadata to seed the analysis" --> Agent_Orchestration_Engine
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -1568,81 +1529,82 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Orchestration Engine
-The central lifecycle manager that coordinates the analysis flow, manages state, and sequences the execution of specialized agents. It handles retry logic and maintains the overall progress of the codebase visualization task.
+### Agent Orchestration Engine
+Coordinates the analysis workflow, manages agent lifecycles, and ensures full coverage of CFG clusters.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.agent.CodeBoardingAgent`
-- `repos.codeboarding.agent.AgentState`
+- `agents.code_boarding.CodeBoardingAgent`
 
 
-### Analysis Strategy Planner
-Evaluates repository characteristics (file density, cluster count) to determine the optimal analysis strategy, such as whether components should be processed as flat lists or recursive sub-graphs.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.PlannerAgent`
-
-
-### Semantic Analysis Trio
-A specialized group of agents that interpret the codebase at three granularities: project metadata (Meta), high-level abstractions (Abstraction), and implementation details (Details).
+### Specialized Semantic Agents
+Task‑specific agents (Abstraction, Meta, Details) that perform targeted analysis of code components.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.agent.MetaAgent`
-- `repos.codeboarding.agent.AbstractionAgent`
-- `repos.codeboarding.agent.DetailsAgent`
+- `agents.abstraction.AbstractionAgent`
+- `agents.meta.MetaAgent`
+- `agents.details.DetailsAgent`
 
 
-### Structural Validation Engine
-Acts as a deterministic gatekeeper, cross-referencing LLM-generated mappings against the static Control Flow Graph (CFG) to prevent hallucinations and ensure structural integrity.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.agent.ValidationContext`
-
-
-### Multi-Provider Prompt System
-A decoupled management layer that serves provider-specific templates (OpenAI, Gemini, Anthropic, etc.) to agents via a factory pattern, ensuring the system is model‑agnostic.
+### Prompt Management System
+Decouples prompt engineering from logic, providing provider‑specific templates (OpenAI, Gemini, etc.).
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.prompts.PromptFactory`
-- `repos.codeboarding.prompts.AbstractPromptFactory`
+- `prompts.prompt_generator.PromptGenerator`
+- `prompts.prompt_factory.PromptFactory`:49-99
 
 
-### LLM Runtime Configuration
-Handles the initialization of LLM providers, API key resolution, and global model settings such as token limits and temperature.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.config.LLMConfig`
-
-
-### Static Discovery Bridge
-Identifies the project ecosystem and extracts specific sub‑graphs from the codebase to deliver ground‑truth structural data to the agents.
+### Semantic Validation Engine
+Cross‑references LLM interpretations with static analysis facts to ensure no clusters are missed or hallucinated.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.discovery.DependencyDiscovery`
-- `repos.codeboarding.discovery.ClusterMethodsMixin`
+- `validation.ValidationContext`:14-27
 
 
-### Standardized Data Schema
-Defines the shared Pydantic models that ensure all agents produce and consume data in a consistent, validated format across the pipeline.
+### LLM Infrastructure & Config
+Manages provider configurations, API keys, and model initialization (Ollama, Anthropic, etc.).
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.models.AnalysisInsights`
+- `config.llm_config.LLMConfig`
+- `config.initialize_llms`:319-322
+
+
+### Static Analysis & Cluster Utils
+Provides utility methods for agents to map clusters to file sets and extract relevant code subgraphs.
+
+
+**Related Classes/Methods**:
+
+- `utils.cluster_utils`
+
+
+### Semantic Data Models
+Defines the structured Pydantic schemas for LLM communication and final documentation output.
+
+
+**Related Classes/Methods**:
+
+- `models.analysis_insights.AnalysisInsights`
+- `models.component.Component`
+- `models.relation.Relation`
+
+
+### Dependency Discovery Service
+Scans for manifest files (e.g., package.json) to provide ecosystem context to the agents.
+
+
+**Related Classes/Methods**:
+
+- `discovery.discover_dependency_files`:103-159
 
 
 
@@ -2314,22 +2276,19 @@ A data model encapsulating parsed configuration details of a single Java project
 
 ```mermaid
 graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    LSP_Infrastructure["LSP Infrastructure"]
-    Incremental_Manager["Incremental Manager"]
-    Language_Adapters["Language Adapters"]
-    Graph_Construction_Engine["Graph Construction Engine"]
-    Analysis_Result_Store["Analysis Result Store"]
-    Health_Quality_Runner["Health & Quality Runner"]
-    Code_Quality_Diagnostics["Code Quality Diagnostics"]
-    Analysis_Orchestrator -- "initializes" --> LSP_Infrastructure
-    Incremental_Manager -- "supplies" --> Analysis_Orchestrator
-    LSP_Infrastructure -- "forwards" --> Language_Adapters
-    Language_Adapters -- "provides" --> Graph_Construction_Engine
-    Graph_Construction_Engine -- "persists" --> Analysis_Result_Store
-    Health_Quality_Runner -- "orchestrates" --> Code_Quality_Diagnostics
-    Code_Quality_Diagnostics -- "queries" --> Analysis_Result_Store
-    Analysis_Orchestrator -- "finalizes" --> Analysis_Result_Store
+    Static_Analysis_Orchestrator["Static Analysis Orchestrator"]
+    LSP_Protocol_Handler["LSP Protocol Handler"]
+    Language_Specialists["Language Specialists"]
+    Incremental_State_Manager["Incremental State Manager"]
+    Graph_Abstraction_Engine["Graph & Abstraction Engine"]
+    Code_Quality_Analyzer["Code Quality Analyzer"]
+    Analysis_Data_Store["Analysis Data Store"]
+    Static_Analysis_Orchestrator -- "invokes" --> Incremental_State_Manager
+    LSP_Protocol_Handler -- "uses" --> Language_Specialists
+    Language_Specialists -- "feeds" --> Graph_Abstraction_Engine
+    Graph_Abstraction_Engine -- "provides" --> Code_Quality_Analyzer
+    Code_Quality_Analyzer -- "pushes" --> Analysis_Data_Store
+    Incremental_State_Manager -- "updates" --> Analysis_Data_Store
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -2338,76 +2297,75 @@ graph LR
 
 Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.
 
-### Analysis Orchestrator
-Coordinates project scanning, language detection, and the overall analysis lifecycle, acting as the entry point for the subsystem.
+### Static Analysis Orchestrator
+The central entry point that manages the lifecycle of analysis runs. It coordinates project discovery, determines the programming languages present, and triggers the incremental update logic to minimize processing time.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.AnalysisOrchestrator`
+- `ProjectScanner`:13-95
+- `ProgrammingLanguage`:23-75
 
 
-### LSP Infrastructure
-Provides the JSON-RPC transport layer and symbol resolution logic to communicate with external Language Servers.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.LSPInfrastructure`
-
-
-### Incremental Manager
-Optimizes performance by using Git diffs to perform delta-analysis, updating only changed fragments of the graph.
+### LSP Protocol Handler
+Manages low-level communication with Language Servers. It abstracts JSON-RPC messaging, document synchronization, and provides a mixin-based approach for resolving semantic references across files.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.IncrementalManager`
+- `LSPClient`:64-1650
+- `ReferenceResolverMixin`:13-166
 
 
-### Language Adapters
-Language‑specific bridges (Java, TypeScript, etc.) that handle environment discovery and map LSP data to domain models.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.LanguageAdapters`
-
-
-### Graph Construction Engine
-Transforms raw symbol and call data into a unified Call Graph and performs architectural clustering.
+### Language Specialists
+Concrete strategies that handle the nuances of specific languages and their build systems (e.g., Maven, Gradle, tsconfig). They provide the necessary environment bootstrapping for the LSP servers.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.GraphConstructionEngine`
+- `JavaConfigScanner`:33-218
+- `TSConfigScanner`
 
 
-### Analysis Result Store
-Central DTO and persistence layer containing the extracted CFG, class hierarchies, and package dependencies.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.AnalysisResultStore`
-
-
-### Health & Quality Runner
-Orchestrates the execution of diagnostic checks and aggregates findings into a repository‑wide health score.
+### Incremental State Manager
+Optimizes performance by tracking changes in the codebase. It uses Git history to identify modified files and manages a local cache to ensure only affected components are re-analyzed.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.HealthQualityRunner`
+- `GitDiffAnalyzer`:16-224
+- `AnalysisCache`:14-50
 
 
-### Code Quality Diagnostics
-Suite of specialized checkers (e.g., UnusedCodeAnalyzer, God Class) that evaluate the graph for structural issues.
+### Graph & Abstraction Engine
+The "brain" of the subsystem that constructs a global Call Graph from raw symbols. It applies adaptive clustering to group low-level code elements into high-level architectural modules.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.CodeQualityDiagnostics`
+- `CallGraphBuilder`
+- `AdaptiveClustering`
+
+
+### Code Quality Analyzer
+A composite engine that runs diagnostic checks. It identifies structural flaws such as circular dependencies, "God Classes," and dead code, contributing to the overall health score of the project.
+
+
+**Related Classes/Methods**:
+
+- `HealthCheckRunner`
+- `UnusedCodeAnalyzer`
+- `CircularDependencyDetector`
+
+
+### Analysis Data Store
+Manages the persistence of all analysis outputs. It defines unified Data Transfer Objects (DTOs) that allow both the VS Code UI and LLM agents to query the results of the static analysis.
+
+
+**Related Classes/Methods**:
+
+- `StaticAnalysisResults`:53-269
+- `HealthReport`:122-135
 
 
 

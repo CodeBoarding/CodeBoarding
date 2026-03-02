@@ -13,7 +13,7 @@ from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import plan_analysis
+from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -35,9 +35,10 @@ from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer import get_static_analysis
+from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
+from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class DiagramGenerator:
         log_path: str,
         project_name: str | None = None,
         monitoring_enabled: bool = False,
+        static_analyzer: StaticAnalyzer | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -65,6 +67,10 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
+        # Optional pre-started StaticAnalyzer injected by long-lived callers (e.g. the
+        # wrapper). When set, pre_analysis() uses it directly instead of creating a new
+        # one-shot analyzer via get_static_analysis().
+        self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
@@ -89,7 +95,7 @@ class DiagramGenerator:
             parent_had_clusters = bool(component.source_cluster_ids)
 
             # Get new components to analyze (deterministic, no LLM)
-            new_components = plan_analysis(analysis, parent_had_clusters=parent_had_clusters)
+            new_components = get_expandable_components(analysis, parent_had_clusters=parent_had_clusters)
 
             return component.component_id, analysis, new_components
         except Exception as e:
@@ -109,7 +115,7 @@ class DiagramGenerator:
             repo_path=self.repo_location,
         )
         if health_report is not None:
-            health_path = os.path.join(self.output_dir, "health", "health_report.json")
+            health_path = Path(self.output_dir) / "health" / "health_report.json"
             with open(health_path, "w") as f:
                 f.write(health_report.model_dump_json(indent=2, exclude_none=True))
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
@@ -140,10 +146,17 @@ class DiagramGenerator:
             summary=FileCoverageSummary(**self.file_coverage_data["summary"]),
         )
 
-        coverage_path = os.path.join(self.output_dir, "file_coverage.json")
+        coverage_path = Path(self.output_dir) / "file_coverage.json"
         with open(coverage_path, "w") as f:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
+
+    def _get_static_from_injected_analyzer(self, cache_dir: Path | None) -> StaticAnalysisResults:
+        result = self._static_analyzer.analyze(  # type: ignore[union-attr]
+            cache_dir=cache_dir,
+        )
+        result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
+        return result
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -160,14 +173,27 @@ class DiagramGenerator:
         )
         self._monitoring_agents["MetaAgent"] = self.meta_agent
 
-        # Run static analysis and meta analysis in parallel
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        def get_static_with_injected_analyzer() -> StaticAnalysisResults:
+            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
+            return self._get_static_from_injected_analyzer(cache_dir)
+
+        def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
-            static_future = executor.submit(get_static_analysis, self.repo_location, skip_cache=skip_cache)
-            meta_future = executor.submit(self.meta_agent.analyze_project_metadata, skip_cache=skip_cache)
+            return get_static_analysis(self.repo_location, skip_cache=skip_cache)
 
+        # Decide how to obtain static analysis results, then run it in parallel
+        # with the meta-context computation so neither blocks the other.
+        if self._static_analyzer is not None:
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+            static_callable = get_static_with_injected_analyzer
+        else:
+            static_callable = get_static_with_new_analyzer
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            static_future = executor.submit(static_callable)
+            meta_future = executor.submit(self.meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
             static_analysis = static_future.result()
             meta_context = meta_future.result()
 
@@ -209,7 +235,7 @@ class DiagramGenerator:
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        version_file = os.path.join(self.output_dir, "codeboarding_version.json")
+        version_file = Path(self.output_dir) / "codeboarding_version.json"
         with open(version_file, "w") as f:
             f.write(
                 Version(
@@ -314,7 +340,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def generate_analysis(self):
+    def generate_analysis(self) -> list[Path]:
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
@@ -334,7 +360,7 @@ class DiagramGenerator:
             analysis, cluster_results = self.abstraction_agent.run()
 
             # Get the initial components to analyze (deterministic, no LLM)
-            root_components = plan_analysis(analysis)
+            root_components = get_expandable_components(analysis)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
@@ -352,18 +378,15 @@ class DiagramGenerator:
                 )
 
             # Final write of unified analysis.json
-            analysis_path = str(
-                save_analysis(
-                    analysis=analysis,
-                    output_dir=Path(self.output_dir),
-                    sub_analyses=sub_analyses,
-                    repo_name=self.repo_name,
-                    file_coverage_summary=file_coverage_summary,
-                )
+            analysis_path = save_analysis(
+                analysis=analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=file_coverage_summary,
             )
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
-            print("Generated analysis file: %s", os.path.abspath(analysis_path))
 
             # Write file_coverage.json
             self._write_file_coverage()
@@ -393,7 +416,7 @@ class DiagramGenerator:
         except Exception as e:
             logger.warning(f"Failed to save manifest: {e}")
 
-    def try_incremental_update(self) -> list[str] | None:
+    def try_incremental_update(self) -> list[Path] | None:
         """
         Attempt an incremental update if possible.
 
@@ -413,7 +436,11 @@ class DiagramGenerator:
         # recompute file assignments with cluster matching. Load it first.
         static_analysis = None
         try:
-            static_analysis = get_static_analysis(self.repo_location)
+            if self._static_analyzer is not None:
+                static_analysis = self._static_analyzer.analyze(cache_dir=get_cache_dir(self.repo_location))
+                static_analysis.diagnostics = self._static_analyzer.collected_diagnostics
+            else:
+                static_analysis = get_static_analysis(self.repo_location)
             logger.info("Loaded static analysis for incremental update")
         except Exception as e:
             logger.warning(f"Could not load static analysis: {e}")
@@ -440,7 +467,7 @@ class DiagramGenerator:
 
         if impact.action == UpdateAction.NONE:
             logger.info("No changes detected, analysis is up to date")
-            return [str(self.output_dir / "analysis.json")]
+            return [self.output_dir / "analysis.json"]
 
         # For structural changes, recompute which components are actually affected
         # after static analysis has been updated with cluster matching
@@ -463,13 +490,13 @@ class DiagramGenerator:
                 )
                 self._write_file_coverage()
 
-            return [str(self.output_dir / "analysis.json")]
+            return [self.output_dir / "analysis.json"]
 
         # Incremental update failed or not possible
         logger.info("Incremental update not possible, falling back to full analysis")
         return None
 
-    def generate_analysis_smart(self) -> list[str]:
+    def generate_analysis_smart(self) -> list[Path]:
         """
         Smart analysis that tries incremental first, falls back to full.
 

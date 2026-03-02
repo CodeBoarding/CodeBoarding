@@ -1,23 +1,16 @@
 ```mermaid
 graph LR
-    DiagramGenerator["DiagramGenerator"]
-    AnalysisManifest["AnalysisManifest"]
-    SphinxGenerator["SphinxGenerator"]
-    MarkdownGenerator["MarkdownGenerator"]
-    HTMLGenerator["HTMLGenerator"]
-    MDXGenerator["MDXGenerator"]
-    FileCoverage["FileCoverage"]
-    MermaidRenderer["MermaidRenderer"]
-    DiagramGenerator -- "retrieves structured architectural data" --> AnalysisManifest
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> SphinxGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> MarkdownGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> HTMLGenerator
-    DiagramGenerator -- "orchestrates execution of specific formatters" --> MDXGenerator
-    SphinxGenerator -- "queries component metadata" --> AnalysisManifest
-    MarkdownGenerator -- "queries component metadata" --> AnalysisManifest
-    HTMLGenerator -- "queries component metadata" --> AnalysisManifest
-    DiagramGenerator -- "consults coverage data" --> FileCoverage
-    MarkdownGenerator -- "passes relationship data for formatting" --> MermaidRenderer
+    Output_Orchestration_Dispatcher["Output Orchestration Dispatcher"]
+    Visual_Model_Generator["Visual Model Generator"]
+    Interactive_HTML_Provider["Interactive HTML Provider"]
+    Static_Markdown_Provider["Static Markdown Provider"]
+    Sphinx_Documentation_Provider["Sphinx Documentation Provider"]
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Interactive_HTML_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Static_Markdown_Provider
+    Output_Orchestration_Dispatcher -- "dispatches to" --> Sphinx_Documentation_Provider
+    Visual_Model_Generator -- "supplies data to" --> Interactive_HTML_Provider
+    Visual_Model_Generator -- "supplies data to" --> Static_Markdown_Provider
+    Visual_Model_Generator -- "supplies data to" --> Sphinx_Documentation_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -26,76 +19,55 @@ graph LR
 
 Transforms the processed analysis data and insights into user-friendly documentation formats (e.g., Markdown, HTML) and generates visual representations like architectural diagrams.
 
-### DiagramGenerator
-The central orchestrator of the output phase; coordinates the transformation of CFG data into visual Mermaid diagrams and documentation structures.
+### Output Orchestration Dispatcher
+The central controller that receives the final analysis manifest and routes data to the appropriate output generators based on user-defined configurations (e.g., `--format html,markdown`).
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.DiagramGenerator`
+- `repos.codeboarding.output.MultiFormatDocumenter`
+- `repos.codeboarding.output.OutputGenerator`
 
 
-### AnalysisManifest
-The source‑of‑truth data structure containing the hierarchical map of architectural components, relationships, and LLM‑generated insights.
-
-
-**Related Classes/Methods**:
-
-- `core.manifest.AnalysisManifest`
-
-
-### SphinxGenerator
-Specialized generator that produces reStructuredText and configuration files for integration with the Sphinx documentation framework.
+### Visual Model Generator
+The engine responsible for translating static analysis relationships into graph‑based syntax. It generates the raw Mermaid.js strings and Cytoscape JSON structures used by the providers.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.SphinxGenerator`
+- `repos.codeboarding.output.DiagramGenerator`
+- `repos.codeboarding.output.MermaidGenerator`
 
 
-### MarkdownGenerator
-Transforms analysis data into standard Markdown files, embedding Mermaid.js code blocks for visual representation in Git platforms.
-
-
-**Related Classes/Methods**:
-
-- `output_generators.sphinx.MarkdownGenerator`
-
-
-### HTMLGenerator
-Produces standalone, interactive HTML reports that allow users to navigate the codebase hierarchy and view diagrams in a browser.
+### Interactive HTML Provider
+Generates standalone, interactive web documentation. It embeds Cytoscape.js for dynamic diagram manipulation and manages CSS/JS assets for the UI.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.html.HTMLGenerator`
+- `repos.codeboarding.output.html.HTMLOutputGenerator`
+- `repos.codeboarding.output.html.CytoscapeGenerator`
+- `repos.codeboarding.output.html.TemplateEngine`
 
 
-### MDXGenerator
-Generates React‑compatible Markdown (MDX) files, optimized for modern documentation sites like Docusaurus or Next.js.
-
-
-**Related Classes/Methods**:
-
-- `output_generators.mdx.MDXGenerator`
-
-
-### FileCoverage
-Tracks which source files have been successfully analyzed and documented, ensuring the output reflects the current state of the repository.
+### Static Markdown Provider
+Produces Markdown and MDX files optimized for static hosting (GitHub, Docusaurus). It embeds Mermaid.js code blocks for native rendering.
 
 
 **Related Classes/Methods**:
 
-- `core.coverage.FileCoverage`
+- `repos.codeboarding.output.markdown.MarkdownOutputGenerator`
+- `repos.codeboarding.output.markdown.MdxOutputGenerator`
 
 
-### MermaidRenderer
-(Logic within DiagramGenerator) Specifically handles the conversion of Control Flow Graph (CFG) nodes and edges into Mermaid.js syntax.
+### Sphinx Documentation Provider
+A specialized generator that produces ReStructuredText (RST) files, allowing the tool's output to be seamlessly integrated into existing Python Sphinx documentation suites.
 
 
 **Related Classes/Methods**:
 
-- `output_generators.sphinx.MermaidRenderer`
+- `repos.codeboarding.output.sphinx.SphinxOutputGenerator`
+- `repos.codeboarding.output.sphinx.RstGenerator`
 
 
 

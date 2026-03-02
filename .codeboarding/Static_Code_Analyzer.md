@@ -1,21 +1,18 @@
 ```mermaid
 graph LR
-    Analysis_Orchestrator["Analysis Orchestrator"]
-    LSP_Infrastructure["LSP Infrastructure"]
-    Incremental_Manager["Incremental Manager"]
-    Language_Adapters["Language Adapters"]
-    Graph_Construction_Engine["Graph Construction Engine"]
-    Analysis_Result_Store["Analysis Result Store"]
-    Health_Quality_Runner["Health & Quality Runner"]
-    Code_Quality_Diagnostics["Code Quality Diagnostics"]
-    Analysis_Orchestrator -- "initializes" --> LSP_Infrastructure
-    Incremental_Manager -- "supplies" --> Analysis_Orchestrator
-    LSP_Infrastructure -- "forwards" --> Language_Adapters
-    Language_Adapters -- "provides" --> Graph_Construction_Engine
-    Graph_Construction_Engine -- "persists" --> Analysis_Result_Store
-    Health_Quality_Runner -- "orchestrates" --> Code_Quality_Diagnostics
-    Code_Quality_Diagnostics -- "queries" --> Analysis_Result_Store
-    Analysis_Orchestrator -- "finalizes" --> Analysis_Result_Store
+    Static_Analysis_Orchestrator["Static Analysis Orchestrator"]
+    LSP_Protocol_Handler["LSP Protocol Handler"]
+    Language_Specialists["Language Specialists"]
+    Incremental_State_Manager["Incremental State Manager"]
+    Graph_Abstraction_Engine["Graph & Abstraction Engine"]
+    Code_Quality_Analyzer["Code Quality Analyzer"]
+    Analysis_Data_Store["Analysis Data Store"]
+    Static_Analysis_Orchestrator -- "invokes" --> Incremental_State_Manager
+    LSP_Protocol_Handler -- "uses" --> Language_Specialists
+    Language_Specialists -- "feeds" --> Graph_Abstraction_Engine
+    Graph_Abstraction_Engine -- "provides" --> Code_Quality_Analyzer
+    Code_Quality_Analyzer -- "pushes" --> Analysis_Data_Store
+    Incremental_State_Manager -- "updates" --> Analysis_Data_Store
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -24,76 +21,75 @@ graph LR
 
 Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.
 
-### Analysis Orchestrator
-Coordinates project scanning, language detection, and the overall analysis lifecycle, acting as the entry point for the subsystem.
+### Static Analysis Orchestrator
+The central entry point that manages the lifecycle of analysis runs. It coordinates project discovery, determines the programming languages present, and triggers the incremental update logic to minimize processing time.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.AnalysisOrchestrator`
+- `ProjectScanner`:13-95
+- `ProgrammingLanguage`:23-75
 
 
-### LSP Infrastructure
-Provides the JSON-RPC transport layer and symbol resolution logic to communicate with external Language Servers.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.LSPInfrastructure`
-
-
-### Incremental Manager
-Optimizes performance by using Git diffs to perform delta-analysis, updating only changed fragments of the graph.
+### LSP Protocol Handler
+Manages low-level communication with Language Servers. It abstracts JSON-RPC messaging, document synchronization, and provides a mixin-based approach for resolving semantic references across files.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.IncrementalManager`
+- `LSPClient`:64-1650
+- `ReferenceResolverMixin`:13-166
 
 
-### Language Adapters
-Language‑specific bridges (Java, TypeScript, etc.) that handle environment discovery and map LSP data to domain models.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.LanguageAdapters`
-
-
-### Graph Construction Engine
-Transforms raw symbol and call data into a unified Call Graph and performs architectural clustering.
+### Language Specialists
+Concrete strategies that handle the nuances of specific languages and their build systems (e.g., Maven, Gradle, tsconfig). They provide the necessary environment bootstrapping for the LSP servers.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.GraphConstructionEngine`
+- `JavaConfigScanner`:33-218
+- `TSConfigScanner`
 
 
-### Analysis Result Store
-Central DTO and persistence layer containing the extracted CFG, class hierarchies, and package dependencies.
-
-
-**Related Classes/Methods**:
-
-- `static_analyzer.java_config_scanner.AnalysisResultStore`
-
-
-### Health & Quality Runner
-Orchestrates the execution of diagnostic checks and aggregates findings into a repository‑wide health score.
+### Incremental State Manager
+Optimizes performance by tracking changes in the codebase. It uses Git history to identify modified files and manages a local cache to ensure only affected components are re-analyzed.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.HealthQualityRunner`
+- `GitDiffAnalyzer`:16-224
+- `AnalysisCache`:14-50
 
 
-### Code Quality Diagnostics
-Suite of specialized checkers (e.g., UnusedCodeAnalyzer, God Class) that evaluate the graph for structural issues.
+### Graph & Abstraction Engine
+The "brain" of the subsystem that constructs a global Call Graph from raw symbols. It applies adaptive clustering to group low-level code elements into high-level architectural modules.
 
 
 **Related Classes/Methods**:
 
-- `static_analyzer.java_config_scanner.CodeQualityDiagnostics`
+- `CallGraphBuilder`
+- `AdaptiveClustering`
+
+
+### Code Quality Analyzer
+A composite engine that runs diagnostic checks. It identifies structural flaws such as circular dependencies, "God Classes," and dead code, contributing to the overall health score of the project.
+
+
+**Related Classes/Methods**:
+
+- `HealthCheckRunner`
+- `UnusedCodeAnalyzer`
+- `CircularDependencyDetector`
+
+
+### Analysis Data Store
+Manages the persistence of all analysis outputs. It defines unified Data Transfer Objects (DTOs) that allow both the VS Code UI and LLM agents to query the results of the static analysis.
+
+
+**Related Classes/Methods**:
+
+- `StaticAnalysisResults`:53-269
+- `HealthReport`:122-135
 
 
 

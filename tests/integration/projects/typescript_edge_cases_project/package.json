@@ -1,0 +1,11 @@
+{
+  "name": "typescript-edge-cases",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
