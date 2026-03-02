@@ -220,7 +220,6 @@ def process_remote_repository(
     Process a remote repository by cloning and generating documentation.
     """
     repo_root = Path("repos")
-
     repo_name = get_repo_name(repo_url)
 
     # Check cache if enabled
@@ -485,7 +484,7 @@ Examples:
             ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
-    if is_local and (args.incremental or args.partial_update):
+    if is_local and (args.incremental or args.partial_component_id):
         run_id = _load_existing_run_id(local_repo_path) or generate_run_id()
     else:
         run_id = generate_run_id()
@@ -520,16 +519,19 @@ Examples:
                 except Exception as e:
                     logger.warning(f"Could not store GitHub token: {e}")
 
+            repo_root = Path("repos")
+            workspace_root = Path.cwd()
+
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 repo_name = get_repo_name(repo)
-                # Clone to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/
-                repo_output_dir = Path.cwd() / repo_name / ".codeboarding"
+                # Clone target: repos/<repo_name>; docs output: <cwd>/<repo_name>/.codeboarding
+                repo_output_dir = workspace_root / repo_name / ".codeboarding"
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
                 initialize_codeboardingignore(repo_output_dir)
                 log_path = generate_log_path(repo_name)
 
-                run_id = _load_existing_run_id(repo_output_dir)
-                run_id = run_id or generate_run_id()
+                repo_cache_root = repo_root / repo_name
+                run_id = _load_existing_run_id(repo_cache_root) or generate_run_id()
 
                 monitoring_dir = get_monitoring_run_dir(log_path, create=should_monitor)
 

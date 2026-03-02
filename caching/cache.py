@@ -103,7 +103,7 @@ class BaseCache(Generic[K, V]):
         encoded = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    def _lookup(self, key_sig: str, namespace: str) -> str | None:
+    def _lookup(self, key_sig: str) -> str | None:
         engine = self._open_sqlite()
         if engine is None:
             return None
@@ -160,7 +160,7 @@ class BaseCache(Generic[K, V]):
         try:
             key_sig = self.signature(key)
             if self._CLEAR_BEFORE_STORE:
-                self._clear_namespace()
+                self.clear()
             self._upsert(key_sig, value.model_dump_json(), run_id=run_id)
             logger.info("Cache store success: %s key=%s", self.file_path.name, key_sig)
         except Exception as e:
@@ -185,7 +185,7 @@ class BaseCache(Generic[K, V]):
             logger.warning("Cache clear failed: %s", e)
             return 0
 
-    def load_most_recent_run(self, namespace: str) -> tuple[str, int] | None:
+    def load_most_recent_run(self) -> tuple[str, int] | None:
         try:
             engine = self._open_sqlite()
             if engine is None:
@@ -195,7 +195,6 @@ class BaseCache(Generic[K, V]):
             stmt = (
                 select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
                 .where(
-                    self._cache_entries.c.namespace == namespace,
                     self._cache_entries.c.run_id != "",
                 )
                 .group_by(self._cache_entries.c.run_id)
@@ -208,7 +207,7 @@ class BaseCache(Generic[K, V]):
                 return None
             return str(row[0]), int(row[1])
         except Exception as e:
-            logger.warning("Cache latest run_id load failed for namespace=%s: %s", namespace, e)
+            logger.warning("Cache latest run_id load failed for namespace=%s: %s", e)
             return None
 
     def close(self) -> None:

@@ -20,7 +20,6 @@ class FinalAnalysisCache(BaseCache[DetailsCacheKey, AnalysisInsights]):
 
     _LLM_NAMESPACE = "details_final_analysis"
     _CLEAR_BEFORE_STORE = False
-    _REQUIRE_RUN_ID = True
 
     def __init__(self, repo_dir: Path):
         super().__init__(
@@ -40,7 +39,6 @@ class ClusterCache(BaseCache[DetailsCacheKey, ClusterAnalysis]):
 
     _LLM_NAMESPACE = "details_cluster_analysis"
     _CLEAR_BEFORE_STORE = False
-    _REQUIRE_RUN_ID = True
 
     def __init__(self, repo_dir: Path):
         super().__init__(
@@ -63,8 +61,8 @@ def prune_details_caches(repo_dir: Path, only_keep_run_id: str) -> None:
 def _load_existing_run_id(repo_dir: Path) -> str | None:
     final_cache = FinalAnalysisCache(repo_dir)
     cluster_cache = ClusterCache(repo_dir)
-    final_latest = final_cache.load_most_recent_run(namespace=FinalAnalysisCache._LLM_NAMESPACE)
-    cluster_latest = cluster_cache.load_most_recent_run(namespace=ClusterCache._LLM_NAMESPACE)
+    final_latest = final_cache.load_most_recent_run()
+    cluster_latest = cluster_cache.load_most_recent_run()
 
     candidates = [candidate for candidate in (final_latest, cluster_latest) if candidate is not None]
     if not candidates:
