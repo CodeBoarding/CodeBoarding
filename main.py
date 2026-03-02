@@ -53,24 +53,21 @@ def generate_analysis(
     repo_path: Path,
     output_dir: Path,
     run_id: str,
-    log_path: str | None = None,
+    log_path: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     force_full: bool = False,
 ) -> list[Path]:
-    generator_kwargs: dict = {
-        "repo_location": repo_path,
-        "temp_folder": output_dir,
-        "repo_name": repo_name,
-        "output_dir": output_dir,
-        "depth_level": depth_level,
-        "run_id": run_id,
-        "monitoring_enabled": monitoring_enabled,
-    }
-    if log_path is not None:
-        generator_kwargs["log_path"] = log_path
-
-    generator = DiagramGenerator(**generator_kwargs)
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=output_dir,
+        repo_name=repo_name,
+        output_dir=output_dir,
+        depth_level=depth_level,
+        run_id=run_id,
+        log_path=log_path,
+        monitoring_enabled=monitoring_enabled,
+    )
     generator.force_full_analysis = force_full
     generated_files = generator.generate_analysis()
     return [Path(path) for path in generated_files]
@@ -131,24 +128,21 @@ def partial_update(
     project_name: str,
     component_id: str,
     run_id: str,
-    log_path: str | None = None,
+    log_path: str,
     depth_level: int = 1,
 ):
     """
     Update a specific component in an existing analysis.
     """
-    generator_kwargs: dict = {
-        "repo_location": repo_path,
-        "temp_folder": output_dir,
-        "repo_name": project_name,
-        "output_dir": output_dir,
-        "depth_level": depth_level,
-        "run_id": run_id,
-    }
-    if log_path is not None:
-        generator_kwargs["log_path"] = log_path
-
-    generator = DiagramGenerator(**generator_kwargs)
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=output_dir,
+        repo_name=project_name,
+        output_dir=output_dir,
+        depth_level=depth_level,
+        run_id=run_id,
+        log_path=log_path,
+    )
     generator.pre_analysis()
 
     # Load the full unified analysis (root + all sub-analyses)
@@ -193,7 +187,7 @@ def generate_docs_remote(
     repo_url: str,
     temp_repo_folder: Path,
     run_id: str,
-    log_path: str | None = None,
+    log_path: str,
     local_dev: bool = False,
     monitoring_enabled: bool = False,
 ):
@@ -215,7 +209,7 @@ def generate_docs_remote(
 def process_remote_repository(
     repo_url: str,
     run_id: str,
-    log_path: str | None = None,
+    log_path: str,
     output_dir: Path | None = None,
     depth_level: int = 1,
     upload: bool = False,

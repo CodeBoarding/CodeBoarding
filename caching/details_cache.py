@@ -62,14 +62,15 @@ def prune_details_caches(repo_dir: Path, only_keep_run_id: str) -> None:
 
 def _load_existing_run_id(repo_dir: Path) -> str | None:
     final_cache = FinalAnalysisCache(repo_dir)
-    final_ids = final_cache.load_existing_ids(namespace=FinalAnalysisCache._LLM_NAMESPACE)
-    logger.info("Found %d existing run_id(s) in %s", len(final_ids), FinalAnalysisCache._LLM_NAMESPACE)
-    if final_ids:
-        logger.info("Returning first existing run_id from %s: %s", FinalAnalysisCache._LLM_NAMESPACE, final_ids[0])
-        return final_ids[0]
-
     cluster_cache = ClusterCache(repo_dir)
-    cluster_ids = cluster_cache.load_existing_ids(namespace=ClusterCache._LLM_NAMESPACE)
-    if cluster_ids:
-        return cluster_ids[0]
-    return None
+    final_latest = final_cache.load_most_recent_run(namespace=FinalAnalysisCache._LLM_NAMESPACE)
+    cluster_latest = cluster_cache.load_most_recent_run(namespace=ClusterCache._LLM_NAMESPACE)
+
+    candidates = [candidate for candidate in (final_latest, cluster_latest) if candidate is not None]
+    if not candidates:
+        logger.info("No existing run_id found in details caches")
+        return None
+
+    run_id, updated_at = max(candidates, key=lambda candidate: candidate[1])
+    logger.info("Reusing most recent run_id=%s (updated_at=%d)", run_id, updated_at)
+    return run_id

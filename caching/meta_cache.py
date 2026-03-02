@@ -29,14 +29,18 @@ _CACHE_WATCH_ROLES: frozenset[FileRole] = frozenset({FileRole.MANIFEST, FileRole
 class MetaCacheKey(BaseModel):
     cache_version: int = CACHE_VERSION
     prompt: str
-    model: str
-    model_settings: ModelSettings
+    agent_model: str
+    agent_model_settings: ModelSettings
+    parsing_model: str
+    parsing_model_settings: ModelSettings
     metadata_files: list[str]
     metadata_content_hash: str
 
 
 class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
     """SQLite-backed cache for MetaAgent analysis results."""
+
+    _META_RUN_ID = "meta"
 
     def __init__(
         self,
@@ -61,24 +65,34 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
 
         return sorted(files)
 
-    def build_key(self, prompt: str, llm: BaseChatModel) -> MetaCacheKey:
+    def build_key(self, prompt: str, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> MetaCacheKey:
         metadata_files = self.discover_metadata_files()
-        metadata_content_hash = self._compute_metadata_content_hash(metadata_files) or ""
-        model = getattr(llm, "model_name", None) or getattr(llm, "model", None) or llm.__class__.__name__
-        model_settings = ModelSettings.from_chat_model(provider="unknown", llm=llm)
+        metadata_content_hash = self._compute_metadata_content_hash(metadata_files)
+        agent_model = (
+            getattr(agent_llm, "model_name", None) or getattr(agent_llm, "model", None) or agent_llm.__class__.__name__
+        )
+        parsing_model = (
+            getattr(parsing_llm, "model_name", None)
+            or getattr(parsing_llm, "model", None)
+            or parsing_llm.__class__.__name__
+        )
+        agent_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=agent_llm)
+        parsing_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=parsing_llm)
         return MetaCacheKey(
             prompt=prompt,
-            model=str(model),
-            model_settings=model_settings,
+            agent_model=str(agent_model),
+            agent_model_settings=agent_model_settings,
+            parsing_model=str(parsing_model),
+            parsing_model_settings=parsing_model_settings,
             metadata_files=[path.as_posix() for path in metadata_files],
             metadata_content_hash=metadata_content_hash,
         )
 
-    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str | None:
+    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str:
         """Return a deterministic fingerprint for watched file contents."""
         if not metadata_files:
-            logger.error("[MetaCache] Trying to compute hash for empty list of watch files.")
-            return None
+            logger.debug("No metadata files discovered for meta cache key")
+            return hashlib.sha256(b"").hexdigest()
 
         digest = hashlib.sha256()
         normalized_paths = sorted(metadata_files)
@@ -87,18 +101,10 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
             normalized = path.as_posix()
             if (file_digest := fingerprint_file(self._repo_dir / path)) is None:
                 logger.warning("Unable to fingerprint meta cache watch file: %s", normalized)
-                return None
+                return hashlib.sha256(b"").hexdigest()
 
             digest.update(normalized.encode("utf-8") + b"\0" + file_digest + b"\n")
         return digest.hexdigest()
 
-    def is_record_stale(self, record: MetaCacheKey) -> bool:
-        """Return True if metadata file fingerprints differ from the cached record."""
-        if not record.metadata_files:
-            logging.warning("Found no metadata files for cached meta cache record; recomputing...")
-            return True
-        if not record.metadata_content_hash:
-            logger.info("Meta cache record is missing watch-state fingerprint; recomputing...")
-            return True
-        current_hash = self._compute_metadata_content_hash(self.discover_metadata_files())
-        return current_hash != record.metadata_content_hash
+    def store_meta_analysis(self, key: MetaCacheKey, value: MetaAnalysisInsights) -> None:
+        self.store(key, value, run_id=self._META_RUN_ID)

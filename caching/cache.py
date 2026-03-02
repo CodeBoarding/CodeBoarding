@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Generic, TypeVar
 
@@ -9,7 +10,7 @@ from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, Index, MetaData, String, Table, delete, select, text
+from sqlalchemy import Column, Index, Integer, MetaData, String, Table, delete, func, select, text
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -51,6 +52,7 @@ class BaseCache(Generic[K, V]):
             Column("key_sig", String, primary_key=True),
             Column("run_id", String, nullable=False),
             Column("value_json", String, nullable=False),
+            Column("updated_at", Integer, nullable=False),
             Index(f"idx_{_CACHE_TABLE}_namespace", "namespace"),
             Index(f"idx_{_CACHE_TABLE}_namespace_run_id", "namespace", "run_id"),
         )
@@ -89,7 +91,7 @@ class BaseCache(Generic[K, V]):
         if not columns:
             return
 
-        expected = {"namespace", "key_sig", "run_id", "value_json"}
+        expected = {"namespace", "key_sig", "run_id", "value_json", "updated_at"}
         actual = {str(row[1]) for row in columns}
         if actual == expected:
             return
@@ -133,15 +135,17 @@ class BaseCache(Generic[K, V]):
             return
 
         ns = self._resolve_namespace(namespace)
+        updated_at = time.time_ns()
         stmt = insert(self._cache_entries).values(
             namespace=ns,
             key_sig=key_sig,
             run_id=run_id,
             value_json=value_json,
+            updated_at=updated_at,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["namespace", "key_sig"],
-            set_={"run_id": run_id, "value_json": value_json},
+            set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
         )
         with engine.begin() as conn:
             conn.execute(stmt)
@@ -196,27 +200,31 @@ class BaseCache(Generic[K, V]):
             logger.warning("Cache clear failed: %s", e)
             return 0
 
-    def load_existing_ids(self, namespace: str) -> list[str]:
+    def load_most_recent_run(self, namespace: str) -> tuple[str, int] | None:
         try:
             engine = self._open_sqlite()
             if engine is None:
-                return []
+                return None
 
+            latest = func.max(self._cache_entries.c.updated_at)
             stmt = (
-                select(self._cache_entries.c.run_id)
+                select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
                 .where(
                     self._cache_entries.c.namespace == namespace,
                     self._cache_entries.c.run_id != "",
                 )
-                .distinct()
-                .order_by(self._cache_entries.c.run_id)
+                .group_by(self._cache_entries.c.run_id)
+                .order_by(latest.desc())
+                .limit(1)
             )
             with engine.connect() as conn:
-                run_ids = conn.execute(stmt).scalars().all()
-            return [str(run_id) for run_id in run_ids if run_id is not None]
+                row = conn.execute(stmt).first()
+            if row is None or row[0] is None or row[1] is None:
+                return None
+            return str(row[0]), int(row[1])
         except Exception as e:
-            logger.warning("Cache run_id load failed for namespace=%s: %s", namespace, e)
-            return []
+            logger.warning("Cache latest run_id load failed for namespace=%s: %s", namespace, e)
+            return None
 
     def is_stale(self, key: K) -> bool:
         try:

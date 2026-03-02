@@ -65,6 +65,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 run_id="test-run-id",
+                log_path="test_repo/test-run-log",
                 depth_level=2,
             )
 
@@ -76,6 +77,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 output_dir=output_dir,
                 depth_level=2,
                 run_id="test-run-id",
+                log_path="test_repo/test-run-log",
                 monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
@@ -98,6 +100,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 run_id="test-run-id",
+                log_path="test_repo/test-run-log",
                 force_full=True,
             )
 
@@ -194,6 +197,7 @@ class TestPartialUpdate(unittest.TestCase):
                 project_name="test_project",
                 component_id="test_comp_id",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=1,
             )
 
@@ -260,6 +264,7 @@ class TestPartialUpdate(unittest.TestCase):
                 project_name="test_project",
                 component_id="nested_comp_id",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=1,
             )
 
@@ -286,6 +291,7 @@ class TestPartialUpdate(unittest.TestCase):
                 project_name="test_project",
                 component_id="TestComponent",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=1,
             )
 
@@ -323,6 +329,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
         process_remote_repository(
             repo_url="https://github.com/test/repo",
             run_id="test-run-id",
+            log_path="test_repo/test-run-log",
             cache_check=True,
         )
 
@@ -365,6 +372,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
             process_remote_repository(
                 repo_url="https://github.com/test/repo",
                 run_id="test-run-id",
+                log_path="test_repo/test-run-log",
                 upload=True,
                 cache_check=False,
             )
@@ -390,6 +398,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=1,
             )
 
@@ -398,6 +407,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 repo_path=repo_path,
                 output_dir=output_dir,
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=1,
                 monitoring_enabled=False,
                 force_full=False,
@@ -417,6 +427,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 output_dir=output_dir,
                 project_name="test_project",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=2,
                 component_id="TestComponent",
             )
@@ -427,6 +438,7 @@ class TestProcessLocalRepository(unittest.TestCase):
                 project_name="test_project",
                 component_id="TestComponent",
                 run_id="test-run-id",
+                log_path="test_project/test-run-log",
                 depth_level=2,
             )
 

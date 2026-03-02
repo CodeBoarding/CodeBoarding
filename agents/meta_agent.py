@@ -27,6 +27,7 @@ class MetaAgent(CodeBoardingAgent):
         super().__init__(repo_dir, StaticAnalysisResults(), get_system_meta_analysis_message(), agent_llm, parsing_llm)
         self.project_name = project_name
         self.agent_llm = agent_llm
+        self.parsing_llm = parsing_llm
 
         self.meta_analysis_prompt = PromptTemplate(
             template=get_meta_information_prompt(), input_variables=["project_name"]
@@ -43,6 +44,7 @@ class MetaAgent(CodeBoardingAgent):
         )
 
         self._meta_cache = MetaCache(repo_dir=repo_dir, ignore_manager=self.ignore_manager)
+        self._cache = self._meta_cache  # Backward-compatible alias for tests/callers.
 
     @trace
     def analyze_project_metadata(self, skip_cache: bool = False) -> MetaAnalysisInsights:
@@ -50,11 +52,11 @@ class MetaAgent(CodeBoardingAgent):
         logger.info(f"[MetaAgent] Analyzing metadata for project: {self.project_name}")
 
         prompt = self.meta_analysis_prompt.format(project_name=self.project_name)
-        cache_key = self._meta_cache.build_key(prompt, self.agent_llm)
+        cache_key = self._meta_cache.build_key(prompt, self.agent_llm, self.parsing_llm)
         if not skip_cache and (cached := self._meta_cache.load(cache_key)) is not None:
             return cached
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
-        self._meta_cache.store(cache_key, analysis)
+        self._meta_cache.store_meta_analysis(cache_key, analysis)
 
         logger.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
         return analysis
