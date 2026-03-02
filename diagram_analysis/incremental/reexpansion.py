@@ -121,6 +121,7 @@ def reexpand_components(
         project_name=repo_dir.name,
         agent_llm=agent_llm,
         parsing_llm=parsing_llm,
+        run_id=run_id,
     )
     meta_context = meta_agent.analyze_project_metadata(skip_cache=False)
 

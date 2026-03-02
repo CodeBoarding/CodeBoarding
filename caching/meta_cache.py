@@ -40,14 +40,17 @@ class MetaCacheKey(BaseModel):
 class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
     """SQLite-backed cache for MetaAgent analysis results."""
 
-    _META_RUN_ID = "meta"
+    _LLM_NAMESPACE = "meta_agent"
+    _CLEAR_BEFORE_STORE = True
 
     def __init__(
         self,
         repo_dir: Path,
         ignore_manager: RepoIgnoreManager,
     ):
-        super().__init__("meta_agent_llm.sqlite", value_type=MetaAnalysisInsights, repo_dir=repo_dir)
+        super().__init__(
+            "meta_agent_llm.sqlite", value_type=MetaAnalysisInsights, repo_dir=repo_dir, namespace="meta_agent"
+        )
         self._repo_dir = repo_dir
         self._ignore_manager = ignore_manager
 
@@ -65,9 +68,11 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
 
         return sorted(files)
 
-    def build_key(self, prompt: str, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> MetaCacheKey:
+    def build_key(self, prompt: str, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> MetaCacheKey | None:
         metadata_files = self.discover_metadata_files()
         metadata_content_hash = self._compute_metadata_content_hash(metadata_files)
+        if metadata_content_hash is None:
+            return None
         agent_model = (
             getattr(agent_llm, "model_name", None) or getattr(agent_llm, "model", None) or agent_llm.__class__.__name__
         )
@@ -88,23 +93,19 @@ class MetaCache(BaseCache[MetaCacheKey, MetaAnalysisInsights]):
             metadata_content_hash=metadata_content_hash,
         )
 
-    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str:
-        """Return a deterministic fingerprint for watched file contents."""
+    def _compute_metadata_content_hash(self, metadata_files: Sequence[Path]) -> str | None:
+        """Return a deterministic fingerprint for watched file contents, or None if any file is unreadable."""
         if not metadata_files:
             logger.debug("No metadata files discovered for meta cache key")
             return hashlib.sha256(b"").hexdigest()
 
         digest = hashlib.sha256()
-        normalized_paths = sorted(metadata_files)
 
-        for path in normalized_paths:
+        for path in sorted(metadata_files):
             normalized = path.as_posix()
             if (file_digest := fingerprint_file(self._repo_dir / path)) is None:
-                logger.warning("Unable to fingerprint meta cache watch file: %s", normalized)
-                return hashlib.sha256(b"").hexdigest()
+                logger.warning("Unable to fingerprint meta cache watch file: %s — skipping cache", normalized)
+                return None
 
             digest.update(normalized.encode("utf-8") + b"\0" + file_digest + b"\n")
         return digest.hexdigest()
-
-    def store_meta_analysis(self, key: MetaCacheKey, value: MetaAnalysisInsights) -> None:
-        self.store(key, value, run_id=self._META_RUN_ID)

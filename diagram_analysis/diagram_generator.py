@@ -156,6 +156,7 @@ class DiagramGenerator:
             project_name=self.repo_name,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
+            run_id=self.run_id,
         )
         self._monitoring_agents["MetaAgent"] = self.meta_agent
 

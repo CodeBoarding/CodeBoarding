@@ -485,7 +485,7 @@ Examples:
             ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
-    if is_local and args.incremental:
+    if is_local and (args.incremental or args.partial_update):
         run_id = _load_existing_run_id(local_repo_path) or generate_run_id()
     else:
         run_id = generate_run_id()
@@ -527,6 +527,9 @@ Examples:
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
                 initialize_codeboardingignore(repo_output_dir)
                 log_path = generate_log_path(repo_name)
+
+                run_id = _load_existing_run_id(repo_output_dir)
+                run_id = run_id or generate_run_id()
 
                 monitoring_dir = get_monitoring_run_dir(log_path, create=should_monitor)
 

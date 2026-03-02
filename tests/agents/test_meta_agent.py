@@ -48,6 +48,7 @@ class TestMetaAgent(unittest.TestCase):
             project_name=self.project_name,
             agent_llm=self._mock_llm(model_name),
             parsing_llm=self._mock_llm(parser_name),
+            run_id="test-run-id",
         )
 
     def test_init(self):
@@ -95,12 +96,14 @@ class TestMetaAgent(unittest.TestCase):
             project_name=self.project_name,
             agent_llm=shared_agent_llm,
             parsing_llm=self._mock_llm("parse-model-v1"),
+            run_id="test-run-id-a",
         )
         agent_b = MetaAgent(
             repo_dir=self.repo_dir,
             project_name=self.project_name,
             agent_llm=shared_agent_llm,
             parsing_llm=self._mock_llm("parse-model-v2"),
+            run_id="test-run-id-b",
         )
 
         first = self._meta_insights("library")
@@ -134,6 +137,24 @@ class TestMetaAgent(unittest.TestCase):
         cache = MetaCache(repo_dir=self.repo_dir, ignore_manager=self._build_agent().ignore_manager)
         expected = hashlib.sha256(b"").hexdigest()
         self.assertEqual(cache._compute_metadata_content_hash([]), expected)
+
+    def test_compute_metadata_hash_returns_none_when_file_unreadable(self):
+        cache = MetaCache(repo_dir=self.repo_dir, ignore_manager=self._build_agent().ignore_manager)
+        missing = Path("does_not_exist.toml")
+        result = cache._compute_metadata_content_hash([missing])
+        self.assertIsNone(result)
+
+    @patch("agents.meta_agent.MetaAgent._parse_invoke")
+    def test_analyze_metadata_skips_cache_when_key_unavailable(self, mock_parse_invoke):
+        agent = self._build_agent()
+        mock_parse_invoke.return_value = self._meta_insights("library")
+
+        with patch.object(agent._meta_cache, "build_key", return_value=None):
+            result = agent.analyze_project_metadata(skip_cache=False)
+
+        # Should still return a result (via LLM), just without touching the cache
+        mock_parse_invoke.assert_called_once()
+        self.assertEqual(result.project_type, "library")
 
     @patch("agents.meta_agent.MetaAgent._parse_invoke")
     def test_meta_cache_stores_non_empty_run_id(self, mock_parse_invoke):

@@ -23,11 +23,13 @@ class MetaAgent(CodeBoardingAgent):
         project_name: str,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        run_id: str,
     ):
         super().__init__(repo_dir, StaticAnalysisResults(), get_system_meta_analysis_message(), agent_llm, parsing_llm)
         self.project_name = project_name
         self.agent_llm = agent_llm
         self.parsing_llm = parsing_llm
+        self.run_id = run_id
 
         self.meta_analysis_prompt = PromptTemplate(
             template=get_meta_information_prompt(), input_variables=["project_name"]
@@ -53,10 +55,13 @@ class MetaAgent(CodeBoardingAgent):
 
         prompt = self.meta_analysis_prompt.format(project_name=self.project_name)
         cache_key = self._meta_cache.build_key(prompt, self.agent_llm, self.parsing_llm)
-        if not skip_cache and (cached := self._meta_cache.load(cache_key)) is not None:
+        if cache_key is None:
+            logger.warning("[MetaAgent] Cache key unavailable (unreadable watch file); skipping cache")
+        elif not skip_cache and (cached := self._meta_cache.load(cache_key)) is not None:
             return cached
         analysis = self._parse_invoke(prompt, MetaAnalysisInsights)
-        self._meta_cache.store_meta_analysis(cache_key, analysis)
+        if cache_key is not None:
+            self._meta_cache.store(cache_key, analysis, run_id=self.run_id)
 
         logger.info(f"[MetaAgent] Completed metadata analysis for project: {analysis.llm_str()}")
         return analysis
