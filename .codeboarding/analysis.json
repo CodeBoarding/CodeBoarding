@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-03-03T10:47:25.981485+00:00",
+    "generated_at": "2026-03-03T15:44:29.874656+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -644,19 +644,24 @@
       "components": [
         {
           "name": "Analysis Orchestrator",
-          "description": "The central entry point that manages the lifecycle of the analysis pipeline. It coordinates the sequence of operations from initial scanning to final persistence.",
+          "description": "The central coordinator that manages the lifecycle of an analysis job. It sequences the scanning, extraction, and metric calculation phases, ensuring that multi-language data is unified into a single result set.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.static_analysis.StaticAnalyzer",
               "reference_file": "static_analyzer/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.AnalysisPipeline",
+              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisResults",
+              "reference_file": "static_analyzer/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.AnalysisJob",
               "reference_file": "static_analyzer/__init__.py"
             }
           ],
           "assigned_files": [
             "static_analyzer/__init__.py",
+            "static_analyzer/analysis_result.py",
             "static_analyzer/constants.py"
           ],
           "source_cluster_ids": [],
@@ -664,19 +669,19 @@
           "can_expand": true
         },
         {
-          "name": "Project Intelligence Scanner",
-          "description": "Detects repository build systems (Maven, Gradle, npm) and identifies programming languages to configure appropriate LSP server parameters.",
+          "name": "Project Scanner",
+          "description": "Detects the project's environment, identifying build systems (Maven, Gradle, npm) and mapping file extensions to the appropriate Language Server Protocol (LSP) configurations.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.BuildSystemDetector",
-              "reference_file": "static_analyzer/java_config_scanner.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.LanguageConfigurator",
-              "reference_file": "static_analyzer/java_config_scanner.py"
-            },
-            {
               "qualified_name": "repos.codeboarding.static_analysis.ProjectScanner",
+              "reference_file": "static_analyzer/java_config_scanner.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.LanguageConfig",
+              "reference_file": "static_analyzer/java_config_scanner.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.BuildSystemDetector",
               "reference_file": "static_analyzer/java_config_scanner.py"
             }
           ],
@@ -688,23 +693,27 @@
             "static_analyzer/typescript_config_scanner.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "cc6419a47cd9c77c",
+          "component_id": "e73ad29c931887c3",
           "can_expand": true
         },
         {
-          "name": "LSP Client Framework",
-          "description": "Provides a unified JSON‑RPC interface to communicate with various language servers, handling symbol extraction and diagnostic retrieval.",
+          "name": "LSP Client Infrastructure",
+          "description": "Manages asynchronous communication with various Language Servers. It handles the complexity of the LSP lifecycle (initialize, shutdown) and extracts symbols, definitions, and diagnostics.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.static_analysis.LSPClient",
               "reference_file": "static_analyzer/lsp_client/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.JsonRpcHandler",
+              "qualified_name": "repos.codeboarding.static_analysis.PythonLSPClient",
               "reference_file": "static_analyzer/lsp_client/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.SymbolExtractor",
+              "qualified_name": "repos.codeboarding.static_analysis.JavaLSPClient",
+              "reference_file": "static_analyzer/lsp_client/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.TypeScriptLSPClient",
               "reference_file": "static_analyzer/lsp_client/__init__.py"
             }
           ],
@@ -714,48 +723,52 @@
             "static_analyzer/lsp_client/diagnostics.py",
             "static_analyzer/lsp_client/java_client.py",
             "static_analyzer/lsp_client/language_settings.py",
-            "static_analyzer/lsp_client/typescript_client.py",
-            "static_analyzer/reference_resolve_mixin.py"
+            "static_analyzer/lsp_client/typescript_client.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "9ffba06e7621bab7",
+          "component_id": "9e7d7af51021b009",
           "can_expand": true
         },
         {
-          "name": "Semantic Graph Engine",
-          "description": "Transforms raw symbols into a CallGraph and performs adaptive clustering to identify logical modules and functional relationships.",
+          "name": "Structural Graph Engine",
+          "description": "Constructs the global Call Graph and applies clustering algorithms (like Louvain) to identify architectural boundaries and logical modules within the code.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.static_analysis.CallGraphBuilder",
               "reference_file": "static_analyzer/cluster_helpers.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.CallGraph",
+              "qualified_name": "repos.codeboarding.static_analysis.AdaptiveClustering",
               "reference_file": "static_analyzer/cluster_helpers.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.AdaptiveClustering",
+              "qualified_name": "repos.codeboarding.static_analysis.ReferenceResolver",
               "reference_file": "static_analyzer/cluster_helpers.py"
             }
           ],
           "assigned_files": [
             "static_analyzer/cluster_helpers.py",
-            "static_analyzer/graph.py"
+            "static_analyzer/graph.py",
+            "static_analyzer/reference_resolve_mixin.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "9f2e9b644ccedda7",
+          "component_id": "7821fd057465dc35",
           "can_expand": true
         },
         {
-          "name": "Incremental Processing Engine",
-          "description": "Analyzes Git diffs to identify changed files, allowing the system to re‑analyze only affected code segments for performance optimization.",
+          "name": "Incremental Manager",
+          "description": "Optimizes performance by using Git diffs to identify changed files. it merges new analysis fragments with existing cached data to avoid redundant full-repo processing.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.GitDiffAnalyzer",
+              "qualified_name": "repos.codeboarding.static_analysis.IncrementalManager",
               "reference_file": "static_analyzer/git_diff_analyzer.py"
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.ImpactAnalyzer",
+              "qualified_name": "repos.codeboarding.static_analysis.GitDiffProvider",
+              "reference_file": "static_analyzer/git_diff_analyzer.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.StateMerger",
               "reference_file": "static_analyzer/git_diff_analyzer.py"
             }
           ],
@@ -764,55 +777,32 @@
             "static_analyzer/incremental_orchestrator.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "fc431f39334967c0",
+          "component_id": "a0886eb91f530614",
           "can_expand": true
         },
         {
-          "name": "Health Diagnostics Runner",
-          "description": "Orchestrates the execution of quality checks, applying filters and aggregating findings into a unified HealthReport.",
+          "name": "Code Quality & Health Engine",
+          "description": "A suite of specialized plugins that analyze the structural graph to identify \"code smells\" (God Classes, Circular Dependencies) and aggregate them into a unified Health Report.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.HealthDiagnosticsRunner",
-              "reference_file": "health/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.ReportAggregator",
-              "reference_file": "health/__init__.py"
-            },
-            {
               "qualified_name": "repos.codeboarding.static_analysis.HealthReport",
+              "reference_file": "health/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.UnusedCodeAnalyzer",
+              "reference_file": "health/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.GodClassAnalyzer",
+              "reference_file": "health/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.static_analysis.CircularDependencyAnalyzer",
               "reference_file": "health/__init__.py"
             }
           ],
           "assigned_files": [
             "health/__init__.py",
-            "health/config.py",
-            "health/constants.py",
-            "health/models.py",
-            "health/runner.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "f79afd26f2f3440a",
-          "can_expand": true
-        },
-        {
-          "name": "Code Quality Checkers",
-          "description": "A suite of specialized analyzers that compute metrics such as cohesion, coupling, and inheritance depth to identify \"God Classes\" or unused code.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.UnusedCodeAnalyzer",
-              "reference_file": "health/checks/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.GodClassAnalyzer",
-              "reference_file": "health/checks/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.CohesionMetric",
-              "reference_file": "health/checks/__init__.py"
-            }
-          ],
-          "assigned_files": [
             "health/checks/__init__.py",
             "health/checks/circular_deps.py",
             "health/checks/cohesion.py",
@@ -821,89 +811,78 @@
             "health/checks/god_class.py",
             "health/checks/inheritance.py",
             "health/checks/instability.py",
-            "health/checks/unused_code_diagnostics.py"
+            "health/checks/unused_code_diagnostics.py",
+            "health/config.py",
+            "health/constants.py",
+            "health/models.py",
+            "health/runner.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "c73e7ccc5cd06686",
+          "component_id": "1dd18cfdff23ea81",
           "can_expand": true
         },
         {
           "name": "Persistence & Cache Layer",
-          "description": "Manages the storage and retrieval of StaticAnalysisResults to support fast restarts and incremental updates.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.AnalysisCache",
-              "reference_file": "static_analyzer/analysis_result.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisResults",
-              "reference_file": "static_analyzer/analysis_result.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.PersistenceManager",
-              "reference_file": "static_analyzer/analysis_result.py"
-            }
-          ],
-          "assigned_files": [
-            "static_analyzer/analysis_result.py"
-          ],
+          "description": "Handles the serialization of Control Flow Graphs (CFGs) and analysis metadata to disk (using DuckDB or local files) to support incremental workflows.",
+          "key_entities": [],
+          "assigned_files": [],
           "source_cluster_ids": [],
           "component_id": "57df7c9e2fe60a35",
-          "can_expand": true
+          "can_expand": false
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers environment discovery",
+          "relation": "triggers",
           "src_name": "Analysis Orchestrator",
-          "dst_name": "Project Intelligence Scanner",
+          "dst_name": "Project Scanner",
           "src_id": "3a9a8bfdae348172",
-          "dst_id": "cc6419a47cd9c77c"
+          "dst_id": "e73ad29c931887c3"
         },
         {
-          "relation": "initializes and manages lifecycle of language server connections",
-          "src_name": "Analysis Orchestrator",
-          "dst_name": "LSP Client Framework",
-          "src_id": "3a9a8bfdae348172",
-          "dst_id": "9ffba06e7621bab7"
+          "relation": "provides configuration to",
+          "src_name": "Project Scanner",
+          "dst_name": "LSP Client Infrastructure",
+          "src_id": "e73ad29c931887c3",
+          "dst_id": "9e7d7af51021b009"
         },
         {
-          "relation": "streams extracted symbols and references for graph construction",
-          "src_name": "LSP Client Framework",
-          "dst_name": "Semantic Graph Engine",
-          "src_id": "9ffba06e7621bab7",
-          "dst_id": "9f2e9b644ccedda7"
+          "relation": "streams extracted symbol data to",
+          "src_name": "LSP Client Infrastructure",
+          "dst_name": "Structural Graph Engine",
+          "src_id": "9e7d7af51021b009",
+          "dst_id": "7821fd057465dc35"
         },
         {
-          "relation": "provides the CallGraph as primary data source",
-          "src_name": "Semantic Graph Engine",
-          "dst_name": "Code Quality Checkers",
-          "src_id": "9f2e9b644ccedda7",
-          "dst_id": "c73e7ccc5cd06686"
+          "relation": "provides graph topology to",
+          "src_name": "Structural Graph Engine",
+          "dst_name": "Code Quality & Health Engine",
+          "src_id": "7821fd057465dc35",
+          "dst_id": "1dd18cfdff23ea81"
         },
         {
-          "relation": "iterates through registry of checkers to execute heuristics",
-          "src_name": "Health Diagnostics Runner",
-          "dst_name": "Code Quality Checkers",
-          "src_id": "f79afd26f2f3440a",
-          "dst_id": "c73e7ccc5cd06686"
-        },
-        {
-          "relation": "queries previous analysis states",
-          "src_name": "Incremental Processing Engine",
+          "relation": "queries",
+          "src_name": "Incremental Manager",
           "dst_name": "Persistence & Cache Layer",
-          "src_id": "fc431f39334967c0",
+          "src_id": "a0886eb91f530614",
           "dst_id": "57df7c9e2fe60a35"
         },
         {
-          "relation": "instructs orchestrator to skip analysis for unchanged modules",
-          "src_name": "Incremental Processing Engine",
+          "relation": "informs",
+          "src_name": "Incremental Manager",
           "dst_name": "Analysis Orchestrator",
-          "src_id": "fc431f39334967c0",
+          "src_id": "a0886eb91f530614",
           "dst_id": "3a9a8bfdae348172"
         },
         {
-          "relation": "saves final StaticAnalysisResults",
+          "relation": "delivers final metrics to",
+          "src_name": "Code Quality & Health Engine",
+          "dst_name": "Analysis Orchestrator",
+          "src_id": "1dd18cfdff23ea81",
+          "dst_id": "3a9a8bfdae348172"
+        },
+        {
+          "relation": "persists final results via",
           "src_name": "Analysis Orchestrator",
           "dst_name": "Persistence & Cache Layer",
           "src_id": "3a9a8bfdae348172",
