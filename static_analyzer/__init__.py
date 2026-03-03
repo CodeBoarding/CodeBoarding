@@ -174,13 +174,13 @@ class StaticAnalyzer:
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
 
-        Sends textDocument/didOpen (so pyright registers the file if it is not
-        already open) followed by textDocument/didChange (so pyright re-type-checks
-        with the new content and emits a fresh publishDiagnostics notification).
+        If the file is not already open in the server, sends textDocument/didOpen
+        followed by textDocument/didChange.  If it is already open, sends only
+        textDocument/didChange with a monotonically incremented version number.
 
         The LSP spec requires a file to be open before didChange is sent.  After
         the analysis loop closes all files, a bare didChange would be silently
-        ignored by pyright, which is why we always re-open first.
+        ignored by pyright, which is why we re-open when needed.
 
         The resulting publishDiagnostics notification is captured by the reader
         thread into ``client.diagnostics`` and will be picked up by the next
@@ -195,31 +195,48 @@ class StaticAnalyzer:
             if file_path.suffix.lstrip(".") not in handled_suffixes:
                 continue
             file_uri = file_path.as_uri()
-            # Re-open the file so pyright tracks it.  Strictly, LSP 3.17 says a
-            # second didOpen for the same URI is an error, but pyright tolerates
-            # it in practice (it simply resets its internal state for the file).
-            # A proper fix would track open-file state and skip the didOpen when
-            # the file is already open, but for now this works with pyright.
-            client._send_notification(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": file_uri,
-                        "languageId": client.language_id,
-                        "version": 1,
-                        "text": content,
-                    }
-                },
-            )
-            # Send the change so pyright re-type-checks with the new content.
+
+            with client._lock:
+                current_version = client._open_documents.get(file_uri)
+
+            if current_version is None:
+                # File not open yet — send didOpen so the server tracks it.
+                client._send_notification(
+                    "textDocument/didOpen",
+                    {
+                        "textDocument": {
+                            "uri": file_uri,
+                            "languageId": client.language_id,
+                            "version": 1,
+                            "text": content,
+                        }
+                    },
+                )
+                new_version = 2
+            else:
+                new_version = current_version + 1
+
+            # Send the change so the server re-type-checks with the new content.
             client._send_notification(
                 "textDocument/didChange",
                 {
-                    "textDocument": {"uri": file_uri, "version": 2},
+                    "textDocument": {"uri": file_uri, "version": new_version},
                     "contentChanges": [{"text": content}],
                 },
             )
-            logger.debug(f"Sent didOpen+didChange for {file_path} to {client.language.language} LSP")
+            with client._lock:
+                client._open_documents[file_uri] = new_version
+                # Invalidate the diagnostics snapshot so get_collected_diagnostics()
+                # returns the live diagnostics dict (which will be updated by the
+                # publishDiagnostics notification pyright sends in response).
+                # Without this, the stale snapshot from build_static_analysis()
+                # would mask any diagnostics received after notify_file_changed.
+                client._diagnostics_snapshot = None
+
+            logger.debug(
+                f"Sent {'didOpen+' if current_version is None else ''}didChange "
+                f"(v{new_version}) for {file_path} to {client.language.language} LSP"
+            )
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """
@@ -310,19 +327,16 @@ class StaticAnalyzer:
                 for file_path, diags in live_diags.items():
                     merged_diags[file_path] = diags  # live wins
 
-                # Evict cache entries for files the client has cleared (empty
-                # publishDiagnostics means "file is now clean").  We detect this
-                # by checking which files were opened (had diagnostics in a
-                # previous live run) but are now absent from live_diags.
-                # Use the previous live snapshot stored on the client to identify
-                # which files have been actively cleared vs simply not seen.
-                previously_live = client._previous_live_diagnostics
-                for file_path in previously_live:
+                # Evict cache entries for files the server has checked and
+                # found clean.  _diagnostics_seen_files tracks every file for
+                # which the server sent a publishDiagnostics notification
+                # (including empty ones).  A file in that set but absent from
+                # live_diags means the server explicitly cleared it.
+                with client._lock:
+                    seen_this_run = set(client._diagnostics_seen_files)
+                for file_path in seen_this_run:
                     if file_path not in live_diags:
                         merged_diags.pop(file_path, None)
-
-                # Remember which files the client tracked this cycle.
-                client._previous_live_diagnostics = set(live_diags.keys()) | previously_live
 
                 if merged_diags:
                     total_diags = sum(len(d) for d in merged_diags.values())

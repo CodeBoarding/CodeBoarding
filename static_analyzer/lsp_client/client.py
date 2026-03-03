@@ -120,9 +120,15 @@ class LSPClient(ABC):
         # Used by _wait_for_diagnostics to know when to stop waiting.
         self._diagnostics_seen_files: set[str] = set()
 
-        # Track which files had live diagnostics in previous analyze() cycles,
-        # so the caller can evict stale cache entries for files that are now clean.
-        self._previous_live_diagnostics: set[str] = set()
+        # Snapshot of diagnostics taken after _wait_for_diagnostics but before
+        # closing files.  Avoids races where didClose triggers empty
+        # publishDiagnostics that clear entries before get_collected_diagnostics
+        # is called.
+        self._diagnostics_snapshot: FileDiagnosticsMap | None = None
+
+        # Track which documents are currently open in the LSP server and their
+        # latest version number.  Maps file URI -> version.
+        self._open_documents: dict[str, int] = {}
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -289,11 +295,17 @@ class LSPClient(ABC):
     def get_collected_diagnostics(self) -> FileDiagnosticsMap:
         """Get all collected diagnostics.
 
+        Returns the snapshot captured after _wait_for_diagnostics completed
+        (before files were closed), or falls back to the current diagnostics
+        if no snapshot is available (e.g. for notify_file_changed callers).
+
         Returns:
             Dictionary mapping file paths to lists of LSPDiagnostic objects
         """
         with self._lock:
-            return self.diagnostics.copy()
+            if self._diagnostics_snapshot is not None:
+                return dict(self._diagnostics_snapshot)
+            return dict(self.diagnostics)
 
     def handle_notification(self, method: str, params: dict):
         """
@@ -780,6 +792,12 @@ class LSPClient(ABC):
         # 10 s is generous — pyright typically responds within 2-5 s.
         self._wait_for_diagnostics(src_files, timeout=10.0)
 
+        # Snapshot diagnostics before closing files.  The didClose
+        # notifications may cause the server to send empty
+        # publishDiagnostics which would pop entries from self.diagnostics.
+        with self._lock:
+            self._diagnostics_snapshot = dict(self.diagnostics)
+
         # Batch-close every file that was opened during analysis.  Closing after
         # the diagnostic wait ensures we capture all LSP diagnostics before
         # pyright discards its per-file state.
@@ -787,6 +805,8 @@ class LSPClient(ABC):
             try:
                 file_uri = file_path.as_uri()
                 self._send_notification("textDocument/didClose", {"textDocument": {"uri": file_uri}})
+                with self._lock:
+                    self._open_documents.pop(file_uri, None)
             except Exception as e:
                 logger.debug(f"Error closing file {file_path}: {e}")
 
@@ -919,6 +939,8 @@ class LSPClient(ABC):
                     }
                 },
             )
+            with self._lock:
+                self._open_documents[file_uri] = 1
 
             # Populate package name before symbol check so files without symbols
             # still get their correct package name (avoids phantom empty-string packages)
