@@ -48,10 +48,7 @@ class TestGenerateAnalysis(unittest.TestCase):
     def test_generate_analysis(self, mock_generator_class):
         # Test generate_analysis function
         mock_generator = MagicMock()
-        mock_generator.generate_analysis.return_value = [
-            Path("analysis1.json"),
-            Path("analysis2.json"),
-        ]
+        mock_generator.generate_analysis.return_value = Path("analysis.json")
         mock_generator_class.return_value = mock_generator
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -67,7 +64,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 depth_level=2,
             )
 
-            self.assertEqual(len(result), 2)
+            self.assertEqual(result, Path("analysis.json"))
             mock_generator_class.assert_called_once_with(
                 repo_location=repo_path,
                 temp_folder=output_dir,
@@ -108,7 +105,7 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
                 repo_name="test_repo",
                 repo_path=repo_path,
                 repo_url="https://github.com/test/repo",
-                analysis_files=[analysis_file],
+                analysis_path=analysis_file,
                 output_dir=output_dir,
                 demo_mode=True,
             )

@@ -33,7 +33,7 @@ class ComponentJson(Component):
         description="Whether the component can be expanded in detail or not.",
         default=False,
     )
-    file_methods: list["FileMethodGroup"] = Field(
+    file_methods: list[FileMethodGroup] = Field(
         description="All methods/functions belonging to this component, grouped by file.",
         default_factory=list,
     )

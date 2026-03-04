@@ -16,8 +16,8 @@ import pathspec
 from tqdm import tqdm
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
+from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 from static_analyzer.lsp_client.language_settings import get_language_settings
@@ -115,7 +115,7 @@ class LSPClient(ABC):
 
         # Initialize CallGraph
         self.call_graph = CallGraph()
-        self.symbol_kinds = list(NodeType.GRAPH_NODE_TYPES)  # only class, method, and function types
+        self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
         # Initialize diagnostics collection for health checks
@@ -1279,7 +1279,7 @@ class LSPClient(ABC):
 
             symbols = response.get("result", [])
             # Filter for class symbols
-            classes = [s for s in symbols if s.get("kind") == Node.CLASS_TYPE]
+            classes = [s for s in symbols if s.get("kind") == NodeType.CLASS]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1528,7 +1528,7 @@ class LSPClient(ABC):
         """Find all class symbols recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get("kind") == Node.CLASS_TYPE:
+            if symbol.get("kind") == NodeType.CLASS:
                 classes.append(symbol)
             if "children" in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol["children"]))
@@ -1541,7 +1541,7 @@ class LSPClient(ABC):
         # Look for module-level symbols that might indicate imports
         for symbol in symbols:
             # Variables at module level might be imports
-            if symbol.get("kind") == Node.VARIABLE_TYPE:
+            if symbol.get("kind") == NodeType.VARIABLE:
                 symbol_name = symbol.get("name", "")
 
                 # Use LSP to get definition/references for this symbol

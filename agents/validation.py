@@ -27,7 +27,7 @@ class ValidationContext:
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
-    cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
+    llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
 
 
 @dataclass
@@ -87,11 +87,11 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
     Returns:
         ValidationResult with targeted feedback depending on the issue
     """
-    if not context.cluster_analysis:
+    if not context.llm_cluster_analysis:
         logger.warning("[Validation] No cluster_analysis provided for group name coverage validation")
         return ValidationResult(is_valid=True)
 
-    expected_group_names = {cc.name for cc in context.cluster_analysis.cluster_components}
+    expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
     referenced_group_names: set[str] = set()
     for component in result.components:
         referenced_group_names.update(component.source_group_names)

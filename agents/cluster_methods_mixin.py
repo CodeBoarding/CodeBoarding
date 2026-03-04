@@ -96,9 +96,6 @@ class ClusterMethodsMixin:
         seen_entities: dict[str, Component] = {}
 
         for component in analysis.components:
-            if component.name == "Unclassified":
-                continue
-
             entities_to_remove = []
 
             for key_entity in component.key_entities:
@@ -200,30 +197,54 @@ class ClusterMethodsMixin:
         return result, cluster_results
 
     def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
-        """Build a lookup of qualified_name -> Node for all languages present in cluster_results."""
+        """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
+
+        NOTE: Caching belongs here (not in callers) since cfg.nodes for a given
+        language is immutable within a run.  Currently cheap enough that the
+        dict merge dominates, but a per-language cache could be added if profiling
+        shows this is a bottleneck.
+        """
         all_nodes: dict[str, Node] = {}
         for lang in cluster_results:
             cfg = self.static_analysis.get_cfg(lang)
             all_nodes.update(cfg.nodes)
         return all_nodes
 
-    def _find_nearest_cluster(self, node_name: str, cluster_results: dict[str, ClusterResult]) -> int | None:
+    def _build_undirected_graphs(self, cluster_results: dict[str, ClusterResult]) -> dict[str, nx.Graph]:
+        """Pre-build undirected networkx graphs for each language in cluster_results.
+
+        Meant to be called once before iterating over orphan nodes, so that
+        ``_find_nearest_cluster`` doesn't rebuild the graph on every call.
+        """
+        graphs: dict[str, nx.Graph] = {}
+        for lang in cluster_results:
+            cfg = self.static_analysis.get_cfg(lang)
+            graphs[lang] = cfg.to_networkx().to_undirected()
+        return graphs
+
+    def _find_nearest_cluster(
+        self,
+        node_name: str,
+        cluster_results: dict[str, ClusterResult],
+        undirected_graphs: dict[str, nx.Graph],
+    ) -> int | None:
         """Find the cluster whose members are closest to *node_name* in the call graph.
 
         Uses undirected shortest-path distance so that both callers and callees
         are considered.  Returns the cluster_id of the nearest cluster, or None
         if the node is completely disconnected.
+
+        Args:
+            node_name: Fully qualified name of the node to find the nearest cluster for.
+            cluster_results: Language → ClusterResult mapping.
+            undirected_graphs: Pre-built undirected graphs (from ``_build_undirected_graphs``).
         """
         best_cluster: int | None = None
         best_dist = float("inf")
 
-        for lang in cluster_results:
-            cfg = self.static_analysis.get_cfg(lang)
-            if node_name not in cfg.nodes:
-                continue
-
-            nx_graph = cfg.to_networkx().to_undirected()
-            if node_name not in nx_graph:
+        for lang, cr in cluster_results.items():
+            nx_graph = undirected_graphs.get(lang)
+            if nx_graph is None or node_name not in nx_graph:
                 continue
 
             try:
@@ -231,7 +252,6 @@ class ClusterMethodsMixin:
             except nx.NetworkXError:
                 continue
 
-            cr = cluster_results[lang]
             for cluster_id, members in cr.clusters.items():
                 for member in members:
                     d = distances.get(member)
@@ -264,7 +284,7 @@ class ClusterMethodsMixin:
                     qualified_name=node.fully_qualified_name,
                     start_line=node.line_start,
                     end_line=node.line_end,
-                    node_type=node.type,
+                    node_type=node.type.name,
                 )
             )
 
@@ -283,7 +303,7 @@ class ClusterMethodsMixin:
         return cluster_to_component
 
     def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:
-        """Build node_name → cluster_id mapping and collect all cluster IDs."""
+        """Build node_name (qualified name) → cluster_id mapping and collect all cluster IDs."""
         all_cluster_ids: set[int] = set()
         node_to_cluster: dict[str, int] = {}
         for cr in cluster_results.values():
@@ -336,7 +356,7 @@ class ClusterMethodsMixin:
         for qname, node in all_nodes.items():
             cid = node_to_cluster.get(qname)
             if cid is not None and cid in cluster_to_component:
-                component_nodes[cluster_to_component[cid].name].append(node)
+                component_nodes[cluster_to_component[cid].component_id].append(node)
             else:
                 unassigned.append(qname)
 
@@ -348,6 +368,9 @@ class ClusterMethodsMixin:
         assigned_by_fallback = 0
         fallback_files: set[str] = set()
 
+        # Pre-build undirected graphs once for all orphan lookups
+        undirected_graphs = self._build_undirected_graphs(cluster_results) if unassigned else {}
+
         for qname in unassigned:
             node = all_nodes[qname]
 
@@ -355,21 +378,21 @@ class ClusterMethodsMixin:
             comp = self._find_component_by_file(node, cluster_results, cluster_to_component)
             if comp is not None:
                 assigned_by_file += 1
-                component_nodes[comp.name].append(node)
+                component_nodes[comp.component_id].append(node)
                 continue
 
             # 2. Try graph distance: find the nearest cluster in the call graph
-            nearest_cid = self._find_nearest_cluster(qname, cluster_results)
+            nearest_cid = self._find_nearest_cluster(qname, cluster_results, undirected_graphs)
             if nearest_cid is not None and nearest_cid in cluster_to_component:
                 comp = cluster_to_component[nearest_cid]
                 assigned_by_graph += 1
-                component_nodes[comp.name].append(node)
+                component_nodes[comp.component_id].append(node)
                 continue
 
             # 3. Last resort: fallback component
             assigned_by_fallback += 1
             fallback_files.add(node.file_path)
-            component_nodes[fallback_component.name].append(node)
+            component_nodes[fallback_component.component_id].append(node)
 
         if unassigned:
             logger.info(
@@ -401,6 +424,9 @@ class ClusterMethodsMixin:
            or fall back to the first component.
         5. Build ``FileMethodGroup`` lists grouped by file path.
         """
+        # NOTE: These maps are intentionally rebuilt on each call — not cached — because
+        # cluster_results differ per invocation (full graph in AbstractionAgent vs.
+        # per-component subgraph in DetailsAgent, which runs in parallel).
         all_nodes = self._collect_all_cfg_nodes(cluster_results)
         cluster_to_component = self._build_cluster_to_component_map(analysis)
         node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results)
@@ -411,6 +437,6 @@ class ClusterMethodsMixin:
         )
 
         for comp in analysis.components:
-            comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.name, []))
+            comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
 
         self._log_node_coverage(analysis, len(all_nodes))
