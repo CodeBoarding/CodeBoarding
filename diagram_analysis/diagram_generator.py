@@ -390,7 +390,6 @@ class DiagramGenerator:
             ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
-            print(f"Generated analysis file: {analysis_path}")
 
             # Write file_coverage.json
             self._write_file_coverage()
