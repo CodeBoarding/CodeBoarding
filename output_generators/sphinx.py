@@ -141,7 +141,8 @@ def generate_rst(
                 else:
                     lines.append(f"* ``{group.file_path}``")
                 for method in group.methods:
-                    label = NodeType.ENTITY_LABELS.get(method.node_type, "Function")
+                    # https://github.com/owner/repo/blob/branch -> 7 segments; file path follows after
+                    label = NodeType.from_name(method.node_type).label()
                     line_ref = f"L{method.start_line}-L{method.end_line}"
                     if url:
                         lines.append(

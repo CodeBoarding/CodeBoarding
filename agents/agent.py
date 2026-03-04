@@ -234,7 +234,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         """
         result = self._parse_invoke(prompt, return_type)
 
-        for attempt in range(max_validation_retries):
+        for attempt in range(1, max_validation_retries + 1):
             # Run all validators
             all_feedback = []
             for validator in validators:
@@ -243,11 +243,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     all_feedback.extend(validation_result.feedback_messages)
 
             if not all_feedback:
-                logger.info(f"[Validation] All validations passed on attempt {attempt + 1}")
+                logger.info(f"[Validation] All validations passed on attempt {attempt}")
                 return result  # All validations passed
 
             # On the last attempt, log that validation still failed but don't retry
-            if attempt == max_validation_retries - 1:
+            if attempt == max_validation_retries:
                 logger.warning(
                     f"[Validation] Still {len(all_feedback)} issue(s) after {max_validation_retries} retries, "
                     f"returning best result"
@@ -263,7 +263,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
 
             logger.info(
-                f"[Validation] Retry {attempt + 1}/{max_validation_retries} with {len(all_feedback)} feedback items"
+                f"[Validation] Retry {attempt}/{max_validation_retries} with {len(all_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type)
 

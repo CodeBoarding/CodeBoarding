@@ -2,9 +2,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import networkx as nx
+
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.constants import NodeType
+from static_analyzer.node import Node
 
 
 class MockMixin(ClusterMethodsMixin):
@@ -58,6 +62,120 @@ class TestClusterResult(unittest.TestCase):
         )
         self.assertEqual(result.get_nodes_for_cluster(1), {"node_a", "node_b"})
         self.assertEqual(result.get_nodes_for_cluster(99), set())
+
+
+class TestFindNearestCluster(unittest.TestCase):
+    """Tests for _find_nearest_cluster.
+
+    Graph used by most tests (undirected view):
+
+        A -- B -- C -- D
+                  |
+                  E
+
+    Cluster 1: {A, B}   Cluster 2: {D, E}
+    Node C is the orphan we want to assign.
+    """
+
+    def _make_call_graph(self) -> CallGraph:
+        """Build a small CallGraph: A->B->C->D, C->E."""
+        cfg = CallGraph(language="python")
+        for name in ("A", "B", "C", "D", "E"):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        cfg.add_edge("A", "B")
+        cfg.add_edge("B", "C")
+        cfg.add_edge("C", "D")
+        cfg.add_edge("C", "E")
+        return cfg
+
+    def _make_cluster_result(self) -> ClusterResult:
+        return ClusterResult(
+            clusters={1: {"A", "B"}, 2: {"D", "E"}},
+            file_to_clusters={},
+            cluster_to_files={},
+            strategy="test",
+        )
+
+    def _make_mixin(self, cfg: CallGraph) -> MockMixin:
+        static = MagicMock()
+        static.get_cfg.return_value = cfg
+        return MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+    def test_finds_nearest_cluster_by_graph_distance(self):
+        """C is 1 hop from both clusters; cluster 2 members D,E are direct neighbours."""
+        cfg = self._make_call_graph()
+        cr = self._make_cluster_result()
+        cluster_results = {"python": cr}
+        mixin = self._make_mixin(cfg)
+
+        undirected_graphs = mixin._build_undirected_graphs(cluster_results)
+        # C is distance-1 from D (cluster 2) and distance-1 from B (cluster 1).
+        # Both clusters have a member at distance 1, so the first one found wins
+        # (deterministic dict order).
+        result = mixin._find_nearest_cluster("C", cluster_results, undirected_graphs)
+        self.assertIn(result, {1, 2})
+
+    def test_returns_none_for_disconnected_node(self):
+        """A node not in any graph returns None."""
+        cfg = self._make_call_graph()
+        # Add an isolated node
+        cfg.add_node(Node("Z", NodeType.FUNCTION, "/src/other.py", 1, 5))
+        cr = self._make_cluster_result()
+        cluster_results = {"python": cr}
+        mixin = self._make_mixin(cfg)
+
+        undirected_graphs = mixin._build_undirected_graphs(cluster_results)
+        result = mixin._find_nearest_cluster("Z", cluster_results, undirected_graphs)
+        self.assertIsNone(result)
+
+    def test_returns_none_when_node_not_in_graph(self):
+        """A node name absent from the graph entirely returns None."""
+        cfg = self._make_call_graph()
+        cr = self._make_cluster_result()
+        cluster_results = {"python": cr}
+        mixin = self._make_mixin(cfg)
+
+        undirected_graphs = mixin._build_undirected_graphs(cluster_results)
+        result = mixin._find_nearest_cluster("NONEXISTENT", cluster_results, undirected_graphs)
+        self.assertIsNone(result)
+
+    def test_node_inside_cluster_returns_own_cluster(self):
+        """A node that is itself a cluster member should return its own cluster (distance 0)."""
+        cfg = self._make_call_graph()
+        cr = self._make_cluster_result()
+        cluster_results = {"python": cr}
+        mixin = self._make_mixin(cfg)
+
+        undirected_graphs = mixin._build_undirected_graphs(cluster_results)
+        result = mixin._find_nearest_cluster("A", cluster_results, undirected_graphs)
+        self.assertEqual(result, 1)
+
+    def test_prefers_closer_cluster(self):
+        """When distances differ, the closer cluster wins.
+
+        Graph: X -> Y -> Z    Cluster 10: {X}, Cluster 20: {Z}
+        Y is 1 hop from both — tie. But if we add W -> X so X is farther,
+        and test from W: W is distance-1 from X (cluster 10), distance-3 from Z (cluster 20).
+        """
+        cfg = CallGraph(language="python")
+        for name in ("W", "X", "Y", "Z"):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        cfg.add_edge("W", "X")
+        cfg.add_edge("X", "Y")
+        cfg.add_edge("Y", "Z")
+
+        cr = ClusterResult(
+            clusters={10: {"X"}, 20: {"Z"}},
+            file_to_clusters={},
+            cluster_to_files={},
+            strategy="test",
+        )
+        cluster_results = {"python": cr}
+        mixin = self._make_mixin(cfg)
+
+        undirected_graphs = mixin._build_undirected_graphs(cluster_results)
+        result = mixin._find_nearest_cluster("W", cluster_results, undirected_graphs)
+        self.assertEqual(result, 10)
 
 
 if __name__ == "__main__":

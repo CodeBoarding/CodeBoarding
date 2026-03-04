@@ -431,10 +431,10 @@ class CallGraph:
                 type_label = NodeType.ENTITY_LABELS.get(node_type, "Function")
                 parts = node_name.split(".")
 
-                if node_type == NodeType.CLASS_TYPE:
+                if node_type == NodeType.CLASS:
                     # Class node — register as a group header
                     file_groups[file_path][node_name]  # ensure key exists
-                elif node_type == NodeType.METHOD_TYPE and len(parts) > 1:
+                elif node_type == NodeType.METHOD and len(parts) > 1:
                     # Method — group under its parent class
                     class_name = ".".join(parts[:-1])
                     method_short = parts[-1]
@@ -577,7 +577,7 @@ class CallGraph:
                 continue
 
             parts = node.fully_qualified_name.split(self.delimiter)
-            if node.type == NodeType.METHOD_TYPE and len(parts) > 1:
+            if node.type == NodeType.METHOD and len(parts) > 1:
                 class_name = self.delimiter.join(parts[:-1])
                 method_short = parts[-1]
 

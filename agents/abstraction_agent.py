@@ -92,14 +92,14 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
     @trace
     def step_final_analysis(
-        self, cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
+        self, llm_cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
     ) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final analysis for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
-        cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
+        cluster_str = llm_cluster_analysis.llm_str() if llm_cluster_analysis else "No cluster analysis available."
 
         prompt = self.prompts["final_analysis"].format(
             project_name=self.project_name,
@@ -113,7 +113,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cluster_results=cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
             static_analysis=self.static_analysis,
-            cluster_analysis=cluster_analysis,
+            llm_cluster_analysis=llm_cluster_analysis,
         )
 
         return self._validation_invoke(
@@ -138,16 +138,16 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Resolve cluster IDs deterministically from group names
+        # Step 3: Assign deterministic component IDs (must happen before methods that key on component_id)
+        assign_component_ids(analysis)
+        # Step 4: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-        # Step 3c: Populate file_methods deterministically from cluster results + orphan assignment
+        # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 4: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 6: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 5: Ensure unique key entities across components
+        # Step 7: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
-        # Step 6: Assign deterministic component IDs
-        assign_component_ids(analysis)
 
         return analysis, cluster_results
