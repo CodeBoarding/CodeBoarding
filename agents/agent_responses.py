@@ -138,7 +138,7 @@ class MethodEntry(BaseModel):
     qualified_name: str = Field(description="Fully qualified name of the method or function.")
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
-    node_type: int = Field(description="LSP SymbolKind (e.g. 6=Method, 12=Function, 5=Class).")
+    node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
 
     def __hash__(self) -> int:
         return hash(self.qualified_name)

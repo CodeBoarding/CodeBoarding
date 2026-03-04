@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
@@ -30,7 +29,7 @@ class CodeReferenceReader(BaseRepoTool):
         "Note: Each call is expensive - prefer analyzing CFG data first. "
         "Use only when component responsibilities cannot be determined from CFG or package dependencies."
     )
-    args_schema: Optional[ArgsSchema] = ModuleInput
+    args_schema: ArgsSchema | None = ModuleInput
     return_direct: bool = False
 
     def _run(self, code_reference: str) -> str:
@@ -46,7 +45,6 @@ class CodeReferenceReader(BaseRepoTool):
         for lang in languages:
             try:
                 node = self.static_analysis.get_reference(lang, code_reference)
-                logger.info(f"{code_reference} -> {node.file_path}")
                 return self.read_file(node.file_path, node.line_start, node.line_end)
             except ValueError:
                 text, loose_node = self.static_analysis.get_loose_reference(lang, code_reference)

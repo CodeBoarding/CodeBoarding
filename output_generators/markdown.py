@@ -106,7 +106,7 @@ def generate_markdown(
                 else:
                     fm_lines += f"- `{fg.file_path}`\n"
                 for method in fg.methods:
-                    label = NodeType.ENTITY_LABELS.get(method.node_type, "Function")
+                    label = NodeType.from_name(method.node_type).label()
                     line_ref = f"L{method.start_line}-L{method.end_line}"
                     if repo_ref:
                         line_link = f"[{line_ref}]({repo_ref}{fg.file_path}#{line_ref})"

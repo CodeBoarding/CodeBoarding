@@ -498,7 +498,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         result = gen.generate_analysis()
 
-        self.assertEqual(result, [self.output_dir / "analysis.json"])
+        self.assertEqual(result, (self.output_dir / "analysis.json").resolve())
         self.assertIn("child_start", timestamps)
         self.assertIn("b_end", timestamps)
         self.assertLess(timestamps["child_start"], timestamps["b_end"])

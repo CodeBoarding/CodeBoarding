@@ -133,7 +133,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cluster_results=subgraph_cluster_results,
             cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
             static_analysis=self.static_analysis,
-            cluster_analysis=cluster_analysis,
+            llm_cluster_analysis=cluster_analysis,
         )
 
         return self._validation_invoke(
@@ -173,19 +173,19 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 3: Generate detailed analysis from grouped clusters
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
 
-        # Step 4: Resolve cluster IDs deterministically from group names
+        # Step 4: Assign deterministic component IDs (must happen before methods that key on component_id)
+        assign_component_ids(analysis, parent_id=component.component_id)
+
+        # Step 5: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        # Step 4b: Populate file_methods deterministically from cluster results + orphan assignment
+        # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, subgraph_cluster_results)
 
-        # Step 5: Fix source code reference lines (resolves reference_file paths)
+        # Step 7: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)
 
-        # Step 6: Ensure unique key entities across components
+        # Step 8: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
-
-        # Step 7: Assign deterministic component IDs based on parent
-        assign_component_ids(analysis, parent_id=component.component_id)
 
         return analysis, subgraph_cluster_results

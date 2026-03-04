@@ -7,21 +7,12 @@ from static_analyzer.constants import NodeType
 
 
 class Node:
-    """Call-graph node with type constants for LSP SymbolKind (also on NodeType in constants)."""
-
-    # Mirror NodeType for code that references Node.CLASS_TYPE etc. (e.g. lsp_client, health tests)
-    CLASS_TYPE = NodeType.CLASS_TYPE
-    METHOD_TYPE = NodeType.METHOD_TYPE
-    PROPERTY_TYPE = NodeType.PROPERTY_TYPE
-    FIELD_TYPE = NodeType.FIELD_TYPE
-    FUNCTION_TYPE = NodeType.FUNCTION_TYPE
-    VARIABLE_TYPE = NodeType.VARIABLE_TYPE
-    CONSTANT_TYPE = NodeType.CONSTANT_TYPE
+    """Call-graph node for LSP SymbolKind. Use NodeType for type constants."""
 
     def __init__(
         self,
         fully_qualified_name: str,
-        node_type: int,
+        node_type: NodeType | int,
         file_path: str,
         line_start: int,
         line_end: int,
@@ -30,7 +21,7 @@ class Node:
         self.file_path = file_path
         self.line_start = line_start
         self.line_end = line_end
-        self.type = node_type
+        self.type: NodeType = NodeType(node_type)
         self.methods_called_by_me: set[str] = set()
 
     def entity_label(self) -> str:
