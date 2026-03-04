@@ -4,7 +4,7 @@ This module contains all language and configuration constants used throughout
 the static analyzer to avoid hardcoded strings and ensure consistency.
 """
 
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 
 class Language(StrEnum):
@@ -36,7 +36,7 @@ class ClusteringConfig:
     DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
 
     # Quality thresholds for determining "good" clustering
-    MIN_COVERAGE_RATIO = 0.5  # At least 50% of nodes should be in meaningful clusters
+    MIN_COVERAGE_RATIO = 0.75  # At least 50% of nodes should be in meaningful clusters
 
     # Display limits
     MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
@@ -56,30 +56,56 @@ class ClusteringConfig:
     CLUSTERING_SEED = 42
 
 
-class NodeType:
-    # LSP SymbolKind constants
-    CLASS_TYPE = 5
-    METHOD_TYPE = 6
-    PROPERTY_TYPE = 7
-    FIELD_TYPE = 8
-    FUNCTION_TYPE = 12
-    VARIABLE_TYPE = 13
-    CONSTANT_TYPE = 14
+class NodeType(IntEnum):
+    """LSP SymbolKind constants as an IntEnum.
 
-    # Sets for easy filtering
-    CALLABLE_TYPES = {METHOD_TYPE, FUNCTION_TYPE}
-    CLASS_TYPES = {CLASS_TYPE}
-    DATA_TYPES = {PROPERTY_TYPE, FIELD_TYPE, VARIABLE_TYPE, CONSTANT_TYPE}
+    The integer values match the LSP specification so comparisons with raw LSP
+    ``symbol.get("kind")`` still work transparently (IntEnum is an int subclass).
+    """
 
-    # Node types that should be included in the call graph and references
-    GRAPH_NODE_TYPES = {CLASS_TYPE, METHOD_TYPE, FUNCTION_TYPE}
+    CLASS = 5
+    METHOD = 6
+    PROPERTY = 7
+    FIELD = 8
+    FUNCTION = 12
+    VARIABLE = 13
+    CONSTANT = 14
 
-    ENTITY_LABELS = {
-        CLASS_TYPE: "Class",
-        METHOD_TYPE: "Method",
-        PROPERTY_TYPE: "Property",
-        FIELD_TYPE: "Field",
-        FUNCTION_TYPE: "Function",
-        VARIABLE_TYPE: "Variable",
-        CONSTANT_TYPE: "Constant",
-    }
+    def label(self) -> str:
+        """Return a human-readable label (e.g. ``'Function'``, ``'Class'``)."""
+        return _ENTITY_LABELS.get(self, "Function")
+
+    @classmethod
+    def from_name(cls, name: str) -> "NodeType":
+        """Construct from the enum member name (e.g. ``'METHOD'``).
+
+        Also accepts old integer-string representations for backward compatibility
+        (e.g. ``'6'`` → ``NodeType.METHOD``).
+        """
+        try:
+            return cls[name]
+        except KeyError:
+            return cls(int(name))
+
+    # -- Convenience sets (defined after members via _ignore_) ----------------
+    # IntEnum forbids non-member class attributes, so we attach these after
+    # class creation below.
+
+
+# Attach convenience sets and labels as plain class attributes so they don't
+# become enum members.
+NodeType.CALLABLE_TYPES = {NodeType.METHOD, NodeType.FUNCTION}  # type: ignore[attr-defined]
+NodeType.CLASS_TYPES = {NodeType.CLASS}  # type: ignore[attr-defined]
+NodeType.DATA_TYPES = {NodeType.PROPERTY, NodeType.FIELD, NodeType.VARIABLE, NodeType.CONSTANT}  # type: ignore[attr-defined]
+NodeType.GRAPH_NODE_TYPES = {NodeType.CLASS, NodeType.METHOD, NodeType.FUNCTION}  # type: ignore[attr-defined]
+
+_ENTITY_LABELS: dict[NodeType, str] = {
+    NodeType.CLASS: "Class",
+    NodeType.METHOD: "Method",
+    NodeType.PROPERTY: "Property",
+    NodeType.FIELD: "Field",
+    NodeType.FUNCTION: "Function",
+    NodeType.VARIABLE: "Variable",
+    NodeType.CONSTANT: "Constant",
+}
+NodeType.ENTITY_LABELS = _ENTITY_LABELS  # type: ignore[attr-defined]
