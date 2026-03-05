@@ -61,7 +61,7 @@ class TestValidateIncrementalUpdate:
     def test_returns_true_when_all_validators_pass(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
@@ -70,13 +70,13 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
         assert result is True
-        mock_validate_relations.assert_called_once()
+        mock_validate_qnames.assert_called_once()
         mock_validate_entities.assert_called_once()
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
@@ -85,7 +85,7 @@ class TestValidateIncrementalUpdate:
     def test_returns_false_when_one_validator_fails(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
@@ -94,8 +94,8 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=False, feedback_messages=["Missing entity"])
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
@@ -107,7 +107,7 @@ class TestValidateIncrementalUpdate:
     def test_returns_false_when_all_validators_fail(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
@@ -116,8 +116,8 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=False, feedback_messages=["Missing entity"])
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.return_value = ValidationResult(is_valid=False, feedback_messages=["Bad name"])
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=False, feedback_messages=["Bad qname"])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
@@ -129,17 +129,17 @@ class TestValidateIncrementalUpdate:
     def test_handles_validator_exception(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
     ):
         """Test that function handles exceptions from validators gracefully."""
         mock_build_clusters.return_value = {}
-        mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_entities.side_effect = RuntimeError("boom")
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.side_effect = RuntimeError("boom")
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
@@ -151,7 +151,7 @@ class TestValidateIncrementalUpdate:
     def test_builds_cluster_results_with_static_analysis(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
@@ -160,8 +160,8 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {"Python": {"clusters": []}}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         validate_incremental_update(sample_analysis, mock_static_analysis)
 
@@ -173,7 +173,7 @@ class TestValidateIncrementalUpdate:
     def test_creates_validation_context_with_cfg(
         self,
         mock_validate_entities,
-        mock_validate_relations,
+        mock_validate_qnames,
         mock_build_clusters,
         sample_analysis: AnalysisInsights,
         mock_static_analysis,
@@ -183,8 +183,8 @@ class TestValidateIncrementalUpdate:
         mock_static_analysis.get_cfg.return_value = {"nodes": []}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
-        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
-        mock_validate_relations.__name__ = "validate_qualified_names"
+        mock_validate_qnames.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_qnames.__name__ = "validate_qualified_names"
 
         validate_incremental_update(sample_analysis, mock_static_analysis)
 

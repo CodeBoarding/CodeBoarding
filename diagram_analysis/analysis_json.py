@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 class RelationJson(Relation):
-    """Relation subclass that includes src_id/dst_id in JSON serialization."""
+    """Relation subclass that includes src_id/dst_id and static analysis evidence in JSON serialization."""
 
     src_id: str = Field(default="", description="Component ID of the source.")
     dst_id: str = Field(default="", description="Component ID of the destination.")
+    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.")
+    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
 
 
 class ComponentJson(Component):
@@ -92,6 +94,19 @@ class UnifiedAnalysisJson(BaseModel):
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
 
+def _relation_to_json(r: Relation) -> RelationJson:
+    """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
+    return RelationJson(
+        relation=r.relation,
+        src_name=r.src_name,
+        dst_name=r.dst_name,
+        src_id=r.src_id,
+        dst_id=r.dst_id,
+        edge_count=r.edge_count,
+        is_static=r.is_static,
+    )
+
+
 def from_component_to_json_component(
     component: Component,
     expandable_components: list[Component],
@@ -119,16 +134,7 @@ def from_component_to_json_component(
             from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids)
             for c in sub_analysis.components
         ]
-        nested_relations = [
-            RelationJson(
-                relation=r.relation,
-                src_name=r.src_name,
-                dst_name=r.dst_name,
-                src_id=r.src_id,
-                dst_id=r.dst_id,
-            )
-            for r in sub_analysis.components_relations
-        ]
+        nested_relations = [_relation_to_json(r) for r in sub_analysis.components_relations]
 
     return ComponentJson(
         name=component.name,
@@ -153,16 +159,7 @@ def from_analysis_to_json(
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
-    relations_json = [
-        RelationJson(
-            relation=r.relation,
-            src_name=r.src_name,
-            dst_name=r.dst_name,
-            src_id=r.src_id,
-            dst_id=r.dst_id,
-        )
-        for r in analysis.components_relations
-    ]
+    relations_json = [_relation_to_json(r) for r in analysis.components_relations]
     data = {
         "description": analysis.description,
         "components": [c.model_dump(exclude_none=True) for c in components_json],
@@ -239,16 +236,7 @@ def build_unified_analysis_json(
     else:
         summary = file_coverage_summary
 
-    relations_json = [
-        RelationJson(
-            relation=r.relation,
-            src_name=r.src_name,
-            dst_name=r.dst_name,
-            src_id=r.src_id,
-            dst_id=r.dst_id,
-        )
-        for r in analysis.components_relations
-    ]
+    relations_json = [_relation_to_json(r) for r in analysis.components_relations]
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -287,14 +275,12 @@ def _assign_ids_and_rekey(
     sub_analyses: dict[str, AnalysisInsights],
 ) -> None:
     """Assign component IDs to an analysis loaded from old JSON (without IDs) and re-key sub_analyses."""
-    from agents.agent_responses import ROOT_PARENT_ID
-
     # Build old name -> sub_analysis mapping before clearing
     old_subs = dict(sub_analyses)
     sub_analyses.clear()
 
-    # Assign IDs to root and recursively to sub-analyses
-    _assign_ids_recursive(root_analysis, old_subs, sub_analyses, ROOT_PARENT_ID)
+    # Assign IDs to root and recursively to sub-analyses (empty parent_id for root)
+    _assign_ids_recursive(root_analysis, old_subs, sub_analyses, "")
 
 
 def _assign_ids_recursive(
@@ -366,5 +352,16 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
     return AnalysisInsights(
         description=data.get("description", ""),
         components=components,
-        components_relations=[Relation(**r) for r in data.get("components_relations", [])],
+        components_relations=[
+            Relation(
+                relation=r["relation"],
+                src_name=r["src_name"],
+                dst_name=r["dst_name"],
+                src_id=r.get("src_id", ""),
+                dst_id=r.get("dst_id", ""),
+                edge_count=r.get("edge_count", 0),
+                is_static=r.get("is_static", False),
+            )
+            for r in data.get("components_relations", [])
+        ],
     )

@@ -9,8 +9,6 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     FileMethodGroup,
-    hash_component_id,
-    ROOT_PARENT_ID,
 )
 from diagram_analysis.incremental.component_checker import (
     is_expanded_component,
@@ -22,8 +20,8 @@ from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.manifest import AnalysisManifest
 
 
-COMP_A_ID = hash_component_id(ROOT_PARENT_ID, "ComponentA")
-COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_A_ID = "1"
+COMP_B_ID = "2"
 
 
 @pytest.fixture
