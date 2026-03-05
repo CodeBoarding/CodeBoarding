@@ -3,7 +3,7 @@
 Extracted from constants.py so that module contains only constants.
 """
 
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, DATA_TYPES, ENTITY_LABELS, NodeType
 
 
 class Node:
@@ -26,19 +26,19 @@ class Node:
 
     def entity_label(self) -> str:
         """Return human-readable label based on LSP SymbolKind."""
-        return NodeType.ENTITY_LABELS.get(self.type, "Function")
+        return ENTITY_LABELS.get(self.type, "Function")
 
     def is_callable(self) -> bool:
         """Return True if this node represents a callable entity (function or method)."""
-        return self.type in NodeType.CALLABLE_TYPES
+        return self.type in CALLABLE_TYPES
 
     def is_class(self) -> bool:
         """Return True if this node represents a class."""
-        return self.type in NodeType.CLASS_TYPES
+        return self.type in CLASS_TYPES
 
     def is_data(self) -> bool:
         """Return True if this node represents a data entity (property, field, variable, constant)."""
-        return self.type in NodeType.DATA_TYPES
+        return self.type in DATA_TYPES
 
     # Patterns indicating callback or anonymous function nodes from LSP
     _CALLBACK_PATTERNS = (") callback", "<function>", "<arrow")

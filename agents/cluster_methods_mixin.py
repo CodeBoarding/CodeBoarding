@@ -17,7 +17,7 @@ from static_analyzer.cluster_helpers import (
     get_all_cluster_ids,
     get_files_for_cluster_ids,
 )
-from static_analyzer.constants import Node, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Node, NodeType
 from static_analyzer.graph import ClusterResult
 from static_analyzer.node import Node
 
@@ -267,7 +267,7 @@ class ClusterMethodsMixin:
         Only includes methods, functions, and classes/interfaces — variables,
         constants, properties, and fields are excluded.
         """
-        allowed_types = NodeType.CALLABLE_TYPES | NodeType.CLASS_TYPES
+        allowed_types = CALLABLE_TYPES | CLASS_TYPES
         by_file: dict[str, list[MethodEntry]] = defaultdict(list)
         seen: set[str] = set()
         for node in nodes:
