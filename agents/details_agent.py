@@ -173,7 +173,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 3: Generate detailed analysis from grouped clusters
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
 
-        # Step 4: Assign deterministic component IDs (must happen before methods that key on component_id)
+        # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
         assign_component_ids(analysis, parent_id=component.component_id)
 
         # Step 5: Resolve cluster IDs deterministically from group names
@@ -182,10 +182,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, subgraph_cluster_results)
 
-        # Step 7: Fix source code reference lines (resolves reference_file paths)
+        # Step 7: Build static inter-component relations from subgraph CFG edges
+        self.build_static_relations(analysis)
+
+        # Step 8: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)
 
-        # Step 8: Ensure unique key entities across components
+        # Step 9: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results

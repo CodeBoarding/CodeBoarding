@@ -6,8 +6,7 @@ from agents.agent_responses import (
     Component,
     FileMethodGroup,
     AnalysisInsights,
-    ROOT_PARENT_ID,
-    hash_component_id,
+    assign_component_ids,
 )
 
 
@@ -210,20 +209,56 @@ class TestAnalysisInsights(unittest.TestCase):
 
 class TestComponentIds(unittest.TestCase):
 
-    def test_hash_component_id_is_deterministic(self):
-        component_id_a = hash_component_id(ROOT_PARENT_ID, "ComponentA")
-        component_id_b = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+    def test_assign_component_ids_top_level(self):
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="A", description="a", key_entities=[]),
+                Component(name="B", description="b", key_entities=[]),
+                Component(name="C", description="c", key_entities=[]),
+            ],
+            components_relations=[],
+        )
+        assign_component_ids(analysis)
+        self.assertEqual(analysis.components[0].component_id, "1")
+        self.assertEqual(analysis.components[1].component_id, "2")
+        self.assertEqual(analysis.components[2].component_id, "3")
 
-        self.assertEqual(component_id_a, component_id_b)
+    def test_assign_component_ids_nested(self):
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="Sub1", description="s1", key_entities=[]),
+                Component(name="Sub2", description="s2", key_entities=[]),
+            ],
+            components_relations=[],
+        )
+        assign_component_ids(analysis, parent_id="1")
+        self.assertEqual(analysis.components[0].component_id, "1.1")
+        self.assertEqual(analysis.components[1].component_id, "1.2")
 
-    def test_hash_component_id_format_is_16_hex_chars(self):
-        component_id = hash_component_id(ROOT_PARENT_ID, "ComponentA")
+    def test_assign_component_ids_deep_nesting(self):
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="Deep", description="d", key_entities=[]),
+            ],
+            components_relations=[],
+        )
+        assign_component_ids(analysis, parent_id="1.2")
+        self.assertEqual(analysis.components[0].component_id, "1.2.1")
 
-        self.assertEqual(len(component_id), 16)
-        self.assertRegex(component_id, r"^[0-9a-f]{16}$")
-
-    def test_hash_component_id_uses_sibling_index(self):
-        first = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=0)
-        second = hash_component_id(ROOT_PARENT_ID, "ComponentA", sibling_index=1)
-
-        self.assertNotEqual(first, second)
+    def test_assign_component_ids_sets_relation_ids(self):
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="A", description="a", key_entities=[]),
+                Component(name="B", description="b", key_entities=[]),
+            ],
+            components_relations=[
+                Relation(relation="calls", src_name="A", dst_name="B"),
+            ],
+        )
+        assign_component_ids(analysis)
+        self.assertEqual(analysis.components_relations[0].src_id, "1")
+        self.assertEqual(analysis.components_relations[0].dst_id, "2")
