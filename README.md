@@ -117,7 +117,7 @@ python main.py --local ./my-project --depth-level 2
 python main.py --local ./my-project --incremental
 
 # Update a single component by ID
-python main.py --local ./my-project --partial-component-id "a3f2b1c4d5e6f789"
+python main.py --local ./my-project --partial-component-id "1.2"
 
 # Analyze a remote GitHub repository
 python main.py https://github.com/pytorch/pytorch
