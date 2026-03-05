@@ -178,7 +178,7 @@ class TestMergeRelations(unittest.TestCase):
         """LLM relation with no static evidence should be dropped."""
         analysis = self._make_analysis()
         llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
-        static_rels = []  # No static evidence
+        static_rels: list[ClusterRelation] = []  # No static evidence
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
@@ -187,7 +187,7 @@ class TestMergeRelations(unittest.TestCase):
     def test_static_only_auto_labeled(self):
         """Static relation without LLM label should get auto-label 'calls'."""
         analysis = self._make_analysis()
-        llm_rels = []
+        llm_rels: list[Relation] = []
         static_rels = [ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=8)]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
