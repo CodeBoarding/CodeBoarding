@@ -17,15 +17,13 @@ from agents.agent_responses import (
     FileMethodGroup,
     Relation,
     SourceCodeReference,
-    hash_component_id,
-    ROOT_PARENT_ID,
 )
 from diagram_analysis.incremental.io_utils import save_analysis, save_sub_analysis, load_sub_analysis
 
 
-COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
-COMP_C_ID = hash_component_id(ROOT_PARENT_ID, "ComponentC")
-COMP_D_ID = hash_component_id(ROOT_PARENT_ID, "ComponentD")
+COMP_B_ID = "1"
+COMP_C_ID = "2"
+COMP_D_ID = "3"
 NAME_TO_ID = {"ComponentB": COMP_B_ID, "ComponentC": COMP_C_ID, "ComponentD": COMP_D_ID}
 
 
@@ -194,9 +192,9 @@ class TestConcurrentSaveSubAnalysis:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        root_id = hash_component_id(ROOT_PARENT_ID, "RootComponent")
-        child_expandable_id = hash_component_id(root_id, "ChildExpandable")
-        child_leaf_id = hash_component_id(root_id, "ChildLeaf")
+        root_id = "1"
+        child_expandable_id = "1.1"
+        child_leaf_id = "1.2"
 
         root_analysis = AnalysisInsights(
             description="Root analysis",
