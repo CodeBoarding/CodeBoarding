@@ -56,6 +56,7 @@ class TestValidateIncrementalUpdate:
     """Tests for validate_incremental_update function."""
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_returns_true_when_all_validators_pass(
         self,
@@ -69,6 +70,8 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
@@ -77,6 +80,7 @@ class TestValidateIncrementalUpdate:
         mock_validate_entities.assert_called_once()
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_returns_false_when_one_validator_fails(
         self,
@@ -90,12 +94,15 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=False, feedback_messages=["Missing entity"])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
         assert result is False
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_returns_false_when_all_validators_fail(
         self,
@@ -109,12 +116,15 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=False, feedback_messages=["Missing entity"])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.return_value = ValidationResult(is_valid=False, feedback_messages=["Bad name"])
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
         assert result is False
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_handles_validator_exception(
         self,
@@ -128,12 +138,15 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.side_effect = RuntimeError("boom")
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         result = validate_incremental_update(sample_analysis, mock_static_analysis)
 
         assert result is False
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_builds_cluster_results_with_static_analysis(
         self,
@@ -147,12 +160,15 @@ class TestValidateIncrementalUpdate:
         mock_build_clusters.return_value = {"Python": {"clusters": []}}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         validate_incremental_update(sample_analysis, mock_static_analysis)
 
         mock_build_clusters.assert_called_once_with(mock_static_analysis)
 
     @patch("diagram_analysis.incremental.validation.build_all_cluster_results")
+    @patch("diagram_analysis.incremental.validation.validate_qualified_names")
     @patch("diagram_analysis.incremental.validation.validate_key_entities")
     def test_creates_validation_context_with_cfg(
         self,
@@ -167,6 +183,8 @@ class TestValidateIncrementalUpdate:
         mock_static_analysis.get_cfg.return_value = {"nodes": []}
         mock_validate_entities.return_value = ValidationResult(is_valid=True, feedback_messages=[])
         mock_validate_entities.__name__ = "validate_key_entities"
+        mock_validate_relations.return_value = ValidationResult(is_valid=True, feedback_messages=[])
+        mock_validate_relations.__name__ = "validate_qualified_names"
 
         validate_incremental_update(sample_analysis, mock_static_analysis)
 
