@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from agents.agent_responses import ClusterAnalysis, Component, AnalysisInsights, MethodEntry, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES
 from static_analyzer.node import Node
 from static_analyzer.graph import ClusterResult
 
@@ -257,7 +257,7 @@ class ClusterMethodsMixin:
         Only includes methods, functions, and classes/interfaces — variables,
         constants, properties, and fields are excluded.
         """
-        allowed_types = NodeType.CALLABLE_TYPES | NodeType.CLASS_TYPES
+        allowed_types = CALLABLE_TYPES | CLASS_TYPES
         by_file: dict[str, list[MethodEntry]] = defaultdict(list)
         seen: set[str] = set()
         for node in nodes:

@@ -73,7 +73,7 @@ class NodeType(IntEnum):
 
     def label(self) -> str:
         """Return a human-readable label (e.g. ``'Function'``, ``'Class'``)."""
-        return _ENTITY_LABELS.get(self, "Function")
+        return ENTITY_LABELS.get(self, "Function")
 
     @classmethod
     def from_name(cls, name: str) -> "NodeType":
@@ -88,18 +88,17 @@ class NodeType(IntEnum):
             return cls(int(name))
 
     # -- Convenience sets (defined after members via _ignore_) ----------------
-    # IntEnum forbids non-member class attributes, so we attach these after
-    # class creation below.
+    # IntEnum forbids non-member class attributes, so convenience sets are
+    # defined as module-level constants below.
 
 
-# Attach convenience sets and labels as plain class attributes so they don't
-# become enum members.
-NodeType.CALLABLE_TYPES = {NodeType.METHOD, NodeType.FUNCTION}  # type: ignore[attr-defined]
-NodeType.CLASS_TYPES = {NodeType.CLASS}  # type: ignore[attr-defined]
-NodeType.DATA_TYPES = {NodeType.PROPERTY, NodeType.FIELD, NodeType.VARIABLE, NodeType.CONSTANT}  # type: ignore[attr-defined]
-NodeType.GRAPH_NODE_TYPES = {NodeType.CLASS, NodeType.METHOD, NodeType.FUNCTION}  # type: ignore[attr-defined]
+# Convenience sets – module-level so mypy can resolve them without monkey-patching.
+CALLABLE_TYPES: set[NodeType] = {NodeType.METHOD, NodeType.FUNCTION}
+CLASS_TYPES: set[NodeType] = {NodeType.CLASS}
+DATA_TYPES: set[NodeType] = {NodeType.PROPERTY, NodeType.FIELD, NodeType.VARIABLE, NodeType.CONSTANT}
+GRAPH_NODE_TYPES: set[NodeType] = {NodeType.CLASS, NodeType.METHOD, NodeType.FUNCTION}
 
-_ENTITY_LABELS: dict[NodeType, str] = {
+ENTITY_LABELS: dict[NodeType, str] = {
     NodeType.CLASS: "Class",
     NodeType.METHOD: "Method",
     NodeType.PROPERTY: "Property",
@@ -108,4 +107,3 @@ _ENTITY_LABELS: dict[NodeType, str] = {
     NodeType.VARIABLE: "Variable",
     NodeType.CONSTANT: "Constant",
 }
-NodeType.ENTITY_LABELS = _ENTITY_LABELS  # type: ignore[attr-defined]
