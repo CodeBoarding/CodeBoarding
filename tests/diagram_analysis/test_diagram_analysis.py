@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     Relation,
     SourceCodeReference,
     assign_component_ids,
@@ -59,14 +60,17 @@ class TestComponentJson(unittest.TestCase):
             component_id="test_comp_id",
             description="Test description",
             can_expand=True,
-            assigned_files=["file1.py", "file2.py"],
+            file_methods=[
+                FileMethodGroup(file_path="file1.py"),
+                FileMethodGroup(file_path="file2.py"),
+            ],
             key_entities=[],
         )
 
         self.assertEqual(comp.name, "TestComponent")
         self.assertEqual(comp.description, "Test description")
         self.assertTrue(comp.can_expand)
-        self.assertEqual(comp.assigned_files, ["file1.py", "file2.py"])
+        self.assertEqual([fg.file_path for fg in comp.file_methods], ["file1.py", "file2.py"])
 
     def test_component_json_defaults(self):
         # Test default values
@@ -78,7 +82,7 @@ class TestComponentJson(unittest.TestCase):
         )
 
         self.assertFalse(comp.can_expand)
-        self.assertEqual(comp.assigned_files, [])
+        self.assertEqual(comp.file_methods, [])
 
     def test_component_json_with_references(self):
         # Test with source code references
@@ -159,13 +163,13 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             name="Component1",
             description="First component",
             key_entities=[],
-            assigned_files=["file1.py"],
+            file_methods=[FileMethodGroup(file_path="file1.py")],
         )
         self.comp2 = Component(
             name="Component2",
             description="Second component",
             key_entities=[],
-            assigned_files=["file2.py"],
+            file_methods=[FileMethodGroup(file_path="file2.py")],
         )
 
         # Create sample relation
@@ -210,7 +214,10 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         comp = Component(
             name="TestComp",
             description="Test description",
-            assigned_files=["a.py", "b.py"],
+            file_methods=[
+                FileMethodGroup(file_path="a.py"),
+                FileMethodGroup(file_path="b.py"),
+            ],
             key_entities=[ref],
         )
 
@@ -218,7 +225,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         self.assertEqual(result.name, "TestComp")
         self.assertEqual(result.description, "Test description")
-        self.assertEqual(set(result.assigned_files), {"a.py", "b.py"})
+        self.assertEqual(set(fg.file_path for fg in result.file_methods), {"a.py", "b.py"})
         self.assertEqual(len(result.key_entities), 1)
 
     def test_from_analysis_to_json(self):
@@ -270,7 +277,6 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         comp = Component(
             name="WithRefs",
             description="Component with references",
-            assigned_files=[],
             key_entities=[ref1, ref2],
         )
 
@@ -437,17 +443,25 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
         root_a = Component(
-            name="A", description="Root A", key_entities=[], source_cluster_ids=[1], assigned_files=["a.py"]
+            name="A",
+            description="Root A",
+            key_entities=[],
+            source_cluster_ids=[1],
+            file_methods=[FileMethodGroup(file_path="a.py")],
         )
         root_b = Component(
-            name="B", description="Root B", key_entities=[], source_cluster_ids=[2], assigned_files=["b.py"]
+            name="B",
+            description="Root B",
+            key_entities=[],
+            source_cluster_ids=[2],
+            file_methods=[FileMethodGroup(file_path="b.py")],
         )
         child_a = Component(
             name="A-child",
             description="Child of A",
             key_entities=[],
             source_cluster_ids=[3],
-            assigned_files=["a_child.py"],
+            file_methods=[FileMethodGroup(file_path="a_child.py")],
         )
 
         root_analysis = AnalysisInsights(description="Root", components=[root_a, root_b], components_relations=[])
@@ -484,7 +498,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         result = gen.generate_analysis()
 
-        self.assertEqual(result, [self.output_dir / "analysis.json"])
+        self.assertEqual(result, (self.output_dir / "analysis.json").resolve())
         self.assertIn("child_start", timestamps)
         self.assertIn("b_end", timestamps)
         self.assertLess(timestamps["child_start"], timestamps["b_end"])
@@ -510,13 +524,13 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Component1",
             description="First",
             key_entities=[],
-            assigned_files=["file1.py"],
+            file_methods=[FileMethodGroup(file_path="file1.py", methods=[])],
         )
         comp2 = Component(
             name="Component2",
             description="Second",
             key_entities=[],
-            assigned_files=["file2.py"],
+            file_methods=[FileMethodGroup(file_path="file2.py", methods=[])],
         )
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -560,13 +574,13 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Comp1",
             description="Component one",
             key_entities=[],
-            assigned_files=["a.py"],
+            file_methods=[FileMethodGroup(file_path="a.py", methods=[])],
         )
         comp2 = Component(
             name="Comp2",
             description="Component two",
             key_entities=[],
-            assigned_files=["b.py"],
+            file_methods=[FileMethodGroup(file_path="b.py", methods=[])],
         )
         analysis = AnalysisInsights(
             description="Root analysis",

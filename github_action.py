@@ -151,10 +151,7 @@ def generate_analysis(
     )
 
     # Use smart analysis: tries incremental first, falls back to full
-    analysis_files = generator.generate_analysis_smart()
-
-    # The generator now returns a single analysis.json path
-    analysis_path = analysis_files[0]
+    analysis_path = generator.generate_analysis_smart()
 
     # Now generate the output docs:
     match extension:

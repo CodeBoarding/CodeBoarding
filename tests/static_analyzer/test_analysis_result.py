@@ -1,7 +1,8 @@
 import unittest
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Node
+from static_analyzer.constants import NodeType
+from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph
 
 
@@ -144,15 +145,15 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_cfg_merge_multiple_projects(self):
         cfg1 = CallGraph()
-        node1 = Node("project1.func1", 10, "project1/file.py", 1, 5)
-        node2 = Node("project1.func2", 10, "project1/file.py", 6, 10)
+        node1 = Node("project1.func1", NodeType.FUNCTION, "project1/file.py", 1, 5)
+        node2 = Node("project1.func2", NodeType.FUNCTION, "project1/file.py", 6, 10)
         cfg1.add_node(node1)
         cfg1.add_node(node2)
         cfg1.add_edge("project1.func1", "project1.func2")
 
         cfg2 = CallGraph()
-        node3 = Node("project2.func3", 10, "project2/file.py", 1, 5)
-        node4 = Node("project2.func4", 10, "project2/file.py", 6, 10)
+        node3 = Node("project2.func3", NodeType.FUNCTION, "project2/file.py", 1, 5)
+        node4 = Node("project2.func4", NodeType.FUNCTION, "project2/file.py", 6, 10)
         cfg2.add_node(node3)
         cfg2.add_node(node4)
         cfg2.add_edge("project2.func3", "project2.func4")
@@ -166,8 +167,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_cfg_merge_duplicate_edges(self):
         cfg1 = CallGraph()
-        node1 = Node("func1", 10, "file.py", 1, 5)
-        node2 = Node("func2", 10, "file.py", 6, 10)
+        node1 = Node("func1", NodeType.FUNCTION, "file.py", 1, 5)
+        node2 = Node("func2", NodeType.FUNCTION, "file.py", 6, 10)
         cfg1.add_node(node1)
         cfg1.add_node(node2)
         cfg1.add_edge("func1", "func2")

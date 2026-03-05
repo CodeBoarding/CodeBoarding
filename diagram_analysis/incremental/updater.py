@@ -243,8 +243,8 @@ class IncrementalUpdater:
         if best_component is None:
             file_dir = str(Path(file_path).parent)
             for component in self.analysis.components:
-                for assigned_file in component.assigned_files:
-                    if str(Path(assigned_file).parent) == file_dir:
+                for fg in component.file_methods:
+                    if str(Path(fg.file_path).parent) == file_dir:
                         return component.component_id
 
         return best_component
@@ -276,7 +276,7 @@ class IncrementalUpdater:
     def _execute_update_components(self) -> bool:
         """Execute targeted component updates.
 
-        Updates assigned_files without LLM re-analysis where possible.
+        Updates file_methods without LLM re-analysis where possible.
         Re-runs DetailsAgent only for expanded components with structural changes.
         """
         assert self.impact and self.manifest and self.analysis
