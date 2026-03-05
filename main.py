@@ -402,7 +402,7 @@ Examples:
   codeboarding https://github.com/user/repo
 
   # Partial update (update single component by ID)
-  codeboarding --local /path/to/repo --partial-component-id "a3f2b1c4d5e6f789"
+  codeboarding --local /path/to/repo --partial-component-id "1.2"
 
   # Incremental update (smart - detects changes automatically)
   codeboarding --local /path/to/repo --incremental
