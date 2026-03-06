@@ -144,10 +144,6 @@ class LSPClient(ABC):
         # analysis (_find_subclasses, _find_superclasses_via_definition).
         self._file_content_cache: dict[Path, str] = {}
 
-        # Cache for documentSymbol responses from the definition location map phase.
-        # Avoids redundant LSP round-trips in _analyze_single_file.
-        self._document_symbols_cache: dict[str, list] = {}
-
     def _read_file_cached(self, file_path: Path) -> str:
         """Read file content with caching to avoid redundant I/O."""
         if file_path not in self._file_content_cache:
@@ -937,37 +933,22 @@ class LSPClient(ABC):
             except Exception as e:
                 logger.debug(f"Error pre-opening file {file_path}: {e}")
 
-        # Combined barrier sync + definition location map building.
-        # Fire all documentSymbol requests first, then collect responses (fire-then-collect).
-        # This lets the LSP server pipeline request processing instead of blocking on each one
-        # sequentially.  The responses also populate _document_symbols_cache so that
-        # _analyze_single_file can skip redundant documentSymbol round-trips.
+        # Build definition location map: sequential documentSymbol requests that also
+        # serve as a barrier sync (all files pre-opened before parallel analysis).
         logger.info("Building definition location map (with barrier sync)...")
         self._definition_location_map = {}
-        self._document_symbols_cache = {}
         defmap_t0 = time.monotonic()
 
-        # Phase 1: Fire all documentSymbol requests
-        defmap_requests: list[tuple[int, Path, str]] = []
         for file_path in src_files:
-            file_uri = file_path.as_uri()
-            params = {"textDocument": {"uri": file_uri}}
-            req_id = self._send_request("textDocument/documentSymbol", params)
-            defmap_requests.append((req_id, file_path, file_uri))
-
-        # Phase 2: Collect all responses and build the map
-        for req_id, file_path, file_uri in defmap_requests:
             try:
-                # Use a shorter timeout (15s) for definition map building.
-                # The default 60s timeout per file is too aggressive for large repos
-                # (e.g. 499 Java files); a few hanging files would waste minutes.
-                # Files that timeout here will still be analysed in the parallel phase.
+                file_uri = file_path.as_uri()
+                params = {"textDocument": {"uri": file_uri}}
+                req_id = self._send_request("textDocument/documentSymbol", params)
                 response = self._wait_for_response(req_id, timeout=15)
                 symbols = response.get("result", [])
                 file_map: dict[int, tuple[str, int]] = {}
                 self._collect_symbol_lines(symbols, file_path, file_map, parent_name=None)
                 self._definition_location_map[file_uri] = file_map
-                self._document_symbols_cache[file_uri] = symbols
             except Exception as e:
                 logger.debug(f"Error building definition location map for {file_path}: {e}")
 
@@ -1152,7 +1133,6 @@ class LSPClient(ABC):
 
         # Free cached file contents used during class hierarchy analysis
         self._file_content_cache.clear()
-        self._document_symbols_cache.clear()
 
         return {
             "call_graph": call_graph,
@@ -1189,11 +1169,7 @@ class LSPClient(ABC):
             result.package_name = self._get_package_name(file_path)
 
             # Get all symbols in this file once.
-            # Use cached response from the definition location map phase if available,
-            # avoiding a redundant LSP round-trip. pop() frees memory as files complete.
-            symbols = self._document_symbols_cache.pop(file_uri, None)
-            if symbols is None:
-                symbols = self._get_document_symbols(file_uri)
+            symbols = self._get_document_symbols(file_uri)
             if not symbols:
                 return result
 
