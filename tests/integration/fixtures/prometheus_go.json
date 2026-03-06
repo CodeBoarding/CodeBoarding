@@ -3,40 +3,40 @@
     "repo_url": "https://github.com/prometheus/prometheus",
     "pinned_commit": "v3.0.1",
     "language": "Go",
-    "generated_at": "2026-02-06T10:33:18.331136+00:00",
+    "generated_at": "2026-03-06T16:02:19.988462+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 10068,
-    "classes_count": 105,
-    "packages_count": 107,
-    "call_graph_nodes": 5377,
-    "call_graph_edges": 9244,
+    "references_count": 10834,
+    "classes_count": 1037,
+    "packages_count": 124,
+    "call_graph_nodes": 11080,
+    "call_graph_edges": 18237,
     "source_files_count": 350,
-    "execution_time_seconds": 395
+    "execution_time_seconds": 236.0
   },
   "sample_references": [
-    "cmd.prometheus.main.(*flagconfig).setfeaturelistoptions",
-    "cmd.prometheus.main.(*readyscrapemanager).get",
-    "cmd.prometheus.main.(*readyscrapemanager).set",
-    "cmd.prometheus.main.(*readystorage).appender",
-    "cmd.prometheus.main.(*readystorage).applyconfig",
-    "cmd.prometheus.main.(*readystorage).chunkquerier",
-    "cmd.prometheus.main.(*readystorage).cleantombstones",
-    "cmd.prometheus.main.(*readystorage).close",
-    "cmd.prometheus.main.(*readystorage).delete",
-    "cmd.prometheus.main.(*readystorage).exemplarquerier"
+    "cmd.prometheus.main.(*flagConfig).setfeaturelistoptions",
+    "cmd.prometheus.main.(*readyScrapeManager).get",
+    "cmd.prometheus.main.(*readyScrapeManager).set",
+    "cmd.prometheus.main.(*readyStorage).appender",
+    "cmd.prometheus.main.(*readyStorage).applyconfig",
+    "cmd.prometheus.main.(*readyStorage).chunkquerier",
+    "cmd.prometheus.main.(*readyStorage).cleantombstones",
+    "cmd.prometheus.main.(*readyStorage).close",
+    "cmd.prometheus.main.(*readyStorage).delete",
+    "cmd.prometheus.main.(*readyStorage).exemplarquerier"
   ],
   "sample_classes": [
-    "cmd.promtool.main.compareRuleTypes",
-    "cmd.promtool.unittest.labelsAndAnnotations",
-    "config.config.AlertmanagerAPIVersion",
-    "config.config.AlertmanagerConfigs",
-    "config.config.RemoteWriteProtoMsg",
-    "config.config.RemoteWriteProtoMsgs",
-    "config.config.ScrapeProtocol",
-    "config.config.TracingClientType",
-    "config.config.translationStrategyOption",
-    "discovery.discovery.Configs"
+    "cmd.prometheus.main.agentOptions",
+    "cmd.prometheus.main.flagConfig",
+    "cmd.prometheus.main.klogv1Writer",
+    "cmd.prometheus.main.notReadyAppender",
+    "cmd.prometheus.main.readyScrapeManager",
+    "cmd.prometheus.main.readyStorage",
+    "cmd.prometheus.main.reloader",
+    "cmd.prometheus.main.rwProtoMsgFlagParser",
+    "cmd.prometheus.main.safePromQLNoStepSubqueryInterval",
+    "cmd.prometheus.main.tsdbOptions"
   ]
 }

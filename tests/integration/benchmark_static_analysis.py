@@ -299,25 +299,21 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
         # Extract timing
         hierarchy_time = sum(r.method_timings.get("hierarchy", 0) for r in file_results)
         outgoing_time = sum(r.method_timings.get("outgoing", 0) for r in file_results)
-        incoming_time = sum(r.method_timings.get("incoming", 0) for r in file_results)
         body_time = sum(r.method_timings.get("body", 0) for r in file_results)
 
         # Extract edge counts
         outgoing_edges = set(e for r in file_results for e in r.outgoing_edges)
-        incoming_edges = set(e for r in file_results for e in r.incoming_edges)
         body_edges = set(e for r in file_results for e in r.body_edges)
 
         result = {
             "wall_clock": round(wall_elapsed, 2),
             "hierarchy_time": round(hierarchy_time, 2),
             "outgoing_time": round(outgoing_time, 2),
-            "incoming_time": round(incoming_time, 2),
             "body_time": round(body_time, 2),
-            "cumulative_lsp": round(hierarchy_time + outgoing_time + incoming_time + body_time, 2),
+            "cumulative_lsp": round(hierarchy_time + outgoing_time + body_time, 2),
             "call_graph_nodes": len(call_graph.nodes),
             "call_graph_edges": len(call_graph.edges),
             "outgoing_edges": len(outgoing_edges),
-            "incoming_edges": len(incoming_edges),
             "body_edges": len(body_edges),
             "files_analyzed": len(file_results),
         }
@@ -391,7 +387,6 @@ def print_comparison(
         ("call_graph_nodes", "Call graph nodes", ""),
         ("call_graph_edges", "Call graph edges", ""),
         ("outgoing_edges", "Outgoing edges", ""),
-        ("incoming_edges", "Incoming edges", ""),
         ("body_edges", "Body edges", ""),
         ("files_analyzed", "Files analyzed", ""),
     ]

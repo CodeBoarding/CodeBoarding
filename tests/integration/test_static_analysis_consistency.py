@@ -250,7 +250,7 @@ class TestStaticAnalysisConsistency:
         if not isinstance(references, dict):
             pytest.fail(f"Expected dict for references, got {type(references).__name__}")
 
-        reference_keys = set(references.keys())
+        reference_keys = {k.lower() for k in references.keys()}
 
         for entity in sample_entities:
             entity_lower = entity.lower()

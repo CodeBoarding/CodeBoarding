@@ -3,21 +3,21 @@
     "repo_url": "https://github.com/excalidraw/excalidraw",
     "pinned_commit": "v0.18.0",
     "language": "TypeScript",
-    "generated_at": "2026-02-06T10:36:51.296049+00:00",
+    "generated_at": "2026-03-06T16:02:44.386630+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 15430,
-    "classes_count": 67,
-    "packages_count": 64,
-    "call_graph_nodes": 2176,
-    "call_graph_edges": 4212,
+    "references_count": 15626,
+    "classes_count": 7508,
+    "packages_count": 69,
+    "call_graph_nodes": 15735,
+    "call_graph_edges": 30644,
     "source_files_count": 2996,
-    "execution_time_seconds": 145
+    "execution_time_seconds": 315.4215807080036
   },
   "sample_references": [
+    "dev-docs.src.components.homepage.index.",
     "dev-docs.src.components.homepage.index..map() callback",
-    "dev-docs.src.components.homepage.index.<unknown>",
     "dev-docs.src.components.homepage.index.and",
     "dev-docs.src.components.homepage.index.be",
     "dev-docs.src.components.homepage.index.clsx",
@@ -28,15 +28,15 @@
     "dev-docs.src.components.homepage.index.featureitem"
   ],
   "sample_classes": [
-    "excalidraw-app.collab.Collab.Collab",
-    "excalidraw-app.collab.Portal.Portal",
-    "excalidraw-app.components.TopErrorBoundary.TopErrorBoundary",
-    "excalidraw-app.data.FileManager.FileManager",
-    "excalidraw-app.data.LocalData.LibraryIndexedDBAdapter",
-    "excalidraw-app.data.LocalData.LibraryLocalStorageMigrationAdapter",
-    "excalidraw-app.data.LocalData.LocalData",
-    "excalidraw-app.data.LocalData.LocalFileManager",
-    "excalidraw-app.data.Locker.Locker",
-    "excalidraw-app.data.firebase.FirebaseSceneVersionCache"
+    "dev-docs.src.components.Homepage.index.FeatureList",
+    "dev-docs.src.pages.index.siteConfig",
+    "examples.with-nextjs.src.app.page.ExcalidrawWithClientOnly",
+    "examples.with-nextjs.src.excalidrawWrapper.ExcalidrawWrapper",
+    "examples.with-nextjs.src.excalidrawWrapper.default",
+    "examples.with-nextjs.src.pages.excalidraw-in-pages.Excalidraw",
+    "examples.with-script-in-browser.components.CustomFooter.Button",
+    "examples.with-script-in-browser.components.CustomFooter.COMMENT_SVG",
+    "examples.with-script-in-browser.components.CustomFooter.CustomFooter",
+    "examples.with-script-in-browser.components.CustomFooter.MIME_TYPES"
   ]
 }

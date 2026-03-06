@@ -3,19 +3,20 @@
     "repo_url": "https://github.com/lodash/lodash",
     "pinned_commit": "4.17.21",
     "language": "JavaScript",
-    "generated_at": "2026-02-06T10:51:14.357173+00:00",
+    "generated_at": "2026-03-06T15:58:20.118625+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 7220,
-    "classes_count": 42,
-    "packages_count": 15,
-    "call_graph_nodes": 2804,
-    "call_graph_edges": 12315,
+    "references_count": 7293,
+    "classes_count": 180,
+    "packages_count": 17,
+    "call_graph_nodes": 7423,
+    "call_graph_edges": 26335,
     "source_files_count": 40,
-    "execution_time_seconds": 80
+    "execution_time_seconds": 143.94897525000852
   },
   "sample_references": [
+    "fp._baseconvert.",
     "fp._baseconvert.'ary'",
     "fp._baseconvert.'assign'",
     "fp._baseconvert.'cap'",
@@ -24,19 +25,18 @@
     "fp._baseconvert.'curry'",
     "fp._baseconvert.'fixed'",
     "fp._baseconvert.'foreach'",
-    "fp._baseconvert.'immutable'",
-    "fp._baseconvert.'isarray'"
+    "fp._baseconvert.'immutable'"
   ],
   "sample_classes": [
-    "lodash.Hash",
-    "lodash.LazyWrapper",
-    "lodash.ListCache",
-    "lodash.LodashWrapper",
-    "lodash.MapCache",
-    "lodash.SetCache",
-    "lodash.Stack",
-    "lodash.debounced",
-    "lodash.lodash",
-    "lodash.memoize"
+    "fp._baseConvert.<unknown>",
+    "fp._convertBrowser.<unknown>",
+    "fp._mapping.aliasToReal",
+    "fp._mapping.aryMethod",
+    "fp._mapping.aryRearg",
+    "fp._mapping.iterateeAry",
+    "fp._mapping.iterateeRearg",
+    "fp._mapping.methodRearg",
+    "fp._mapping.methodSpread",
+    "fp._mapping.mutate"
   ]
 }

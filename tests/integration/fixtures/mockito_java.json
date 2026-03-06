@@ -3,17 +3,17 @@
     "repo_url": "https://github.com/mockito/mockito",
     "pinned_commit": "v5.14.2",
     "language": "Java",
-    "generated_at": "2026-02-06T10:28:59.202622+00:00",
+    "generated_at": "2026-03-06T18:00:00.000000+00:00",
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 3199,
-    "classes_count": 442,
-    "packages_count": 78,
-    "call_graph_nodes": 2569,
-    "call_graph_edges": 1143,
+    "references_count": 5083,
+    "classes_count": 588,
+    "packages_count": 84,
+    "call_graph_nodes": 5095,
+    "call_graph_edges": 21305,
     "source_files_count": 499,
-    "execution_time_seconds": 1300
+    "execution_time_seconds": 218
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.additionalanswers.additionalanswers",
