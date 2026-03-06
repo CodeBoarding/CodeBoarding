@@ -58,7 +58,6 @@ class FileAnalysisResult:
     call_relationships: list[tuple]  # (caller_qualified_name, callee_qualified_name)
     class_hierarchies: dict[str, dict]
     outgoing_edges: list[tuple] = field(default_factory=list)
-    incoming_edges: list[tuple] = field(default_factory=list)
     body_edges: list[tuple] = field(default_factory=list)
     method_timings: dict[str, float] = field(default_factory=dict)
     error: str | None = None
@@ -140,6 +139,20 @@ class LSPClient(ABC):
         # rather than the function itself (e.g. `def log_call(func):` — both log_call and func are
         # on the same line but at different columns).
         self._definition_location_map: dict[str, dict[int, tuple[str, int]]] = {}
+
+        # Cache for file content reads to avoid redundant I/O in class hierarchy
+        # analysis (_find_subclasses, _find_superclasses_via_definition).
+        self._file_content_cache: dict[Path, str] = {}
+
+        # Cache for documentSymbol responses from the definition location map phase.
+        # Avoids redundant LSP round-trips in _analyze_single_file.
+        self._document_symbols_cache: dict[str, list] = {}
+
+    def _read_file_cached(self, file_path: Path) -> str:
+        """Read file content with caching to avoid redundant I/O."""
+        if file_path not in self._file_content_cache:
+            self._file_content_cache[file_path] = file_path.read_text(encoding="utf-8")
+        return self._file_content_cache[file_path]
 
     def start(self):
         """Starts the language server process and the message reader thread."""
@@ -591,12 +604,6 @@ class LSPClient(ABC):
         response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
-    def _get_incoming_calls(self, item: dict) -> list:
-        """Gets incoming calls for a call hierarchy item."""
-        req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-        response = self._wait_for_response(req_id, timeout=30)
-        return response.get("result", [])
-
     def _get_outgoing_calls(self, item: dict) -> list:
         """Gets outgoing calls for a call hierarchy item."""
         req_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
@@ -930,25 +937,44 @@ class LSPClient(ABC):
             except Exception as e:
                 logger.debug(f"Error pre-opening file {file_path}: {e}")
 
-        # Wait for the LSP server to finish indexing all pre-opened files.
-        # Many servers (e.g. Pyright) analyse files asynchronously after didOpen.
-        # Requesting documentSymbols for each file acts as a synchronisation
-        # barrier: the server can only respond once it has processed that file.
-        # We do this for every file (not just the first) because some servers
-        # (e.g. typescript-language-server) index files lazily on first access.
-        for barrier_file in src_files:
-            try:
-                self._get_document_symbols(barrier_file.as_uri())
-            except Exception as e:
-                logger.debug(f"Error waiting for LSP indexing of {barrier_file}: {e}")
+        # Combined barrier sync + definition location map building.
+        # Fire all documentSymbol requests first, then collect responses (fire-then-collect).
+        # This lets the LSP server pipeline request processing instead of blocking on each one
+        # sequentially.  The responses also populate _document_symbols_cache so that
+        # _analyze_single_file can skip redundant documentSymbol round-trips.
+        logger.info("Building definition location map (with barrier sync)...")
+        self._definition_location_map = {}
+        self._document_symbols_cache = {}
+        defmap_t0 = time.monotonic()
 
-        # Build a workspace-wide map from definition location (file URI + selection line) to
-        # qualified name.  This lets _process_definition_response resolve method references to
-        # their class-qualified names (e.g. Dog.create -> core.base.Dog.create) without issuing
-        # additional LSP requests during the parallel analysis phase.
-        logger.info("Building definition location map...")
-        self._build_definition_location_map(src_files)
-        logger.info(f"Definition location map built for {len(self._definition_location_map)} files")
+        # Phase 1: Fire all documentSymbol requests
+        defmap_requests: list[tuple[int, Path, str]] = []
+        for file_path in src_files:
+            file_uri = file_path.as_uri()
+            params = {"textDocument": {"uri": file_uri}}
+            req_id = self._send_request("textDocument/documentSymbol", params)
+            defmap_requests.append((req_id, file_path, file_uri))
+
+        # Phase 2: Collect all responses and build the map
+        for req_id, file_path, file_uri in defmap_requests:
+            try:
+                # Use a shorter timeout (15s) for definition map building.
+                # The default 60s timeout per file is too aggressive for large repos
+                # (e.g. 499 Java files); a few hanging files would waste minutes.
+                # Files that timeout here will still be analysed in the parallel phase.
+                response = self._wait_for_response(req_id, timeout=15)
+                symbols = response.get("result", [])
+                file_map: dict[int, tuple[str, int]] = {}
+                self._collect_symbol_lines(symbols, file_path, file_map, parent_name=None)
+                self._definition_location_map[file_uri] = file_map
+                self._document_symbols_cache[file_uri] = symbols
+            except Exception as e:
+                logger.debug(f"Error building definition location map for {file_path}: {e}")
+
+        defmap_time = time.monotonic() - defmap_t0
+        logger.info(
+            f"Definition location map built for {len(self._definition_location_map)} files in {defmap_time:.1f}s"
+        )
 
         # Get all classes in workspace for hierarchy analysis
         all_classes = self._get_all_classes_in_workspace()
@@ -969,16 +995,17 @@ class LSPClient(ABC):
                 for future in as_completed(future_to_file):
                     file_path = future_to_file[future]
                     try:
-                        # Add timeout to prevent infinite blocking if worker thread hangs
-                        # 5 minutes should be more than enough for any single file
-                        result = future.result(timeout=300)
+                        # Add timeout to prevent infinite blocking if worker thread hangs.
+                        # 2 minutes is enough with the reduced per-request timeouts
+                        # (8s call hierarchy, 5s body definitions, capped positions).
+                        result = future.result(timeout=120)
                         if result.error:
                             logger.error(f"Error processing {file_path}: {result.error}")
                         else:
                             successful_results.append(result)
                     except TimeoutError:
                         logger.error(
-                            f"Timeout (300s) processing {file_path} - worker thread may be hung on LSP request"
+                            f"Timeout (120s) processing {file_path} - worker thread may be hung on LSP request"
                         )
                     except Exception as e:
                         logger.error(f"Exception processing {file_path}: {e}")
@@ -1095,27 +1122,23 @@ class LSPClient(ABC):
 
         # Per-method edge contribution analysis
         outgoing_set = set(e for r in successful_results for e in r.outgoing_edges)
-        incoming_set = set(e for r in successful_results for e in r.incoming_edges)
         body_set = set(e for r in successful_results for e in r.body_edges)
-        only_outgoing = len(outgoing_set - incoming_set - body_set)
-        only_incoming = len(incoming_set - outgoing_set - body_set)
-        only_body = len(body_set - outgoing_set - incoming_set)
+        only_outgoing = len(outgoing_set - body_set)
+        only_body = len(body_set - outgoing_set)
 
         total_hierarchy_time = sum(r.method_timings.get("hierarchy", 0) for r in successful_results)
         total_outgoing_time = sum(r.method_timings.get("outgoing", 0) for r in successful_results)
-        total_incoming_time = sum(r.method_timings.get("incoming", 0) for r in successful_results)
         total_body_time = sum(r.method_timings.get("body", 0) for r in successful_results)
 
         logger.info(
             f"Edge contribution by method: "
             f"outgoing={len(outgoing_set)} (unique_only={only_outgoing}), "
-            f"incoming={len(incoming_set)} (unique_only={only_incoming}), "
             f"body={len(body_set)} (unique_only={only_body})"
         )
         logger.info(
             f"Cumulative LSP time (wall-clock sum across files): "
             f"hierarchy={total_hierarchy_time:.1f}s, outgoing={total_outgoing_time:.1f}s, "
-            f"incoming={total_incoming_time:.1f}s, body={total_body_time:.1f}s"
+            f"body={total_body_time:.1f}s"
         )
 
         # Language-specific post-processing (e.g. synthesising Java constructor nodes/edges)
@@ -1126,6 +1149,10 @@ class LSPClient(ABC):
             f"Results: {len(reference_nodes)} references, {len(class_hierarchies)} classes, "
             f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges"
         )
+
+        # Free cached file contents used during class hierarchy analysis
+        self._file_content_cache.clear()
+        self._document_symbols_cache.clear()
 
         return {
             "call_graph": call_graph,
@@ -1161,8 +1188,12 @@ class LSPClient(ABC):
             # still get their correct package name (avoids phantom empty-string packages)
             result.package_name = self._get_package_name(file_path)
 
-            # Get all symbols in this file once
-            symbols = self._get_document_symbols(file_uri)
+            # Get all symbols in this file once.
+            # Use cached response from the definition location map phase if available,
+            # avoiding a redundant LSP round-trip. pop() frees memory as files complete.
+            symbols = self._document_symbols_cache.pop(file_uri, None)
+            if symbols is None:
+                symbols = self._get_document_symbols(file_uri)
             if not symbols:
                 return result
 
@@ -1232,7 +1263,7 @@ class LSPClient(ABC):
             hierarchy_items_map: dict[str, list[dict]] = {}  # qualified_name -> items
             for req_id, qualified_name in hierarchy_requests:
                 try:
-                    response = self._wait_for_response(req_id, timeout=20)
+                    response = self._wait_for_response(req_id, timeout=8)
                     items = response.get("result") or []
                     if items:
                         hierarchy_items_map[qualified_name] = items
@@ -1242,22 +1273,19 @@ class LSPClient(ABC):
                     logger.debug(f"Error preparing call hierarchy for {qualified_name}: {e}")
             hierarchy_time = time.monotonic() - hierarchy_t0
 
-            # Phase 2: Fire all outgoing + incoming calls requests, then collect responses
+            # Phase 2: Fire all outgoing calls requests, then collect responses
             outgoing_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
-            incoming_requests: list[tuple[int, str]] = []
 
             for qualified_name, items in hierarchy_items_map.items():
                 for item in items:
                     out_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
                     outgoing_requests.append((out_id, qualified_name))
-                    in_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-                    incoming_requests.append((in_id, qualified_name))
 
             # Collect all outgoing responses
             outgoing_t0 = time.monotonic()
             for req_id, current_qualified_name in outgoing_requests:
                 try:
-                    response = self._wait_for_response(req_id, timeout=20)
+                    response = self._wait_for_response(req_id, timeout=8)
                     outgoing_calls = response.get("result") or []
                     for call in outgoing_calls:
                         callee_item = call["to"]
@@ -1279,38 +1307,13 @@ class LSPClient(ABC):
                     logger.debug(f"Error getting outgoing calls for {current_qualified_name}: {e}")
             outgoing_time = time.monotonic() - outgoing_t0
 
-            # Collect all incoming responses
-            # required for edge completeness
-            incoming_t0 = time.monotonic()
-            for req_id, current_qualified_name in incoming_requests:
-                try:
-                    response = self._wait_for_response(req_id, timeout=20)
-                    incoming_calls = response.get("result") or []
-                    for call in incoming_calls:
-                        caller_item = call["from"]
-                        try:
-                            caller_uri = caller_item["uri"]
-                            if caller_uri.startswith("file://"):
-                                caller_path = uri_to_path(caller_uri)
-                                caller_name = self._normalize_call_item_name(caller_item)
-                                caller_qualified_name = self._create_qualified_name(caller_path, caller_name)
-                                edge = (caller_qualified_name, current_qualified_name)
-                                result.call_relationships.append(edge)
-                                result.incoming_edges.append(edge)
-                                logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
-                        except Exception as e:
-                            logger.debug(f"Error processing incoming call: {e}")
-                except TimeoutError:
-                    logger.debug(f"Timeout getting incoming calls for {current_qualified_name}")
-                except Exception as e:
-                    logger.debug(f"Error getting incoming calls for {current_qualified_name}: {e}")
-            incoming_time = time.monotonic() - incoming_t0
-
             # Body-level calls by finding call positions
             # required for edge completeness
             body_t0 = time.monotonic()
             try:
-                # Phase 1: Collect all call positions from all functions (with filtering)
+                # Phase 1: Collect all call positions from all functions
+                # Definition cache deduplicates positions + reduced timeouts bound
+                # worst-case runtime without needing artificial caps.
                 all_call_requests: list[tuple[str, dict]] = []  # (func_qualified_name, call_pos)
                 for func_symbol in result.function_symbols:
                     func_range = func_symbol.get("range", {})
@@ -1355,7 +1358,7 @@ class LSPClient(ABC):
                 for req_id, func_qualified_name, call_pos in pending_requests:
                     if req_id not in response_cache:
                         try:
-                            response = self._wait_for_response(req_id, timeout=15)
+                            response = self._wait_for_response(req_id, timeout=5)
                             if "error" in response:
                                 logger.warning(
                                     "Definition response returned error for req_id=%s file=%s line=%s char=%s func=%s error=%s",
@@ -1406,7 +1409,6 @@ class LSPClient(ABC):
             result.method_timings = {
                 "hierarchy": hierarchy_time,
                 "outgoing": outgoing_time,
-                "incoming": incoming_time,
                 "body": body_time,
             }
 
@@ -1533,8 +1535,12 @@ class LSPClient(ABC):
                 return []
 
             symbols = response.get("result") or []
-            # Filter for class-like symbols (class=5, interface=11, struct=23)
-            classes = [s for s in symbols if s.get("kind") in self._CLASS_LIKE_KINDS]
+            # Filter for actual class symbols only (kind=5).  Interfaces (11) and structs (23)
+            # are captured per-file by _find_classes_in_symbols but should NOT be included in
+            # the workspace-wide list because each entry triggers expensive typeHierarchy LSP
+            # requests during _analyze_single_file.  Including them causes massive slowdowns
+            # for repos with many interfaces (e.g. TypeScript, Go).
+            classes = [s for s in symbols if s.get("kind") == self._CLASS_KIND]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1668,7 +1674,7 @@ class LSPClient(ABC):
 
                                     # Extract class name from definition
                                     try:
-                                        def_content = def_path.read_text(encoding="utf-8")
+                                        def_content = self._read_file_cached(def_path)
                                         def_lines = def_content.split("\n")
                                         if def_line < len(def_lines):
                                             def_line_text = def_lines[def_line].strip()
@@ -1777,7 +1783,7 @@ class LSPClient(ABC):
 
                     try:
                         # Read the file and check if this reference is in a class inheritance
-                        ref_content = ref_path.read_text(encoding="utf-8")
+                        ref_content = self._read_file_cached(ref_path)
                         ref_lines = ref_content.split("\n")
 
                         if ref_line < len(ref_lines):
