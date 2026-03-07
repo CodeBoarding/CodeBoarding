@@ -93,6 +93,11 @@ class JavaClient(LSPClient):
         # Initialize base LSPClient
         super().__init__(project_path, language, ignore_manager)
 
+        # JDTLS resolves outgoing calls to concrete implementations (not interface types),
+        # so incoming calls provide very few unique edges (~1.3% for Mockito) while being
+        # extremely slow (~200s for 499 files). Skip them for Java.
+        self._skip_incoming_calls = True
+
         # Track import status
         self.import_complete = False
         self.import_errors: list[str] = []

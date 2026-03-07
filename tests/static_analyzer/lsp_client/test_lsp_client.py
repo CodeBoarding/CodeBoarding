@@ -771,6 +771,24 @@ second_call()
         self.assertEqual(result, test_calls)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_get_incoming_calls(self, mock_popen):
+        # Test getting incoming calls
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+
+        test_calls = [{"from": {"name": "caller", "uri": "file:///caller.py"}}]
+        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
+
+        item = {"name": "test_func"}
+        result = client._get_incoming_calls(item)
+
+        self.assertEqual(result, test_calls)
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_resolve_call_position_internal(self, mock_popen):
         # Test resolving a call position to internal project file
         mock_process = Mock()

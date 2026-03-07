@@ -58,6 +58,7 @@ class FileAnalysisResult:
     call_relationships: list[tuple]  # (caller_qualified_name, callee_qualified_name)
     class_hierarchies: dict[str, dict]
     outgoing_edges: list[tuple] = field(default_factory=list)
+    incoming_edges: list[tuple] = field(default_factory=list)
     body_edges: list[tuple] = field(default_factory=list)
     method_timings: dict[str, float] = field(default_factory=dict)
     error: str | None = None
@@ -139,6 +140,13 @@ class LSPClient(ABC):
         # rather than the function itself (e.g. `def log_call(func):` — both log_call and func are
         # on the same line but at different columns).
         self._definition_location_map: dict[str, dict[int, tuple[str, int]]] = {}
+
+        # When True, skip callHierarchy/incomingCalls requests during analysis.
+        # JDTLS (Java) benefits from this because its incoming call resolution is
+        # extremely slow and the edges it finds are largely redundant with outgoing
+        # calls (JDTLS resolves to concrete implementations, not interface types).
+        # Other LSPs (gopls, tsserver) need incoming calls for interface dispatch.
+        self._skip_incoming_calls: bool = False
 
         # Cache for file content reads to avoid redundant I/O in class hierarchy
         # analysis (_find_subclasses, _find_superclasses_via_definition).
@@ -597,6 +605,12 @@ class LSPClient(ABC):
             "position": {"line": line, "character": character},
         }
         req_id = self._send_request("textDocument/prepareCallHierarchy", params)
+        response = self._wait_for_response(req_id, timeout=30)
+        return response.get("result", [])
+
+    def _get_incoming_calls(self, item: dict) -> list:
+        """Gets incoming calls for a call hierarchy item."""
+        req_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
         response = self._wait_for_response(req_id, timeout=30)
         return response.get("result", [])
 
@@ -1103,23 +1117,27 @@ class LSPClient(ABC):
 
         # Per-method edge contribution analysis
         outgoing_set = set(e for r in successful_results for e in r.outgoing_edges)
+        incoming_set = set(e for r in successful_results for e in r.incoming_edges)
         body_set = set(e for r in successful_results for e in r.body_edges)
-        only_outgoing = len(outgoing_set - body_set)
-        only_body = len(body_set - outgoing_set)
+        only_outgoing = len(outgoing_set - incoming_set - body_set)
+        only_incoming = len(incoming_set - outgoing_set - body_set)
+        only_body = len(body_set - outgoing_set - incoming_set)
 
         total_hierarchy_time = sum(r.method_timings.get("hierarchy", 0) for r in successful_results)
         total_outgoing_time = sum(r.method_timings.get("outgoing", 0) for r in successful_results)
+        total_incoming_time = sum(r.method_timings.get("incoming", 0) for r in successful_results)
         total_body_time = sum(r.method_timings.get("body", 0) for r in successful_results)
 
         logger.info(
             f"Edge contribution by method: "
             f"outgoing={len(outgoing_set)} (unique_only={only_outgoing}), "
+            f"incoming={len(incoming_set)} (unique_only={only_incoming}), "
             f"body={len(body_set)} (unique_only={only_body})"
         )
         logger.info(
             f"Cumulative LSP time (wall-clock sum across files): "
             f"hierarchy={total_hierarchy_time:.1f}s, outgoing={total_outgoing_time:.1f}s, "
-            f"body={total_body_time:.1f}s"
+            f"incoming={total_incoming_time:.1f}s, body={total_body_time:.1f}s"
         )
 
         # Language-specific post-processing (e.g. synthesising Java constructor nodes/edges)
@@ -1249,13 +1267,17 @@ class LSPClient(ABC):
                     logger.debug(f"Error preparing call hierarchy for {qualified_name}: {e}")
             hierarchy_time = time.monotonic() - hierarchy_t0
 
-            # Phase 2: Fire all outgoing calls requests, then collect responses
+            # Phase 2: Fire all outgoing + incoming calls requests, then collect responses
             outgoing_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
+            incoming_requests: list[tuple[int, str]] = []
 
             for qualified_name, items in hierarchy_items_map.items():
                 for item in items:
                     out_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
                     outgoing_requests.append((out_id, qualified_name))
+                    if not self._skip_incoming_calls:
+                        in_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
+                        incoming_requests.append((in_id, qualified_name))
 
             # Collect all outgoing responses
             outgoing_t0 = time.monotonic()
@@ -1282,6 +1304,34 @@ class LSPClient(ABC):
                 except Exception as e:
                     logger.debug(f"Error getting outgoing calls for {current_qualified_name}: {e}")
             outgoing_time = time.monotonic() - outgoing_t0
+
+            # Collect all incoming responses (needed for interface dispatch resolution)
+            incoming_time = 0.0
+            if incoming_requests:
+                incoming_t0 = time.monotonic()
+                for req_id, current_qualified_name in incoming_requests:
+                    try:
+                        response = self._wait_for_response(req_id, timeout=20)
+                        incoming_calls = response.get("result") or []
+                        for call in incoming_calls:
+                            caller_item = call["from"]
+                            try:
+                                caller_uri = caller_item["uri"]
+                                if caller_uri.startswith("file://"):
+                                    caller_path = uri_to_path(caller_uri)
+                                    caller_name = self._normalize_call_item_name(caller_item)
+                                    caller_qualified_name = self._create_qualified_name(caller_path, caller_name)
+                                    edge = (caller_qualified_name, current_qualified_name)
+                                    result.call_relationships.append(edge)
+                                    result.incoming_edges.append(edge)
+                                    logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing incoming call: {e}")
+                    except TimeoutError:
+                        logger.debug(f"Timeout getting incoming calls for {current_qualified_name}")
+                    except Exception as e:
+                        logger.debug(f"Error getting incoming calls for {current_qualified_name}: {e}")
+                incoming_time = time.monotonic() - incoming_t0
 
             # Body-level calls by finding call positions
             # required for edge completeness
@@ -1385,6 +1435,7 @@ class LSPClient(ABC):
             result.method_timings = {
                 "hierarchy": hierarchy_time,
                 "outgoing": outgoing_time,
+                "incoming": incoming_time,
                 "body": body_time,
             }
 
