@@ -61,15 +61,37 @@ class NodeType(IntEnum):
 
     The integer values match the LSP specification so comparisons with raw LSP
     ``symbol.get("kind")`` still work transparently (IntEnum is an int subclass).
+
+    All 26 standard LSP SymbolKind values are included so that any symbol kind
+    returned by an LSP server can be represented without raising ValueError.
     """
 
+    FILE = 1
+    MODULE = 2
+    NAMESPACE = 3
+    PACKAGE = 4
     CLASS = 5
     METHOD = 6
     PROPERTY = 7
     FIELD = 8
+    CONSTRUCTOR = 9
+    ENUM = 10
+    INTERFACE = 11
     FUNCTION = 12
     VARIABLE = 13
     CONSTANT = 14
+    STRING = 15
+    NUMBER = 16
+    BOOLEAN = 17
+    ARRAY = 18
+    OBJECT = 19
+    KEY = 20
+    NULL = 21
+    ENUM_MEMBER = 22
+    STRUCT = 23
+    EVENT = 24
+    OPERATOR = 25
+    TYPE_PARAMETER = 26
 
     def label(self) -> str:
         """Return a human-readable label (e.g. ``'Function'``, ``'Class'``)."""
@@ -93,17 +115,50 @@ class NodeType(IntEnum):
 
 
 # Convenience sets – module-level so mypy can resolve them without monkey-patching.
-CALLABLE_TYPES: set[NodeType] = {NodeType.METHOD, NodeType.FUNCTION}
-CLASS_TYPES: set[NodeType] = {NodeType.CLASS}
-DATA_TYPES: set[NodeType] = {NodeType.PROPERTY, NodeType.FIELD, NodeType.VARIABLE, NodeType.CONSTANT}
-GRAPH_NODE_TYPES: set[NodeType] = {NodeType.CLASS, NodeType.METHOD, NodeType.FUNCTION}
+CALLABLE_TYPES: set[NodeType] = {NodeType.METHOD, NodeType.FUNCTION, NodeType.CONSTRUCTOR}
+CLASS_TYPES: set[NodeType] = {NodeType.CLASS, NodeType.INTERFACE, NodeType.STRUCT, NodeType.ENUM}
+DATA_TYPES: set[NodeType] = {
+    NodeType.PROPERTY,
+    NodeType.FIELD,
+    NodeType.VARIABLE,
+    NodeType.CONSTANT,
+    NodeType.ENUM_MEMBER,
+}
+GRAPH_NODE_TYPES: set[NodeType] = {
+    NodeType.CLASS,
+    NodeType.METHOD,
+    NodeType.FUNCTION,
+    NodeType.CONSTRUCTOR,
+    NodeType.INTERFACE,
+    NodeType.STRUCT,
+    NodeType.ENUM,
+}
 
 ENTITY_LABELS: dict[NodeType, str] = {
+    NodeType.FILE: "File",
+    NodeType.MODULE: "Module",
+    NodeType.NAMESPACE: "Namespace",
+    NodeType.PACKAGE: "Package",
     NodeType.CLASS: "Class",
     NodeType.METHOD: "Method",
     NodeType.PROPERTY: "Property",
     NodeType.FIELD: "Field",
+    NodeType.CONSTRUCTOR: "Constructor",
+    NodeType.ENUM: "Enum",
+    NodeType.INTERFACE: "Interface",
     NodeType.FUNCTION: "Function",
     NodeType.VARIABLE: "Variable",
     NodeType.CONSTANT: "Constant",
+    NodeType.STRING: "String",
+    NodeType.NUMBER: "Number",
+    NodeType.BOOLEAN: "Boolean",
+    NodeType.ARRAY: "Array",
+    NodeType.OBJECT: "Object",
+    NodeType.KEY: "Key",
+    NodeType.NULL: "Null",
+    NodeType.ENUM_MEMBER: "EnumMember",
+    NodeType.STRUCT: "Struct",
+    NodeType.EVENT: "Event",
+    NodeType.OPERATOR: "Operator",
+    NodeType.TYPE_PARAMETER: "TypeParameter",
 }

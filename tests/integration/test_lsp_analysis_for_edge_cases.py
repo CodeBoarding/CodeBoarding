@@ -104,8 +104,25 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
+_LANGUAGE_MARKER_MAP = {
+    "Python": pytest.mark.python_lang,
+    "Java": pytest.mark.java_lang,
+    "Go": pytest.mark.go_lang,
+    "TypeScript": pytest.mark.typescript_lang,
+    "PHP": pytest.mark.php_lang,
+    "JavaScript": pytest.mark.javascript_lang,
+}
+
+
 def _generate_fixture_params():
-    return [pytest.param(project, marks=[pytest.mark.integration], id=project.name) for project in EDGE_CASE_PROJECTS]
+    params = []
+    for project in EDGE_CASE_PROJECTS:
+        marks = [pytest.mark.integration]
+        lang_marker = _LANGUAGE_MARKER_MAP.get(project.language)
+        if lang_marker:
+            marks.append(lang_marker)
+        params.append(pytest.param(project, marks=marks, id=project.name))
+    return params
 
 
 @pytest.fixture(scope="class", params=_generate_fixture_params())
@@ -119,8 +136,8 @@ def analysis(request) -> AnalysisRunData:
 
     all_results = []
     for run in range(1, project.stability_runs + 1):
-        analyzer = StaticAnalyzer(project_path)
-        results = analyzer.analyze(cache_dir=None)
+        with StaticAnalyzer(project_path) as analyzer:
+            results = analyzer.analyze(cache_dir=None)
         all_results.append(results)
         logger.info(
             "[%s] run %d/%d complete",

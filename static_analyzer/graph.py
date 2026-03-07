@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import ENTITY_LABELS, GRAPH_NODE_TYPES, ClusteringConfig, NodeType, Language
+from static_analyzer.constants import ENTITY_LABELS, ClusteringConfig, NodeType, Language
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -70,8 +70,6 @@ class CallGraph:
         self._cluster_cache: ClusterResult | None = None
 
     def add_node(self, node: Node) -> None:
-        if node.type not in GRAPH_NODE_TYPES:
-            return
         if node.fully_qualified_name not in self.nodes:
             self.nodes[node.fully_qualified_name] = node
 

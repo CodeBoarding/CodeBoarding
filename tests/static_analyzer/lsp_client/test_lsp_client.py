@@ -5,11 +5,11 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 from static_analyzer.graph import CallGraph
+from static_analyzer.lsp_client.client import FileAnalysisResult, LSPClient, uri_to_path
 from static_analyzer.node import Node
-from static_analyzer.lsp_client.client import LSPClient, FileAnalysisResult, uri_to_path
 from static_analyzer.scanner import ProgrammingLanguage
 
 
@@ -426,11 +426,12 @@ second_call()
         self.assertNotEqual(main_package, config_package)
 
     def test_extract_package_from_import(self):
-        self.assertEqual(LSPClient._extract_package_from_import("os.path.join"), "os")
-        self.assertEqual(LSPClient._extract_package_from_import("django.http.response"), "django")
-        self.assertEqual(LSPClient._extract_package_from_import("mypackage"), "mypackage")
-        self.assertEqual(LSPClient._extract_package_from_import(".module"), "")
-        self.assertEqual(LSPClient._extract_package_from_import("..package"), "")
+        client = LSPClient(self.project_path, self.mock_language)
+        self.assertEqual(client._extract_package_from_import("os.path.join"), "os")
+        self.assertEqual(client._extract_package_from_import("django.http.response"), "django")
+        self.assertEqual(client._extract_package_from_import("mypackage"), "mypackage")
+        self.assertEqual(client._extract_package_from_import(".module"), "")
+        self.assertEqual(client._extract_package_from_import("..package"), "")
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_filter_src_files(self, mock_popen):
@@ -752,24 +753,6 @@ second_call()
         self.assertEqual(result, test_items)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_get_incoming_calls(self, mock_popen):
-        # Test getting incoming calls
-        mock_process = Mock()
-        mock_process.stdin = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_calls = [{"from": {"name": "caller", "uri": "file:///caller.py"}}]
-        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
-
-        item = {"name": "test_func"}
-        result = client._get_incoming_calls(item)
-
-        self.assertEqual(result, test_calls)
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_get_outgoing_calls(self, mock_popen):
         # Test getting outgoing calls
         mock_process = Mock()
@@ -784,6 +767,24 @@ second_call()
 
         item = {"name": "test_func"}
         result = client._get_outgoing_calls(item)
+
+        self.assertEqual(result, test_calls)
+
+    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
+    def test_get_incoming_calls(self, mock_popen):
+        # Test getting incoming calls
+        mock_process = Mock()
+        mock_process.stdin = Mock()
+        mock_popen.return_value = mock_process
+
+        client = LSPClient(self.project_path, self.mock_language)
+        client._process = mock_process
+
+        test_calls = [{"from": {"name": "caller", "uri": "file:///caller.py"}}]
+        client._wait_for_response = Mock(return_value={"result": test_calls})  # type: ignore[method-assign]
+
+        item = {"name": "test_func"}
+        result = client._get_incoming_calls(item)
 
         self.assertEqual(result, test_calls)
 
@@ -1198,6 +1199,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file1, test_file2])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Create mock results
         result1 = FileAnalysisResult(
@@ -1273,6 +1277,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Create result with error
         error_result = FileAnalysisResult(
@@ -1321,6 +1328,9 @@ class DerivedClass(BaseClass):
         client.filter_src_files = Mock(return_value=[test_file])  # type: ignore[method-assign]
         client._prepare_for_analysis = Mock()  # type: ignore[method-assign]
         client._get_all_classes_in_workspace = Mock(return_value=[])  # type: ignore[method-assign]
+        client._send_notification = Mock()  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(return_value=[])  # type: ignore[method-assign]
+        client._build_definition_location_map = Mock()  # type: ignore[method-assign]
 
         # Mock future that raises exception
         mock_future = Mock()
@@ -1440,7 +1450,7 @@ def helper_function():
         test_file.write_text("def func(): pass")
 
         # Mock to raise exception
-        client._send_notification = Mock(side_effect=Exception("LSP error"))  # type: ignore[method-assign]
+        client._get_document_symbols = Mock(side_effect=Exception("LSP error"))  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
 
@@ -1629,47 +1639,6 @@ class DerivedClass(BaseClass):
             self.assertIsNone(result2.error)
 
     @patch("static_analyzer.lsp_client.client.subprocess.Popen")
-    def test_analyze_single_file_incoming_calls_removed(self, mock_popen):
-        # Test that incoming calls are NO LONGER captured (optimization: removed as redundant)
-        # When analyzing ALL files, every edge A->B is discovered as an outgoing call
-        # when file A is processed. Incoming calls for B discover the same edges.
-        mock_process = Mock()
-        mock_popen.return_value = mock_process
-
-        client = LSPClient(self.project_path, self.mock_language)
-        client._process = mock_process
-
-        test_file = self.project_path / "incoming.py"
-        test_file.write_text("def target():\n    pass\n")
-
-        test_symbols = [
-            {
-                "name": "target",
-                "kind": 12,
-                "range": {"start": {"line": 0}, "end": {"line": 1}},
-                "selectionRange": {"start": {"line": 0, "character": 4}},
-            }
-        ]
-
-        hierarchy_items = [{"name": "target", "uri": test_file.as_uri()}]
-        incoming_calls = [{"from": {"name": "caller", "uri": test_file.as_uri()}}]
-
-        client._send_notification = Mock()  # type: ignore[method-assign]
-        client._get_document_symbols = Mock(return_value=test_symbols)  # type: ignore[method-assign]
-        client._get_package_name = Mock(return_value="root")  # type: ignore[method-assign]
-        client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
-        client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
-        client._get_outgoing_calls = Mock(return_value=[])  # type: ignore[method-assign]
-        client._get_incoming_calls = Mock(return_value=incoming_calls)  # type: ignore[method-assign]
-        client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
-
-        result = client._analyze_single_file(test_file, [])
-
-        # Verify incoming calls are NOT captured (intentionally removed for performance)
-        # _get_incoming_calls should NOT be called anymore
-        client._get_incoming_calls.assert_not_called()
-
-    @patch("static_analyzer.lsp_client.client.subprocess.Popen")
     def test_analyze_single_file_call_hierarchy_exception(self, mock_popen):
         mock_process = Mock()
         mock_popen.return_value = mock_process
@@ -1694,7 +1663,6 @@ class DerivedClass(BaseClass):
         client._extract_imports_from_symbols = Mock(return_value=[])  # type: ignore[method-assign]
         client._prepare_call_hierarchy = Mock(return_value=hierarchy_items)  # type: ignore[method-assign]
         client._get_outgoing_calls = Mock(side_effect=Exception("Call error"))  # type: ignore[method-assign]
-        client._get_incoming_calls = Mock(return_value=[])  # type: ignore[method-assign]
         client._wait_for_response = Mock(return_value={"result": []})  # type: ignore[method-assign]
 
         result = client._analyze_single_file(test_file, [])
