@@ -96,7 +96,7 @@ jobs:
         run: codeboarding-setup --auto-install-npm
 
       - name: Run integration tests (${{ matrix.language }})
-        run: pytest -m "integration and ${{ matrix.language }}_lang" -v --tb=long
+        run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long
 
       - name: Upload test artifacts
         if: always()
