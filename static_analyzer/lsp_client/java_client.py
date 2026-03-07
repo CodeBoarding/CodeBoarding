@@ -93,10 +93,12 @@ class JavaClient(LSPClient):
         # Initialize base LSPClient
         super().__init__(project_path, language, ignore_manager)
 
-        # JDTLS resolves outgoing calls to concrete implementations (not interface types),
-        # so incoming calls provide very few unique edges (~1.3% for Mockito) while being
-        # extremely slow (~200s for 499 files). Skip them for Java.
-        self._skip_incoming_calls = True
+        # JDTLS processes LSP requests synchronously, making call hierarchy the
+        # dominant bottleneck for large projects.  Body-level definitions
+        # (textDocument/definition) resolve to the same concrete implementations
+        # that outgoingCalls would find, so we skip the entire call hierarchy
+        # phase and rely on body analysis only.
+        self._skip_call_hierarchy = True
 
         # Track import status
         self.import_complete = False

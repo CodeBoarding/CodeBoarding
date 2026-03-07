@@ -145,12 +145,21 @@ class LSPClient(ABC):
         # on the same line but at different columns).
         self._definition_location_map: dict[str, dict[int, tuple[str, int]]] = {}
 
-        # When True, skip callHierarchy/incomingCalls requests during analysis.
-        # JDTLS (Java) benefits from this because its incoming call resolution is
-        # extremely slow and the edges it finds are largely redundant with outgoing
-        # calls (JDTLS resolves to concrete implementations, not interface types).
-        # Other LSPs (gopls, tsserver) need incoming calls for interface dispatch.
+        # When True, skip the entire call hierarchy phase (prepareCallHierarchy,
+        # outgoingCalls, incomingCalls) and rely exclusively on body-level definition
+        # analysis for edge discovery.  JDTLS (Java) benefits because it processes
+        # requests synchronously, making call hierarchy the dominant bottleneck, and
+        # textDocument/definition resolves to the same concrete implementations.
+        self._skip_call_hierarchy: bool = False
+
+        # When True (and _skip_call_hierarchy is False), skip only incomingCalls.
+        # Go/TypeScript need incoming calls for interface dispatch but not call
+        # hierarchy as a whole.
         self._skip_incoming_calls: bool = False
+
+        # Cache documentSymbol responses from the def-map building phase so that
+        # _analyze_single_file can reuse them instead of re-fetching.
+        self._document_symbols_cache: dict[str, list] = {}
 
         # Cache for file content reads to avoid redundant I/O in class hierarchy
         # analysis (_find_subclasses, _find_superclasses_via_definition).
@@ -958,16 +967,25 @@ class LSPClient(ABC):
         self._definition_location_map = {}
         defmap_t0 = time.monotonic()
 
+        # Fire all documentSymbol requests, then collect (keeps LSP queue full)
+        defmap_requests: list[tuple[int, Path, str]] = []
         for file_path in src_files:
             try:
                 file_uri = file_path.as_uri()
                 params = {"textDocument": {"uri": file_uri}}
                 req_id = self._send_request("textDocument/documentSymbol", params)
+                defmap_requests.append((req_id, file_path, file_uri))
+            except Exception as e:
+                logger.debug(f"Error sending documentSymbol for {file_path}: {e}")
+
+        for req_id, file_path, file_uri in defmap_requests:
+            try:
                 response = self._wait_for_response(req_id, timeout=15)
                 symbols = response.get("result", [])
                 file_map: dict[int, tuple[str, int]] = {}
                 self._collect_symbol_lines(symbols, file_path, file_map, parent_name=None)
                 self._definition_location_map[file_uri] = file_map
+                self._document_symbols_cache[file_uri] = symbols
             except Exception as e:
                 logger.debug(f"Error building definition location map for {file_path}: {e}")
 
@@ -1167,8 +1185,9 @@ class LSPClient(ABC):
             f"{len(package_relations)} packages, {len(call_graph.nodes)} call graph nodes, {len(call_graph.edges)} edges"
         )
 
-        # Free cached file contents used during class hierarchy analysis
+        # Free caches used during analysis
         self._file_content_cache.clear()
+        self._document_symbols_cache.clear()
 
         return {
             "call_graph": call_graph,
@@ -1204,8 +1223,10 @@ class LSPClient(ABC):
             # still get their correct package name (avoids phantom empty-string packages)
             result.package_name = self._get_package_name(file_path)
 
-            # Get all symbols in this file once.
-            symbols = self._get_document_symbols(file_uri)
+            # Get all symbols in this file once (prefer cached from def-map phase).
+            symbols = self._document_symbols_cache.pop(file_uri, None)
+            if symbols is None:
+                symbols = self._get_document_symbols(file_uri)
             if not symbols:
                 return result
 
@@ -1259,97 +1280,103 @@ class LSPClient(ABC):
             # request queue full and eliminates idle gaps between requests.
             result.function_symbols = self._flatten_symbols(symbols)
 
-            # Phase 1: Fire all prepareCallHierarchy requests, then collect responses
-            hierarchy_t0 = time.monotonic()
-            hierarchy_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
-            for symbol in result.function_symbols:
-                pos = symbol["selectionRange"]["start"]
-                qualified_name = self._create_qualified_name(file_path, symbol["name"])
-                params = {
-                    "textDocument": {"uri": file_uri},
-                    "position": {"line": pos["line"], "character": pos["character"]},
-                }
-                req_id = self._send_request("textDocument/prepareCallHierarchy", params)
-                hierarchy_requests.append((req_id, qualified_name))
-
-            hierarchy_items_map: dict[str, list[dict]] = {}  # qualified_name -> items
-            for req_id, qualified_name in hierarchy_requests:
-                try:
-                    response = self._wait_for_response(req_id, timeout=8)
-                    items = response.get("result") or []
-                    if items:
-                        hierarchy_items_map[qualified_name] = items
-                except TimeoutError:
-                    logger.debug(f"Timeout preparing call hierarchy for {qualified_name}")
-                except Exception as e:
-                    logger.debug(f"Error preparing call hierarchy for {qualified_name}: {e}")
-            hierarchy_time = time.monotonic() - hierarchy_t0
-
-            # Phase 2: Fire all outgoing + incoming calls requests, then collect responses
-            outgoing_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
-            incoming_requests: list[tuple[int, str]] = []
-
-            for qualified_name, items in hierarchy_items_map.items():
-                for item in items:
-                    out_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
-                    outgoing_requests.append((out_id, qualified_name))
-                    if not self._skip_incoming_calls:
-                        in_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
-                        incoming_requests.append((in_id, qualified_name))
-
-            # Collect all outgoing responses
-            outgoing_t0 = time.monotonic()
-            for req_id, current_qualified_name in outgoing_requests:
-                try:
-                    response = self._wait_for_response(req_id, timeout=8)
-                    outgoing_calls = response.get("result") or []
-                    for call in outgoing_calls:
-                        callee_item = call["to"]
-                        try:
-                            callee_uri = callee_item["uri"]
-                            if callee_uri.startswith("file://"):
-                                callee_path = uri_to_path(callee_uri)
-                                callee_name = self._normalize_call_item_name(callee_item)
-                                callee_qualified_name = self._create_qualified_name(callee_path, callee_name)
-                                edge = (current_qualified_name, callee_qualified_name)
-                                result.call_relationships.append(edge)
-                                result.outgoing_edges.append(edge)
-                                logger.debug(f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}")
-                        except Exception as e:
-                            logger.debug(f"Error processing outgoing call: {e}")
-                except TimeoutError:
-                    logger.debug(f"Timeout getting outgoing calls for {current_qualified_name}")
-                except Exception as e:
-                    logger.debug(f"Error getting outgoing calls for {current_qualified_name}: {e}")
-            outgoing_time = time.monotonic() - outgoing_t0
-
-            # Collect all incoming responses (needed for interface dispatch resolution)
+            hierarchy_time = 0.0
+            outgoing_time = 0.0
             incoming_time = 0.0
-            if incoming_requests:
-                incoming_t0 = time.monotonic()
-                for req_id, current_qualified_name in incoming_requests:
+
+            if not self._skip_call_hierarchy:
+                # Phase 1: Fire all prepareCallHierarchy requests, then collect responses
+                hierarchy_t0 = time.monotonic()
+                hierarchy_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
+                for symbol in result.function_symbols:
+                    pos = symbol["selectionRange"]["start"]
+                    qualified_name = self._create_qualified_name(file_path, symbol["name"])
+                    params = {
+                        "textDocument": {"uri": file_uri},
+                        "position": {"line": pos["line"], "character": pos["character"]},
+                    }
+                    req_id = self._send_request("textDocument/prepareCallHierarchy", params)
+                    hierarchy_requests.append((req_id, qualified_name))
+
+                hierarchy_items_map: dict[str, list[dict]] = {}  # qualified_name -> items
+                for req_id, qualified_name in hierarchy_requests:
                     try:
-                        response = self._wait_for_response(req_id, timeout=20)
-                        incoming_calls = response.get("result") or []
-                        for call in incoming_calls:
-                            caller_item = call["from"]
-                            try:
-                                caller_uri = caller_item["uri"]
-                                if caller_uri.startswith("file://"):
-                                    caller_path = uri_to_path(caller_uri)
-                                    caller_name = self._normalize_call_item_name(caller_item)
-                                    caller_qualified_name = self._create_qualified_name(caller_path, caller_name)
-                                    edge = (caller_qualified_name, current_qualified_name)
-                                    result.call_relationships.append(edge)
-                                    result.incoming_edges.append(edge)
-                                    logger.debug(f"Incoming call: {caller_qualified_name} -> {current_qualified_name}")
-                            except Exception as e:
-                                logger.debug(f"Error processing incoming call: {e}")
+                        response = self._wait_for_response(req_id, timeout=8)
+                        items = response.get("result") or []
+                        if items:
+                            hierarchy_items_map[qualified_name] = items
                     except TimeoutError:
-                        logger.debug(f"Timeout getting incoming calls for {current_qualified_name}")
+                        logger.debug(f"Timeout preparing call hierarchy for {qualified_name}")
                     except Exception as e:
-                        logger.debug(f"Error getting incoming calls for {current_qualified_name}: {e}")
-                incoming_time = time.monotonic() - incoming_t0
+                        logger.debug(f"Error preparing call hierarchy for {qualified_name}: {e}")
+                hierarchy_time = time.monotonic() - hierarchy_t0
+
+                # Phase 2: Fire all outgoing + incoming calls requests, then collect responses
+                outgoing_requests: list[tuple[int, str]] = []  # (req_id, qualified_name)
+                incoming_requests: list[tuple[int, str]] = []
+
+                for qualified_name, items in hierarchy_items_map.items():
+                    for item in items:
+                        out_id = self._send_request("callHierarchy/outgoingCalls", {"item": item})
+                        outgoing_requests.append((out_id, qualified_name))
+                        if not self._skip_incoming_calls:
+                            in_id = self._send_request("callHierarchy/incomingCalls", {"item": item})
+                            incoming_requests.append((in_id, qualified_name))
+
+                # Collect all outgoing responses
+                outgoing_t0 = time.monotonic()
+                for req_id, current_qualified_name in outgoing_requests:
+                    try:
+                        response = self._wait_for_response(req_id, timeout=8)
+                        outgoing_calls = response.get("result") or []
+                        for call in outgoing_calls:
+                            callee_item = call["to"]
+                            try:
+                                callee_uri = callee_item["uri"]
+                                if callee_uri.startswith("file://"):
+                                    callee_path = uri_to_path(callee_uri)
+                                    callee_name = self._normalize_call_item_name(callee_item)
+                                    callee_qualified_name = self._create_qualified_name(callee_path, callee_name)
+                                    edge = (current_qualified_name, callee_qualified_name)
+                                    result.call_relationships.append(edge)
+                                    result.outgoing_edges.append(edge)
+                                    logger.debug(f"Outgoing call: {current_qualified_name} -> {callee_qualified_name}")
+                            except Exception as e:
+                                logger.debug(f"Error processing outgoing call: {e}")
+                    except TimeoutError:
+                        logger.debug(f"Timeout getting outgoing calls for {current_qualified_name}")
+                    except Exception as e:
+                        logger.debug(f"Error getting outgoing calls for {current_qualified_name}: {e}")
+                outgoing_time = time.monotonic() - outgoing_t0
+
+                # Collect all incoming responses (needed for interface dispatch resolution)
+                if incoming_requests:
+                    incoming_t0 = time.monotonic()
+                    for req_id, current_qualified_name in incoming_requests:
+                        try:
+                            response = self._wait_for_response(req_id, timeout=20)
+                            incoming_calls = response.get("result") or []
+                            for call in incoming_calls:
+                                caller_item = call["from"]
+                                try:
+                                    caller_uri = caller_item["uri"]
+                                    if caller_uri.startswith("file://"):
+                                        caller_path = uri_to_path(caller_uri)
+                                        caller_name = self._normalize_call_item_name(caller_item)
+                                        caller_qualified_name = self._create_qualified_name(caller_path, caller_name)
+                                        edge = (caller_qualified_name, current_qualified_name)
+                                        result.call_relationships.append(edge)
+                                        result.incoming_edges.append(edge)
+                                        logger.debug(
+                                            f"Incoming call: {caller_qualified_name} -> {current_qualified_name}"
+                                        )
+                                except Exception as e:
+                                    logger.debug(f"Error processing incoming call: {e}")
+                        except TimeoutError:
+                            logger.debug(f"Timeout getting incoming calls for {current_qualified_name}")
+                        except Exception as e:
+                            logger.debug(f"Error getting incoming calls for {current_qualified_name}: {e}")
+                    incoming_time = time.monotonic() - incoming_t0
 
             # Body-level calls by finding call positions
             # required for edge completeness
