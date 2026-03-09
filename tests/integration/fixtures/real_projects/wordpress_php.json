@@ -7,7 +7,7 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 31103,
+    "references_count": 30180,
     "classes_count": 819,
     "packages_count": 160,
     "call_graph_nodes": 25401,

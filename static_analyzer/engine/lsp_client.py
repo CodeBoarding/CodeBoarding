@@ -198,11 +198,12 @@ class LSPClient:
 
     # ---- LSP queries ----
 
-    def document_symbol(self, file_path: Path) -> list[dict]:
+    def document_symbol(self, file_path: Path, timeout: int | None = None) -> list[dict]:
         """Request document symbols for a file."""
         result = self._send_request(
             "textDocument/documentSymbol",
             {"textDocument": {"uri": file_path.as_uri()}},
+            timeout=timeout,
         )
         if isinstance(result, list):
             return result
@@ -257,6 +258,105 @@ class LSPClient:
         timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
         results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
         return [results.get(rid, []) for rid in req_ids]
+
+    def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
+        """Find the definition of the symbol at the given position."""
+        result = self._send_request(
+            "textDocument/definition",
+            {
+                "textDocument": {"uri": file_path.as_uri()},
+                "position": {"line": line, "character": character},
+            },
+            timeout=timeout,
+        )
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return [result]
+        return []
+
+    def send_definition_batch(
+        self, queries: list[tuple[Path, int, int]], timeout: int | None = None
+    ) -> list[list[dict]]:
+        """Send multiple definition requests without waiting between them.
+
+        Returns a list of result lists, one per query, in the same order as queries.
+        """
+        req_ids: list[int] = []
+        for file_path, line, character in queries:
+            self._request_id += 1
+            req_id = self._request_id
+            req_ids.append(req_id)
+            message = {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {"uri": file_path.as_uri()},
+                    "position": {"line": line, "character": character},
+                },
+            }
+            self._write_message(message)
+
+        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
+        parsed: list[list[dict]] = []
+        for rid in req_ids:
+            raw = results.get(rid, [])
+            if isinstance(raw, dict):
+                parsed.append([raw])
+            elif isinstance(raw, list):
+                parsed.append(raw)
+            else:
+                parsed.append([])
+        return parsed
+
+    def implementation(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
+        """Find implementations of the symbol at the given position."""
+        result = self._send_request(
+            "textDocument/implementation",
+            {
+                "textDocument": {"uri": file_path.as_uri()},
+                "position": {"line": line, "character": character},
+            },
+            timeout=timeout,
+        )
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return [result]
+        return []
+
+    def send_implementation_batch(
+        self, queries: list[tuple[Path, int, int]], timeout: int | None = None
+    ) -> list[list[dict]]:
+        """Send multiple implementation requests without waiting between them."""
+        req_ids: list[int] = []
+        for file_path, line, character in queries:
+            self._request_id += 1
+            req_id = self._request_id
+            req_ids.append(req_id)
+            message = {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": "textDocument/implementation",
+                "params": {
+                    "textDocument": {"uri": file_path.as_uri()},
+                    "position": {"line": line, "character": character},
+                },
+            }
+            self._write_message(message)
+
+        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
+        parsed: list[list[dict]] = []
+        for rid in req_ids:
+            raw = results.get(rid, [])
+            if isinstance(raw, dict):
+                parsed.append([raw])
+            elif isinstance(raw, list):
+                parsed.append(raw)
+            else:
+                parsed.append([])
+        return parsed
 
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
