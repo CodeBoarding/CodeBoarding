@@ -1,0 +1,427 @@
+"""Core algorithm for building call flow graphs using LSP."""
+
+from __future__ import annotations
+
+import logging
+import time
+from pathlib import Path
+
+from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
+from static_analyzer.engine.language_adapter import (
+    SYMBOL_KIND_CONSTANT,
+    SYMBOL_KIND_VARIABLE,
+    LanguageAdapter,
+)
+from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.engine.utils import uri_to_path
+
+logger = logging.getLogger(__name__)
+
+# Batch size for did_open to avoid overwhelming LSP servers
+DID_OPEN_BATCH_SIZE = 50
+
+
+class CallGraphBuilder:
+    """Builds a call flow graph using LSP document symbols and references."""
+
+    def __init__(
+        self,
+        lsp_client: LSPClient,
+        adapter: LanguageAdapter,
+        project_root: Path,
+    ) -> None:
+        self._lsp = lsp_client
+        self._adapter = adapter
+        self._root = project_root.resolve()
+
+        self._symbol_table = SymbolTable(adapter)
+        self._source_inspector = SourceInspector()
+
+    @property
+    def symbol_table(self) -> SymbolTable:
+        """Public access to the symbol table for result conversion."""
+        return self._symbol_table
+
+    def build(self, source_files: list[Path]) -> LanguageAnalysisResult:
+        """Run the full analysis pipeline and return results."""
+        self._discover_symbols(source_files)
+        self._symbol_table.build_indices()
+        edge_set = self._build_edges()
+
+        hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
+        hierarchy = hierarchy_builder.build()
+
+        package_deps = self._build_package_deps(edge_set, source_files)
+
+        # Build references from primary symbols only (not unqualified aliases).
+        # _primary_file_symbols excludes dual-registration aliases, so each
+        # physical symbol appears exactly once with its class-qualified name.
+        references: dict[str, dict] = {}
+        primary_qnames: set[str] = set()
+        for syms in self._symbol_table.primary_file_symbols.values():
+            for sym in syms:
+                primary_qnames.add(sym.qualified_name)
+        for qname in sorted(primary_qnames):
+            sym = self._symbol_table.symbols[qname]
+            if self._adapter.is_reference_worthy(sym.kind):
+                ref_key = self._adapter.build_reference_key(qname)
+                references[ref_key] = {
+                    "name": sym.name,
+                    "qualified_name": qname,
+                    "kind": sym.kind,
+                    "file": str(sym.file_path),
+                    "line": sym.start_line,
+                }
+
+        cfg = CallFlowGraph.from_edge_set(edge_set)
+        abs_files = sorted(str(f.resolve()) for f in source_files)
+
+        return LanguageAnalysisResult(
+            references=references,
+            hierarchy=hierarchy,
+            cfg=cfg,
+            package_dependencies=package_deps,
+            source_files=abs_files,
+        )
+
+    def _discover_symbols(self, source_files: list[Path]) -> None:
+        """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
+        total = len(source_files)
+        logger.info("Phase 0 (open): opening %d files for indexing", total)
+        for i in range(0, total, DID_OPEN_BATCH_SIZE):
+            batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
+            for file_path in batch:
+                self._lsp.did_open(file_path, self._adapter.language_id)
+            opened = min(i + DID_OPEN_BATCH_SIZE, total)
+            logger.info("Phase 0 (open): %d/%d files opened", opened, total)
+            if i + DID_OPEN_BATCH_SIZE < total:
+                time.sleep(0.1)
+
+        # Synchronization probe — cache result to avoid re-querying first file
+        probe_result: list[dict] | None = None
+        logger.info("Phase 0 (open): waiting for LSP server indexing...")
+        if source_files:
+            probe_result = self._lsp.document_symbol(source_files[0])
+        logger.info("Phase 0 (open): indexing complete")
+
+        total = len(source_files)
+        for idx, file_path in enumerate(source_files, 1):
+            if idx == 1 and probe_result is not None:
+                symbols = probe_result
+            else:
+                symbols = self._lsp.document_symbol(file_path)
+            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+            if idx % 50 == 0 or idx == total:
+                logger.info(
+                    "Phase 1 (symbols): %d/%d files processed, %d symbols so far",
+                    idx,
+                    total,
+                    len(self._symbol_table.symbols),
+                )
+
+        logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
+
+    def _build_edges(self) -> set[tuple[str, str]]:
+        """Phase 2: For each trackable symbol, find references and build edges.
+
+        Only includes references that are actual call sites (symbol followed by '(').
+        This filters out type annotations, imports, assignments, and other non-call uses.
+
+        Files that produce excessive timeouts are skipped to prevent a single
+        slow file from stalling the entire analysis (e.g., JDTLS on complex
+        generics/reflection files).
+        """
+        edge_set: set[tuple[str, str]] = set()
+        st = self._symbol_table
+        si = self._source_inspector
+
+        trackable = sorted(
+            [
+                sym
+                for sym in st.symbols.values()
+                if self._adapter.should_track_for_edges(sym.kind) and not st.is_local_variable(sym)
+            ],
+            key=lambda s: s.qualified_name,
+        )
+
+        # Deduplicate by position
+        pos_to_syms: dict[tuple[str, int, int], list[SymbolInfo]] = {}
+        for sym in trackable:
+            pos_key = sym.definition_location
+            if pos_key not in pos_to_syms:
+                pos_to_syms[pos_key] = []
+            pos_to_syms[pos_key].append(sym)
+
+        unique_positions = sorted(pos_to_syms.keys())
+        total_unique = len(unique_positions)
+        total_trackable = len(trackable)
+        logger.info(
+            "Phase 2 (edges): %d trackable symbols at %d unique positions (%.0f%% dedup)",
+            total_trackable,
+            total_unique,
+            (1 - total_unique / max(total_trackable, 1)) * 100,
+        )
+
+        # Group positions by file for per-file timeout tracking
+        file_positions: dict[str, list[tuple[str, int, int]]] = {}
+        for pos_key in unique_positions:
+            file_key = pos_key[0]
+            if file_key not in file_positions:
+                file_positions[file_key] = []
+            file_positions[file_key].append(pos_key)
+
+        # Per-file timeout budget: skip remaining symbols from a file
+        # if it accumulates too many timeouts. This prevents slow files
+        # (e.g., Java generics/reflection) from stalling the entire analysis.
+        MAX_TIMEOUTS_PER_FILE = 3
+        file_timeout_counts: dict[str, int] = {}
+        skipped_files: set[str] = set()
+
+        total_files = len(file_positions)
+        batch_size = self._adapter.references_batch_size
+        per_query_timeout = self._adapter.references_per_query_timeout
+        phase2_start = time.monotonic()
+        positions_done = 0
+        positions_skipped = 0
+        files_done: set[str] = set()
+        refs_total = 0
+        refs_call_sites = 0
+
+        for batch_start in range(0, total_unique, batch_size):
+            batch_positions = unique_positions[batch_start : batch_start + batch_size]
+
+            # Filter out positions from files that have exceeded their timeout budget
+            active_positions = []
+            skipped_in_batch = 0
+            for pos_key in batch_positions:
+                file_key = pos_key[0]
+                if file_key in skipped_files:
+                    skipped_in_batch += 1
+                    continue
+                active_positions.append(pos_key)
+            positions_skipped += skipped_in_batch
+
+            if not active_positions:
+                positions_done += len(batch_positions)
+                continue
+
+            queries = []
+            for pos_key in active_positions:
+                representative = pos_to_syms[pos_key][0]
+                queries.append((representative.file_path, representative.start_line, representative.start_char))
+
+            try:
+                result_list, timed_out_indices = self._lsp.send_references_batch(
+                    queries, per_query_timeout=per_query_timeout
+                )
+            except Exception as e:
+                logger.warning("Batch references failed: %s", e)
+                result_list = [[] for _ in queries]
+                timed_out_indices = set()
+
+            # Track which files had timeouts in this batch
+            for query_idx in timed_out_indices:
+                if query_idx < len(active_positions):
+                    file_key = active_positions[query_idx][0]
+                    file_timeout_counts[file_key] = file_timeout_counts.get(file_key, 0) + 1
+                    if file_timeout_counts[file_key] >= MAX_TIMEOUTS_PER_FILE and file_key not in skipped_files:
+                        skipped_files.add(file_key)
+                        remaining = len(file_positions.get(file_key, [])) - file_timeout_counts[file_key]
+                        file_name = Path(file_key).name
+                        logger.warning(
+                            "Skipping remaining %d symbols from %s " "(%d timeouts exceeded budget of %d)",
+                            max(remaining, 0),
+                            file_name,
+                            file_timeout_counts[file_key],
+                            MAX_TIMEOUTS_PER_FILE,
+                        )
+
+            for i, pos_key in enumerate(active_positions):
+                syms_at_pos = pos_to_syms[pos_key]
+                refs = result_list[i] if i < len(result_list) else []
+
+                for sym in syms_at_pos:
+                    sym_def_loc = sym.definition_location
+
+                    for ref in refs:
+                        ref_uri = ref.get("uri", "")
+                        ref_range = ref.get("range", {})
+                        ref_start = ref_range.get("start", {})
+                        ref_end = ref_range.get("end", {})
+                        ref_line = ref_start.get("line", -1)
+                        ref_char = ref_start.get("character", -1)
+                        ref_end_char = ref_end.get("character", -1)
+
+                        ref_file = uri_to_path(ref_uri)
+                        if ref_file is None:
+                            continue
+
+                        ref_loc = (str(ref_file), ref_line, ref_char)
+                        if ref_loc == sym_def_loc:
+                            continue
+
+                        refs_total += 1
+
+                        # Filter references based on symbol kind to keep only
+                        # meaningful call-graph edges:
+                        #
+                        # - Class-like symbols: only invocations (constructor calls).
+                        #   Type annotations, isinstance, imports are filtered out.
+                        #   Inheritance edges come from hierarchy data instead.
+                        #
+                        # - Variables/constants: only callable usage (invocations,
+                        #   callback arguments, return values). Filters out reads,
+                        #   assignments, and type references. Arrow functions and
+                        #   closures stored in variables are correctly included.
+                        #
+                        # - Callable symbols (functions, methods, constructors):
+                        #   all references kept — they represent meaningful
+                        #   dependencies even as callbacks or method references.
+                        if self._adapter.is_class_like(sym.kind):
+                            if not si.is_invocation(ref_file, ref_line, ref_end_char):
+                                continue
+                        elif sym.kind == SYMBOL_KIND_CONSTANT:
+                            # Constants are rarely callable — only track direct invocations
+                            if not si.is_invocation(ref_file, ref_line, ref_end_char):
+                                continue
+                        elif sym.kind == SYMBOL_KIND_VARIABLE:
+                            if not si.is_callable_usage(ref_file, ref_line, ref_char, ref_end_char):
+                                continue
+
+                        refs_call_sites += 1
+
+                        container = st.find_containing_symbol(ref_file, ref_line, ref_char)
+                        if not container:
+                            continue
+                        container = st.lift_to_callable(container)
+                        if not container or container.qualified_name == sym.qualified_name:
+                            continue
+                        # Skip override/implementation declarations: if the reference
+                        # location matches the container's own definition, this is a
+                        # method override (e.g. Task.getType overriding Entity.getType),
+                        # not an actual call site.
+                        if (str(ref_file), ref_line) == (str(container.file_path), container.start_line):
+                            continue
+                        if sym.qualified_name.startswith(container.qualified_name + "."):
+                            continue
+                        edge_set.add((container.qualified_name, sym.qualified_name))
+
+            positions_done += len(batch_positions)
+            # Track completed files: a file is done when all its positions have been processed
+            for pos_key in batch_positions:
+                file_key = pos_key[0]
+                file_pos_list = file_positions.get(file_key, [])
+                if file_pos_list and pos_key == file_pos_list[-1]:
+                    files_done.add(file_key)
+                if file_key in skipped_files:
+                    files_done.add(file_key)
+            elapsed = time.monotonic() - phase2_start
+            logger.info(
+                "Phase 2 (edges): %d/%d positions queried, %d/%d files done, "
+                "%d skipped, %d edges so far [%.0fs elapsed]",
+                positions_done,
+                total_unique,
+                len(files_done),
+                total_files,
+                positions_skipped,
+                len(edge_set),
+                elapsed,
+            )
+
+        if skipped_files:
+            logger.info(
+                "Phase 2 (edges): skipped symbols from %d file(s) due to timeout budget: %s",
+                len(skipped_files),
+                ", ".join(Path(f).name for f in sorted(skipped_files)),
+            )
+
+        logger.info(
+            "Phase 2 (edges): %d/%d references were call sites (%.0f%% filtered out)",
+            refs_call_sites,
+            refs_total,
+            (1 - refs_call_sites / max(refs_total, 1)) * 100,
+        )
+
+        # Deduplicate edges that refer to the same symbol pair via different
+        # qualified names (aliases from dual registration). Two edges are
+        # duplicates if they connect the same pair of definition locations.
+        # We keep the edge whose combined qualified names are longest —
+        # this preserves class-qualified names (e.g. Module.Class.method)
+        # over their shorter aliases (e.g. Module.method).
+        #
+        # Also removes alias self-edges: edges where source and destination
+        # resolve to the same definition location (e.g. Class.method ->
+        # module.method when both are aliases for the same function).
+        pos_to_edge: dict[tuple, tuple[str, str]] = {}
+        alias_self_edges = 0
+        for src, dst in edge_set:
+            src_sym = st.symbols.get(src)
+            dst_sym = st.symbols.get(dst)
+            if src_sym and dst_sym:
+                # Skip edges where source and destination are the same symbol
+                # (aliases pointing to the same definition location)
+                if src_sym.definition_location == dst_sym.definition_location:
+                    alias_self_edges += 1
+                    continue
+                pos_key = (src_sym.definition_location, dst_sym.definition_location)
+                existing = pos_to_edge.get(pos_key)
+                if existing is None or len(src) + len(dst) > len(existing[0]) + len(existing[1]):
+                    pos_to_edge[pos_key] = (src, dst)
+            else:
+                # Synthesized symbol (e.g. constructor) — keep as-is
+                pos_key = (src, dst)
+                if pos_key not in pos_to_edge:
+                    pos_to_edge[pos_key] = (src, dst)
+        edge_set = set(pos_to_edge.values())
+        if alias_self_edges:
+            logger.info("Removed %d alias self-edges (same definition location)", alias_self_edges)
+
+        # Constructor expansion: when a class has real constructors in the
+        # symbol table, add edges to those constructors alongside the class edge.
+        # If no real constructor exists, the class edge alone is sufficient
+        # (the class itself acts as the constructor in Python/TS/JS/PHP).
+        constructor_edges: set[tuple[str, str]] = set()
+        for src, dst in edge_set:
+            dst_sym = st.symbols.get(dst)
+            if not dst_sym:
+                continue
+            if self._adapter.is_class_like(dst_sym.kind):
+                ctors = st.class_to_ctors.get(dst)
+                if ctors:
+                    for ctor_name in ctors:
+                        constructor_edges.add((src, ctor_name))
+        edge_set |= constructor_edges
+
+        logger.info("Found %d call graph edges", len(edge_set))
+        return edge_set
+
+    def _build_package_deps(self, edge_set: set[tuple[str, str]], source_files: list[Path]) -> dict[str, dict]:
+        """Phase 4: Infer package dependencies from cross-package edges."""
+        all_packages = self._adapter.get_all_packages(source_files, self._root)
+
+        package_deps: dict[str, dict] = {}
+        for pkg in sorted(all_packages):
+            package_deps[pkg] = {"imports": [], "imported_by": []}
+
+        st = self._symbol_table
+        for src, dst in edge_set:
+            src_sym = st.symbols.get(src)
+            dst_sym = st.symbols.get(dst)
+            if not src_sym or not dst_sym:
+                continue
+            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._root)
+            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._root)
+            if src_pkg != dst_pkg:
+                if src_pkg in package_deps and dst_pkg not in package_deps[src_pkg]["imports"]:
+                    package_deps[src_pkg]["imports"].append(dst_pkg)
+                if dst_pkg in package_deps and src_pkg not in package_deps[dst_pkg]["imported_by"]:
+                    package_deps[dst_pkg]["imported_by"].append(src_pkg)
+
+        for pkg_info in package_deps.values():
+            pkg_info["imports"].sort()
+            pkg_info["imported_by"].sort()
+
+        return package_deps
