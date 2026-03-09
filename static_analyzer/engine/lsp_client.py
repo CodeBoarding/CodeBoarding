@@ -224,21 +224,18 @@ class LSPClient:
 
     def send_references_batch(
         self, queries: list[tuple[Path, int, int]], per_query_timeout: int = 0
-    ) -> tuple[list[list[dict]], set[int]]:
+    ) -> list[list[dict]]:
         """Send multiple references requests without waiting between them.
 
-        Returns a tuple of:
-        - A list of result lists, one per query, in the same order as queries.
-        - A set of query indices (0-based) that timed out.
+        Returns a list of result lists, one per query, in the same order as queries.
+        LSP servers can process these concurrently, giving a significant speedup.
 
         Args:
             queries: List of (file_path, line, character) tuples.
-            per_query_timeout: Seconds per query for the batch deadline.
-                When > 0, the batch timeout is ``per_query_timeout * len(queries)``
-                (minimum ``default_timeout``).  When 0 (default), uses
-                ``default_timeout`` as a flat deadline.
-
-        LSP servers can process these concurrently, giving a significant speedup.
+            per_query_timeout: Per-query timeout in seconds. When > 0, the batch
+                deadline is ``per_query_timeout * len(queries)`` instead of the
+                default timeout. Use this for servers that serialize requests
+                internally (e.g. JDTLS) where total time scales linearly.
         """
         req_ids: list[int] = []
         for file_path, line, character in queries:
@@ -257,18 +254,9 @@ class LSPClient:
             }
             self._write_message(message)
 
-        if per_query_timeout > 0:
-            batch_timeout = max(per_query_timeout * len(queries), self._default_timeout)
-        else:
-            batch_timeout = self._default_timeout
-
-        results, timed_out_ids = self._collect_batch_responses(req_ids, timeout=batch_timeout)
-
-        # Map timed-out request IDs back to query indices
-        req_id_to_idx = {rid: idx for idx, rid in enumerate(req_ids)}
-        timed_out_indices = {req_id_to_idx[rid] for rid in timed_out_ids if rid in req_id_to_idx}
-
-        return [results.get(rid, []) for rid in req_ids], timed_out_indices
+        timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
+        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
+        return [results.get(rid, []) for rid in req_ids]
 
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
@@ -418,6 +406,7 @@ class LSPClient:
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
         deadline = time.monotonic() + timeout
+        t_batch_start = time.monotonic()
 
         while pending and time.monotonic() < deadline:
             msg = self._next_response(deadline)
@@ -436,11 +425,33 @@ class LSPClient:
             else:
                 results[msg_id] = msg.get("result") or []  # type: ignore[index]
 
+        timed_out = set(pending)
         for req_id in pending:
             logger.warning("Timeout waiting for references request %d", req_id)
             results[req_id] = []
 
-        return results, pending
+        batch_elapsed = time.monotonic() - t_batch_start
+        total_refs = sum(len(r) for r in results.values())
+        if timed_out:
+            logger.warning(
+                "Batch collect: %d/%d completed, %d timed out, %d refs, %.1fs (timeout=%ds)",
+                len(request_ids) - len(timed_out),
+                len(request_ids),
+                len(timed_out),
+                total_refs,
+                batch_elapsed,
+                timeout,
+            )
+        else:
+            logger.info(
+                "Batch collect: %d/%d completed, %d refs, %.1fs",
+                len(request_ids),
+                len(request_ids),
+                total_refs,
+                batch_elapsed,
+            )
+
+        return results, timed_out
 
     # ---- Background message reader ----
 

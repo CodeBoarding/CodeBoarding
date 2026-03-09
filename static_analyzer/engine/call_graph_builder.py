@@ -47,14 +47,28 @@ class CallGraphBuilder:
 
     def build(self, source_files: list[Path]) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results."""
+        t_pipeline = time.monotonic()
+
         self._discover_symbols(source_files)
+        t_symbols_done = time.monotonic()
+        logger.info("Phase 1 total (discover symbols): %.1fs", t_symbols_done - t_pipeline)
+
         self._symbol_table.build_indices()
+        t_indices_done = time.monotonic()
+        logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
+
         edge_set = self._build_edges()
+        t_edges_done = time.monotonic()
+        logger.info("Phase 2 total (build edges): %.1fs", t_edges_done - t_indices_done)
 
         hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
         hierarchy = hierarchy_builder.build()
+        t_hierarchy_done = time.monotonic()
+        logger.info("Phase 3 (hierarchy): %.1fs", t_hierarchy_done - t_edges_done)
 
         package_deps = self._build_package_deps(edge_set, source_files)
+        t_pkgdeps_done = time.monotonic()
+        logger.info("Phase 4 (package deps): %.1fs", t_pkgdeps_done - t_hierarchy_done)
 
         # Build references from primary symbols only (not unqualified aliases).
         # _primary_file_symbols excludes dual-registration aliases, so each
@@ -79,6 +93,15 @@ class CallGraphBuilder:
         cfg = CallFlowGraph.from_edge_set(edge_set)
         abs_files = sorted(str(f.resolve()) for f in source_files)
 
+        logger.info(
+            "Pipeline complete: %d files, %d symbols, %d edges, %d hierarchy entries in %.1fs",
+            len(source_files),
+            len(self._symbol_table.symbols),
+            len(edge_set),
+            len(hierarchy),
+            time.monotonic() - t_pipeline,
+        )
+
         return LanguageAnalysisResult(
             references=references,
             hierarchy=hierarchy,
@@ -90,6 +113,7 @@ class CallGraphBuilder:
     def _discover_symbols(self, source_files: list[Path]) -> None:
         """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
         total = len(source_files)
+        t_open_start = time.monotonic()
         logger.info("Phase 0 (open): opening %d files for indexing", total)
         for i in range(0, total, DID_OPEN_BATCH_SIZE):
             batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
@@ -99,13 +123,19 @@ class CallGraphBuilder:
             logger.info("Phase 0 (open): %d/%d files opened", opened, total)
             if i + DID_OPEN_BATCH_SIZE < total:
                 time.sleep(0.1)
+        logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
         # Synchronization probe — cache result to avoid re-querying first file
         probe_result: list[dict] | None = None
         logger.info("Phase 0 (open): waiting for LSP server indexing...")
+        t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0])
-        logger.info("Phase 0 (open): indexing complete")
+        logger.info(
+            "Sync probe: %.1fs (%d symbols)",
+            time.monotonic() - t_probe,
+            len(probe_result) if probe_result else 0,
+        )
 
         total = len(source_files)
         for idx, file_path in enumerate(source_files, 1):
@@ -124,15 +154,25 @@ class CallGraphBuilder:
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
+        # Warmup probe: trigger the LSP server's cross-reference index build
+        # by sending a single references request with a long timeout.
+        # JDTLS builds its index lazily on the first references request,
+        # which can take 10-60s on CI. Without this, the first batch of
+        # references requests would all timeout waiting for the index.
+        if source_files and self._adapter.references_per_query_timeout > 0:
+            logger.info("Phase 1.5 (warmup): triggering LSP index build with a single references request...")
+            t_warmup = time.monotonic()
+            try:
+                self._lsp.references(source_files[0], 0, 0)
+            except (TimeoutError, Exception) as e:
+                logger.warning("Warmup probe failed (non-fatal): %s", e)
+            logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
+
     def _build_edges(self) -> set[tuple[str, str]]:
         """Phase 2: For each trackable symbol, find references and build edges.
 
         Only includes references that are actual call sites (symbol followed by '(').
         This filters out type annotations, imports, assignments, and other non-call uses.
-
-        Files that produce excessive timeouts are skipped to prevent a single
-        slow file from stalling the entire analysis (e.g., JDTLS on complex
-        generics/reflection files).
         """
         edge_set: set[tuple[str, str]] = set()
         st = self._symbol_table
@@ -165,7 +205,7 @@ class CallGraphBuilder:
             (1 - total_unique / max(total_trackable, 1)) * 100,
         )
 
-        # Group positions by file for per-file timeout tracking
+        # Group positions by file for progress tracking
         file_positions: dict[str, list[tuple[str, int, int]]] = {}
         for pos_key in unique_positions:
             file_key = pos_key[0]
@@ -173,19 +213,11 @@ class CallGraphBuilder:
                 file_positions[file_key] = []
             file_positions[file_key].append(pos_key)
 
-        # Per-file timeout budget: skip remaining symbols from a file
-        # if it accumulates too many timeouts. This prevents slow files
-        # (e.g., Java generics/reflection) from stalling the entire analysis.
-        MAX_TIMEOUTS_PER_FILE = 3
-        file_timeout_counts: dict[str, int] = {}
-        skipped_files: set[str] = set()
-
         total_files = len(file_positions)
         batch_size = self._adapter.references_batch_size
         per_query_timeout = self._adapter.references_per_query_timeout
         phase2_start = time.monotonic()
         positions_done = 0
-        positions_skipped = 0
         files_done: set[str] = set()
         refs_total = 0
         refs_call_sites = 0
@@ -193,53 +225,18 @@ class CallGraphBuilder:
         for batch_start in range(0, total_unique, batch_size):
             batch_positions = unique_positions[batch_start : batch_start + batch_size]
 
-            # Filter out positions from files that have exceeded their timeout budget
-            active_positions = []
-            skipped_in_batch = 0
-            for pos_key in batch_positions:
-                file_key = pos_key[0]
-                if file_key in skipped_files:
-                    skipped_in_batch += 1
-                    continue
-                active_positions.append(pos_key)
-            positions_skipped += skipped_in_batch
-
-            if not active_positions:
-                positions_done += len(batch_positions)
-                continue
-
             queries = []
-            for pos_key in active_positions:
+            for pos_key in batch_positions:
                 representative = pos_to_syms[pos_key][0]
                 queries.append((representative.file_path, representative.start_line, representative.start_char))
 
             try:
-                result_list, timed_out_indices = self._lsp.send_references_batch(
-                    queries, per_query_timeout=per_query_timeout
-                )
+                result_list = self._lsp.send_references_batch(queries, per_query_timeout=per_query_timeout)
             except Exception as e:
                 logger.warning("Batch references failed: %s", e)
                 result_list = [[] for _ in queries]
-                timed_out_indices = set()
 
-            # Track which files had timeouts in this batch
-            for query_idx in timed_out_indices:
-                if query_idx < len(active_positions):
-                    file_key = active_positions[query_idx][0]
-                    file_timeout_counts[file_key] = file_timeout_counts.get(file_key, 0) + 1
-                    if file_timeout_counts[file_key] >= MAX_TIMEOUTS_PER_FILE and file_key not in skipped_files:
-                        skipped_files.add(file_key)
-                        remaining = len(file_positions.get(file_key, [])) - file_timeout_counts[file_key]
-                        file_name = Path(file_key).name
-                        logger.warning(
-                            "Skipping remaining %d symbols from %s " "(%d timeouts exceeded budget of %d)",
-                            max(remaining, 0),
-                            file_name,
-                            file_timeout_counts[file_key],
-                            MAX_TIMEOUTS_PER_FILE,
-                        )
-
-            for i, pos_key in enumerate(active_positions):
+            for i, pos_key in enumerate(batch_positions):
                 syms_at_pos = pos_to_syms[pos_key]
                 refs = result_list[i] if i < len(result_list) else []
 
@@ -316,26 +313,15 @@ class CallGraphBuilder:
                 file_pos_list = file_positions.get(file_key, [])
                 if file_pos_list and pos_key == file_pos_list[-1]:
                     files_done.add(file_key)
-                if file_key in skipped_files:
-                    files_done.add(file_key)
             elapsed = time.monotonic() - phase2_start
             logger.info(
-                "Phase 2 (edges): %d/%d positions queried, %d/%d files done, "
-                "%d skipped, %d edges so far [%.0fs elapsed]",
+                "Phase 2 (edges): %d/%d positions queried, %d/%d files done, " "%d edges so far [%.0fs elapsed]",
                 positions_done,
                 total_unique,
                 len(files_done),
                 total_files,
-                positions_skipped,
                 len(edge_set),
                 elapsed,
-            )
-
-        if skipped_files:
-            logger.info(
-                "Phase 2 (edges): skipped symbols from %d file(s) due to timeout budget: %s",
-                len(skipped_files),
-                ", ".join(Path(f).name for f in sorted(skipped_files)),
             )
 
         logger.info(
@@ -368,7 +354,11 @@ class CallGraphBuilder:
                     continue
                 pos_key = (src_sym.definition_location, dst_sym.definition_location)
                 existing = pos_to_edge.get(pos_key)
-                if existing is None or len(src) + len(dst) > len(existing[0]) + len(existing[1]):
+                if existing is None or (len(src) + len(dst), src, dst) > (
+                    len(existing[0]) + len(existing[1]),
+                    existing[0],
+                    existing[1],
+                ):
                     pos_to_edge[pos_key] = (src, dst)
             else:
                 # Synthesized symbol (e.g. constructor) — keep as-is

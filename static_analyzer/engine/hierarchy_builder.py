@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
@@ -32,6 +33,7 @@ class HierarchyBuilder:
 
     def build(self) -> dict[str, dict]:
         """Build class hierarchy using primary symbols only."""
+        t_start = time.monotonic()
         hierarchy: dict[str, dict] = {}
         # Use only primary symbols (not dual-registration aliases) to avoid
         # unqualified duplicates like "module.Address" alongside "module.Class.Address"
@@ -52,6 +54,7 @@ class HierarchyBuilder:
         for sym in class_symbols:
             hierarchy[sym.qualified_name] = {"superclasses": [], "subclasses": []}
 
+        logger.info("Hierarchy: %d class symbols to process", len(class_symbols))
         type_hierarchy_supported = False
         for sym in class_symbols:
             try:
@@ -98,6 +101,13 @@ class HierarchyBuilder:
             logger.info("Type hierarchy not supported, inferring from source code")
             self._infer_hierarchy_from_source(class_symbols, class_names, hierarchy)
 
+        links = sum(len(h["superclasses"]) for h in hierarchy.values())
+        logger.info(
+            "Hierarchy complete: %d classes, %d inheritance links in %.1fs",
+            len(hierarchy),
+            links,
+            time.monotonic() - t_start,
+        )
         return hierarchy
 
     def _resolve_type_hierarchy_item(self, item: dict) -> str | None:
