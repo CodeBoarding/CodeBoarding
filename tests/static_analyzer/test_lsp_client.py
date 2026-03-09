@@ -178,14 +178,14 @@ class TestSendReferencesBatch:
         refs_a = [{"uri": "file:///a.py", "range": {}}]
         refs_b = [{"uri": "file:///b.py", "range": {}}]
 
-        def mock_collect(req_ids, timeout):
+        def mock_collect(req_ids, timeout=None):
             return {req_ids[0]: refs_a, req_ids[1]: refs_b}, set()
 
         with (
             patch.object(client, "_write_message"),
             patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
         ):
-            results, timed_out = client.send_references_batch(
+            results = client.send_references_batch(
                 [
                     (Path("/root/a.py"), 1, 0),
                     (Path("/root/b.py"), 2, 0),
@@ -195,72 +195,6 @@ class TestSendReferencesBatch:
         assert len(results) == 2
         assert results[0] == refs_a
         assert results[1] == refs_b
-        assert timed_out == set()
-
-    def test_per_query_timeout_calculation(self):
-        client = LSPClient(["cmd"], Path("/root"), default_timeout=30)
-        client._request_id = 0
-
-        collected_timeout = None
-
-        def mock_collect(req_ids, timeout):
-            nonlocal collected_timeout
-            collected_timeout = timeout
-            return {rid: [] for rid in req_ids}, set()
-
-        queries = [(Path("/root/a.py"), i, 0) for i in range(5)]
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            client.send_references_batch(queries, per_query_timeout=10)
-
-        # 10 * 5 = 50, which is > default_timeout of 30
-        assert collected_timeout == 50
-
-    def test_per_query_timeout_uses_minimum_default(self):
-        client = LSPClient(["cmd"], Path("/root"), default_timeout=100)
-        client._request_id = 0
-
-        collected_timeout = None
-
-        def mock_collect(req_ids, timeout):
-            nonlocal collected_timeout
-            collected_timeout = timeout
-            return {rid: [] for rid in req_ids}, set()
-
-        queries = [(Path("/root/a.py"), 0, 0), (Path("/root/b.py"), 1, 0)]
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            client.send_references_batch(queries, per_query_timeout=10)
-
-        # 10 * 2 = 20, but default is 100, so max(20, 100) = 100
-        assert collected_timeout == 100
-
-    def test_maps_timed_out_ids_to_indices(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        client._request_id = 0
-
-        def mock_collect(req_ids, timeout):
-            # Second request timed out
-            return {req_ids[0]: [], req_ids[1]: []}, {req_ids[1]}
-
-        with (
-            patch.object(client, "_write_message"),
-            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
-        ):
-            _, timed_out = client.send_references_batch(
-                [
-                    (Path("/root/a.py"), 0, 0),
-                    (Path("/root/b.py"), 1, 0),
-                ]
-            )
-
-        assert timed_out == {1}
 
 
 class TestTypeHierarchy:

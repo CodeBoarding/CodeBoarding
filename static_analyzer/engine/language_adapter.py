@@ -206,24 +206,12 @@ class LanguageAdapter(ABC):
 
     @property
     def references_batch_size(self) -> int:
-        """Max number of references requests to send in a single batch.
-
-        Override for languages whose LSP server serializes requests internally
-        (e.g., JDTLS) — smaller batches prevent a single slow request from
-        starving the entire batch.
-        """
+        """Max number of references requests to send in a single batch."""
         return 50
 
     @property
     def references_per_query_timeout(self) -> int:
-        """Seconds per query when computing the batch deadline.
-
-        When > 0, the batch timeout is ``per_query_timeout * batch_size``
-        (with a minimum of the LSP client's default_timeout).
-        When 0, the flat default_timeout is used for the whole batch.
-
-        Override for slow LSP servers that need more time per symbol.
-        """
+        """Per-query timeout for batched references. 0 means use the default batch timeout."""
         return 0
 
     def build_edge_name(

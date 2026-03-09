@@ -40,7 +40,7 @@ def _make_adapter() -> MagicMock:
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
-    lsp.send_references_batch.return_value = ([], set())
+    lsp.send_references_batch.return_value = []
     lsp.type_hierarchy_prepare.return_value = None
     return lsp
 
@@ -186,7 +186,7 @@ class TestBuildEdges:
             },
         }
         # First result = refs to main, second = refs to helper
-        lsp.send_references_batch.return_value = ([[], [ref_to_helper]], set())
+        lsp.send_references_batch.return_value = [[], [ref_to_helper]]
 
         # Mock source inspector to say this is an invocation
         builder._source_inspector = MagicMock()
@@ -217,7 +217,7 @@ class TestBuildEdges:
                 "end": {"line": 0, "character": 7},
             },
         }
-        lsp.send_references_batch.return_value = ([[ref]], set())
+        lsp.send_references_batch.return_value = [[ref]]
 
         edge_set = builder._build_edges()
         assert len(edge_set) == 0
@@ -270,7 +270,7 @@ class TestBuildEdges:
             },
         }
         # 3 queries: main, Dog, __init__; only Dog has a reference
-        lsp.send_references_batch.return_value = ([[], [ref_to_dog], []], set())
+        lsp.send_references_batch.return_value = [[], [ref_to_dog], []]
 
         builder._source_inspector = MagicMock()
         builder._source_inspector.is_invocation.return_value = True
@@ -334,34 +334,3 @@ class TestBuildPackageDeps:
         deps = builder._build_package_deps(edge_set, [])
 
         assert deps["pkg"]["imports"] == []
-
-
-class TestPerFileTimeoutBudget:
-    def test_skips_file_after_max_timeouts(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        adapter.references_batch_size = 1  # One query per batch to control timeout tracking
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
-
-        # Create 5 symbols in the same file
-        file_path = Path("/project/slow.py")
-        file_key = str(file_path)
-        syms = []
-        for i in range(5):
-            sym = SymbolInfo(f"func_{i}", f"slow.func_{i}", SYMBOL_KIND_FUNCTION, file_path, i * 10, 0, i * 10 + 5, 0)
-            syms.append(sym)
-            builder._symbol_table._symbols[sym.qualified_name] = sym
-
-        builder._symbol_table._file_symbols[file_key] = syms
-        builder._symbol_table._primary_file_symbols[file_key] = syms
-        builder._symbol_table.build_indices()
-
-        # Every query times out
-        lsp.send_references_batch.return_value = ([[]], {0})
-
-        edge_set = builder._build_edges()
-
-        # After 3 timeouts, remaining symbols should be skipped
-        # Total calls should be 3 (MAX_TIMEOUTS_PER_FILE), not 5
-        assert lsp.send_references_batch.call_count == 3
-        assert len(edge_set) == 0

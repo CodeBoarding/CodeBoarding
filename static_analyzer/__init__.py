@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 
 from repo_utils import get_git_commit_hash
@@ -144,6 +145,7 @@ class StaticAnalyzer:
         for adapter, project_path in self._engine_configs:
             try:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
+                t_start = time.monotonic()
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options()
                 engine_client = EngineLSPClient(
@@ -153,11 +155,14 @@ class StaticAnalyzer:
                     collect_diagnostics=True,
                 )
                 engine_client.start()
+                t_lsp_started = time.monotonic()
+                logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
                 started.append((adapter, project_path, engine_client))
 
                 # For Java, wait for JDTLS to finish importing
                 if adapter.language.lower() == "java":
                     engine_client.wait_for_server_ready()
+                    logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
 
             except Exception as e:
                 logger.exception(f"Failed to start engine LSP client for {adapter.language}")
@@ -226,6 +231,7 @@ class StaticAnalyzer:
         for adapter, project_path, engine_client in self._engine_clients:
             language = adapter.language
             try:
+                t_lang_start = time.monotonic()
                 logger.info(f"Starting engine analysis for {language} in {project_path}")
 
                 # Determine cache path for this client if caching is enabled
@@ -260,6 +266,7 @@ class StaticAnalyzer:
                 results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
                 results.add_package_dependencies(language, analysis.get("package_relations", {}))
                 results.add_source_files(language, analysis.get("source_files", []))
+                logger.info(f"Engine analysis for {language} completed in {time.monotonic() - t_lang_start:.1f}s")
 
                 # Collect diagnostics
                 cache_diags: dict = analysis.get("diagnostics") or {}
@@ -317,10 +324,15 @@ class StaticAnalyzer:
 
         logger.info(f"Analyzing {len(source_files)} {adapter.language} files")
 
+        t_build_start = time.monotonic()
         builder = CallGraphBuilder(engine_client, adapter, project_path)
         engine_result = builder.build(source_files)
+        logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
 
-        return convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+        t_convert = time.monotonic()
+        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+        logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
+        return result
 
     def _save_initial_cache(self, analysis: dict, cache_path: Path, project_path: Path) -> None:
         """Save initial analysis to cache for future incremental runs.

@@ -237,17 +237,13 @@ class JavaAdapter(LanguageAdapter):
 
     @property
     def references_batch_size(self) -> int:
-        # JDTLS serializes references requests internally, so large batches
-        # cause a single slow symbol to starve the entire batch's deadline.
-        # Smaller batches keep progress visible and timeouts targeted.
+        """JDTLS serializes references requests; keep batches small."""
         return 10
 
     @property
     def references_per_query_timeout(self) -> int:
-        # JDTLS can take 5-16s per references request on complex generics/
-        # reflection files. 10s per query gives enough headroom while still
-        # bounding total time (10 queries × 10s = 100s max per batch).
-        return 10
+        """JDTLS references are slow (~1-10s/query); give each query enough time."""
+        return 15
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
