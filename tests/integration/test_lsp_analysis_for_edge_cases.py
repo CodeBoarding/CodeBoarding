@@ -104,8 +104,25 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
+_LANGUAGE_MARKERS = {
+    "Python": pytest.mark.python_lang,
+    "Java": pytest.mark.java_lang,
+    "Go": pytest.mark.go_lang,
+    "TypeScript": pytest.mark.typescript_lang,
+    "PHP": pytest.mark.php_lang,
+    "JavaScript": pytest.mark.javascript_lang,
+}
+
+
 def _generate_fixture_params():
-    return [pytest.param(project, marks=[pytest.mark.integration], id=project.name) for project in EDGE_CASE_PROJECTS]
+    return [
+        pytest.param(
+            project,
+            marks=[pytest.mark.integration, _LANGUAGE_MARKERS[project.language]],
+            id=project.name,
+        )
+        for project in EDGE_CASE_PROJECTS
+    ]
 
 
 @pytest.fixture(scope="class", params=_generate_fixture_params())
