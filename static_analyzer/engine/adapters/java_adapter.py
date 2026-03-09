@@ -6,6 +6,7 @@ import logging
 import tempfile
 from pathlib import Path
 
+from static_analyzer.engine.edge_builder import build_edges_via_definitions
 from static_analyzer.engine.language_adapter import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -13,6 +14,7 @@ from static_analyzer.engine.language_adapter import (
     SYMBOL_KIND_VARIABLE,
     LanguageAdapter,
 )
+from static_analyzer.engine.models import EdgeBuildContext
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
 from utils import get_config
 
@@ -235,21 +237,13 @@ class JavaAdapter(LanguageAdapter):
             return ".".join(pkg_parts)
         return after_root[0]
 
-    @property
-    def use_definition_based_edges(self) -> bool:
-        """JDTLS serializes references requests (~1-10s each), making references
-        impractical for large projects. Definition queries are ~20ms each."""
-        return True
+    def build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
+        """Build edges via textDocument/definition instead of references.
 
-    @property
-    def references_batch_size(self) -> int:
-        """JDTLS serializes references requests; keep batches small."""
-        return 10
-
-    @property
-    def references_per_query_timeout(self) -> int:
-        """JDTLS references are slow (~1-10s/query); give each query enough time."""
-        return 15
+        JDTLS serializes references requests (~1-10s each), making the default
+        references-based approach impractical for large projects.
+        """
+        return build_edges_via_definitions(self, ctx, source_files)
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
