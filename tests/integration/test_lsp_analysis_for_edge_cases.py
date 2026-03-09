@@ -151,33 +151,41 @@ class TestEdgeCases:
         detected = analysis.all_results[0].get_languages()
         assert language in detected, f"Expected language '{language}' not detected. Found: {detected}"
 
-    def test_sample_references(self, analysis: AnalysisRunData):
+    def test_expected_references(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         refs = analysis.all_results[0].results[language].get("references", {})
-        missing = [r for r in analysis.fixture.get("sample_references", []) if r not in refs]
-        assert not missing, (
-            f"Missing {len(missing)} expected references:\n"
-            + "\n".join(f"  - {r}" for r in missing)
-            + f"\n\nActual references ({len(refs)}):\n"
-            + "\n".join(f"  - {r}" for r in sorted(refs.keys()))
-        )
+        expected = set(analysis.fixture.get("expected_references", []))
+        actual = set(refs.keys())
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        errors = []
+        if missing:
+            errors.append(f"Missing {len(missing)} expected references:\n" + "\n".join(f"  - {r}" for r in missing))
+        if unexpected:
+            errors.append(
+                f"Found {len(unexpected)} unexpected references:\n" + "\n".join(f"  + {r}" for r in unexpected)
+            )
+        assert not errors, "\n\n".join(errors)
 
-    def test_sample_classes_in_hierarchy(self, analysis: AnalysisRunData):
+    def test_expected_classes_in_hierarchy(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
-        missing = [c for c in analysis.fixture.get("sample_classes", []) if c not in hierarchy]
-        assert not missing, (
-            f"Missing {len(missing)} expected classes in hierarchy:\n"
-            + "\n".join(f"  - {c}" for c in missing)
-            + f"\n\nActual classes ({len(hierarchy)}):\n"
-            + "\n".join(f"  - {c}" for c in sorted(hierarchy.keys()))
-        )
+        expected = set(analysis.fixture.get("expected_classes", []))
+        actual = set(hierarchy.keys())
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        errors = []
+        if missing:
+            errors.append(f"Missing {len(missing)} expected classes:\n" + "\n".join(f"  - {c}" for c in missing))
+        if unexpected:
+            errors.append(f"Found {len(unexpected)} unexpected classes:\n" + "\n".join(f"  + {c}" for c in unexpected))
+        assert not errors, "\n\n".join(errors)
 
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
         errors = []
-        for cls_name, expectations in analysis.fixture.get("sample_hierarchy", {}).items():
+        for cls_name, expectations in analysis.fixture.get("expected_hierarchy", {}).items():
             if cls_name not in hierarchy:
                 errors.append(f"Class '{cls_name}' not found in hierarchy")
                 continue
@@ -207,19 +215,23 @@ class TestEdgeCases:
         language = analysis.fixture["language"]
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-        missing = [f"{s} -> {d}" for s, d in analysis.fixture.get("sample_edges", []) if (s, d) not in actual_edges]
-        assert not missing, (
-            f"Missing {len(missing)} expected call graph edges:\n"
-            + "\n".join(f"  - {e}" for e in missing)
-            + f"\n\nActual edges ({len(actual_edges)}):\n"
-            + "\n".join(f"  - {s} -> {d}" for s, d in sorted(actual_edges))
-        )
+        expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
+        missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
+        unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
+        errors = []
+        if missing:
+            errors.append(f"Missing {len(missing)} expected edges:\n" + "\n".join(f"  - {e}" for e in missing))
+        if unexpected:
+            errors.append(f"Found {len(unexpected)} unexpected edges:\n" + "\n".join(f"  + {e}" for e in unexpected))
+        assert not errors, "\n\n".join(errors)
 
     def test_package_dependencies(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         deps = analysis.all_results[0].get_package_dependencies(language)
+        expected_deps = analysis.fixture.get("expected_package_deps", {})
         errors = []
-        for pkg_name, expectations in analysis.fixture.get("sample_package_deps", {}).items():
+        # Check expected packages exist with correct imports/imported_by
+        for pkg_name, expectations in expected_deps.items():
             if pkg_name not in deps:
                 errors.append(f"Package '{pkg_name}' not found in dependencies (found: {list(deps.keys())})")
                 continue
@@ -235,6 +247,12 @@ class TestEdgeCases:
                         f"'{pkg_name}' missing imported_by '{expected_importer}' "
                         f"(has: {pkg_info.get('imported_by', [])})"
                     )
+        # Check for unexpected packages
+        unexpected_pkgs = sorted(set(deps.keys()) - set(expected_deps.keys()))
+        if unexpected_pkgs:
+            errors.append(
+                f"Found {len(unexpected_pkgs)} unexpected packages:\n" + "\n".join(f"  + {p}" for p in unexpected_pkgs)
+            )
         assert not errors, (
             f"{len(errors)} package dependency issues:\n"
             + "\n".join(f"  - {e}" for e in errors)
@@ -249,13 +267,17 @@ class TestEdgeCases:
         language = analysis.fixture["language"]
         source_files = analysis.all_results[0].get_source_files(language)
         source_files_rel = {str(Path(f).relative_to(analysis.project_path.resolve())) for f in source_files}
-        missing = [f for f in analysis.fixture.get("expected_source_files_contain", []) if f not in source_files_rel]
-        assert not missing, (
-            f"Missing {len(missing)} expected source files:\n"
-            + "\n".join(f"  - {f}" for f in missing)
-            + f"\n\nActual files:\n"
-            + "\n".join(f"  - {f}" for f in sorted(source_files_rel))
-        )
+        expected = set(analysis.fixture.get("expected_source_files", []))
+        missing = sorted(expected - source_files_rel)
+        unexpected = sorted(source_files_rel - expected)
+        errors = []
+        if missing:
+            errors.append(f"Missing {len(missing)} expected source files:\n" + "\n".join(f"  - {f}" for f in missing))
+        if unexpected:
+            errors.append(
+                f"Found {len(unexpected)} unexpected source files:\n" + "\n".join(f"  + {f}" for f in unexpected)
+            )
+        assert not errors, "\n\n".join(errors)
 
     def test_stability_across_runs(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
