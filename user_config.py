@@ -99,7 +99,7 @@ class UserConfig:
 
 
 def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
-    """Load ~/.codeboarding/config.toml.  Missing file → all defaults."""
+    """Load ~/.codeboarding/config.toml.  Missing file -> all defaults."""
     if not path.exists():
         return UserConfig()
 

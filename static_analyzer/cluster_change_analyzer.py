@@ -175,7 +175,7 @@ class ClusterChangeAnalyzer:
             for new_id in new_clusters.get_cluster_ids():
                 new_nodes = new_clusters.get_nodes_for_cluster(new_id)
 
-                # Calculate Jaccard similarity: |A ∩ B| / |A ∪ B|
+                # Calculate Jaccard similarity: |A & B| / |A | B|
                 intersection = old_nodes & new_nodes
                 union = old_nodes | new_nodes
 

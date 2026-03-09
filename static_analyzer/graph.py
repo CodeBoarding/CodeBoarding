@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import ClusteringConfig, NodeType, Language, Node
+from static_analyzer.constants import ClusteringConfig, Language, Node, NodeType
 
 logger = logging.getLogger(__name__)
 

@@ -2,10 +2,13 @@ import logging
 import os
 from pathlib import Path
 
-from agents.agent_responses import Component, AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Component
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_helpers import (
+    get_all_cluster_ids,
+    get_files_for_cluster_ids,
+)
 from static_analyzer.graph import ClusterResult
-from static_analyzer.cluster_helpers import get_files_for_cluster_ids, get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +279,9 @@ class ClusterMethodsMixin:
             logger.warning(
                 f"[ClusterMethodsMixin] No CFG found for component {component.name} with {len(component.assigned_files)} assigned files"
             )
+            return "No relevant CFG clusters found for this component.", cluster_results
+
+        return result, cluster_results
             return "No relevant CFG clusters found for this component.", cluster_results
 
         return result, cluster_results

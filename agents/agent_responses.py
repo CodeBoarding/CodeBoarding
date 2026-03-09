@@ -180,7 +180,7 @@ class AnalysisInsights(LLMBaseModel):
     def llm_str(self):
         if not self.components:
             return "No abstract components found."
-        title = "# 📦 Abstract Components Overview\n"
+        title = "# Abstract Components Overview\n"
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
@@ -251,7 +251,7 @@ class CFGAnalysisInsights(LLMBaseModel):
     def llm_str(self):
         if not self.components:
             return "No abstract components found in the CFG."
-        title = "# 📦 Abstract Components Overview from CFG\n"
+        title = "# Abstract Components Overview from CFG\n"
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
@@ -309,7 +309,7 @@ class MetaAnalysisInsights(LLMBaseModel):
     )
 
     def llm_str(self):
-        title = "# 🎯 Project Metadata Analysis\n"
+        title = "# Project Metadata Analysis\n"
         content = f"""
 **Project Type:** {self.project_type}
 **Domain:** {self.domain}
@@ -341,7 +341,7 @@ class ComponentFiles(LLMBaseModel):
     def llm_str(self):
         if not self.file_paths:
             return "No files classified."
-        title = "# 📄 Component File Classifications\n"
+        title = "# Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
 
