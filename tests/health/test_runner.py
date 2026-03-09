@@ -3,7 +3,8 @@ import unittest
 from health.models import HealthCheckConfig, StandardCheckSummary
 from health.runner import run_health_checks
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 
 
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int) -> Node:

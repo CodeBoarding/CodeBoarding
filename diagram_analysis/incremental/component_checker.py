@@ -128,7 +128,7 @@ def can_patch_sub_analysis(
     # Get all files in the sub-analysis
     subcomponent_files: set[str] = set()
     for sub_component in sub_analysis.components:
-        subcomponent_files.update(sub_component.assigned_files)
+        subcomponent_files.update(fg.file_path for fg in sub_component.file_methods)
 
     # Check what changes affect this component's sub-analysis
     has_additions = False
@@ -186,7 +186,7 @@ def subcomponent_has_only_renames(
     # Collect all files from sub-components
     subcomponent_files: set[str] = set()
     for sub_component in sub_analysis.components:
-        subcomponent_files.update(sub_component.assigned_files)
+        subcomponent_files.update(fg.file_path for fg in sub_component.file_methods)
 
     # Check deleted files in sub-components
     deleted_in_subcomponent = set()

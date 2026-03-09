@@ -9,7 +9,6 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
-from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
@@ -26,6 +25,7 @@ from repo_utils import (
     upload_onboarding_materials,
 )
 from repo_utils.ignore import initialize_codeboardingignore
+from user_config import ensure_config_template, load_user_config
 from utils import (
     create_temp_repo_folder,
     monitoring_enabled,
@@ -54,7 +54,7 @@ def generate_analysis(
     run_id: str | None = None,
     monitoring_enabled: bool = False,
     force_full: bool = False,
-) -> list[Path]:
+) -> Path:
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,
@@ -65,15 +65,14 @@ def generate_analysis(
         monitoring_enabled=monitoring_enabled,
     )
     generator.force_full_analysis = force_full
-    generated_files = generator.generate_analysis()
-    return generated_files
+    return generator.generate_analysis()
 
 
 def generate_markdown_docs(
     repo_name: str,
     repo_path: Path,
     repo_url: str,
-    analysis_files: list[Path],
+    analysis_path: Path,
     output_dir: Path,
     demo_mode: bool = False,
 ):
@@ -81,7 +80,6 @@ def generate_markdown_docs(
     repo_ref = f"{repo_url}/blob/{target_branch}/"
 
     # Load the single unified analysis.json
-    analysis_path = analysis_files[0]
     with open(analysis_path, "r") as f:
         data = json.load(f)
 
@@ -224,7 +222,7 @@ def process_remote_repository(
     temp_folder = create_temp_repo_folder()
 
     try:
-        analysis_files = generate_analysis(
+        analysis_path = generate_analysis(
             repo_name=repo_name,
             repo_path=repo_path,
             output_dir=temp_folder,
@@ -238,7 +236,7 @@ def process_remote_repository(
             repo_name=repo_name,
             repo_path=repo_path,
             repo_url=repo_url,
-            analysis_files=analysis_files,
+            analysis_path=analysis_path,
             output_dir=temp_folder,
             demo_mode=True,
         )
@@ -289,9 +287,8 @@ def process_local_repository(
 
         # Try incremental first, fall back to full
         result = generator.generate_analysis_smart()
-        if result:
-            logger.info(f"Incremental analysis completed: {len(result)} files")
-            return
+        logger.info(f"Analysis completed: {result}")
+        return
 
     # Full analysis (local repo - no markdown generation)
     generate_analysis(

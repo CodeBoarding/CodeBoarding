@@ -28,11 +28,11 @@ class GetCFGTool(BaseRepoTool):
                 f"[CFG Tool] Reading control flow graph for {lang}, nodes: {len(cfg.nodes)}, edges: {len(cfg.edges)}"
             )
             if cfg is None:
-                logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
+                logger.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
             result_str += f"Control flow graph for {lang}:\n{cfg.llm_str()}\n"
         if not result_str:
-            logging.error("[CFG Tool] No control flow graph data available.")
+            logger.error("[CFG Tool] No control flow graph data available.")
             return "No control flow graph data available. Ensure static analysis was performed correctly."
         return result_str
 
@@ -41,15 +41,16 @@ class GetCFGTool(BaseRepoTool):
             return "No static analysis data available."
         items = 0
         result = f"Control flow graph for {component.name}:\n"
-        skip_nodes: list = []
+        component_files = {fmg.file_path for fmg in component.file_methods}
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)
             if cfg is None:
-                logging.warning(f"[CFG Tool] No control flow graph found for {lang}.")
+                logger.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue
+            skip_nodes = []
             for _, node in cfg.nodes.items():
-                if node.file_path not in component.assigned_files:
+                if node.file_path not in component_files:
                     skip_nodes.append(node)
             result += f"{lang}:\n{cfg.llm_str(skip_nodes=skip_nodes)}\n"
             items += len(cfg.nodes) - len(skip_nodes)

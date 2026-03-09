@@ -22,7 +22,7 @@ def patch_paths_in_analysis(
     Patch file paths in analysis for renames (no LLM needed).
 
     Updates:
-    - assigned_files in each Component
+    - file_methods in each Component
     - reference_file in key_entities
 
     Args:
@@ -38,8 +38,10 @@ def patch_paths_in_analysis(
     logger.info(f"Patching {len(renames)} renamed paths in analysis")
 
     for component in analysis.components:
-        # Patch assigned_files
-        component.assigned_files = [renames.get(f, f) for f in component.assigned_files]
+        # Patch file_methods file paths
+        for fg in component.file_methods:
+            if fg.file_path in renames:
+                fg.file_path = renames[fg.file_path]
 
         # Patch key_entities reference_file
         for entity in component.key_entities:
@@ -128,22 +130,18 @@ def patch_sub_analysis(
         return None
 
     for component in sub_analysis.components:
-        # Remove deleted files from assigned_files
-        orig_len = len(component.assigned_files)
-        component.assigned_files = [f for f in component.assigned_files if not file_is_deleted(f)]
-        if len(component.assigned_files) < orig_len:
+        # Remove deleted files from file_methods
+        orig_len = len(component.file_methods)
+        component.file_methods = [fg for fg in component.file_methods if not file_is_deleted(fg.file_path)]
+        if len(component.file_methods) < orig_len:
             changed = True
 
-        # Apply renames to assigned_files
-        new_assigned = []
-        for f in component.assigned_files:
-            new_path = get_renamed_path(f)
+        # Apply renames to file_methods
+        for fg in component.file_methods:
+            new_path = get_renamed_path(fg.file_path)
             if new_path:
-                new_assigned.append(new_path)
+                fg.file_path = new_path
                 changed = True
-            else:
-                new_assigned.append(f)
-        component.assigned_files = new_assigned
 
         # Remove key_entities referencing deleted files
         orig_entities = len(component.key_entities)
