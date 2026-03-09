@@ -13,7 +13,7 @@
     "call_graph_nodes": 25401,
     "call_graph_edges": 90718,
     "source_files_count": 1644,
-    "execution_time_seconds": 132.35941104099038
+    "execution_time_seconds": 236.447447442
   },
   "sample_references": [
     "index.WP_USE_THEMES",

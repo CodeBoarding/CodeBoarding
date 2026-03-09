@@ -5,13 +5,32 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder, DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.language_adapter import (
+    LanguageAdapter,
     SYMBOL_KIND_CLASS,
     SYMBOL_KIND_CONSTRUCTOR,
     SYMBOL_KIND_FUNCTION,
     SYMBOL_KIND_METHOD,
     SYMBOL_KIND_VARIABLE,
 )
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import EdgeBuildContext, SymbolInfo
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.symbol_table import SymbolTable
+
+
+class _TestAdapter(LanguageAdapter):
+    """Concrete adapter for testing — uses default build_edges (references-based)."""
+
+    @property
+    def language(self) -> str:
+        return "Python"
+
+    @property
+    def file_extensions(self) -> tuple[str, ...]:
+        return (".py",)
+
+    @property
+    def lsp_command(self) -> list[str]:
+        return ["pylsp"]
 
 
 def _make_adapter() -> MagicMock:
@@ -34,6 +53,7 @@ def _make_adapter() -> MagicMock:
     adapter.references_per_query_timeout = 0
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
+    adapter.build_edges.return_value = set()
     return adapter
 
 
@@ -160,24 +180,26 @@ class TestBuild:
 
 
 class TestBuildEdges:
+    """Tests for the default references-based build_edges on LanguageAdapter."""
+
+    def _make_ctx(self, lsp: MagicMock, adapter: _TestAdapter) -> EdgeBuildContext:
+        return EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
+
     def test_creates_edge_from_reference(self):
         lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        adapter = _TestAdapter()
+        ctx = self._make_ctx(lsp, adapter)
 
         # Register two symbols
         caller = SymbolInfo("main", "app.main", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
         callee = SymbolInfo("helper", "app.helper", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 25, 0, 35, 0)
-        st = builder._symbol_table
+        st = ctx.symbol_table
         st._symbols["app.main"] = caller
         st._symbols["app.helper"] = callee
         st._file_symbols[str(Path("/project/app.py"))] = [caller, callee]
         st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, callee]
         st.build_indices()
 
-        # Reference: "helper" is referenced at line 5 inside caller's body.
-        # Queries are sent sorted by position: main(0,0) then helper(25,0).
-        # The ref for helper (where is helper used?) should be in the second result.
         ref_to_helper = {
             "uri": Path("/project/app.py").as_uri(),
             "range": {
@@ -185,31 +207,28 @@ class TestBuildEdges:
                 "end": {"line": 5, "character": 10},
             },
         }
-        # First result = refs to main, second = refs to helper
         lsp.send_references_batch.return_value = [[], [ref_to_helper]]
 
-        # Mock source inspector to say this is an invocation
-        builder._source_inspector = MagicMock()
-        builder._source_inspector.is_invocation.return_value = True
-        builder._source_inspector.is_callable_usage.return_value = True
+        ctx.source_inspector = MagicMock()
+        ctx.source_inspector.is_invocation.return_value = True
+        ctx.source_inspector.is_callable_usage.return_value = True
 
-        edge_set = builder._build_edges()
+        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
 
         assert ("app.main", "app.helper") in edge_set
 
     def test_skips_self_references(self):
         lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        adapter = _TestAdapter()
+        ctx = self._make_ctx(lsp, adapter)
 
         sym = SymbolInfo("foo", "app.foo", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 4, 10, 0)
-        st = builder._symbol_table
+        st = ctx.symbol_table
         st._symbols["app.foo"] = sym
         st._file_symbols[str(Path("/project/app.py"))] = [sym]
         st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
         st.build_indices()
 
-        # Reference at the same definition location
         ref = {
             "uri": Path("/project/app.py").as_uri(),
             "range": {
@@ -219,16 +238,16 @@ class TestBuildEdges:
         }
         lsp.send_references_batch.return_value = [[ref]]
 
-        edge_set = builder._build_edges()
+        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
 
     def test_handles_batch_failure(self):
         lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+        adapter = _TestAdapter()
+        ctx = self._make_ctx(lsp, adapter)
 
         sym = SymbolInfo("foo", "app.foo", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 0, 10, 0)
-        st = builder._symbol_table
+        st = ctx.symbol_table
         st._symbols["app.foo"] = sym
         st._file_symbols[str(Path("/project/app.py"))] = [sym]
         st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
@@ -236,8 +255,12 @@ class TestBuildEdges:
 
         lsp.send_references_batch.side_effect = Exception("LSP crash")
 
-        edge_set = builder._build_edges()
+        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
+
+
+class TestPostprocessEdges:
+    """Tests for _postprocess_edges on CallGraphBuilder (constructor expansion, dedup)."""
 
     def test_constructor_expansion(self):
         """When an edge targets a class, constructor edges should be added."""
@@ -259,26 +282,11 @@ class TestBuildEdges:
         st._primary_file_symbols[file_key] = [caller, cls, ctor]
         st.build_indices()
 
-        # Reference: Dog is referenced at line 5 inside caller's body.
-        # Positions sorted: main(0,0), Dog(25,0), __init__(30,4)
-        # Dog's reference result should include the call site in main
-        ref_to_dog = {
-            "uri": Path("/project/app.py").as_uri(),
-            "range": {
-                "start": {"line": 5, "character": 4},
-                "end": {"line": 5, "character": 7},
-            },
-        }
-        # 3 queries: main, Dog, __init__; only Dog has a reference
-        lsp.send_references_batch.return_value = [[], [ref_to_dog], []]
+        edge_set = {("app.main", "app.Dog")}
+        result = builder._postprocess_edges(edge_set)
 
-        builder._source_inspector = MagicMock()
-        builder._source_inspector.is_invocation.return_value = True
-
-        edge_set = builder._build_edges()
-
-        assert ("app.main", "app.Dog") in edge_set
-        assert ("app.main", "app.Dog(__init__)") in edge_set
+        assert ("app.main", "app.Dog") in result
+        assert ("app.main", "app.Dog(__init__)") in result
 
 
 class TestBuildPackageDeps:

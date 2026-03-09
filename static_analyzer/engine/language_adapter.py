@@ -2,52 +2,45 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from static_analyzer.engine.edge_builder import build_edges_via_references
+from static_analyzer.engine.lsp_constants import (  # noqa: F401 — re-exported for backward compatibility
+    CALLABLE_KINDS,
+    CLASS_LIKE_KINDS,
+    SYMBOL_KIND_ARRAY,
+    SYMBOL_KIND_BOOLEAN,
+    SYMBOL_KIND_CLASS,
+    SYMBOL_KIND_CONSTANT,
+    SYMBOL_KIND_CONSTRUCTOR,
+    SYMBOL_KIND_ENUM,
+    SYMBOL_KIND_ENUM_MEMBER,
+    SYMBOL_KIND_EVENT,
+    SYMBOL_KIND_FIELD,
+    SYMBOL_KIND_FILE,
+    SYMBOL_KIND_FUNCTION,
+    SYMBOL_KIND_INTERFACE,
+    SYMBOL_KIND_KEY,
+    SYMBOL_KIND_METHOD,
+    SYMBOL_KIND_MODULE,
+    SYMBOL_KIND_NAMESPACE,
+    SYMBOL_KIND_NULL,
+    SYMBOL_KIND_NUMBER,
+    SYMBOL_KIND_OBJECT,
+    SYMBOL_KIND_OPERATOR,
+    SYMBOL_KIND_PACKAGE,
+    SYMBOL_KIND_PROPERTY,
+    SYMBOL_KIND_STRING,
+    SYMBOL_KIND_STRUCT,
+    SYMBOL_KIND_TYPE_PARAMETER,
+    SYMBOL_KIND_VARIABLE,
+)
+from static_analyzer.engine.models import EdgeBuildContext
 from utils import get_config
 
-
-# LSP SymbolKind constants
-SYMBOL_KIND_FILE = 1
-SYMBOL_KIND_MODULE = 2
-SYMBOL_KIND_NAMESPACE = 3
-SYMBOL_KIND_PACKAGE = 4
-SYMBOL_KIND_CLASS = 5
-SYMBOL_KIND_METHOD = 6
-SYMBOL_KIND_PROPERTY = 7
-SYMBOL_KIND_FIELD = 8
-SYMBOL_KIND_CONSTRUCTOR = 9
-SYMBOL_KIND_ENUM = 10
-SYMBOL_KIND_INTERFACE = 11
-SYMBOL_KIND_FUNCTION = 12
-SYMBOL_KIND_VARIABLE = 13
-SYMBOL_KIND_CONSTANT = 14
-SYMBOL_KIND_STRING = 15
-SYMBOL_KIND_NUMBER = 16
-SYMBOL_KIND_BOOLEAN = 17
-SYMBOL_KIND_ARRAY = 18
-SYMBOL_KIND_OBJECT = 19
-SYMBOL_KIND_KEY = 20
-SYMBOL_KIND_NULL = 21
-SYMBOL_KIND_ENUM_MEMBER = 22
-SYMBOL_KIND_STRUCT = 23
-SYMBOL_KIND_EVENT = 24
-SYMBOL_KIND_OPERATOR = 25
-SYMBOL_KIND_TYPE_PARAMETER = 26
-
-CLASS_LIKE_KINDS = {
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_INTERFACE,
-    SYMBOL_KIND_STRUCT,
-    SYMBOL_KIND_ENUM,
-}
-
-CALLABLE_KINDS = {
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_CONSTRUCTOR,
-}
+logger = logging.getLogger(__name__)
 
 
 class LanguageAdapter(ABC):
@@ -204,16 +197,13 @@ class LanguageAdapter(ABC):
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
 
-    @property
-    def use_definition_based_edges(self) -> bool:
-        """Use textDocument/definition instead of textDocument/references for edges.
+    def build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
+        """Phase 2: Build call-graph edges.
 
-        When True, the edge builder scans source files for call-site identifiers
-        and resolves them via ``definition`` queries (fast, ~20ms/query on most
-        servers) instead of querying ``references`` for every symbol (slow on
-        servers that serialize requests, e.g. JDTLS at ~1-10s/query).
+        Default uses references-based strategy. Override in language adapters
+        that need a different strategy (e.g. definition-based for JDTLS).
         """
-        return False
+        return build_edges_via_references(self, ctx, source_files)
 
     @property
     def references_batch_size(self) -> int:
