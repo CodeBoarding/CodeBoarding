@@ -32,7 +32,7 @@ from static_analyzer import StaticAnalyzer
 logger = logging.getLogger(__name__)
 
 PROJECTS_DIR = Path(__file__).parent / "projects"
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "edge_cases"
 
 # Each test runs this many times to verify deterministic output
 STABILITY_RUNS = 3
@@ -104,25 +104,8 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
-_LANGUAGE_MARKER_MAP = {
-    "Python": pytest.mark.python_lang,
-    "Java": pytest.mark.java_lang,
-    "Go": pytest.mark.go_lang,
-    "TypeScript": pytest.mark.typescript_lang,
-    "PHP": pytest.mark.php_lang,
-    "JavaScript": pytest.mark.javascript_lang,
-}
-
-
 def _generate_fixture_params():
-    params = []
-    for project in EDGE_CASE_PROJECTS:
-        marks = [pytest.mark.integration]
-        lang_marker = _LANGUAGE_MARKER_MAP.get(project.language)
-        if lang_marker:
-            marks.append(lang_marker)
-        params.append(pytest.param(project, marks=marks, id=project.name))
-    return params
+    return [pytest.param(project, marks=[pytest.mark.integration], id=project.name) for project in EDGE_CASE_PROJECTS]
 
 
 @pytest.fixture(scope="class", params=_generate_fixture_params())
@@ -171,7 +154,7 @@ class TestEdgeCases:
     def test_expected_references(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         refs = analysis.all_results[0].results[language].get("references", {})
-        expected = {r.lower() for r in analysis.fixture.get("expected_references", [])}
+        expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
@@ -233,8 +216,8 @@ class TestEdgeCases:
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
         expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
-        missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
-        unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
+        missing = sorted(f"{s} → {d}" for s, d in expected_edges - actual_edges)
+        unexpected = sorted(f"{s} → {d}" for s, d in actual_edges - expected_edges)
         errors = []
         if missing:
             errors.append(f"Missing {len(missing)} expected edges:\n" + "\n".join(f"  - {e}" for e in missing))

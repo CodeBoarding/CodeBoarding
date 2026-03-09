@@ -3,15 +3,21 @@ from pathlib import Path
 
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
+from static_analyzer.engine.adapters import get_adapter
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient as EngineLSPClient
+from static_analyzer.engine.result_converter import convert_to_codeboarding_format
+from static_analyzer.engine.scanner import EngineProjectScanner
+from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
+from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.java_config_scanner import JavaConfigScanner
-from static_analyzer.lsp_client.client import LSPClient
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from static_analyzer.lsp_client.java_client import JavaClient
-from static_analyzer.lsp_client.typescript_client import TypeScriptClient
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
@@ -20,12 +26,18 @@ from utils import get_cache_dir
 logger = logging.getLogger(__name__)
 
 
-def create_clients(
+def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
     ignore_manager: RepoIgnoreManager,
-) -> list[LSPClient]:
-    clients: list[LSPClient] = []
+) -> list[tuple[LanguageAdapter, Path]]:
+    """Create (adapter, project_path) pairs from detected languages.
+
+    Handles mono-repo support: for TypeScript/Java, scans for multiple
+    project configurations and creates one pair per sub-project.
+    """
+    configs: list[tuple[LanguageAdapter, Path]] = []
+
     for pl in programming_languages:
         if not pl.is_supported_lang():
             logger.warning(f"Unsupported programming language: {pl.language}. Skipping.")
@@ -33,88 +45,81 @@ def create_clients(
 
         lang_lower = pl.language.lower()
 
+        # Map CodeBoarding ProgrammingLanguage to engine adapter name
+        adapter_name = _lang_to_adapter_name(pl.language)
+        if adapter_name is None:
+            logger.warning(f"No engine adapter for language: {pl.language}. Skipping.")
+            continue
+
+        try:
+            adapter = get_adapter(adapter_name)
+        except ValueError:
+            logger.warning(f"Engine adapter not found for: {adapter_name}. Skipping.")
+            continue
+
         try:
             if lang_lower in (Language.TYPESCRIPT, Language.JAVASCRIPT):
-                # For TypeScript/JS, scan for multiple project configurations (mono-repo support)
                 ts_config_scanner = TypeScriptConfigScanner(repository_path, ignore_manager=ignore_manager)
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
                 if typescript_projects:
-                    # Create a separate client for each TypeScript project found
                     for project_path in typescript_projects:
                         logger.info(
-                            f"Creating TypeScript client for project at: {project_path.relative_to(repository_path)}"
+                            f"Creating engine config for {adapter_name} at: "
+                            f"{project_path.relative_to(repository_path)}"
                         )
-                        clients.append(
-                            TypeScriptClient(
-                                language=pl,
-                                project_path=project_path,
-                                ignore_manager=ignore_manager,
-                            )
-                        )
+                        configs.append((adapter, project_path))
                 else:
-                    # Fallback: No config files found, use repository root
-                    logger.info("No TypeScript config files found, using repository root")
-                    clients.append(
-                        TypeScriptClient(
-                            language=pl,
-                            project_path=repository_path,
-                            ignore_manager=ignore_manager,
-                        )
-                    )
+                    logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
+                    configs.append((adapter, repository_path))
+
             elif lang_lower == Language.JAVA:
-                # For Java, scan for multiple project configurations (Maven, Gradle, etc.)
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
                 java_projects = java_config_scanner.scan()
 
                 if java_projects:
-                    # Create a separate client for each Java project found
                     for project_config in java_projects:
                         logger.info(
-                            f"Creating Java client for {project_config.build_system} project at: "
+                            f"Creating engine config for Java ({project_config.build_system}) at: "
                             f"{project_config.root.relative_to(repository_path)}"
                         )
-                        clients.append(
-                            JavaClient(
-                                project_path=project_config.root,
-                                language=pl,
-                                project_config=project_config,
-                                ignore_manager=ignore_manager,
-                            )
-                        )
+                        configs.append((adapter, project_config.root))
                 else:
                     logger.info("No Java projects detected")
-            elif lang_lower in (Language.PYTHON, Language.GO, Language.PHP):
-                # Languages that use the standard LSPClient
-                clients.append(
-                    LSPClient(
-                        language=pl,
-                        project_path=repository_path,
-                        ignore_manager=ignore_manager,
-                    )
-                )
+
             else:
-                # Fallback for any other supported languages
-                clients.append(
-                    LSPClient(
-                        language=pl,
-                        project_path=repository_path,
-                        ignore_manager=ignore_manager,
-                    )
-                )
+                configs.append((adapter, repository_path))
+
         except RuntimeError as e:
-            logger.error(f"Failed to create LSP client for {pl.language}: {e}")
-    return clients
+            logger.error(f"Failed to create engine config for {pl.language}: {e}")
+
+    return configs
+
+
+def _lang_to_adapter_name(language: str) -> str | None:
+    """Map a ProgrammingLanguage name to the engine adapter registry key."""
+    mapping: dict[str, str] = {
+        "python": "Python",
+        "typescript": "TypeScript",
+        "javascript": "JavaScript",
+        "tsx": "TypeScript",
+        "jsx": "JavaScript",
+        "go": "Go",
+        "java": "Java",
+        "php": "PHP",
+    }
+    return mapping.get(language.lower())
 
 
 class StaticAnalyzer:
-    """Sole responsibility: Analyze the code using LSP clients."""
+    """Sole responsibility: Analyze the code using the engine LSP pipeline."""
 
     def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
-        self.clients = create_clients(programming_langs, self.repository_path, self.ignore_manager)
+        self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
+        self._engine_clients: list[tuple[LanguageAdapter, Path, EngineLSPClient]] = []
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
 
@@ -126,7 +131,7 @@ class StaticAnalyzer:
         self.stop_clients()
 
     def start_clients(self) -> None:
-        """Start all LSP server processes.
+        """Start all engine LSP server processes.
 
         Call once before invoking analyze() or analyze_with_cluster_changes().
         Idempotent — safe to call even if clients are already running.
@@ -135,116 +140,73 @@ class StaticAnalyzer:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
 
-        started_clients: list[LSPClient] = []
-        for client in self.clients:
+        started: list[tuple[LanguageAdapter, Path, EngineLSPClient]] = []
+        for adapter, project_path in self._engine_configs:
             try:
-                logger.info(f"Starting LSP client for {client.language.language}")
-                client.start()
-                started_clients.append(client)
-                if isinstance(client, JavaClient):
-                    client.wait_for_import()  # timeout auto-computed based on project size
-            except Exception as e:
-                logger.exception(f"Failed to start LSP client for {client.language.language}")
-                # Clean up already-started clients
-                for started in reversed(started_clients):
-                    try:
-                        started.close()
-                    except Exception:
-                        logger.exception(f"Error closing client for {started.language.language}")
-                self._clients_started = False
-                raise RuntimeError(f"Failed to start LSP client for {client.language.language}") from e
+                logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
+                command = adapter.get_lsp_command(project_path)
+                init_options = adapter.get_lsp_init_options()
+                engine_client = EngineLSPClient(
+                    command=command,
+                    project_root=project_path,
+                    init_options=init_options,
+                    collect_diagnostics=True,
+                )
+                engine_client.start()
+                started.append((adapter, project_path, engine_client))
 
+                # For Java, wait for JDTLS to finish importing
+                if adapter.language.lower() == "java":
+                    engine_client.wait_for_server_ready()
+
+            except Exception as e:
+                logger.exception(f"Failed to start engine LSP client for {adapter.language}")
+                for _, _, client in reversed(started):
+                    try:
+                        client.shutdown()
+                    except Exception:
+                        logger.exception("Error shutting down engine client during cleanup")
+                self._clients_started = False
+                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}") from e
+
+        self._engine_clients = started
         self._clients_started = True
 
     def stop_clients(self) -> None:
-        """Gracefully shut down all LSP server processes.
-
-        Call when you are done with all analysis — e.g. at the end of a CLI run
-        or when the IDE session is torn down. Idempotent.
-        """
+        """Gracefully shut down all engine LSP server processes. Idempotent."""
         if not self._clients_started:
             return
-        for client in self.clients:
+        for adapter, _, client in self._engine_clients:
             try:
-                client.close()
+                client.shutdown()
             except Exception as e:
-                logger.error(f"Error closing LSP client for {client.language.language}: {e}")
+                logger.error(f"Error shutting down engine LSP client for {adapter.language}: {e}")
+        self._engine_clients = []
         self._clients_started = False
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
 
-        If the file is not already open in the server, sends textDocument/didOpen
-        followed by textDocument/didChange.  If it is already open, sends only
-        textDocument/didChange with a monotonically incremented version number.
-
-        The LSP spec requires a file to be open before didChange is sent.  After
-        the analysis loop closes all files, a bare didChange would be silently
-        ignored by pyright, which is why we re-open when needed.
-
-        The resulting publishDiagnostics notification is captured by the reader
-        thread into ``client.diagnostics`` and will be picked up by the next
-        call to ``analyze()`` / ``refresh_health_report()``.
+        Sends textDocument/didOpen with the new content to the appropriate
+        engine LSP client based on file extension.
 
         Args:
             file_path: Absolute path to the changed file.
             content:   Full current text content of the file.
         """
-        for client in self.clients:
-            handled_suffixes = {s.lstrip("*").lstrip(".") for s in client.language_suffix_pattern}
-            if file_path.suffix.lstrip(".") not in handled_suffixes:
-                continue
-            file_uri = file_path.as_uri()
-
-            with client._lock:
-                current_version = client._open_documents.get(file_uri)
-
-            if current_version is None:
-                # File not open yet — send didOpen so the server tracks it.
-                client._send_notification(
-                    "textDocument/didOpen",
-                    {
-                        "textDocument": {
-                            "uri": file_uri,
-                            "languageId": client.language_id,
-                            "version": 1,
-                            "text": content,
-                        }
-                    },
-                )
-                new_version = 2
-            else:
-                new_version = current_version + 1
-
-            # Send the change so the server re-type-checks with the new content.
-            client._send_notification(
-                "textDocument/didChange",
-                {
-                    "textDocument": {"uri": file_uri, "version": new_version},
-                    "contentChanges": [{"text": content}],
-                },
-            )
-            with client._lock:
-                client._open_documents[file_uri] = new_version
-                # Invalidate the diagnostics snapshot so get_collected_diagnostics()
-                # returns the live diagnostics dict (which will be updated by the
-                # publishDiagnostics notification pyright sends in response).
-                # Without this, the stale snapshot from build_static_analysis()
-                # would mask any diagnostics received after notify_file_changed.
-                client._diagnostics_snapshot = None
-
-            logger.debug(
-                f"Sent {'didOpen+' if current_version is None else ''}didChange "
-                f"(v{new_version}) for {file_path} to {client.language.language} LSP"
-            )
+        suffix = file_path.suffix
+        for adapter, _, client in self._engine_clients:
+            if suffix in adapter.file_extensions:
+                # Open + change to ensure the server has the latest content
+                client.did_open(file_path, adapter.language_id)
+                client.did_change(file_path, content)
+                logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
-        """
-        Analyze the repository using LSP clients.
+        """Analyze the repository using the engine LSP pipeline.
 
         Clients must be running before calling this method. Use start_clients() or
         the context manager (``with StaticAnalyzer(...) as sa:``) to start them.
-        get_static_analysis() does this automatically for CLI callers.
 
         Args:
             cache_dir: Optional cache directory for incremental analysis.
@@ -260,165 +222,179 @@ class StaticAnalyzer:
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
             )
         results = StaticAnalysisResults()
-        for client in self.clients:
+
+        for adapter, project_path, engine_client in self._engine_clients:
+            language = adapter.language
             try:
-                logger.info(f"Starting static analysis for {client.language.language} in {self.repository_path}")
+                logger.info(f"Starting engine analysis for {language} in {project_path}")
 
                 # Determine cache path for this client if caching is enabled
                 cache_path = None
                 if cache_dir is not None:
                     cache_dir = Path(cache_dir)
                     cache_dir.mkdir(parents=True, exist_ok=True)
-                    # Create unique cache file per client (language + project path hash)
-                    client_id = f"{client.language.language.lower()}"
+                    client_id = language.lower()
                     cache_path = cache_dir / f"incremental_cache_{client_id}.json"
                     if cache_path.exists():
                         logger.info(f"Using incremental cache: {cache_path}")
                     else:
                         logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
-                # Use incremental orchestrator when cache is available
-                if cache_dir is not None and cache_path is not None:
+                # Use incremental orchestrator only when a cache file already exists
+                if cache_path is not None and cache_path.exists():
                     orchestrator = IncrementalAnalysisOrchestrator()
-                    analysis = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=False)
+                    analysis = orchestrator.run_incremental_analysis(
+                        adapter, project_path, engine_client, cache_path, analyze_cluster_changes=False
+                    )
                 else:
-                    analysis = client.build_static_analysis()
+                    analysis = self._run_full_analysis(adapter, project_path, engine_client)
+                    # Save cache for future incremental runs (without expensive clustering)
+                    if cache_path is not None:
+                        self._save_initial_cache(analysis, cache_path, project_path)
 
-                results.add_references(client.language.language, analysis.get("references", []))
-                # Ensure call_graph is a CallGraph object, not a list
+                results.add_references(language, analysis.get("references", []))
                 call_graph = analysis.get("call_graph")
                 if call_graph is None:
-                    from static_analyzer.graph import CallGraph
-
                     call_graph = CallGraph()
-                results.add_cfg(client.language.language, call_graph)
-                results.add_class_hierarchy(client.language.language, analysis.get("class_hierarchies", {}))
-                results.add_package_dependencies(client.language.language, analysis.get("package_relations", {}))
-                results.add_source_files(client.language.language, analysis.get("source_files", []))
+                results.add_cfg(language, call_graph)
+                results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
+                results.add_package_dependencies(language, analysis.get("package_relations", {}))
+                results.add_source_files(language, analysis.get("source_files", []))
 
-                # Collect diagnostics for health checks.
-                #
-                # Strategy: start with the cache (covers files not re-opened this
-                # session), then overlay the LSP client's in-memory diagnostics
-                # (which reflect the latest notify_file_changed content).
-                #
-                # The in-memory dict is the ground truth for any file that has
-                # been opened during this session: if a file is present there,
-                # its entry replaces the cached one even if the value is "no
-                # issues" (i.e. the file key was removed by an empty
-                # publishDiagnostics notification).  Files that were never
-                # opened remain covered by the cache.
+                # Collect diagnostics
                 cache_diags: dict = analysis.get("diagnostics") or {}
                 if cache_diags:
-                    logger.info(
-                        f"Loaded {len(cache_diags)} files with diagnostics from cache for {client.language.language}"
-                    )
+                    logger.info(f"Loaded {len(cache_diags)} files with diagnostics from cache for {adapter.language}")
 
-                live_diags = client.get_collected_diagnostics()
+                live_diags = engine_client.get_collected_diagnostics()
 
-                # Build the merged view: cache as base, live overwrites per file.
-                # Also remove files that pyright cleared (present in cache but
-                # no longer in live after the client has seen them at least once).
                 merged_diags: dict = dict(cache_diags)
-                # Track which files the LSP client has observed this session so
-                # we know which cache entries to trust vs evict.
-                # We use the union of opened files (those that had a didOpen sent
-                # during build_static_analysis or notify_file_changed).
-                for file_path, diags in live_diags.items():
-                    merged_diags[file_path] = diags  # live wins
-
-                # Evict cache entries for files the server has checked and
-                # found clean.  _diagnostics_seen_files tracks every file for
-                # which the server sent a publishDiagnostics notification
-                # (including empty ones).  A file in that set but absent from
-                # live_diags means the server explicitly cleared it.
-                with client._lock:
-                    seen_this_run = set(client._diagnostics_seen_files)
-                for file_path in seen_this_run:
-                    if file_path not in live_diags:
-                        merged_diags.pop(file_path, None)
+                for fp, diags in live_diags.items():
+                    merged_diags[fp] = diags
 
                 if merged_diags:
                     total_diags = sum(len(d) for d in merged_diags.values())
                     logger.info(
-                        f"Diagnostics for {client.language.language}: "
+                        f"Diagnostics for {adapter.language}: "
                         f"{len(merged_diags)} files, {total_diags} items "
                         f"(cache={len(cache_diags)}, live={len(live_diags)})"
                     )
                 else:
-                    logger.debug(f"No diagnostics for {client.language.language}")
-                self.collected_diagnostics[client.language.language] = merged_diags
+                    logger.debug(f"No diagnostics for {adapter.language}")
+                self.collected_diagnostics[language] = merged_diags
+
             except Exception as e:
-                logger.error(f"Error during analysis with {client.language.language}: {e}")
+                logger.error(f"Error during engine analysis for {adapter.language}: {e}")
+
         logger.info(f"Static analysis complete: {results}")
         return results
 
-    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
-        """
-        Analyze the repository with cluster change detection.
+    def _run_full_analysis(
+        self,
+        adapter: LanguageAdapter,
+        project_path: Path,
+        engine_client: EngineLSPClient,
+    ) -> dict:
+        """Run a full analysis using the engine pipeline.
 
-        This method performs incremental analysis and classifies the magnitude
-        of cluster structure changes between the cached state and current state.
+        Returns the dict shape expected by analyze():
+            call_graph, class_hierarchies, package_relations, references, source_files, diagnostics
+        """
+        scanner = EngineProjectScanner(project_path, {adapter.language: adapter})
+        files_by_lang = scanner.scan()
+        source_files = files_by_lang.get(adapter.language, [])
+
+        if not source_files:
+            logger.warning(f"No source files found for {adapter.language} in {project_path}")
+            return {
+                "call_graph": CallGraph(language=adapter.language),
+                "class_hierarchies": {},
+                "package_relations": {},
+                "references": [],
+                "source_files": [],
+                "diagnostics": {},
+            }
+
+        logger.info(f"Analyzing {len(source_files)} {adapter.language} files")
+
+        builder = CallGraphBuilder(engine_client, adapter, project_path)
+        engine_result = builder.build(source_files)
+
+        return convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+
+    def _save_initial_cache(self, analysis: dict, cache_path: Path, project_path: Path) -> None:
+        """Save initial analysis to cache for future incremental runs.
+
+        Lightweight save without expensive cluster computation.
+        """
+        try:
+            commit_hash = GitDiffAnalyzer(project_path).get_current_commit()
+            cache_manager = AnalysisCacheManager()
+            cache_manager.save_cache(
+                cache_path=cache_path,
+                analysis_result=analysis,
+                commit_hash=commit_hash,
+                iteration_id=1,
+            )
+            logger.info(f"Saved initial cache to {cache_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save initial cache: {e}")
+
+    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
+        """Analyze the repository with cluster change detection.
 
         Args:
             cache_dir: Optional cache directory for incremental analysis.
-                      If provided, uses git-based incremental analysis per client.
-                      If None, performs full analysis without caching.
 
         Returns:
             Dictionary containing:
-            - 'analysis_result': StaticAnalysisResults (or dict for single client)
+            - 'analysis_result': StaticAnalysisResults
             - 'cluster_change_result': ClusterChangeResult with detailed metrics
             - 'change_classification': ChangeClassification (SMALL, MEDIUM, BIG)
         """
-        if not self.clients:
+        if not self._engine_clients:
             return {
                 "analysis_result": StaticAnalysisResults(),
                 "cluster_change_result": None,
                 "change_classification": ChangeClassification.SMALL,
             }
 
-        # For now, we only support single client analysis with cluster changes
-        # Multi-client support would require aggregating results across languages
-        client = self.clients[0]
-        try:
-            logger.info(f"Starting cluster change analysis for {client.language.language} in {self.repository_path}")
+        adapter, project_path, engine_client = self._engine_clients[0]
+        language = adapter.language
 
-            # Determine cache path
+        try:
+            logger.info(f"Starting cluster change analysis for {language} in {project_path}")
+
             cache_path = None
             if cache_dir is not None:
                 cache_dir = Path(cache_dir)
                 cache_dir.mkdir(parents=True, exist_ok=True)
-                client_id = f"{client.language.language.lower()}"
+                client_id = language.lower()
                 cache_path = cache_dir / f"incremental_cache_{client_id}.json"
                 if cache_path.exists():
                     logger.info(f"Using incremental cache: {cache_path}")
                 else:
                     logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
-            # Use incremental orchestrator with cluster change analysis
             if cache_path is not None:
                 orchestrator = IncrementalAnalysisOrchestrator()
-                result = orchestrator.run_incremental_analysis(client, cache_path, analyze_cluster_changes=True)
-                # Convert dict analysis_result to StaticAnalysisResults
+                result = orchestrator.run_incremental_analysis(
+                    adapter, project_path, engine_client, cache_path, analyze_cluster_changes=True
+                )
                 if isinstance(result, dict) and "analysis_result" in result:
                     dict_analysis = result["analysis_result"]
                     if isinstance(dict_analysis, dict):
-                        language = client.language.language
                         result["analysis_result"] = self._dict_to_static_results(dict_analysis, language)
-                        # Add commit hash from orchestrator result
                         if "commit_hash" not in result:
                             result["commit_hash"] = get_git_commit_hash(str(self.repository_path))
                 return result
             else:
-                # No cache directory configured, perform full analysis without caching
-                analysis = client.build_static_analysis()
-                language = client.language.language
+                analysis = self._run_full_analysis(adapter, project_path, engine_client)
                 static_results = self._dict_to_static_results(analysis, language)
                 return {
                     "analysis_result": static_results,
                     "cluster_change_result": None,
-                    "change_classification": ChangeClassification.BIG,  # Full analysis = BIG change
+                    "change_classification": ChangeClassification.BIG,
                     "commit_hash": get_git_commit_hash(str(self.repository_path)),
                 }
 
@@ -436,8 +412,6 @@ class StaticAnalyzer:
         results.add_references(language, analysis_dict.get("references", []))
         call_graph = analysis_dict.get("call_graph")
         if call_graph is None:
-            from static_analyzer.graph import CallGraph
-
             call_graph = CallGraph()
         results.add_cfg(language, call_graph)
         results.add_class_hierarchy(language, analysis_dict.get("class_hierarchies", {}))
@@ -450,14 +424,9 @@ class StaticAnalyzer:
 def get_static_analysis(
     repo_path: Path, cache_dir: Path | None = None, skip_cache: bool = False
 ) -> StaticAnalysisResults:
-    """
-    CLI orchestrator: get static analysis results with full LSP lifecycle management.
+    """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
     Starts LSP clients, runs analysis, and stops clients — all in one call.
-    This is the right entry point for the CLI and DiagramGenerator (one-shot runs).
-
-    Long-lived callers (e.g. extensions of the core) should instead create a StaticAnalyzer
-    directly, call start_clients() once, and call stop_clients() when done.
 
     Args:
         repo_path: Path to the repository to analyze.

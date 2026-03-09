@@ -242,11 +242,10 @@ class StaticAnalysisResults:
         if "references" not in self.results[language]:
             self.results[language]["references"] = {}
 
-        # Merge instead of overwrite.  Keys are normalised via _reference_key which lowercases
-        # everything except parenthesised receiver-type expressions (Go method notation like
-        # "(Entity).GetType" → stored as "(Entity).gettype").
+        # Merge instead of overwrite.  Keys use the original qualified name
+        # to preserve source-code casing in the output.
         for reference in references:
-            self.results[language]["references"][_reference_key(reference.fully_qualified_name)] = reference
+            self.results[language]["references"][reference.fully_qualified_name] = reference
 
     def get_cfg(self, language: str) -> CallGraph:
         """
@@ -300,14 +299,19 @@ class StaticAnalysisResults:
         :param qualified_name: The fully qualified name of the source code element.
         :return: The source code reference or None if not found.
         """
-        norm_qn = _reference_key(qualified_name)
         if language in self.results and "references" in self.results[language]:
             refs = self.results[language]["references"]
-            if norm_qn in refs:
-                return refs[norm_qn]
+            # Direct lookup first
+            if qualified_name in refs:
+                return refs[qualified_name]
+            # Case-insensitive fallback
+            norm_qn = _reference_key(qualified_name)
+            for ref_key, ref_val in refs.items():
+                if _reference_key(ref_key) == norm_qn:
+                    return ref_val
             # Check if the qualified name is a subset meaning it is a file path:
             for ref in refs.keys():
-                if ref.startswith(norm_qn):
+                if ref.lower().startswith(norm_qn):
                     raise FileExistsError(
                         f"Source code reference for '{qualified_name}' in language '{language}' is a file path, "
                         f"please use the full file path instead of the qualified name."
@@ -320,12 +324,13 @@ class StaticAnalysisResults:
             # Check if the qualified name is a subset of any reference:
             subset_refs = []
             for ref in self.results[language]["references"].keys():
-                if ref.endswith(norm_qn):
+                ref_lower = ref.lower()
+                if ref_lower.endswith(norm_qn):
                     return (
                         f"Found a loose match with a fully quantified name: {ref}",
                         self.results[language]["references"][ref],
                     )
-                if norm_qn in ref:
+                if norm_qn in ref_lower:
                     subset_refs.append(ref)
             if len(subset_refs) == 1:
                 return subset_refs[0], self.results[language]["references"][subset_refs[0]]
