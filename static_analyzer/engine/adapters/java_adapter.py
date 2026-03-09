@@ -236,6 +236,12 @@ class JavaAdapter(LanguageAdapter):
         return after_root[0]
 
     @property
+    def use_definition_based_edges(self) -> bool:
+        """JDTLS serializes references requests (~1-10s each), making references
+        impractical for large projects. Definition queries are ~20ms each."""
+        return True
+
+    @property
     def references_batch_size(self) -> int:
         """JDTLS serializes references requests; keep batches small."""
         return 10

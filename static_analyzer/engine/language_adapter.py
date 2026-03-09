@@ -205,6 +205,17 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
 
     @property
+    def use_definition_based_edges(self) -> bool:
+        """Use textDocument/definition instead of textDocument/references for edges.
+
+        When True, the edge builder scans source files for call-site identifiers
+        and resolves them via ``definition`` queries (fast, ~20ms/query on most
+        servers) instead of querying ``references`` for every symbol (slow on
+        servers that serialize requests, e.g. JDTLS at ~1-10s/query).
+        """
+        return False
+
+    @property
     def references_batch_size(self) -> int:
         """Max number of references requests to send in a single batch."""
         return 50
