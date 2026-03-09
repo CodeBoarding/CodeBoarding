@@ -289,12 +289,13 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
         total_edges = 0
         total_files = 0
 
-        for lang, cfg in results.cfgs.items():
+        for lang in results.get_languages():
+            cfg = results.get_cfg(lang)
             total_nodes += len(cfg.nodes)
             total_edges += len(cfg.edges)
 
-        for lang, files in results.source_files.items():
-            total_files += len(files)
+        for lang in results.get_languages():
+            total_files += len(results.get_source_files(lang))
 
         result = {
             "wall_clock": round(wall_elapsed, 2),

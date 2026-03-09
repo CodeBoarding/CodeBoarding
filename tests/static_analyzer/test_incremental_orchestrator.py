@@ -570,7 +570,7 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
         changed_file = MagicMock(spec=Path)
         changed_file.exists.return_value = True
         changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"
+        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
 
         self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
 
@@ -611,7 +611,7 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
         changed_file = MagicMock(spec=Path)
         changed_file.exists.return_value = True
         changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"
+        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
 
         self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
 
@@ -653,7 +653,7 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
         changed_file = MagicMock(spec=Path)
         changed_file.exists.return_value = True
         changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"
+        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
 
         self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
 
@@ -696,7 +696,7 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
         changed_file = MagicMock(spec=Path)
         changed_file.exists.return_value = True
         changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"
+        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
 
         self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
 
