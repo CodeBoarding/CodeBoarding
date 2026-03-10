@@ -282,6 +282,3 @@ class ClusterMethodsMixin:
             return "No relevant CFG clusters found for this component.", cluster_results
 
         return result, cluster_results
-            return "No relevant CFG clusters found for this component.", cluster_results
-
-        return result, cluster_results
