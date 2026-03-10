@@ -117,6 +117,8 @@ dev-dependencies = [
     "pre-commit==3.8.0",
     "mypy==1.19.0",
     "pytest-cov==7.0.0",
+    "build>=1.4.0",
+    "twine>=6.2.0",
 ]
 
 [tool.pytest.ini_options]
