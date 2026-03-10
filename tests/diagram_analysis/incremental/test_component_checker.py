@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
     hash_component_id,
     ROOT_PARENT_ID,
 )
@@ -75,7 +74,7 @@ def sample_analysis() -> AnalysisInsights:
                 component_id=COMP_A_ID,
                 description="Test component A",
                 key_entities=[],
-                file_methods=[FileMethodGroup(file_path="src/module_a.py")],
+                assigned_files=["src/module_a.py"],
                 source_cluster_ids=[1],
             ),
             Component(
@@ -83,7 +82,7 @@ def sample_analysis() -> AnalysisInsights:
                 component_id=COMP_B_ID,
                 description="Test component B",
                 key_entities=[],
-                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
+                assigned_files=["src/module_b.py"],
                 source_cluster_ids=[2],
             ),
         ],
@@ -302,7 +301,7 @@ class TestCanPatchSubAnalysis:
                     name="SubComponent",
                     description="Sub",
                     key_entities=[],
-                    file_methods=[FileMethodGroup(file_path="src/module_a.py")],
+                    assigned_files=["src/module_a.py"],
                     source_cluster_ids=[1],
                 )
             ],
@@ -346,7 +345,7 @@ class TestCanPatchSubAnalysis:
                     name="SubComponent",
                     description="Sub",
                     key_entities=[],
-                    file_methods=[FileMethodGroup(file_path="src/module_a.py")],
+                    assigned_files=["src/module_a.py"],
                     source_cluster_ids=[1],
                 )
             ],

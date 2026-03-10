@@ -4,7 +4,9 @@ import logging
 import os
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, FileMethodGroup
+from agents.llm_config import initialize_llms
+from agents.agent import CodeBoardingAgent
+from agents.agent_responses import AnalysisInsights
 from diagram_analysis.incremental.io_utils import (
     load_sub_analysis,
     save_sub_analysis,
@@ -42,13 +44,13 @@ def assign_new_files(
 
         for component in analysis.components:
             # Count files in the same directory
-            match_count = sum(1 for fg in component.file_methods if str(Path(fg.file_path).parent) == file_dir)
+            match_count = sum(1 for f in component.assigned_files if str(Path(f).parent) == file_dir)
             if match_count > best_match_count:
                 best_match_count = match_count
                 best_component = component
 
         if best_component:
-            best_component.file_methods.append(FileMethodGroup(file_path=file_path))
+            best_component.assigned_files.append(file_path)
             manifest.add_file(file_path, best_component.component_id)
             assigned_count += 1
             components_with_new_files.add(best_component.component_id)
@@ -71,10 +73,10 @@ def remove_deleted_files(
         component_id = manifest.remove_file(file_path)
 
         if component_id:
-            # Remove from component's file_methods
+            # Remove from component's assigned_files
             for component in analysis.components:
                 if component.component_id == component_id:
-                    component.file_methods = [fg for fg in component.file_methods if fg.file_path != file_path]
+                    component.assigned_files = [f for f in component.assigned_files if f != file_path]
                     # Also remove from key_entities if referenced
                     component.key_entities = [e for e in component.key_entities if e.reference_file != file_path]
                     break
@@ -121,14 +123,24 @@ def classify_new_files_in_component(
         logger.warning(f"Could not create cluster results for '{component_id}', skipping targeted classification")
         return False
 
-    try:
-        from agents.cluster_methods_mixin import ClusterMethodsMixin
+    agent_llm, parsing_llm = initialize_llms()
 
-        # Use a lightweight mixin instance to populate file_methods deterministically
-        mixin = ClusterMethodsMixin.__new__(ClusterMethodsMixin)
-        mixin.repo_dir = repo_dir
-        mixin.static_analysis = static_analysis
-        mixin.populate_file_methods(sub_analysis, cluster_results)
+    agent = CodeBoardingAgent(
+        repo_dir=repo_dir,
+        static_analysis=static_analysis,
+        system_message="Classification agent for incremental updates",
+        agent_llm=agent_llm,
+        parsing_llm=parsing_llm,
+    )
+
+    try:
+        # Add new files to the sub-analysis as unassigned (they'll be classified)
+        # First, we need to ensure the new files are in the component's scope
+        component_files = set(component.assigned_files)
+
+        # Perform classification using the agent's classify_files method
+        # This mimics DetailsAgent.run() step 5 but scoped to only new files
+        agent.classify_files(sub_analysis, cluster_results, list(component_files))
 
         # Save the updated sub-analysis
         save_sub_analysis(sub_analysis, output_dir, component_id, manifest.expanded_components)
@@ -144,14 +156,13 @@ def create_component_cluster_results(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
 ) -> dict:
-    """Create cluster results for a component's file_methods."""
-    component_files = [fg.file_path for fg in component.file_methods]
-    if not component_files:
+    """Create cluster results for a component's assigned files."""
+    if not component.assigned_files:
         return {}
 
-    # Convert files to absolute paths for comparison
+    # Convert assigned files to absolute paths for comparison
     assigned_file_set = set()
-    for f in component_files:
+    for f in component.assigned_files:
         abs_path = os.path.join(repo_dir, f) if not os.path.isabs(f) else f
         assigned_file_set.add(abs_path)
 
@@ -188,7 +199,8 @@ def get_new_files_for_component(
     if not component:
         return []
 
-    component_files = {fg.file_path for fg in component.file_methods}
+    # Get the component's current assigned files
+    component_files = set(component.assigned_files)
 
     # Filter added files to those in this component
     new_files = []

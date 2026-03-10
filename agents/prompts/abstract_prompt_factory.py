@@ -43,6 +43,10 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
+    def get_unassigned_files_classification_message(self) -> str:
+        pass
+
+    @abstractmethod
     def get_validation_feedback_message(self) -> str:
         pass
 

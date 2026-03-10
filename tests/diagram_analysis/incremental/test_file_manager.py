@@ -12,7 +12,6 @@ from diagram_analysis.manifest import AnalysisManifest, build_manifest_from_anal
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
     SourceCodeReference,
     hash_component_id,
     ROOT_PARENT_ID,
@@ -41,10 +40,7 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=50,
                     )
                 ],
-                file_methods=[
-                    FileMethodGroup(file_path="src/module_a.py"),
-                    FileMethodGroup(file_path="src/module_a_utils.py"),
-                ],
+                assigned_files=["src/module_a.py", "src/module_a_utils.py"],
                 source_cluster_ids=[1, 2],
             ),
             Component(
@@ -59,7 +55,7 @@ def sample_analysis() -> AnalysisInsights:
                         reference_end_line=None,
                     )
                 ],
-                file_methods=[FileMethodGroup(file_path="lib/module_b.py")],
+                assigned_files=["lib/module_b.py"],
                 source_cluster_ids=[3],
             ),
         ],
@@ -88,8 +84,7 @@ class TestAssignNewFiles:
         result = assign_new_files(new_files, sample_analysis, sample_manifest)
 
         assert COMP_A_ID in result
-        file_paths_a = [fg.file_path for fg in sample_analysis.components[0].file_methods]
-        assert "src/new_file.py" in file_paths_a
+        assert "src/new_file.py" in sample_analysis.components[0].assigned_files
         assert sample_manifest.file_to_component["src/new_file.py"] == COMP_A_ID
 
     def test_assign_new_files_skip_test_files(self, sample_analysis, sample_manifest):
@@ -109,10 +104,8 @@ class TestAssignNewFiles:
 
         assert COMP_A_ID in result
         assert COMP_B_ID in result
-        file_paths_a = [fg.file_path for fg in sample_analysis.components[0].file_methods]
-        file_paths_b = [fg.file_path for fg in sample_analysis.components[1].file_methods]
-        assert "src/another_a.py" in file_paths_a
-        assert "lib/another_b.py" in file_paths_b
+        assert "src/another_a.py" in sample_analysis.components[0].assigned_files
+        assert "lib/another_b.py" in sample_analysis.components[1].assigned_files
 
     def test_assign_new_files_no_matching_component(self, sample_analysis, sample_manifest, caplog):
         """Test that files in new directories are not assigned when no matching component exists."""
@@ -137,8 +130,7 @@ class TestRemoveDeletedFiles:
         remove_deleted_files(deleted_files, sample_analysis, sample_manifest)
 
         assert "src/module_a.py" not in sample_manifest.file_to_component
-        file_paths_a = [fg.file_path for fg in sample_analysis.components[0].file_methods]
-        assert "src/module_a.py" not in file_paths_a
+        assert "src/module_a.py" not in sample_analysis.components[0].assigned_files
         # Check that the key entity was also removed
         assert len(sample_analysis.components[0].key_entities) == 0
 
@@ -149,7 +141,7 @@ class TestRemoveDeletedFiles:
         remove_deleted_files(deleted_files, sample_analysis, sample_manifest)
 
         component_a = sample_analysis.components[0]
-        assert len(component_a.file_methods) == 0
+        assert len(component_a.assigned_files) == 0
         assert "src/module_a.py" not in sample_manifest.file_to_component
         assert "src/module_a_utils.py" not in sample_manifest.file_to_component
 
@@ -161,7 +153,7 @@ class TestRemoveDeletedFiles:
         remove_deleted_files(deleted_files, sample_analysis, sample_manifest)
 
         # Verify original state is unchanged
-        assert len(sample_analysis.components[0].file_methods) == 2
+        assert len(sample_analysis.components[0].assigned_files) == 2
 
 
 class TestGetNewFilesForComponent:
@@ -174,7 +166,7 @@ class TestGetNewFilesForComponent:
         result = get_new_files_for_component(COMP_A_ID, added_files, sample_analysis)
 
         assert "src/module_a.py" in result
-        assert "src/new_file.py" not in result  # Not in component's file_methods
+        assert "src/new_file.py" not in result  # Not in component's assigned_files
 
     def test_get_new_files_for_nonexistent_component(self, sample_analysis):
         """Test that empty list is returned for non-existent component."""

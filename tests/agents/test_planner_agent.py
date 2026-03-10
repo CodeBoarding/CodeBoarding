@@ -1,7 +1,7 @@
 """
 Tests for the deterministic planner_agent module.
 
-The planner uses CFG structure (source_cluster_ids, file_methods) and parent context
+The planner uses CFG structure (source_cluster_ids, assigned_files) and parent context
 to determine which components should be expanded - no LLM calls.
 
 Expansion Rules:
@@ -16,7 +16,6 @@ from agents.planner_agent import should_expand_component, get_expandable_compone
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
     SourceCodeReference,
 )
 
@@ -42,7 +41,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description=f"Test component {name}",
             key_entities=[ref],
             source_cluster_ids=cluster_ids or [],
-            file_methods=[FileMethodGroup(file_path=f"file{i}.py", methods=[]) for i in range(file_count)],
+            assigned_files=[f"file{i}.py" for i in range(file_count)],
         )
 
     def test_expand_with_clusters(self):
@@ -87,7 +86,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description="Agent for detailed analysis",
             key_entities=[],
             source_cluster_ids=[],  # No clusters
-            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],  # Single file
+            assigned_files=["agents/details_agent.py"],  # Single file
         )
         # Parent (Agents component) had clusters → can expand to explain file internals
         self.assertTrue(should_expand_component(component, parent_had_clusters=True))
@@ -99,7 +98,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             description="Main run method of DetailsAgent",
             key_entities=[],
             source_cluster_ids=[],  # No clusters
-            file_methods=[],  # No files (it's a method, not a file)
+            assigned_files=[],  # No files (it's a method, not a file)
         )
         # Parent (DetailsAgent) had no clusters → we're at leaf level
         self.assertFalse(should_expand_component(component, parent_had_clusters=False))
@@ -120,9 +119,7 @@ class TestPlanAnalysis(unittest.TestCase):
             description=f"Test component {name}",
             key_entities=[],
             source_cluster_ids=cluster_ids or [],
-            file_methods=[
-                FileMethodGroup(file_path=f"{name.lower()}_file{i}.py", methods=[]) for i in range(file_count)
-            ],
+            assigned_files=[f"{name.lower()}_file{i}.py" for i in range(file_count)],
         )
 
     def test_plan_analysis_top_level_with_clusters(self):
@@ -206,7 +203,7 @@ class TestPlanAnalysis(unittest.TestCase):
             description="Details agent module",
             key_entities=[],
             source_cluster_ids=[],  # No clusters at this level
-            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],
+            assigned_files=["agents/details_agent.py"],
         )
         level1_analysis = AnalysisInsights(
             description="Agents detail",
@@ -224,7 +221,7 @@ class TestPlanAnalysis(unittest.TestCase):
             description="Main run method",
             key_entities=[],
             source_cluster_ids=[],
-            file_methods=[],  # Methods don't have files
+            assigned_files=[],  # Methods don't have files
         )
         level2_analysis = AnalysisInsights(
             description="DetailsAgent internals",

@@ -1,4 +1,5 @@
 import logging
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -20,18 +21,11 @@ class ReferenceResolverMixin:
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
         for component in analysis.components:
             for reference in component.key_entities:
-                # Check if the reference is already fully resolved (file + line numbers)
-                if (
-                    reference.reference_file is not None
-                    and os.path.exists(reference.reference_file)
-                    and reference.reference_start_line is not None
-                    and reference.reference_end_line is not None
-                ):
+                # Check if the file is already resolved
+                if reference.reference_file is not None and os.path.exists(reference.reference_file):
                     continue
 
-                # Extract file paths from file_methods as candidates
-                file_candidates = [fm.file_path for fm in component.file_methods] if component.file_methods else None
-                self._resolve_single_reference(reference, file_candidates)
+                self._resolve_single_reference(reference, component.assigned_files)
 
         # Remove unresolved references
         self._remove_unresolved_references(analysis)
@@ -120,7 +114,8 @@ class ReferenceResolverMixin:
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
+        extra_paths = file_candidates or []
+        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref, *extra_paths]
 
         for path in paths:
             if os.path.exists(path):
@@ -129,29 +124,10 @@ class ReferenceResolverMixin:
                     f"[Reference Resolution] Path matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
                 )
                 return True
-
-        # Try matching file_candidates: check if any candidate's path matches a prefix of the qname
-        # e.g. qname "pkg.module.ClassName" should match candidate "pkg/module.py"
-        if file_candidates:
-            qname_segments = qname.split(".")
-            for candidate in file_candidates:
-                candidate_full = os.path.join(self.repo_dir, candidate) if not os.path.isabs(candidate) else candidate
-                if not os.path.exists(candidate_full):
-                    continue
-                candidate_stem = os.path.splitext(candidate)[0].replace("/", os.sep).replace("\\", os.sep)
-                # Try progressively shorter prefixes of the qname
-                for end in range(len(qname_segments), 0, -1):
-                    prefix_as_path = os.sep.join(qname_segments[:end])
-                    if candidate_stem.endswith(prefix_as_path):
-                        reference.reference_file = str(candidate_full)
-                        logger.info(
-                            f"[Reference Resolution] File candidate matched for {reference.qualified_name} in {lang} at {reference.reference_file}"
-                        )
-                        return True
         return False
 
     def _remove_unresolved_references(self, analysis: AnalysisInsights):
-        """Remove references that couldn't be resolved to existing files."""
+        """Remove references and assigned files that couldn't be resolved to existing files."""
         for component in analysis.components:
             # Remove unresolved key_entities
             original_ref_count = len(component.key_entities)
@@ -164,6 +140,20 @@ class ReferenceResolverMixin:
             if removed_ref_count > 0:
                 logger.info(
                     f"[Reference Resolution] Removed {removed_ref_count} unresolved reference(s) "
+                    f"from component '{component.name}'"
+                )
+
+            # Remove unresolved assigned_files
+            original_file_count = len(component.assigned_files)
+            component.assigned_files = [
+                f
+                for f in component.assigned_files
+                if os.path.exists(os.path.join(self.repo_dir, f)) or os.path.exists(f)
+            ]
+            removed_file_count = original_file_count - len(component.assigned_files)
+            if removed_file_count > 0:
+                logger.info(
+                    f"[Reference Resolution] Removed {removed_file_count} unresolved assigned file(s) "
                     f"from component '{component.name}'"
                 )
 
