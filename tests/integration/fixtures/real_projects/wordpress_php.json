@@ -8,9 +8,9 @@
   },
   "metrics": {
     "references_count": 30180,
-    "classes_count": 819,
+    "classes_count": 808,
     "packages_count": 160,
-    "call_graph_nodes": 25401,
+    "call_graph_nodes": 24825,
     "call_graph_edges": 90718,
     "source_files_count": 1644,
     "execution_time_seconds": 236.447447442

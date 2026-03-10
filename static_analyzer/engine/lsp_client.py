@@ -506,7 +506,6 @@ class LSPClient:
         results: dict[int, list[dict]] = {}
         pending = set(request_ids)
         deadline = time.monotonic() + timeout
-        t_batch_start = time.monotonic()
 
         while pending and time.monotonic() < deadline:
             msg = self._next_response(deadline)
@@ -529,27 +528,6 @@ class LSPClient:
         for req_id in pending:
             logger.warning("Timeout waiting for references request %d", req_id)
             results[req_id] = []
-
-        batch_elapsed = time.monotonic() - t_batch_start
-        total_refs = sum(len(r) for r in results.values())
-        if timed_out:
-            logger.warning(
-                "Batch collect: %d/%d completed, %d timed out, %d refs, %.1fs (timeout=%ds)",
-                len(request_ids) - len(timed_out),
-                len(request_ids),
-                len(timed_out),
-                total_refs,
-                batch_elapsed,
-                timeout,
-            )
-        else:
-            logger.info(
-                "Batch collect: %d/%d completed, %d refs, %.1fs",
-                len(request_ids),
-                len(request_ids),
-                total_refs,
-                batch_elapsed,
-            )
 
         return results, timed_out
 
