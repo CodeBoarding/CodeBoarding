@@ -15,9 +15,7 @@ import pathspec
 from tqdm import tqdm
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.graph import CallGraph
-from static_analyzer.constants import NodeType
-from static_analyzer.node import Node
+from static_analyzer.graph import CallGraph, Node
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 from static_analyzer.lsp_client.language_settings import get_language_settings
 from static_analyzer.scanner import ProgrammingLanguage
@@ -1261,7 +1259,7 @@ class LSPClient(ABC):
 
             symbols = response.get("result", [])
             # Filter for class symbols
-            classes = [s for s in symbols if s.get("kind") == NodeType.CLASS]
+            classes = [s for s in symbols if s.get("kind") == Node.CLASS_TYPE]
             logger.debug(f"Found {len(classes)} class symbols via workspace/symbol")
             return classes
         except Exception as e:
@@ -1510,7 +1508,7 @@ class LSPClient(ABC):
         """Find all class symbols recursively."""
         classes = []
         for symbol in symbols:
-            if symbol.get("kind") == NodeType.CLASS:
+            if symbol.get("kind") == Node.CLASS_TYPE:
                 classes.append(symbol)
             if "children" in symbol:
                 classes.extend(self._find_classes_in_symbols(symbol["children"]))
@@ -1523,7 +1521,7 @@ class LSPClient(ABC):
         # Look for module-level symbols that might indicate imports
         for symbol in symbols:
             # Variables at module level might be imports
-            if symbol.get("kind") == NodeType.VARIABLE:
+            if symbol.get("kind") == Node.VARIABLE_TYPE:
                 symbol_name = symbol.get("name", "")
 
                 # Use LSP to get definition/references for this symbol

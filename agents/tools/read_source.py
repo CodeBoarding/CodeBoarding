@@ -1,9 +1,8 @@
 import logging
 from pathlib import Path
-
+from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
-
 from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
@@ -31,14 +30,20 @@ class CodeReferenceReader(BaseRepoTool):
         "Note: Each call is expensive - prefer analyzing CFG data first. "
         "Use only when component responsibilities cannot be determined from CFG or package dependencies."
     )
-    args_schema: ArgsSchema | None = ModuleInput
+    args_schema: Optional[ArgsSchema] = ModuleInput
     return_direct: bool = False
 
     def _run(self, code_reference: str) -> str:
+        """
+        Run the tool with the given input.
+        """
+        logger.info(f"[Source Reference Tool] Reading source code for {code_reference}")
+
         if self.static_analysis is None:
-            logger.error(f"static_analysis is not set")
+            logger.error("[Source Reference Tool] static_analysis is not set")
             return "Error: Static analysis is not set."
 
+        # search for the qualified name:
         code_reference = code_reference.strip()
         if ":" in code_reference:
             code_reference = code_reference.replace(":", ".")
@@ -49,22 +54,31 @@ class CodeReferenceReader(BaseRepoTool):
                 node = self.static_analysis.get_reference(lang, code_reference)
                 return self.read_file(node.file_path, node.line_start, node.line_end)
             except ValueError:
+                logger.warning(f"[Source Reference Tool] No reference found for {code_reference} in {lang}.")
+                # retry with loose matching
                 text, loose_node = self.static_analysis.get_loose_reference(lang, code_reference)
                 if loose_node is None:
+                    logger.warning(f"[Source Reference Tool] No loose reference found for {code_reference} in {lang}.")
                     continue
-                logger.warning(f"Loose match: {code_reference} -> {loose_node.fully_qualified_name}")
                 source_code = self.read_file(loose_node.file_path, loose_node.line_start, loose_node.line_end)
+                logger.info(
+                    f"[Source Reference Tool] Loose match found {code_reference} -> {text}, reading source code."
+                )
                 if text is None:
                     return source_code
                 return text + "\n\n" + source_code
             except FileExistsError:
-                logger.warning(f"{code_reference} is a file/package reference, not a class or method")
+                logger.warning(
+                    f"[Source Reference Tool] File not found for {code_reference} in {lang}. Make use of the `readFile` tool to read the file content directly."
+                )
                 return (
                     f"INFO: {code_reference} is a reference to a file/package and not a specific class or method. "
                     f"Please use the `readFile` tool to read the file content."
                 )
-
-        logger.error(f"No reference found for {code_reference} in any language")
+        logger.warning(
+            f"[Source Reference Tool] No source code reference found for {code_reference} in any language. "
+            f"Suggesting to use our file read tooling."
+        )
         return (
             "No source code reference was found for the given code reference. "
             "However it is possible that this is a directory use the `getFileStructure` tool to retrieve the file structure of the project. "
@@ -73,13 +87,19 @@ class CodeReferenceReader(BaseRepoTool):
 
     @staticmethod
     def read_file(file, start_line, end_line) -> str:
+        """
+        Read the file from the given path and return the specified lines.
+        """
         file_path = Path(file)
         if not file_path.exists():
+            logger.error(f"[Source Reference Tool] File {file_path} does not exist.")
             return f"Error: File {file_path} does not exist."
 
         with open(file_path, "r") as f:
             lines = f.readlines()
 
         if start_line < 0 or end_line > len(lines):
+            logger.error(f"[Source Reference Tool] Invalid line range: {start_line}-{end_line} for file {file_path}.")
             return f"Error: Invalid line range: {start_line}-{end_line} for file {file_path}."
+        logger.info(f"[Source Reference Tool] Success, reading from: {file_path}.")
         return "".join(lines[start_line:end_line])

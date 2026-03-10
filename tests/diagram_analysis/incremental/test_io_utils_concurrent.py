@@ -14,7 +14,6 @@ import pytest
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
     Relation,
     SourceCodeReference,
     hash_component_id,
@@ -45,7 +44,7 @@ def _make_sub_analysis(component_name: str) -> AnalysisInsights:
                         reference_end_line=10,
                     )
                 ],
-                file_methods=[FileMethodGroup(file_path=f"src/{component_name.lower()}_sub1.py")],
+                assigned_files=[f"src/{component_name.lower()}_sub1.py"],
                 source_cluster_ids=[],
             ),
         ],
@@ -82,7 +81,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
+                assigned_files=["src/module_b.py"],
                 source_cluster_ids=[1],
             ),
             Component(
@@ -97,7 +96,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                file_methods=[FileMethodGroup(file_path="src/module_c.py")],
+                assigned_files=["src/module_c.py"],
                 source_cluster_ids=[2],
             ),
             Component(
@@ -112,7 +111,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                file_methods=[FileMethodGroup(file_path="src/module_d.py")],
+                assigned_files=["src/module_d.py"],
                 source_cluster_ids=[3],
             ),
         ],
@@ -206,7 +205,7 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=root_id,
                     description="Root",
                     key_entities=[],
-                    file_methods=[FileMethodGroup(file_path="src/root.py")],
+                    assigned_files=["src/root.py"],
                     source_cluster_ids=[1],
                 )
             ],
@@ -221,7 +220,7 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=child_expandable_id,
                     description="Expandable child",
                     key_entities=[],
-                    file_methods=[FileMethodGroup(file_path="src/child_expandable.py")],
+                    assigned_files=["src/child_expandable.py"],
                     source_cluster_ids=[10],
                 ),
                 Component(
@@ -229,6 +228,7 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=child_leaf_id,
                     description="Leaf child",
                     key_entities=[],
+                    assigned_files=[],
                     source_cluster_ids=[],
                 ),
             ],

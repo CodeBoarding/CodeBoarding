@@ -54,8 +54,9 @@ class TestMarkdownGenerator(unittest.TestCase):
             name="Authentication",
             description="Handles user authentication",
             key_entities=[],
+            assigned_files=[],
         )
-        self.comp2 = Component(name="Database", description="Database layer", key_entities=[])
+        self.comp2 = Component(name="Database", description="Database layer", key_entities=[], assigned_files=[])
 
         # Create sample relations
         self.rel1 = Relation(src_name="Authentication", dst_name="Database", relation="uses")
@@ -116,7 +117,7 @@ class TestMarkdownGenerator(unittest.TestCase):
             reference_start_line=10,
             reference_end_line=20,
         )
-        comp_with_ref = Component(name="Auth", description="Auth component", key_entities=[ref])
+        comp_with_ref = Component(name="Auth", description="Auth component", assigned_files=[], key_entities=[ref])
         insights = AnalysisInsights(description="Test", components=[comp_with_ref], components_relations=[])
 
         with patch.dict("os.environ", {"REPO_ROOT": ""}):
@@ -172,8 +173,9 @@ class TestHTMLGenerator(unittest.TestCase):
             name="Authentication",
             description="Handles user authentication",
             key_entities=[],
+            assigned_files=[],
         )
-        self.comp2 = Component(name="Database", description="Database layer", key_entities=[])
+        self.comp2 = Component(name="Database", description="Database layer", key_entities=[], assigned_files=[])
 
         # Create sample relations
         self.rel1 = Relation(src_name="Authentication", dst_name="Database", relation="uses")
@@ -262,7 +264,7 @@ class TestHTMLGenerator(unittest.TestCase):
             reference_start_line=10,
             reference_end_line=20,
         )
-        comp_with_ref = Component(name="Auth", description="Auth component", key_entities=[ref])
+        comp_with_ref = Component(name="Auth", description="Auth component", assigned_files=[], key_entities=[ref])
         insights = AnalysisInsights(description="Test", components=[comp_with_ref], components_relations=[])
 
         with patch.dict("os.environ", {"REPO_ROOT": ""}):

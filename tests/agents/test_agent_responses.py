@@ -4,7 +4,6 @@ from agents.agent_responses import (
     SourceCodeReference,
     Relation,
     Component,
-    FileMethodGroup,
     AnalysisInsights,
     ROOT_PARENT_ID,
     hash_component_id,
@@ -146,10 +145,10 @@ class TestComponent(unittest.TestCase):
             name="Service",
             description="Service layer",
             key_entities=[ref],
-            file_methods=[FileMethodGroup(file_path="myapp/service.py"), FileMethodGroup(file_path="myapp/utils.py")],
+            assigned_files=["myapp/service.py", "myapp/utils.py"],
         )
 
-        self.assertEqual(len(component.file_methods), 2)
+        self.assertEqual(len(component.assigned_files), 2)
 
 
 class TestAnalysisInsights(unittest.TestCase):

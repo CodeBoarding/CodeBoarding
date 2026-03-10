@@ -9,9 +9,7 @@ from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
-from static_analyzer.graph import CallGraph
-from static_analyzer.constants import NodeType
-from static_analyzer.node import Node
+from static_analyzer.graph import CallGraph, Node
 
 
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> Node:
@@ -76,9 +74,9 @@ class TestFunctionSize(unittest.TestCase):
 
     def test_function_size_skips_data_entities(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
-        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
-        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
+        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=Node.CONSTANT_TYPE))
+        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=Node.VARIABLE_TYPE))
+        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=Node.PROPERTY_TYPE))
         config = HealthCheckConfig(
             function_size_max=100,
         )
@@ -144,7 +142,7 @@ class TestFanIn(unittest.TestCase):
 class TestGodClass(unittest.TestCase):
     def test_god_class_by_method_count(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 250, node_type=NodeType.CLASS))
+        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 250, node_type=Node.CLASS_TYPE))
         for i in range(25):
             graph.add_node(
                 _make_node(
@@ -152,7 +150,7 @@ class TestGodClass(unittest.TestCase):
                     "/f.py",
                     i * 10,
                     i * 10 + 5,
-                    node_type=NodeType.METHOD,
+                    node_type=Node.METHOD_TYPE,
                 )
             )
         config = HealthCheckConfig(
@@ -389,8 +387,8 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_function_size_skips_classes(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 500, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.BigClass.big_method", "/f.py", 0, 200, node_type=NodeType.METHOD))
+        graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 500, node_type=Node.CLASS_TYPE))
+        graph.add_node(_make_node("mod.BigClass.big_method", "/f.py", 0, 200, node_type=Node.METHOD_TYPE))
         config = HealthCheckConfig(
             function_size_max=100,
         )
@@ -402,9 +400,9 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_function_size_skips_data_entities(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
-        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
-        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
+        graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=Node.CONSTANT_TYPE))
+        graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=Node.VARIABLE_TYPE))
+        graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=Node.PROPERTY_TYPE))
         config = HealthCheckConfig(
             function_size_max=100,
         )
@@ -414,9 +412,9 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_fan_out_skips_classes(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.func", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.other", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=Node.CLASS_TYPE))
+        graph.add_node(_make_node("mod.func", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE))
+        graph.add_node(_make_node("mod.other", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE))
         graph.add_edge("mod.MyClass", "mod.other")
         graph.add_edge("mod.func", "mod.other")
         config = HealthCheckConfig(
@@ -429,9 +427,9 @@ class TestEntityTypeFiltering(unittest.TestCase):
 
     def test_fan_in_skips_classes(self):
         graph = CallGraph()
-        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.func2", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=Node.CLASS_TYPE))
+        graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE))
+        graph.add_node(_make_node("mod.func2", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE))
         graph.add_edge("mod.func1", "mod.MyClass")
         graph.add_edge("mod.func2", "mod.MyClass")
         config = HealthCheckConfig(
@@ -442,11 +440,11 @@ class TestEntityTypeFiltering(unittest.TestCase):
         self.assertNotIn("mod.MyClass", entity_names)
 
     def test_entity_label_on_node(self):
-        func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=NodeType.FUNCTION)
-        method_node = _make_node("mod.Class.method", "/f.py", 0, 10, node_type=NodeType.METHOD)
-        class_node = _make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS)
-        prop_node = _make_node("mod.Class.prop", "/f.py", 0, 5, node_type=NodeType.PROPERTY)
-        const_node = _make_node("mod.CONST", "/f.py", 0, 5, node_type=NodeType.CONSTANT)
+        func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE)
+        method_node = _make_node("mod.Class.method", "/f.py", 0, 10, node_type=Node.METHOD_TYPE)
+        class_node = _make_node("mod.MyClass", "/f.py", 0, 100, node_type=Node.CLASS_TYPE)
+        prop_node = _make_node("mod.Class.prop", "/f.py", 0, 5, node_type=Node.PROPERTY_TYPE)
+        const_node = _make_node("mod.CONST", "/f.py", 0, 5, node_type=Node.CONSTANT_TYPE)
 
         self.assertEqual(func_node.entity_label(), "Function")
         self.assertEqual(method_node.entity_label(), "Method")
@@ -455,9 +453,9 @@ class TestEntityTypeFiltering(unittest.TestCase):
         self.assertEqual(const_node.entity_label(), "Constant")
 
     def test_node_type_predicates(self):
-        func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=NodeType.FUNCTION)
-        class_node = _make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS)
-        prop_node = _make_node("mod.prop", "/f.py", 0, 5, node_type=NodeType.PROPERTY)
+        func_node = _make_node("mod.func", "/f.py", 0, 10, node_type=Node.FUNCTION_TYPE)
+        class_node = _make_node("mod.MyClass", "/f.py", 0, 100, node_type=Node.CLASS_TYPE)
+        prop_node = _make_node("mod.prop", "/f.py", 0, 5, node_type=Node.PROPERTY_TYPE)
 
         self.assertTrue(func_node.is_callable())
         self.assertFalse(func_node.is_class())

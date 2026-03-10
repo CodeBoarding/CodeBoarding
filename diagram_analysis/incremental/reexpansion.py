@@ -8,14 +8,15 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from agents.llm_config import initialize_llms
 from agents.agent_responses import AnalysisInsights
 from agents.details_agent import DetailsAgent
-from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
-from diagram_analysis.incremental.component_checker import subcomponent_has_only_renames
+from agents.planner_agent import get_expandable_components
 from diagram_analysis.incremental.io_utils import load_sub_analysis, save_sub_analysis
 from diagram_analysis.incremental.models import ChangeImpact
 from diagram_analysis.incremental.path_patching import patch_sub_analysis
+from diagram_analysis.incremental.component_checker import subcomponent_has_only_renames
 from diagram_analysis.manifest import AnalysisManifest
 from static_analyzer.analysis_result import StaticAnalysisResults
 
