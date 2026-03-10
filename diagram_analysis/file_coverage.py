@@ -187,7 +187,7 @@ class FileCoverage:
             return None
 
         try:
-            with open(coverage_path, "r") as f:
+            with open(coverage_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Validate basic structure
                 if "analyzed_files" in data and "not_analyzed_files" in data:
@@ -207,6 +207,6 @@ class FileCoverage:
             coverage: File coverage dictionary to save
         """
         coverage_path = output_dir / "file_coverage.json"
-        with open(coverage_path, "w") as f:
+        with open(coverage_path, "w", encoding="utf-8") as f:
             json.dump(coverage, f, indent=2)
         logger.info(f"File coverage saved to {coverage_path}")

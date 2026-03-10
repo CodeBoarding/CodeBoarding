@@ -10,8 +10,8 @@
 #   Dataclass fields (3): Config.debug, Config.max_retries, Config.tags
 #
 # Expected call edges (from method bodies):
-#   set_address   → Address()       (constructs nested class)
-#   get_summary   → full_address()  (self._address.full_address())
+#   set_address   -> Address()       (constructs nested class)
+#   get_summary   -> full_address()  (self._address.full_address())
 #
 # Class hierarchy:
 #   Config         — standalone @dataclass, no inheritance

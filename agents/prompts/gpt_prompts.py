@@ -213,7 +213,7 @@ RELATIONSHIPS_VALIDATION = """Validate component relationships for accuracy and 
 
 1. **Accuracy:**
    - [ ] Relationship type is correct (dependency, composition, inheritance, etc.)
-   - [ ] Direction is accurate (source → target)
+   - [ ] Direction is accurate (source -> target)
    - [ ] Both components exist in the analysis
 
 2. **Completeness:**

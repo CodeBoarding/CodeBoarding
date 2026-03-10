@@ -207,12 +207,12 @@ class TestEdgeCases:
         language = analysis.fixture["language"]
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-        missing = [f"{s} → {d}" for s, d in analysis.fixture.get("sample_edges", []) if (s, d) not in actual_edges]
+        missing = [f"{s} -> {d}" for s, d in analysis.fixture.get("sample_edges", []) if (s, d) not in actual_edges]
         assert not missing, (
             f"Missing {len(missing)} expected call graph edges:\n"
             + "\n".join(f"  - {e}" for e in missing)
             + f"\n\nActual edges ({len(actual_edges)}):\n"
-            + "\n".join(f"  - {s} → {d}" for s, d in sorted(actual_edges))
+            + "\n".join(f"  - {s} -> {d}" for s, d in sorted(actual_edges))
         )
 
     def test_package_dependencies(self, analysis: AnalysisRunData):

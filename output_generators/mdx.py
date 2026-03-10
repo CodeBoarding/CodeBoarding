@@ -155,7 +155,7 @@ def generate_mdx_file(
         repo_path=repo_path,
     )
     mdx_file = temp_dir / f"{file_name}.mdx"
-    with open(mdx_file, "w") as f:
+    with open(mdx_file, "w", encoding="utf-8") as f:
         f.write(content)
     return mdx_file
 

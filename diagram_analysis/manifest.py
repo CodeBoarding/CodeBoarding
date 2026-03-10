@@ -109,7 +109,7 @@ def save_manifest(manifest: AnalysisManifest, output_dir: Path) -> Path:
     """
     manifest_path = output_dir / MANIFEST_FILENAME
 
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(manifest.model_dump_json(indent=2))
 
     logger.info(f"Saved analysis manifest to {manifest_path}")
@@ -129,7 +129,7 @@ def load_manifest(output_dir: Path) -> AnalysisManifest | None:
         return None
 
     try:
-        with open(manifest_path, "r") as f:
+        with open(manifest_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         manifest = AnalysisManifest.model_validate(data)

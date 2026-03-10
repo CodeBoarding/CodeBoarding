@@ -7,16 +7,16 @@
 #   Lambdas (1): sorter (module-level lambda)
 #
 # Expected call edges (from function bodies):
-#   wrapper        → func()           (calls the wrapped function)
-#   log_call       → wrapper          (returns inner function)
-#   create_dog     → Dog.create()     (classmethod call, cross-module)
-#   process_animals→ a.speak()        (method call on each animal)
-#   build_profile  → UserProfile() + profile.set_address()  (cross-module)
-#   compute        → add() + clamp()  (cross-module calls to utils.helpers)
-#   make_multiplier→ multiplier       (returns closure)
-#   apply_config   → config.debug, config.max_retries, config.tags  (attribute access)
+#   wrapper        -> func()           (calls the wrapped function)
+#   log_call       -> wrapper          (returns inner function)
+#   create_dog     -> Dog.create()     (classmethod call, cross-module)
+#   process_animals-> a.speak()        (method call on each animal)
+#   build_profile  -> UserProfile() + profile.set_address()  (cross-module)
+#   compute        -> add() + clamp()  (cross-module calls to utils.helpers)
+#   make_multiplier-> multiplier       (returns closure)
+#   apply_config   -> config.debug, config.max_retries, config.tags  (attribute access)
 #
-# Corner cases: decorator (log_call wrapping create_dog), closure (make_multiplier→multiplier),
+# Corner cases: decorator (log_call wrapping create_dog), closure (make_multiplier->multiplier),
 #   lambda (sorter), cross-module calls to utils.helpers
 # Package: core | imports: utils
 # ---

@@ -305,7 +305,7 @@ class TestIncrementalFileRenames:
                 print(f"[TestIncrementalFileRenames] Renames: {len(impact.renames)}")
                 print(f"[TestIncrementalFileRenames] Modified: {len(impact.modified_files)}")
                 print(f"[TestIncrementalFileRenames] Deleted: {len(impact.deleted_files)}")
-                print("[TestIncrementalFileRenames] Impact analysis completed correctly ✓")
+                print("[TestIncrementalFileRenames] Impact analysis completed correctly")
 
 
 @pytest.mark.slow
@@ -375,9 +375,7 @@ class TestIncrementalAIAgentsReanalysis:
 
                 print("[TestIncrementalAIAgentsReanalysis] Impact analysis completed")
                 print(f"[TestIncrementalAIAgentsReanalysis] Dirty components: {impact.dirty_components}")
-                print(
-                    "[TestIncrementalAIAgentsReanalysis] Test passed - correctly identified component updates needed ✓"
-                )
+                print("[TestIncrementalAIAgentsReanalysis] Test passed - correctly identified component updates needed")
 
 
 @pytest.mark.slow
@@ -447,7 +445,7 @@ class TestIncrementalFullReanalysis:
 
                 print(f"[TestIncrementalFullReanalysis] Correctly identified: {impact.action.value}")
                 print(f"[TestIncrementalFullReanalysis] Reason: {impact.reason}")
-                print("[TestIncrementalFullReanalysis] Test passed - correctly identified full reanalysis needed ✓")
+                print("[TestIncrementalFullReanalysis] Test passed - correctly identified full reanalysis needed")
 
 
 class TestIncrementalHelpers:

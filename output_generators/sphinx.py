@@ -156,7 +156,7 @@ def generate_rst_file(
         repo_path=repo_path,
     )
     rst_file = temp_dir / f"{file_name}.rst"
-    with open(rst_file, "w") as f:
+    with open(rst_file, "w", encoding="utf-8") as f:
         f.write(content)
     return rst_file
 

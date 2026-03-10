@@ -111,18 +111,18 @@ def monitor_execution(
         # Cleanup & Save Summary (Happens automatically on exit/crash)
         summary_file = out_path / f"summary.json"
         try:
-            with open(summary_file, "w") as f:
+            with open(summary_file, "w", encoding="utf-8") as f:
                 json.dump(run_stats.to_dict(), f, indent=2)
-            logger.debug(f"✨ Monitoring summary saved to {summary_file}")
+            logger.debug(f"Monitoring summary saved to {summary_file}")
         except Exception as e:
             logger.error(f"Failed to save monitoring summary: {e}")
 
         # Cleanup handler
         trace_logger.removeHandler(trace_handler)
         trace_handler.close()
-        logger.debug(f"✨ Execution traces saved to {trace_file}")
+        logger.debug(f"Execution traces saved to {trace_file}")
 
-        logger.info(f"✨ Run results saved to {out_path}")
+        logger.info(f"Run results saved to {out_path}")
 
         # Reset context var
         current_stats.reset(stats_token)

@@ -8,10 +8,10 @@
 #                (note: overridden names like "speak" collapse to one reference key)
 #
 # Expected call edges (from method bodies):
-#   __repr__      → __str__       (self.__str__())
-#   create        → Dog/__init__  (cls(name) — classmethod constructor call)
-#   actions       → speak         (self.speak())
-#   actions       → swim          (self.swim())
+#   __repr__      -> __str__       (self.__str__())
+#   create        -> Dog/__init__  (cls(name) — classmethod constructor call)
+#   actions       -> speak         (self.speak())
+#   actions       -> swim          (self.swim())
 #
 # Class hierarchy:
 #   Animal(ABC)              — abstract base class, superclass of Dog, Cat, Duck
