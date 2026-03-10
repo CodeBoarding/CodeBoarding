@@ -639,7 +639,7 @@ class CallGraph:
             if src_cluster is None or dst_cluster is None:
                 continue
             if src_cluster != dst_cluster:
-                cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} → {dst}")
+                cluster_to_cluster_calls[src_cluster][dst_cluster].append(f"{src} -> {dst}")
 
         inter_cluster_str = "Inter-Cluster Connections:\n\n"
         if cluster_to_cluster_calls:
@@ -649,7 +649,7 @@ class CallGraph:
                     src_display = src_cluster_id + 1
                     dst_display = dst_cluster_id + 1
 
-                    inter_cluster_str += f"Cluster {src_display} → Cluster {dst_display} via method calls:\n"
+                    inter_cluster_str += f"Cluster {src_display} -> Cluster {dst_display} via method calls:\n"
                     for call in calls:
                         inter_cluster_str += f"  - {call}\n"
                     inter_cluster_str += "\n"
