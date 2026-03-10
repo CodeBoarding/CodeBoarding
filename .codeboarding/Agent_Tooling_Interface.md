@@ -1,17 +1,21 @@
 ```mermaid
 graph LR
-    Tool_Registry_Orchestrator["Tool Registry & Orchestrator"]
-    Static_Analysis_Engine["Static Analysis Engine"]
-    File_System_Source_Access["File System & Source Access"]
-    Dependency_Ecosystem_Mapper["Dependency & Ecosystem Mapper"]
-    Documentation_Git_Context_Provider["Documentation & Git Context Provider"]
-    Infrastructure_State_Manager["Infrastructure & State Manager"]
-    Tool_Registry_Orchestrator -- "dispatches complex code queries to specialized extractors" --> Static_Analysis_Engine
-    Tool_Registry_Orchestrator -- "requests raw file data or directory listings" --> File_System_Source_Access
-    Static_Analysis_Engine -- "queries the metadata store and cache" --> Infrastructure_State_Manager
-    Dependency_Ecosystem_Mapper -- "utilizes class and package info to build high-level dependency graphs" --> Static_Analysis_Engine
-    File_System_Source_Access -- "consults ignore-pattern enforcement" --> Infrastructure_State_Manager
-    Documentation_Git_Context_Provider -- "uses file discovery to locate relevant files" --> File_System_Source_Access
+    Toolkit_Orchestrator["Toolkit Orchestrator"]
+    Repository_Context["Repository Context"]
+    Structural_Navigator["Structural Navigator"]
+    Source_Content_Provider["Source Content Provider"]
+    Flow_Logic_Analyzer["Flow & Logic Analyzer"]
+    Architectural_Mapper["Architectural Mapper"]
+    Change_Detector["Change Detector"]
+    Documentation_Reader["Documentation Reader"]
+    Toolkit_Orchestrator -- "injects" --> Repository_Context
+    Structural_Navigator -- "queries" --> Repository_Context
+    Source_Content_Provider -- "uses" --> Repository_Context
+    Flow_Logic_Analyzer -- "utilizes" --> Repository_Context
+    Architectural_Mapper -- "relies on" --> Repository_Context
+    Change_Detector -- "uses" --> Repository_Context
+    Documentation_Reader -- "uses" --> Repository_Context
+    Toolkit_Orchestrator -- "registers" --> Source_Content_Provider
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -20,66 +24,74 @@ graph LR
 
 Provides a set of specialized tools that allow the LLM Agent Core to interact with the codebase, query static analysis results, and perform specific actions within the project context.
 
-### Tool Registry & Orchestrator
-Acts as the central factory and dispatcher; it aggregates all specialized tools into a unified interface, managing tool registration and lifecycle for the LLM Agent.
+### Toolkit Orchestrator
+The central registry and factory that instantiates tools and exposes them to agents via a unified interface.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.tools.ToolRegistry`
-- `repos.codeboarding.tools.AgentToolFactory`
-- `repos.codeboarding.tools.ToolDispatcher`
+- `agents.tools.factory.ToolkitOrchestrator`
 
 
-### Static Analysis Engine
-Extracts high-level code intelligence, including Control Flow Graphs (CFG), class hierarchies, and method signatures to provide structural understanding.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.tools.GetCFGTool`
-- `repos.codeboarding.tools.CodeStructureTool`
-- `repos.codeboarding.analysis.ClassHierarchyAnalyzer`
-
-
-### File System & Source Access
-Provides low-level access to the project's physical structure, enabling directory exploration and granular file content retrieval.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.tools.ReadFileTool`
-- `repos.codeboarding.tools.DirectoryTreeGenerator`
-- `repos.codeboarding.tools.FileSystemExplorer`
-
-
-### Dependency & Ecosystem Mapper
-Maps internal package relationships and identifies external library dependencies to define the project's architectural boundaries.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.tools.DependencyMapperTool`
-- `repos.codeboarding.analysis.PackageRelationshipAnalyzer`
-- `repos.codeboarding.analysis.ExternalLibraryScanner`
-
-
-### Documentation & Git Context Provider
-Retrieves non-code context, such as Markdown documentation and Git diffs, to provide historical grounding and design intent.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.tools.MarkdownDocTool`
-- `repos.codeboarding.tools.GitDiffTool`
-- `repos.codeboarding.tools.ContextRetriever`
-
-
-### Infrastructure & State Manager
-Manages repository-level state, including the DuckDB metadata store, caching mechanisms, and global ignore-pattern enforcement.
+### Repository Context
+A shared-state container providing the repository root, ignore patterns, and handles to the static analysis engine.
 
 
 **Related Classes/Methods**: _None_
+
+### Structural Navigator
+Generates hierarchical tree views of the directory layout, respecting .gitignore to provide a high-level project map.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.read_source.StructuralNavigator`
+
+
+### Source Content Provider
+Supplies raw file content and symbol-aware source extraction for specific classes or functions.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.read_source.SourceContentProvider`
+
+
+### Flow & Logic Analyzer
+Traces execution paths, generates Control Flow Graphs (CFGs), and maps method-level call relationships.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.read_source.FlowLogicAnalyzer`
+
+
+### Architectural Mapper
+Extracts high-level structural metadata, including class inheritance hierarchies and package-level dependencies.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.read_source.ArchitecturalMapper`
+
+
+### Change Detector
+Performs delta-analysis by reading Git diffs, allowing agents to focus on incremental code changes.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.git_tools.ChangeDetector`
+
+
+### Documentation Reader
+Specifically targets and extracts content from project documentation (READMEs, /docs) for contextual grounding.
+
+
+**Related Classes/Methods**:
+
+- `agents.tools.doc_tools.DocumentationReader`
+
 
 
 

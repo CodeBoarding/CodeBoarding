@@ -1,20 +1,21 @@
 ```mermaid
 graph LR
-    Agent_Orchestration_Engine["Agent Orchestration Engine"]
-    Specialized_Semantic_Agents["Specialized Semantic Agents"]
-    Prompt_Management_System["Prompt Management System"]
-    Semantic_Validation_Engine["Semantic Validation Engine"]
-    LLM_Infrastructure_Config["LLM Infrastructure & Config"]
-    Static_Analysis_Cluster_Utils["Static Analysis & Cluster Utils"]
-    Semantic_Data_Models["Semantic Data Models"]
-    Dependency_Discovery_Service["Dependency Discovery Service"]
-    Agent_Orchestration_Engine -- "delegates granular analysis tasks" --> Specialized_Semantic_Agents
-    Specialized_Semantic_Agents -- "retrieves task‑specific templates" --> Prompt_Management_System
-    Specialized_Semantic_Agents -- "fetches code snippets and subgraph data for context" --> Static_Analysis_Cluster_Utils
-    Semantic_Validation_Engine -- "validates LLM‑derived components against CFG facts" --> Static_Analysis_Cluster_Utils
-    LLM_Infrastructure_Config -- "supplies initialized model clients for execution" --> Specialized_Semantic_Agents
-    Specialized_Semantic_Agents -- "serializes LLM responses into structured objects" --> Semantic_Data_Models
-    Dependency_Discovery_Service -- "provides high‑level project metadata to seed the analysis" --> Agent_Orchestration_Engine
+    Agent_Orchestrator["Agent Orchestrator"]
+    Specialized_Analysis_Agents["Specialized Analysis Agents"]
+    Multi_Provider_Prompt_Factory["Multi-Provider Prompt Factory"]
+    Validation_Engine["Validation Engine"]
+    Analysis_Planner["Analysis Planner"]
+    LLM_Gateway["LLM Gateway"]
+    Structured_Response_Models["Structured Response Models"]
+    Cluster_to_Component_Mapper["Cluster-to-Component Mapper"]
+    Agent_Orchestrator -- "requests tailored system and user prompts" --> Multi_Provider_Prompt_Factory
+    Agent_Orchestrator -- "dispatches specific code segments and metadata for analysis" --> Specialized_Analysis_Agents
+    Specialized_Analysis_Agents -- "utilizes mapping utilities to resolve raw data into internal component representation" --> Cluster_to_Component_Mapper
+    Agent_Orchestrator -- "submits LLM‑generated insights for verification" --> Validation_Engine
+    Validation_Engine -- "signals validation failures, triggering corrective re‑prompts" --> Agent_Orchestrator
+    Agent_Orchestrator -- "provides current analysis state to determine if additional drill‑down passes are required" --> Analysis_Planner
+    Multi_Provider_Prompt_Factory -- "references Pydantic schemas to embed format instructions within prompts" --> Structured_Response_Models
+    Agent_Orchestrator -- "requests authenticated and configured LLM instances for executing agent tasks" --> LLM_Gateway
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -23,82 +24,79 @@ graph LR
 
 The intelligent core responsible for driving the code analysis and documentation generation using large language models. It orchestrates agent workflows, manages interactions with various tools, and structures the analysis insights.
 
-### Agent Orchestration Engine
-Coordinates the analysis workflow, manages agent lifecycles, and ensures full coverage of CFG clusters.
+### Agent Orchestrator
+The central coordinator (CodeBoardingAgent) that manages the analysis lifecycle, initializes LLM providers, and dispatches tasks to specialized agents.
 
 
 **Related Classes/Methods**:
 
-- `agents.code_boarding.CodeBoardingAgent`
+- `agents.codeboarding_agent.CodeBoardingAgent`
 
 
-### Specialized Semantic Agents
-Task‑specific agents (Abstraction, Meta, Details) that perform targeted analysis of code components.
-
-
-**Related Classes/Methods**:
-
-- `agents.abstraction.AbstractionAgent`
-- `agents.meta.MetaAgent`
-- `agents.details.DetailsAgent`
-
-
-### Prompt Management System
-Decouples prompt engineering from logic, providing provider‑specific templates (OpenAI, Gemini, etc.).
+### Specialized Analysis Agents
+A suite of domain‑specific agents (AbstractionAgent, DetailsAgent, MetaAgent) that analyze code for architectural patterns, low‑level logic, and project‑wide context.
 
 
 **Related Classes/Methods**:
 
-- `prompts.prompt_generator.PromptGenerator`
-- `prompts.prompt_factory.PromptFactory`:49-99
+- `agents.specialized_agents.AbstractionAgent`
+- `agents.specialized_agents.DetailsAgent`
+- `agents.specialized_agents.MetaAgent`
 
 
-### Semantic Validation Engine
-Cross‑references LLM interpretations with static analysis facts to ensure no clusters are missed or hallucinated.
-
-
-**Related Classes/Methods**:
-
-- `validation.ValidationContext`:14-27
-
-
-### LLM Infrastructure & Config
-Manages provider configurations, API keys, and model initialization (Ollama, Anthropic, etc.).
+### Multi-Provider Prompt Factory
+Generates provider‑specific instructions (Claude, Gemini, GPT) to ensure consistent agent behavior across different LLM backends.
 
 
 **Related Classes/Methods**:
 
-- `config.llm_config.LLMConfig`
-- `config.initialize_llms`:319-322
+- `agents.prompts.factory.PromptFactory`
+- `agents.prompts.gemini_flash_prompts`
 
 
-### Static Analysis & Cluster Utils
-Provides utility methods for agents to map clusters to file sets and extract relevant code subgraphs.
-
-
-**Related Classes/Methods**:
-
-- `utils.cluster_utils`
-
-
-### Semantic Data Models
-Defines the structured Pydantic schemas for LLM communication and final documentation output.
+### Validation Engine
+A quality‑gate component that verifies LLM outputs against static analysis data to ensure every code cluster is correctly mapped and relationships are consistent.
 
 
 **Related Classes/Methods**:
 
-- `models.analysis_insights.AnalysisInsights`
-- `models.component.Component`
-- `models.relation.Relation`
+- `agents.validation.ValidationEngine`
 
 
-### Dependency Discovery Service
-Scans for manifest files (e.g., package.json) to provide ecosystem context to the agents.
+### Analysis Planner
+Strategic component that determines the depth of analysis, identifying which components require further "drill‑down" or expansion based on initial findings.
 
 
 **Related Classes/Methods**:
 
-- `discovery.discover_dependency_files`:103-159
+- `agents.planner_agent.PlannerAgent`
+
+
+### LLM Gateway
+Manages API configurations, model selection, and the initialization of LangChain‑compatible clients for various providers.
+
+
+**Related Classes/Methods**:
+
+- `agents.llm_config.LLMGateway`
+
+
+### Structured Response Models
+Pydantic‑based schemas (e.g., AnalysisInsights) that define the strict data contract for all LLM communications.
+
+
+**Related Classes/Methods**:
+
+- `agents.models.AnalysisInsights`
+
+
+### Cluster-to-Component Mapper
+Provides the logic (ClusterMethodsMixin) to translate raw CFG clusters and file paths into logical architectural components.
+
+
+**Related Classes/Methods**:
+
+- `agents.mixins.cluster_methods.ClusterMethodsMixin`
 
 
 
