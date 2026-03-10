@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-10T20:03:45.050680+00:00",
+  "timestamp": "2026-03-10T20:24:47.421646+00:00",
   "overall_score": 0.9612147822905233,
   "check_summaries": [
     {
@@ -166,9 +166,9 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "core -> health -> core",
-        "caching -> agents -> caching",
-        "static_analyzer -> agents -> static_analyzer"
+        "health -> core -> health",
+        "agents -> caching -> agents",
+        "agents -> static_analyzer -> agents"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -232,17 +232,17 @@
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 169,
-              "line_end": 169,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"result\" is not accessed",
               "file_path": "install.py",
               "line_start": 75,
               "line_end": 75,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 169,
+              "line_end": 169,
               "metric_value": 0.0
             },
             {
@@ -611,6 +611,13 @@
             },
             {
               "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
               "line_start": 310,
               "line_end": 310,
@@ -635,13 +642,6 @@
               "file_path": "static_analyzer/lsp_client/client.py",
               "line_start": 1427,
               "line_end": 1427,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"method\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/typescript_client.py",
-              "line_start": 16,
-              "line_end": 16,
               "metric_value": 0.0
             }
           ]
