@@ -19,7 +19,10 @@ class TestWindowsEncoding(unittest.TestCase):
             # Skip virtual-env, hidden dirs, and build artefacts
             rel = py_file.relative_to(repo_root)
             parts = rel.parts
-            if any(p.startswith(".") or p in ("__pycache__", ".venv", "venv", "node_modules") for p in parts):
+            if any(
+                p.startswith(".") or p in ("__pycache__", ".venv", "venv", "node_modules", "build", "dist")
+                for p in parts
+            ):
                 continue
 
             try:

@@ -111,7 +111,7 @@ def monitor_execution(
         # Cleanup & Save Summary (Happens automatically on exit/crash)
         summary_file = out_path / f"summary.json"
         try:
-            with open(summary_file, "w") as f:
+            with open(summary_file, "w", encoding="utf-8") as f:
                 json.dump(run_stats.to_dict(), f, indent=2)
             logger.debug(f"Monitoring summary saved to {summary_file}")
         except Exception as e:

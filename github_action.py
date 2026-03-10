@@ -22,7 +22,7 @@ def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights,
 
     Returns the root analysis as 'overview' plus one entry per expanded component.
     """
-    with open(analysis_path, "r") as f:
+    with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     root_analysis, sub_analyses = parse_unified_analysis(data)
