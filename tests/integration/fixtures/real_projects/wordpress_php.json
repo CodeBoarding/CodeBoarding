@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/WordPress/WordPress",
+    "pinned_commit": "6.7",
+    "language": "PHP",
+    "generated_at": "2026-03-09T18:06:10.529501+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 30180,
+    "classes_count": 808,
+    "packages_count": 160,
+    "call_graph_nodes": 24825,
+    "call_graph_edges": 90718,
+    "source_files_count": 1644,
+    "execution_time_seconds": 236.447447442
+  },
+  "sample_references": [
+    "index.WP_USE_THEMES",
+    "wp-activate.#key",
+    "wp-activate.#language",
+    "wp-activate.#submit",
+    "wp-activate.$activate_cookie",
+    "wp-activate.$activate_path",
+    "wp-activate.$blog_details",
+    "wp-activate.$error_code",
+    "wp-activate.$key",
+    "wp-activate.$login_url"
+  ],
+  "sample_classes": [
+    "wp-activate.#key",
+    "wp-activate.#language",
+    "wp-activate.#submit",
+    "wp-activate..wp-activate-container",
+    "wp-activate..wp-activate-container .error",
+    "wp-activate..wp-activate-container form",
+    "wp-admin.includes.class-automatic-upgrader-skin.Automatic_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-plugin-upgrader-skin.Bulk_Plugin_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-theme-upgrader-skin.Bulk_Theme_Upgrader_Skin",
+    "wp-admin.includes.class-bulk-upgrader-skin.Bulk_Upgrader_Skin"
+  ]
+}

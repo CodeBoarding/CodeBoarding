@@ -18,7 +18,7 @@ import pytest
 from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from utils import get_config
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "real_projects"
 
 
 @dataclass(frozen=True)
@@ -235,6 +235,15 @@ def extract_metrics(static_analysis, language: str) -> dict:
         "call_graph_edges": edges_count,
         "source_files_count": source_files_count,
     }
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--write-snapshots",
+        action="store_true",
+        default=False,
+        help="Write detailed analysis snapshots to tests/integration/snapshots/ for manual validation",
+    )
 
 
 @pytest.fixture(scope="function")

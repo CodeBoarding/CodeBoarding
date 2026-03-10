@@ -21,15 +21,21 @@ Usage:
 
     # Run all tests except integration
     uv run pytest -m "not integration"
+
+    # Write snapshots for manual validation (writes to tests/integration/snapshots/real_projects/)
+    uv run pytest tests/integration/test_static_analysis_consistency.py -m integration --write-snapshots
 """
 
+import json
 import time
+from pathlib import Path
 
 import pytest
 from git import Repo
 from unittest.mock import patch
 
 from static_analyzer import get_static_analysis
+from static_analyzer.analysis_result import StaticAnalysisResults
 from repo_utils import clone_repository
 
 from .conftest import (
@@ -39,6 +45,105 @@ from .conftest import (
     load_fixture,
     extract_metrics,
 )
+
+SNAPSHOT_DIR = Path(__file__).parent / "snapshots" / "real_projects"
+
+
+def _relative_path(file_path: str, repo_path: Path) -> str:
+    """Return a repo-relative path string, falling back to the original if it's not under repo_path."""
+    if not file_path:
+        return ""
+    try:
+        return str(Path(file_path).relative_to(repo_path))
+    except ValueError:
+        return file_path
+
+
+def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, config_name: str, repo_path: Path) -> Path:
+    """Write a detailed snapshot of the analysis results to a JSON file for manual validation.
+
+    The snapshot includes all references, hierarchy, call graph edges, package dependencies,
+    and source files — everything needed to verify correctness by inspection.
+    """
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    repo_path = repo_path.resolve()
+
+    # References: sorted list of fully qualified names with type and location
+    refs = static_analysis.results.get(language, {}).get("references", {})
+    references_snapshot = []
+    for fqn, node in sorted(refs.items()):
+        references_snapshot.append(
+            {
+                "name": fqn,
+                "type": node.entity_label(),
+                "file": _relative_path(node.file_path, repo_path),
+                "lines": f"{node.line_start}-{node.line_end}",
+            }
+        )
+
+    # Hierarchy
+    try:
+        hierarchy = static_analysis.get_hierarchy(language)
+    except ValueError:
+        hierarchy = {}
+    hierarchy_snapshot = {}
+    for cls_name, info in sorted(hierarchy.items()):
+        hierarchy_snapshot[cls_name] = {
+            "superclasses": info.get("superclasses", []),
+            "subclasses": info.get("subclasses", []),
+            "file": _relative_path(info.get("file_path", ""), repo_path),
+        }
+
+    # Call graph edges
+    try:
+        cfg = static_analysis.get_cfg(language)
+        edges_snapshot = sorted([e.get_source(), e.get_destination()] for e in cfg.edges)
+        nodes_snapshot = sorted(cfg.nodes.keys())
+    except ValueError:
+        edges_snapshot = []
+        nodes_snapshot = []
+
+    # Package dependencies
+    try:
+        deps = static_analysis.get_package_dependencies(language)
+    except ValueError:
+        deps = {}
+    packages_snapshot = {}
+    for pkg_name, pkg_info in sorted(deps.items()):
+        packages_snapshot[pkg_name] = {
+            "imports": sorted(pkg_info.get("imports", [])),
+            "imported_by": sorted(pkg_info.get("imported_by", [])),
+        }
+
+    # Source files
+    source_files = static_analysis.get_source_files(language)
+    source_files_rel = sorted(_relative_path(f, repo_path) for f in source_files)
+
+    snapshot = {
+        "config_name": config_name,
+        "language": language,
+        "metrics": {
+            "references_count": len(refs),
+            "classes_count": len(hierarchy),
+            "packages_count": len(deps),
+            "call_graph_nodes": len(nodes_snapshot),
+            "call_graph_edges": len(edges_snapshot),
+            "source_files_count": len(source_files_rel),
+        },
+        "references": references_snapshot,
+        "hierarchy": hierarchy_snapshot,
+        "call_graph_nodes": nodes_snapshot,
+        "call_graph_edges": edges_snapshot,
+        "package_dependencies": packages_snapshot,
+        "source_files": source_files_rel,
+    }
+
+    snapshot_path = SNAPSHOT_DIR / f"{config_name}_snapshot.json"
+    with open(snapshot_path, "w") as f:
+        json.dump(snapshot, f, indent=2, default=str)
+
+    return snapshot_path
+
 
 # Tolerance percentage for metric comparisons (2% = 0.02)
 METRIC_TOLERANCE = 0.02
@@ -92,6 +197,7 @@ class TestStaticAnalysisConsistency:
         self,
         config: RepositoryTestConfig,
         temp_workspace,
+        request,
     ):
         """Verify that static analysis produces expected results.
 
@@ -101,6 +207,7 @@ class TestStaticAnalysisConsistency:
         3. Runs static analysis with mocked language detection
         4. Verifies the expected language is present in results
         5. Compares metrics against expected fixture with 1% tolerance
+        6. Optionally writes a detailed snapshot (--write-snapshots)
         """
         # Setup directories
         repo_root = temp_workspace / "repos"
@@ -125,6 +232,11 @@ class TestStaticAnalysisConsistency:
             static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time
+
+        # Write snapshot if requested
+        if request.config.getoption("--write-snapshots"):
+            snapshot_path = _write_snapshot(static_analysis, config.language, config.name, repo_path)
+            print(f"\nSnapshot written to: {snapshot_path}")
 
         # Extract actual metrics
         actual_metrics = extract_metrics(static_analysis, config.language)
@@ -250,7 +362,7 @@ class TestStaticAnalysisConsistency:
         if not isinstance(references, dict):
             pytest.fail(f"Expected dict for references, got {type(references).__name__}")
 
-        reference_keys = set(references.keys())
+        reference_keys = {k.lower() for k in references.keys()}
 
         for entity in sample_entities:
             entity_lower = entity.lower()

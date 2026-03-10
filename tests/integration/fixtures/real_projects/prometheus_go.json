@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/prometheus/prometheus",
+    "pinned_commit": "v3.0.1",
+    "language": "Go",
+    "generated_at": "2026-03-09T18:01:27.639545+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 11767,
+    "classes_count": 1035,
+    "packages_count": 108,
+    "call_graph_nodes": 6856,
+    "call_graph_edges": 15093,
+    "source_files_count": 348,
+    "execution_time_seconds": 459.34666635400004
+  },
+  "sample_references": [
+    "cmd.prometheus.main.(*flagConfig).setFeatureListOptions",
+    "cmd.prometheus.main.(*readyScrapeManager).Get",
+    "cmd.prometheus.main.(*readyScrapeManager).Set",
+    "cmd.prometheus.main.(*readyStorage).Appender",
+    "cmd.prometheus.main.(*readyStorage).ApplyConfig",
+    "cmd.prometheus.main.(*readyStorage).ChunkQuerier",
+    "cmd.prometheus.main.(*readyStorage).CleanTombstones",
+    "cmd.prometheus.main.(*readyStorage).Close",
+    "cmd.prometheus.main.(*readyStorage).Delete",
+    "cmd.prometheus.main.(*readyStorage).ExemplarQuerier"
+  ],
+  "sample_classes": [
+    "cmd.prometheus.main.agentOptions",
+    "cmd.prometheus.main.flagConfig",
+    "cmd.prometheus.main.klogv1Writer",
+    "cmd.prometheus.main.notReadyAppender",
+    "cmd.prometheus.main.readyScrapeManager",
+    "cmd.prometheus.main.readyStorage",
+    "cmd.prometheus.main.reloader",
+    "cmd.prometheus.main.rwProtoMsgFlagParser",
+    "cmd.prometheus.main.safePromQLNoStepSubqueryInterval",
+    "cmd.prometheus.main.tsdbOptions"
+  ]
+}

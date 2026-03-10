@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 import os
 
-from static_analyzer.lsp_client.client import uri_to_path
+from static_analyzer.engine.utils import uri_to_path
 
 
 class TestFileURIParsing(unittest.TestCase):

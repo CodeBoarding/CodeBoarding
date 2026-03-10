@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/mockito/mockito",
+    "pinned_commit": "v5.14.2",
+    "language": "Java",
+    "generated_at": "2026-03-09T22:31:52.210205+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 3680,
+    "classes_count": 594,
+    "packages_count": 71,
+    "call_graph_nodes": 3812,
+    "call_graph_edges": 5588,
+    "source_files_count": 448,
+    "execution_time_seconds": 312.697319278
+  },
+  "sample_references": [
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers()",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer1)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer2)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer3)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer4)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer5)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answer(Answer6)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answerVoid(VoidAnswer1)",
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.answerVoid(VoidAnswer2)"
+  ],
+  "sample_classes": [
+    "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers",
+    "mockito-core.src.main.java.org.mockito.AdditionalMatchers.AdditionalMatchers",
+    "mockito-core.src.main.java.org.mockito.Answers.Answers",
+    "mockito-core.src.main.java.org.mockito.ArgumentCaptor.ArgumentCaptor<T>",
+    "mockito-core.src.main.java.org.mockito.ArgumentMatcher.ArgumentMatcher<T>",
+    "mockito-core.src.main.java.org.mockito.ArgumentMatchers.ArgumentMatchers",
+    "mockito-core.src.main.java.org.mockito.BDDMockito.BDDMockito",
+    "mockito-core.src.main.java.org.mockito.BDDMockito.BDDMyOngoingStubbing<T>",
+    "mockito-core.src.main.java.org.mockito.BDDMockito.BDDOngoingStubbingImpl<T>",
+    "mockito-core.src.main.java.org.mockito.BDDMockito.BDDStubber"
+  ]
+}
