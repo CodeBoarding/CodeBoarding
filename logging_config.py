@@ -1,3 +1,4 @@
+import io
 import logging
 import logging.config
 import os
@@ -86,6 +87,19 @@ def setup_logging(
     }
 
     logging.config.dictConfig(config)
+
+    # Reconfigure the console handler's stream to use 'replace' error handling
+    # so that non-encodable Unicode characters (e.g. \u2011 on Windows cp1251)
+    # don't crash the logging system.
+    for handler in logging.root.handlers:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            stream = handler.stream
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(errors="replace")
+            elif hasattr(stream, "encoding") and stream.encoding and stream.encoding.lower() != "utf-8":
+                handler.stream = io.TextIOWrapper(
+                    stream.buffer, encoding=stream.encoding, errors="replace", line_buffering=stream.line_buffering
+                )
 
     # Handle _latest.log symlink
     latest_log_path = logs_dir / "_latest.log"
