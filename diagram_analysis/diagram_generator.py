@@ -108,7 +108,7 @@ class DiagramGenerator:
         )
         if health_report is not None:
             health_path = os.path.join(self.output_dir, "health", "health_report.json")
-            with open(health_path, "w") as f:
+            with open(health_path, "w", encoding="utf-8") as f:
                 f.write(health_report.model_dump_json(indent=2, exclude_none=True))
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
         else:
@@ -139,7 +139,7 @@ class DiagramGenerator:
         )
 
         coverage_path = os.path.join(self.output_dir, "file_coverage.json")
-        with open(coverage_path, "w") as f:
+        with open(coverage_path, "w", encoding="utf-8") as f:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
@@ -206,7 +206,7 @@ class DiagramGenerator:
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
         version_file = os.path.join(self.output_dir, "codeboarding_version.json")
-        with open(version_file, "w") as f:
+        with open(version_file, "w", encoding="utf-8") as f:
             f.write(
                 Version(
                     commit_hash=get_git_commit_hash(self.repo_location),
@@ -227,7 +227,7 @@ class DiagramGenerator:
 
             # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
-            with open(code_stats_file, "w") as f:
+            with open(code_stats_file, "w", encoding="utf-8") as f:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 

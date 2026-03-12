@@ -129,7 +129,7 @@ class StreamingStatsWriter:
 
             # Atomic write
             temp_file = self.llm_usage_file.with_suffix(".tmp")
-            with open(temp_file, "w") as f:
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             os.replace(temp_file, self.llm_usage_file)
 
@@ -165,7 +165,7 @@ class StreamingStatsWriter:
             }
 
             metadata_file = self.monitoring_dir / "run_metadata.json"
-            with open(metadata_file, "w") as f:
+            with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
         except Exception as e:

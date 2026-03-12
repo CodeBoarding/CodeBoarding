@@ -6,14 +6,14 @@ should be expanded into sub-components. Unlike the previous LLM-based approach,
 this uses CFG clustering structure as the source of truth.
 
 Expansion Rules:
-1. If component has source_cluster_ids → expandable (CFG structure exists)
-2. If component has no clusters but has files → expandable ONE level (to explain files)
-3. If neither component nor its parent has clusters → leaf (stop expanding)
+1. If component has source_cluster_ids -> expandable (CFG structure exists)
+2. If component has no clusters but has files -> expandable ONE level (to explain files)
+3. If neither component nor its parent has clusters -> leaf (stop expanding)
 
 Example:
-- Component: "Agents" (clusters: [1,2,3]) → expand ✓
-  - Sub-component: "DetailsAgent" (clusters: [], files: [details_agent.py]) → expand ✓ (parent had clusters)
-    - Sub-sub-component: "run_method" (clusters: [], files: []) → DON'T expand ✗ (parent had no clusters)
+- Component: "Agents" (clusters: [1,2,3]) -> expand (yes)
+  - Sub-component: "DetailsAgent" (clusters: [], files: [details_agent.py]) -> expand (yes, parent had clusters)
+    - Sub-sub-component: "run_method" (clusters: [], files: []) -> DON'T expand (no, parent had no clusters)
 """
 
 import logging
@@ -35,10 +35,10 @@ def should_expand_component(
     Determine if a component should be expanded into sub-components.
 
     Expansion logic:
-    - If component has clusters → expand (there's CFG structure to decompose)
-    - If component has no clusters but has files → expand if parent had clusters
+    - If component has clusters -> expand (there's CFG structure to decompose)
+    - If component has no clusters but has files -> expand if parent had clusters
       (allows one more level to explain file internals)
-    - If neither component nor parent has clusters → stop (leaf node)
+    - If neither component nor parent has clusters -> stop (leaf node)
 
     Args:
         component: The component to evaluate

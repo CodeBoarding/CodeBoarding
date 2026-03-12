@@ -31,7 +31,7 @@ class DependencyFileSpec:
 
 
 DEPENDENCY_REGISTRY: tuple[DependencyFileSpec, ...] = (
-    # ── Python ──
+    # -- Python --
     DependencyFileSpec("requirements.txt", Ecosystem.PYTHON, FileRole.MANIFEST),
     DependencyFileSpec("requirements-dev.txt", Ecosystem.PYTHON, FileRole.MANIFEST),
     DependencyFileSpec("requirements-test.txt", Ecosystem.PYTHON, FileRole.MANIFEST),
@@ -52,7 +52,7 @@ DEPENDENCY_REGISTRY: tuple[DependencyFileSpec, ...] = (
     DependencyFileSpec("pixi.toml", Ecosystem.PYTHON, FileRole.MANIFEST),
     DependencyFileSpec("requirements.in", Ecosystem.PYTHON, FileRole.MANIFEST),
     DependencyFileSpec("pixi.lock", Ecosystem.PYTHON, FileRole.LOCK),
-    # ── Node / TypeScript / JavaScript ──
+    # -- Node / TypeScript / JavaScript --
     DependencyFileSpec("package.json", Ecosystem.NODE, FileRole.MANIFEST),
     DependencyFileSpec("package-lock.json", Ecosystem.NODE, FileRole.LOCK),
     DependencyFileSpec("yarn.lock", Ecosystem.NODE, FileRole.LOCK),
@@ -65,12 +65,12 @@ DEPENDENCY_REGISTRY: tuple[DependencyFileSpec, ...] = (
     DependencyFileSpec("deno.jsonc", Ecosystem.NODE, FileRole.MANIFEST),
     DependencyFileSpec("deno.lock", Ecosystem.NODE, FileRole.LOCK),
     DependencyFileSpec("lerna.json", Ecosystem.NODE, FileRole.CONFIG),
-    # ── Go ──
+    # -- Go --
     DependencyFileSpec("go.mod", Ecosystem.GO, FileRole.MANIFEST),
     DependencyFileSpec("go.sum", Ecosystem.GO, FileRole.LOCK),
     DependencyFileSpec("go.work", Ecosystem.GO, FileRole.CONFIG),
     DependencyFileSpec("go.work.sum", Ecosystem.GO, FileRole.LOCK),
-    # ── Java / JVM ──
+    # -- Java / JVM --
     DependencyFileSpec("pom.xml", Ecosystem.JAVA, FileRole.MANIFEST),
     DependencyFileSpec("pom.properties", Ecosystem.JAVA, FileRole.CONFIG),
     DependencyFileSpec("build.gradle", Ecosystem.JAVA, FileRole.MANIFEST),
@@ -81,7 +81,7 @@ DEPENDENCY_REGISTRY: tuple[DependencyFileSpec, ...] = (
     DependencyFileSpec("build.sbt", Ecosystem.JAVA, FileRole.MANIFEST),
     DependencyFileSpec("gradle.lockfile", Ecosystem.JAVA, FileRole.LOCK),
     DependencyFileSpec("verification-metadata.xml", Ecosystem.JAVA, FileRole.LOCK),
-    # ── PHP ──
+    # -- PHP --
     DependencyFileSpec("composer.json", Ecosystem.PHP, FileRole.MANIFEST),
     DependencyFileSpec("composer.lock", Ecosystem.PHP, FileRole.LOCK),
     DependencyFileSpec("symfony.lock", Ecosystem.PHP, FileRole.LOCK),

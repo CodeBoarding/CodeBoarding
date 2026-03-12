@@ -46,12 +46,12 @@ def test_depth_computation():
     # Test 1: No sub-analyses (depth 1)
     result = _compute_depth_level(None)
     assert result == 1, f"Expected depth 1 for None, got {result}"
-    print("✓ Test 1 passed: No sub-analyses returns depth 1")
+    print("OK Test 1 passed: No sub-analyses returns depth 1")
 
     # Test 2: Empty sub-analyses (depth 1)
     result = _compute_depth_level({})
     assert result == 1, f"Expected depth 1 for empty dict, got {result}"
-    print("✓ Test 2 passed: Empty sub-analyses returns depth 1")
+    print("OK Test 2 passed: Empty sub-analyses returns depth 1")
 
     # Test 3: One level of sub-analyses (depth 2)
     # Component A has sub-analysis with components B and C
@@ -61,7 +61,7 @@ def test_depth_computation():
     }
     result = _compute_depth_level(sub_analyses_2)
     assert result == 2, f"Expected depth 2 for one level, got {result}"
-    print("✓ Test 3 passed: One level of sub-analyses returns depth 2")
+    print("OK Test 3 passed: One level of sub-analyses returns depth 2")
 
     # Test 4: Two levels of sub-analyses (depth 3)
     # Component A has sub-analysis with component B
@@ -75,7 +75,7 @@ def test_depth_computation():
     }
     result = _compute_depth_level(sub_analyses_3)
     assert result == 3, f"Expected depth 3 for two levels, got {result}"
-    print("✓ Test 4 passed: Two levels of sub-analyses returns depth 3")
+    print("OK Test 4 passed: Two levels of sub-analyses returns depth 3")
 
     # Test 5: Three levels of sub-analyses (depth 4)
     # Component A -> B -> C -> D
@@ -91,7 +91,7 @@ def test_depth_computation():
     }
     result = _compute_depth_level(sub_analyses_4)
     assert result == 4, f"Expected depth 4 for three levels, got {result}"
-    print("✓ Test 5 passed: Three levels of sub-analyses returns depth 4")
+    print("OK Test 5 passed: Three levels of sub-analyses returns depth 4")
 
     # Test 6: Four levels of sub-analyses (depth 5)
     # Component A -> B -> C -> D -> E
@@ -110,7 +110,7 @@ def test_depth_computation():
     }
     result = _compute_depth_level(sub_analyses_5)
     assert result == 5, f"Expected depth 5 for four levels, got {result}"
-    print("✓ Test 6 passed: Four levels of sub-analyses returns depth 5")
+    print("OK Test 6 passed: Four levels of sub-analyses returns depth 5")
 
     # Test 7: Multiple branches with different depths (depth 4)
     # Branch 1: A -> B -> C (depth 3)
@@ -133,9 +133,9 @@ def test_depth_computation():
     }
     result = _compute_depth_level(sub_analyses_multi)
     assert result == 4, f"Expected depth 4 for multiple branches, got {result}"
-    print("✓ Test 7 passed: Multiple branches returns correct max depth 4")
+    print("OK Test 7 passed: Multiple branches returns correct max depth 4")
 
-    print("\n✅ All depth computation tests passed!")
+    print("\nAll depth computation tests passed!")
 
 
 if __name__ == "__main__":

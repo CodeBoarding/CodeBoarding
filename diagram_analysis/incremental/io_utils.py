@@ -79,7 +79,7 @@ class _AnalysisFileStore:
                 return None
 
             try:
-                with open(self._analysis_path, "r") as f:
+                with open(self._analysis_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 root_analysis, sub_analyses = parse_unified_analysis(data)
@@ -200,7 +200,7 @@ class _AnalysisFileStore:
                 sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
-        with open(self._analysis_path, "w") as f:
+        with open(self._analysis_path, "w", encoding="utf-8") as f:
             f.write(
                 build_unified_analysis_json(
                     analysis=analysis,

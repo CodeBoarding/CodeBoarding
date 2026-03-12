@@ -82,7 +82,7 @@ def generate_markdown_docs(
 
     # Load the single unified analysis.json
     analysis_path = analysis_files[0]
-    with open(analysis_path, "r") as f:
+    with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     root_analysis, sub_analyses = parse_unified_analysis(data)

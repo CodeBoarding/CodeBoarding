@@ -124,7 +124,7 @@ def generate_markdown_file(
         repo_path=repo_path,
     )
     markdown_file = temp_dir / f"{file_name}.md"
-    with open(markdown_file, "w") as f:
+    with open(markdown_file, "w", encoding="utf-8") as f:
         f.write(content)
     return markdown_file
 

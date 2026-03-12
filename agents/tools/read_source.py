@@ -95,7 +95,7 @@ class CodeReferenceReader(BaseRepoTool):
             logger.error(f"[Source Reference Tool] File {file_path} does not exist.")
             return f"Error: File {file_path} does not exist."
 
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
 
         if start_line < 0 or end_line > len(lines):

@@ -5,9 +5,9 @@ The planner uses CFG structure (source_cluster_ids, assigned_files) and parent c
 to determine which components should be expanded - no LLM calls.
 
 Expansion Rules:
-1. Has clusters → expand (CFG structure exists)
-2. No clusters but has files AND parent had clusters → expand one level
-3. No clusters AND parent had no clusters → leaf (stop)
+1. Has clusters -> expand (CFG structure exists)
+2. No clusters but has files AND parent had clusters -> expand one level
+3. No clusters AND parent had no clusters -> leaf (stop)
 """
 
 import unittest
@@ -88,7 +88,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             source_cluster_ids=[],  # No clusters
             assigned_files=["agents/details_agent.py"],  # Single file
         )
-        # Parent (Agents component) had clusters → can expand to explain file internals
+        # Parent (Agents component) had clusters -> can expand to explain file internals
         self.assertTrue(should_expand_component(component, parent_had_clusters=True))
 
     def test_function_level_does_not_expand(self):
@@ -100,7 +100,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             source_cluster_ids=[],  # No clusters
             assigned_files=[],  # No files (it's a method, not a file)
         )
-        # Parent (DetailsAgent) had no clusters → we're at leaf level
+        # Parent (DetailsAgent) had no clusters -> we're at leaf level
         self.assertFalse(should_expand_component(component, parent_had_clusters=False))
 
 
@@ -149,7 +149,7 @@ class TestPlanAnalysis(unittest.TestCase):
             components_relations=[],
         )
 
-        # Parent had clusters → both should expand
+        # Parent had clusters -> both should expand
         result = plan_analysis(analysis, parent_had_clusters=True)
         self.assertEqual(len(result), 2)
 
@@ -164,7 +164,7 @@ class TestPlanAnalysis(unittest.TestCase):
             components_relations=[],
         )
 
-        # Parent had no clusters → these are leaves
+        # Parent had no clusters -> these are leaves
         result = plan_analysis(analysis, parent_had_clusters=False)
         self.assertEqual(len(result), 0)
 
@@ -182,9 +182,9 @@ class TestPlanAnalysis(unittest.TestCase):
     def test_hierarchical_expansion_scenario(self):
         """
         Test realistic hierarchical expansion:
-        - Level 0: "Agents" component with clusters → expand
-        - Level 1: "DetailsAgent" file-level (no clusters, 1 file) → expand (parent had clusters)
-        - Level 2: "run_method" (no clusters, no files) → DON'T expand (parent had no clusters)
+        - Level 0: "Agents" component with clusters -> expand
+        - Level 1: "DetailsAgent" file-level (no clusters, 1 file) -> expand (parent had clusters)
+        - Level 2: "run_method" (no clusters, no files) -> DON'T expand (parent had no clusters)
         """
         # Level 0: Top-level component with clusters
         agents_component = self._make_component("Agents", cluster_ids=[1, 2, 3], file_count=5)
