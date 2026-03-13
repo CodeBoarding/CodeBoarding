@@ -154,7 +154,7 @@ class TestEdgeCases:
     def test_expected_references(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         refs = analysis.all_results[0].results[language].get("references", {})
-        expected = set(analysis.fixture.get("expected_references", []))
+        expected = {r.lower() for r in analysis.fixture.get("expected_references", [])}
         actual = set(refs.keys())
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
