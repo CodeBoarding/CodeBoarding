@@ -1,8 +1,11 @@
+import codecs
+import io
 import logging
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Assuming logging_config.py exists and setup_logging is importable
 from logging_config import setup_logging
@@ -171,6 +174,76 @@ class TestLoggingConfig(unittest.TestCase):
             # Cleanup created logs folder if it was created in CWD
             # (In a real test we'd mock Path.cwd() but for now we just verify)
             pass
+
+    def test_console_handler_survives_unencodable_unicode(self):
+        """Test that logging non-encodable Unicode chars doesn't crash.
+
+        Simulates a Windows environment where sys.stdout uses a limited
+        encoding (e.g. cp1251) that cannot encode characters like \u2011
+        (non-breaking hyphen). Without the fix in setup_logging, logging
+        would produce a "--- Logging error ---" with UnicodeEncodeError.
+
+        Python's logging.StreamHandler.emit() catches UnicodeEncodeError
+        internally and calls handleError() instead of propagating it, which
+        is what produces the STDERR traceback seen in the original bug. This
+        test patches handleError to convert it into a real failure.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create a stream that uses cp1251 encoding with strict error handling,
+            # simulating a Windows console that can't encode \u2011.
+            raw_buffer = io.BytesIO()
+            strict_stream = io.TextIOWrapper(raw_buffer, encoding="cp1251", errors="strict")
+
+            # First, verify that the strict stream CANNOT encode \u2011 directly.
+            # This proves the test scenario is valid.
+            with self.assertRaises(UnicodeEncodeError):
+                strict_stream.write("text with non\u2011breaking hyphen")
+                strict_stream.flush()
+
+            # Now set up logging with our limited-encoding stream patched as stdout.
+            # setup_logging should reconfigure it to use 'replace' error handling.
+            raw_buffer = io.BytesIO()
+            limited_stream = io.TextIOWrapper(raw_buffer, encoding="cp1251", errors="strict")
+
+            with patch("sys.stdout", limited_stream):
+                setup_logging(log_dir=temp_path)
+
+            # Find the console handler that was configured with our patched stream
+            console_handler = None
+            for handler in logging.root.handlers:
+                if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                    console_handler = handler
+                    break
+
+            self.assertIsNotNone(console_handler, "Console StreamHandler not found")
+            assert console_handler is not None
+
+            # Patch handleError on the console handler so that if emit() fails
+            # internally (the "--- Logging error ---" path), we re-raise it as
+            # an actual test failure instead of silently printing to stderr.
+            original_handle_error = console_handler.handleError
+            emit_errors: list[logging.LogRecord] = []
+
+            def recording_handle_error(record: logging.LogRecord) -> None:
+                emit_errors.append(record)
+                original_handle_error(record)
+
+            console_handler.handleError = recording_handle_error  # type: ignore[assignment]
+
+            # Logging a message with \u2011 should succeed without triggering handleError
+            logger = logging.getLogger("test.unicode")
+            logger.info("static\u2011first workflow with zoom\u2011in/zoom\u2011out views")
+
+            self.assertEqual(
+                len(emit_errors),
+                0,
+                "StreamHandler.handleError was called — logging failed with a "
+                "UnicodeEncodeError (the '--- Logging error ---' seen on Windows)",
+            )
+
+            self._clean_logging_handlers()
 
 
 if __name__ == "__main__":
