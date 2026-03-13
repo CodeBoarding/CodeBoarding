@@ -22,7 +22,7 @@ from static_analyzer.cluster_relations import (
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Node, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
