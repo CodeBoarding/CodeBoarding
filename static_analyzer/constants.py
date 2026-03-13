@@ -80,7 +80,7 @@ class NodeType(IntEnum):
         """Construct from the enum member name (e.g. ``'METHOD'``).
 
         Also accepts old integer-string representations for backward compatibility
-        (e.g. ``'6'`` → ``NodeType.METHOD``).
+        (e.g. ``'6'`` -> ``NodeType.METHOD``).
         """
         try:
             return cls[name]
