@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-03-10T20:21:13.429583+00:00",
+    "generated_at": "2026-03-13T14:22:41.068036+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -63,30 +63,41 @@
       "can_expand": true,
       "components": [
         {
-          "name": "MainOrchestrator",
-          "description": "The central entry point; sequences the pipeline from tool verification to final documentation generation.",
+          "name": "Main Orchestrator",
+          "description": "Acts as the central controller; validates CLI arguments and coordinates the sequential pipeline (Clone → Analyze → Generate).",
           "key_entities": [
             {
-              "qualified_name": "main.MainOrchestrator",
+              "qualified_name": "main:MainOrchestrator",
               "reference_file": "main.py"
+            },
+            {
+              "qualified_name": "health_main:HealthOrchestrator",
+              "reference_file": "health_main.py"
             }
           ],
           "assigned_files": [
+            "health_main.py",
             "main.py",
             "diagram_analysis/analysis_json.py",
-            "health_main.py",
-            "logging_config.py"
+            "monitoring/__init__.py",
+            "monitoring/callbacks.py",
+            "monitoring/context.py",
+            "monitoring/mixin.py",
+            "monitoring/paths.py",
+            "monitoring/stats.py",
+            "monitoring/writers.py",
+            "utils.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "8ab875add3826f97",
+          "component_id": "b31b6826ba3631a9",
           "can_expand": true
         },
         {
-          "name": "RepositoryManager",
-          "description": "Manages Git operations including cloning, branch checkouts, and path normalization for the target project.",
+          "name": "Repository Manager",
+          "description": "Manages the physical lifecycle of the target codebase, including URL sanitization, cloning, and local path management.",
           "key_entities": [
             {
-              "qualified_name": "repo_utils.change_detector.RepositoryManager",
+              "qualified_name": "repo_utils.change_detector:RepositoryManager",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
@@ -97,15 +108,15 @@
             "repo_utils/ignore.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "8ccaa0c5d11c591f",
+          "component_id": "defcdfd415214940",
           "can_expand": true
         },
         {
-          "name": "ChangeDetector",
-          "description": "Analyzes Git diffs to determine which files require re-analysis, enabling incremental processing.",
+          "name": "Change Detector",
+          "description": "Implements incremental analysis logic by comparing versions and generating a ChangeSet to identify structural modifications.",
           "key_entities": [
             {
-              "qualified_name": "repo_utils.change_detector.ChangeDetector",
+              "qualified_name": "repo_utils.change_detector:ChangeDetector",
               "reference_file": "repo_utils/change_detector.py"
             }
           ],
@@ -114,143 +125,112 @@
             "repo_utils/git_diff.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "ff5886403b7de0e8",
+          "component_id": "0c224e15b134016c",
           "can_expand": true
         },
         {
-          "name": "ToolRegistry",
-          "description": "Verifies, installs, and locates required static analysis binaries (LSP servers, Tokei).",
+          "name": "Tooling Registry",
+          "description": "Manages external dependencies (LSP servers, Tokei); ensures required binaries are installed and compatible with the host OS.",
           "key_entities": [
             {
-              "qualified_name": "main.ToolRegistry",
-              "reference_file": "main.py"
+              "qualified_name": "tool_registry:ToolingRegistry",
+              "reference_file": "tool_registry.py"
+            },
+            {
+              "qualified_name": "install:Installer",
+              "reference_file": "install.py"
             }
           ],
           "assigned_files": [
-            "main.py",
-            "utils.py",
-            "user_config.py",
-            "tool_registry.py",
-            "install.py"
+            "install.py",
+            "tool_registry.py"
           ],
-          "source_cluster_ids": [
-            2,
-            3,
-            4
-          ],
-          "component_id": "eb58abebb18a9928",
+          "source_cluster_ids": [],
+          "component_id": "6529287137d88879",
           "can_expand": true
         },
         {
-          "name": "JobManager",
-          "description": "Handles persistence of analysis jobs, tracking status, progress, and metadata via DuckDB.",
+          "name": "Persistence Manager",
+          "description": "Handles state persistence using DuckDB; tracks job history, analysis metadata, and previous repository states.",
           "key_entities": [
             {
-              "qualified_name": "duckdb_crud.JobManager",
+              "qualified_name": "duckdb_crud:PersistenceManager",
               "reference_file": "duckdb_crud.py"
             }
           ],
           "assigned_files": [
-            "duckdb_crud.py",
-            "monitoring/__init__.py",
-            "monitoring/callbacks.py",
-            "monitoring/context.py",
-            "monitoring/mixin.py",
-            "monitoring/paths.py",
-            "monitoring/stats.py",
-            "monitoring/writers.py"
-          ],
-          "source_cluster_ids": [
-            12
-          ],
-          "component_id": "4550435e47051bc7",
-          "can_expand": true
-        },
-        {
-          "name": "UserConfigManager",
-          "description": "Loads and validates system-wide settings, LLM provider credentials, and runtime parameters.",
-          "key_entities": [
-            {
-              "qualified_name": "user_config.UserConfigManager",
-              "reference_file": "user_config.py"
-            }
-          ],
-          "assigned_files": [
-            "user_config.py",
-            "constants.py"
+            "duckdb_crud.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "88be03fde92a59ca",
+          "component_id": "f7f5704ae7c67c05",
           "can_expand": true
         },
         {
-          "name": "VSCodeIntegration",
-          "description": "Provides environment-specific pathing and binary locations when running as a VS Code extension.",
+          "name": "Configuration Provider",
+          "description": "Centralizes user-defined settings and environment-specific constants required for orchestrating the workflow.",
           "key_entities": [
             {
-              "qualified_name": "integration.VSCodeIntegration",
+              "qualified_name": "user_config:ConfigurationProvider",
+              "reference_file": "user_config.py"
+            },
+            {
+              "qualified_name": "vscode_constants:VSCodeConstants",
               "reference_file": "vscode_constants.py"
             }
           ],
           "assigned_files": [
-            "vscode_constants.py"
+            "vscode_constants.py",
+            "user_config.py",
+            "constants.py",
+            "logging_config.py"
           ],
-          "source_cluster_ids": [
-            17
-          ],
-          "component_id": "612f2462eb855316",
+          "source_cluster_ids": [],
+          "component_id": "50cf49e46c978cb1",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "retrieves runtime parameters and LLM credentials",
-          "src_name": "MainOrchestrator",
-          "dst_name": "UserConfigManager",
-          "src_id": "8ab875add3826f97",
-          "dst_id": "88be03fde92a59ca"
+          "relation": "invokes",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Tooling Registry",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "6529287137d88879"
         },
         {
-          "relation": "triggers verification and installation of static analysis binaries",
-          "src_name": "MainOrchestrator",
-          "dst_name": "ToolRegistry",
-          "src_id": "8ab875add3826f97",
-          "dst_id": "eb58abebb18a9928"
+          "relation": "triggers",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Repository Manager",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "defcdfd415214940"
         },
         {
-          "relation": "commands preparation of the local source tree (clone/update)",
-          "src_name": "MainOrchestrator",
-          "dst_name": "RepositoryManager",
-          "src_id": "8ab875add3826f97",
-          "dst_id": "8ccaa0c5d11c591f"
+          "relation": "utilizes",
+          "src_name": "Repository Manager",
+          "dst_name": "Change Detector",
+          "src_id": "defcdfd415214940",
+          "dst_id": "0c224e15b134016c"
         },
         {
-          "relation": "registers a new analysis job and updates lifecycle status",
-          "src_name": "MainOrchestrator",
-          "dst_name": "JobManager",
-          "src_id": "8ab875add3826f97",
-          "dst_id": "4550435e47051bc7"
+          "relation": "records",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Persistence Manager",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "f7f5704ae7c67c05"
         },
         {
-          "relation": "supplies current repository state for change detection",
-          "src_name": "RepositoryManager",
-          "dst_name": "ChangeDetector",
-          "src_id": "8ccaa0c5d11c591f",
-          "dst_id": "ff5886403b7de0e8"
+          "relation": "queries",
+          "src_name": "Change Detector",
+          "dst_name": "Persistence Manager",
+          "src_id": "0c224e15b134016c",
+          "dst_id": "f7f5704ae7c67c05"
         },
         {
-          "relation": "queries previous job metadata to compare file hashes and commits",
-          "src_name": "ChangeDetector",
-          "dst_name": "JobManager",
-          "src_id": "ff5886403b7de0e8",
-          "dst_id": "4550435e47051bc7"
-        },
-        {
-          "relation": "resolves specialized paths for binaries and logs VS Code environment detection",
-          "src_name": "MainOrchestrator",
-          "dst_name": "VSCodeIntegration",
-          "src_id": "8ab875add3826f97",
-          "dst_id": "612f2462eb855316"
+          "relation": "retrieves",
+          "src_name": "Main Orchestrator",
+          "dst_name": "Configuration Provider",
+          "src_id": "b31b6826ba3631a9",
+          "dst_id": "50cf49e46c978cb1"
         }
       ]
     },
