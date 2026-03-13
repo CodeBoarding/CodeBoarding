@@ -10,7 +10,6 @@ from static_analyzer.constants import (
     GRAPH_NODE_TYPES,
     ClusteringConfig,
     Language,
-    Node,
     NodeType,
 )
 from static_analyzer.node import Node
@@ -511,7 +510,7 @@ class CallGraph:
         max_unclustered_lines = 20
         other_edges_str = f"Unclustered connections ({len(non_cluster_edges)} edges):\n\n"
         for src, dst in sorted(non_cluster_edges)[:max_unclustered_lines]:
-            other_edges_str += f"  - {src} → {dst}\n"
+            other_edges_str += f"  - {src} -> {dst}\n"
         if len(non_cluster_edges) > max_unclustered_lines:
             other_edges_str += f"  - ... and {len(non_cluster_edges) - max_unclustered_lines} more\n"
         other_edges_str += "\n"
@@ -593,9 +592,9 @@ class CallGraph:
                     if len(called_parts) > 1:
                         called_class = self.delimiter.join(called_parts[:-1])
                         called_short = called_parts[-1]
-                        class_calls[class_name][called_class].append(f"{method_short}→{called_short}")
+                        class_calls[class_name][called_class].append(f"{method_short}->{called_short}")
                     else:
-                        class_calls[class_name][called_method].append(f"{method_short}→{called_method}")
+                        class_calls[class_name][called_method].append(f"{method_short}->{called_method}")
             else:
                 targets = ", ".join(sorted(node.methods_called_by_me))
                 function_calls.append(f"Function {node.fully_qualified_name} calls: {targets}")
@@ -613,7 +612,7 @@ class CallGraph:
                 examples = ", ".join(edges[:3])
                 suffix = f" +{count - 3} more" if count > 3 else ""
                 target_strs.append(f"{target_class} ({count} calls: {examples}{suffix})")
-            result += f"Class {class_name} → {'; '.join(target_strs)}\n"
+            result += f"Class {class_name} -> {'; '.join(target_strs)}\n"
 
         for func_call in function_calls:
             result += func_call + "\n"

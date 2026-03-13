@@ -185,9 +185,9 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         self.assertEqual(result.components[0].key_entities[0].reference_file, expected_file)
 
     def test_file_path_fallback_resolves(self):
-        """When static analysis fails, qualified_name → file path conversion should work.
+        """When static analysis fails, qualified_name -> file path conversion should work.
 
-        e.g. agents.llm_config.LLMConfig → agents/llm_config.py  (strip last segment, add .py)
+        e.g. agents.llm_config.LLMConfig -> agents/llm_config.py  (strip last segment, add .py)
         """
         qname = "agents.llm_config.LLMConfig"
         expected_file = "agents/llm_config.py"
@@ -211,7 +211,7 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         """Deeply nested qualified names should resolve.
 
         e.g. diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer
-             → diagram_analysis/incremental/impact_analyzer.py
+             -> diagram_analysis/incremental/impact_analyzer.py
         """
         qname = "diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer"
         expected_file = "diagram_analysis/incremental/impact_analyzer.py"
@@ -231,7 +231,7 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         self.assertEqual(result.components[0].key_entities[0].reference_file, expected_file)
 
     def test_module_level_function_resolves(self):
-        """Module-level function: github_action.main → github_action.py"""
+        """Module-level function: github_action.main -> github_action.py"""
         qname = "github_action.main"
         expected_file = "github_action.py"
 

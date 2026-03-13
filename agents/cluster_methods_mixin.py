@@ -17,7 +17,7 @@ from static_analyzer.cluster_helpers import (
     get_all_cluster_ids,
     get_files_for_cluster_ids,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Node, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.graph import ClusterResult
 from static_analyzer.node import Node
 
@@ -236,7 +236,7 @@ class ClusterMethodsMixin:
 
         Args:
             node_name: Fully qualified name of the node to find the nearest cluster for.
-            cluster_results: Language → ClusterResult mapping.
+            cluster_results: Language -> ClusterResult mapping.
             undirected_graphs: Pre-built undirected graphs (from ``_build_undirected_graphs``).
         """
         best_cluster: int | None = None
@@ -295,7 +295,7 @@ class ClusterMethodsMixin:
         return groups
 
     def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[int, Component]:
-        """Build cluster_id → Component mapping from source_cluster_ids."""
+        """Build cluster_id -> Component mapping from source_cluster_ids."""
         cluster_to_component: dict[int, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
@@ -303,7 +303,7 @@ class ClusterMethodsMixin:
         return cluster_to_component
 
     def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:
-        """Build node_name (qualified name) → cluster_id mapping and collect all cluster IDs."""
+        """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
         all_cluster_ids: set[int] = set()
         node_to_cluster: dict[str, int] = {}
         for cr in cluster_results.values():
@@ -417,9 +417,9 @@ class ClusterMethodsMixin:
         """Deterministically populate ``file_methods`` on every component.
 
         Node-centric approach guaranteeing 100% coverage:
-        1. Build cluster_id → component mapping from source_cluster_ids.
+        1. Build cluster_id -> component mapping from source_cluster_ids.
         2. Validate that all clusters are mapped (log error if not).
-        3. For each node, assign via its cluster → component mapping.
+        3. For each node, assign via its cluster -> component mapping.
         4. Orphan nodes (not in any cluster) go to the nearest cluster's component
            or fall back to the first component.
         5. Build ``FileMethodGroup`` lists grouped by file path.
