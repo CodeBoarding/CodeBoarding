@@ -85,15 +85,15 @@ class TestReferenceResolverMixin(unittest.TestCase):
         # Mock get_reference to return a node
         mock_node = MagicMock()
         mock_node.file_path = str(self.repo_dir / "test.py")
-        mock_node.line_start = 0
-        mock_node.line_end = 2
+        mock_node.line_start = 1
+        mock_node.line_end = 3
         self.mock_static_analysis.get_reference.return_value = mock_node
 
         result = self.resolver._try_exact_match(reference, "test.TestClass", "python")
 
         self.assertTrue(result)
         self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
-        self.assertEqual(reference.reference_start_line, 1)  # 1-based indexing
+        self.assertEqual(reference.reference_start_line, 1)
         self.assertEqual(reference.reference_end_line, 3)
 
     def test_try_exact_match_failure(self):
@@ -118,8 +118,8 @@ class TestReferenceResolverMixin(unittest.TestCase):
         # Mock get_loose_reference to return a node
         mock_node = MagicMock()
         mock_node.file_path = str(self.repo_dir / "test.py")
-        mock_node.line_start = 0
-        mock_node.line_end = 2
+        mock_node.line_start = 1
+        mock_node.line_end = 3
         self.mock_static_analysis.get_loose_reference.return_value = ("test.TestClass", mock_node)
 
         result = self.resolver._try_loose_match(reference, "TestClass", "python")

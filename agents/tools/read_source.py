@@ -80,6 +80,6 @@ class CodeReferenceReader(BaseRepoTool):
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
 
-        if start_line < 0 or end_line > len(lines):
+        if start_line < 1 or end_line > len(lines):
             return f"Error: Invalid line range: {start_line}-{end_line} for file {file_path}."
-        return "".join(lines[start_line:end_line])
+        return "".join(lines[start_line - 1 : end_line])
