@@ -12,6 +12,7 @@ from diagram_analysis.incremental.io_utils import (
 from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.ignore import should_skip_file
 from static_analyzer.analysis_result import StaticAnalysisResults
+from agents.cluster_methods_mixin import ClusterMethodsMixin
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -122,8 +123,6 @@ def classify_new_files_in_component(
         return False
 
     try:
-        from agents.cluster_methods_mixin import ClusterMethodsMixin
-
         # Use a lightweight mixin instance to populate file_methods deterministically
         mixin = ClusterMethodsMixin.__new__(ClusterMethodsMixin)
         mixin.repo_dir = repo_dir

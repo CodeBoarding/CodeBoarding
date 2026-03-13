@@ -619,9 +619,3 @@ class CallGraph:
 
         logger.info(f"[CallGraph] Class-level summary: {len(result)} characters")
         return result
-
-        for func_call in function_calls:
-            result += func_call + "\n"
-
-        logger.info(f"[CallGraph] Class-level summary: {len(result)} characters")
-        return result

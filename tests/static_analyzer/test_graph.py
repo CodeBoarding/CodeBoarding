@@ -3,6 +3,7 @@ from unittest.mock import patch, Mock
 
 import networkx as nx
 
+from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from static_analyzer.graph import Edge, CallGraph, ClusterResult
 
@@ -12,14 +13,14 @@ class TestNode(unittest.TestCase):
         # Test creating a Node
         node = Node(
             fully_qualified_name="module.Class.method",
-            node_type=12,
+            node_type=NodeType.FUNCTION,
             file_path="/path/to/file.py",
             line_start=10,
             line_end=20,
         )
 
         self.assertEqual(node.fully_qualified_name, "module.Class.method")
-        self.assertEqual(node.type, 12)
+        self.assertEqual(node.type, NodeType.FUNCTION)
         self.assertEqual(node.file_path, "/path/to/file.py")
         self.assertEqual(node.line_start, 10)
         self.assertEqual(node.line_end, 20)
@@ -241,7 +242,7 @@ class TestCallGraph(unittest.TestCase):
         # Check node attributes
         self.assertEqual(nx_graph.nodes["module.func1"]["file_path"], "/file.py")
         self.assertEqual(nx_graph.nodes["module.func1"]["line_start"], 1)
-        self.assertEqual(nx_graph.nodes["module.func1"]["type"], 12)
+        self.assertEqual(nx_graph.nodes["module.func1"]["type"], NodeType.FUNCTION)
 
     def test_str_empty_graph(self):
         # Test string representation of empty graph
@@ -340,7 +341,7 @@ class TestCallGraph(unittest.TestCase):
 
         # Create many method nodes (type "6")
         for i in range(50):
-            node = Node(f"class{i % 5}.ClassA.method{i}", 6, "/file.py", i * 10, i * 10 + 5)
+            node = Node(f"class{i % 5}.ClassA.method{i}", NodeType.METHOD, "/file.py", i * 10, i * 10 + 5)
             graph.add_node(node)
 
         # Add edges to create relationships

@@ -115,7 +115,7 @@ class LSPClient(ABC):
 
         # Initialize CallGraph
         self.call_graph = CallGraph()
-        self.symbol_kinds = list(range(1, 27))  # all types from the LSP for now
+        self.symbol_kinds = list(NodeType)  # only symbol kinds that NodeType can represent
         self.ignore_manager = ignore_manager if ignore_manager else RepoIgnoreManager(self.project_path)
 
         # Initialize diagnostics collection for health checks

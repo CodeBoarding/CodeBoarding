@@ -120,7 +120,18 @@ class ReferenceResolverMixin:
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        paths = [full_path, f"{file_path}.py", f"{file_path}.ts", f"{file_path}.tsx", file_ref]
+        paths = [
+            full_path,
+            f"{file_path}.py",
+            f"{file_path}.ts",
+            f"{file_path}.tsx",
+            f"{file_path}.js",
+            f"{file_path}.jsx",
+            f"{file_path}.java",
+            f"{file_path}.go",
+            f"{file_path}.php",
+            file_ref,
+        ]
 
         for path in paths:
             if os.path.exists(path):
