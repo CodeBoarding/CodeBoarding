@@ -26,7 +26,7 @@ class ClusterRelation:
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
-    """Map node qualified_name → component.component_id using file_methods.
+    """Map node qualified_name -> component.component_id using file_methods.
 
     Every node assigned to a component via populate_file_methods() is mapped
     to that component's hierarchical ID.
