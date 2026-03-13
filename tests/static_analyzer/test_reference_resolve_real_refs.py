@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -71,7 +72,7 @@ def _make_node(repo_dir: Path, qname: str, rel_file: str) -> Node:
         file_path=str(repo_dir / rel_file),
         line_start=0,
         line_end=5,
-        node_type=5,
+        node_type=NodeType.CLASS,
     )
 
 

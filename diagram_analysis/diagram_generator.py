@@ -424,7 +424,7 @@ class DiagramGenerator:
         Attempt an incremental update if possible.
 
         Returns:
-            List of updated file paths if incremental update succeeded,
+            Path to the analysis output if incremental update succeeded,
             None if full analysis is needed.
         """
         if self.force_full_analysis:
