@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-10T20:24:47.421646+00:00",
+  "timestamp": "2026-03-13T08:50:12.357768+00:00",
   "overall_score": 0.9612147822905233,
   "check_summaries": [
     {
@@ -166,9 +166,9 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "health -> core -> health",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents"
+        "core -> health -> core",
+        "static_analyzer -> agents -> static_analyzer",
+        "agents -> caching -> agents"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -232,17 +232,17 @@
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"result\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 75,
-              "line_end": 75,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"comp_id\" is not accessed",
               "file_path": "main.py",
               "line_start": 169,
               "line_end": 169,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 75,
+              "line_end": 75,
               "metric_value": 0.0
             },
             {
@@ -344,6 +344,34 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"os\" is not accessed",
               "file_path": "monitoring/paths.py",
               "line_start": 1,
@@ -376,6 +404,20 @@
               "file_path": "monitoring/callbacks.py",
               "line_start": 92,
               "line_end": 92,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"exc_type\" is not accessed",
+              "file_path": "monitoring/writers.py",
+              "line_start": 54,
+              "line_end": 54,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"name\" is not accessed",
+              "file_path": "monitoring/context.py",
+              "line_start": 33,
+              "line_end": 33,
               "metric_value": 0.0
             },
             {
@@ -414,34 +456,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 90,
@@ -453,20 +467,6 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 363,
               "line_end": 363,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"exc_type\" is not accessed",
-              "file_path": "monitoring/writers.py",
-              "line_start": 54,
-              "line_end": 54,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"name\" is not accessed",
-              "file_path": "monitoring/context.py",
-              "line_start": 33,
-              "line_end": 33,
               "metric_value": 0.0
             },
             {
@@ -666,6 +666,34 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"os\" is not accessed",
               "file_path": "monitoring/paths.py",
               "line_start": 1,
@@ -698,34 +726,6 @@
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 4,
               "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 12,
-              "line_end": 12,
               "metric_value": 0.0
             },
             {
@@ -901,13 +901,13 @@
       "composite_risk_score": 90.0
     },
     {
-      "file_path": "diagram_analysis/__init__.py",
+      "file_path": "monitoring/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "monitoring/__init__.py",
+      "file_path": "diagram_analysis/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
