@@ -136,7 +136,7 @@ class TestBuildComponentRelations(unittest.TestCase):
         cfg_ts = CallGraph(edges=[_make_edge("ts.func", "py.other")])
         relations = build_component_relations(node_to_comp, {"python": cfg_py, "typescript": cfg_ts})
 
-        # Should have 2 relations: 1→2 and 2→1
+        # Should have 2 relations: 1->2 and 2->1
         src_dst_pairs = {(r.src_cluster_id, r.dst_cluster_id) for r in relations}
         self.assertIn(("1", "2"), src_dst_pairs)
         self.assertIn(("2", "1"), src_dst_pairs)
@@ -207,7 +207,7 @@ class TestMergeRelations(unittest.TestCase):
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # The LLM relation B→A should match static 1→2 via reverse lookup
+        # The LLM relation B->A should match static 1->2 via reverse lookup
         matching = [r for r in merged if r.relation == "used by"]
         self.assertEqual(len(matching), 1)
 
@@ -219,16 +219,16 @@ class TestMergeRelations(unittest.TestCase):
             Relation(relation="uses", src_name="A", dst_name="C"),  # unbacked
         ]
         static_rels = [
-            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=5),  # matches A→B
+            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=5),  # matches A->B
             ClusterRelation(src_cluster_id="2", dst_cluster_id="3", edge_count=2),  # static-only
         ]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # A→B (backed) + B→C (static-only) = 2 relations, A→C dropped
+        # A->B (backed) + B->C (static-only) = 2 relations, A->C dropped
         self.assertEqual(len(merged), 2)
         labels = {r.relation for r in merged}
-        self.assertIn("calls", labels)  # both A→B and B→C have "calls"
+        self.assertIn("calls", labels)  # both A->B and B->C have "calls"
         src_dst = {(r.src_name, r.dst_name) for r in merged}
         self.assertIn(("A", "B"), src_dst)
         self.assertIn(("B", "C"), src_dst)
@@ -271,7 +271,7 @@ class TestAssignComponentIdsIntegration(unittest.TestCase):
         )
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
-        # sub1→other crosses boundary (1.1→2), sub1→sub2 are different sub-components
+        # sub1->other crosses boundary (1.1->2), sub1->sub2 are different sub-components
         src_dst = {(r.src_cluster_id, r.dst_cluster_id) for r in relations}
         self.assertIn(("1.1", "2"), src_dst)
         self.assertIn(("1.1", "1.2"), src_dst)  # These ARE different component IDs
