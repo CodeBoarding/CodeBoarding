@@ -132,6 +132,7 @@
     ["src.models.base.Entity.__toString", "src.models.base.Entity.getType"],
     ["src.models.entities.Task.getLabel", "src.utils.helpers.formatLabel"],
     ["src.models.entities.Repository.findBy", "src.models.entities.Repository.getAll"],
+    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder"],
     ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.where"],
     ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.orderBy"],
     ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.limit"],

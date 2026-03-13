@@ -45,6 +45,8 @@
     "src.main.java.core.UserProfile.UserProfile",
     "src.main.java.core.UserProfile.UserProfile(String, String)",
     "src.main.java.core.UserProfile.displayName()",
+    "src.main.java.core.UserProfile.name()",
+    "src.main.java.core.UserProfile.email()",
 
     "src.main.java.core.Container.Container",
     "src.main.java.core.Container.Container(String)",
@@ -59,6 +61,7 @@
     "src.main.java.core.Container.hashCode()",
 
     "src.main.java.core.QueryBuilder.QueryBuilder",
+    "src.main.java.core.QueryBuilder.QueryBuilder()",
     "src.main.java.core.QueryBuilder.from(String)",
     "src.main.java.core.QueryBuilder.where(String)",
     "src.main.java.core.QueryBuilder.orderBy(String)",
