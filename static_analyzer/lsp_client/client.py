@@ -985,8 +985,8 @@ class LSPClient(ABC):
 
                 qualified_name = self._create_qualified_name(file_path, symbol_name)
                 range_info = symbol.get("range", {})
-                start_line = range_info.get("start", {}).get("line", 0)
-                end_line = range_info.get("end", {}).get("line", 0)
+                start_line = range_info.get("start", {}).get("line", 0) + 1  # LSP 0-based to 1-based
+                end_line = range_info.get("end", {}).get("line", 0) + 1  # LSP 0-based to 1-based
 
                 node = Node(
                     fully_qualified_name=qualified_name,
@@ -1203,8 +1203,8 @@ class LSPClient(ABC):
 
                 # Get class info
                 range_info = class_symbol.get("range", {})
-                start_line = range_info.get("start", {}).get("line", 0)
-                end_line = range_info.get("end", {}).get("line", 0)
+                start_line = range_info.get("start", {}).get("line", 0) + 1  # LSP 0-based to 1-based
+                end_line = range_info.get("end", {}).get("line", 0) + 1  # LSP 0-based to 1-based
 
                 class_info = {
                     "superclasses": [],

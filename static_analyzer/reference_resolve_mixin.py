@@ -64,8 +64,8 @@ class ReferenceResolverMixin:
         try:
             node = self.static_analysis.get_reference(lang, qname)
             reference.reference_file = node.file_path
-            reference.reference_start_line = node.line_start + 1  # match 1 based indexing
-            reference.reference_end_line = node.line_end + 1  # match 1 based indexing
+            reference.reference_start_line = node.line_start
+            reference.reference_end_line = node.line_end
             reference.qualified_name = qname
             logger.info(
                 f"[Reference Resolution] Matched {reference.qualified_name} in {lang} at {reference.reference_file}"
@@ -81,8 +81,8 @@ class ReferenceResolverMixin:
             _, node = self.static_analysis.get_loose_reference(lang, qname)
             if node is not None:
                 reference.reference_file = node.file_path
-                reference.reference_start_line = node.line_start + 1
-                reference.reference_end_line = node.line_end + 1
+                reference.reference_start_line = node.line_start
+                reference.reference_end_line = node.line_end
                 reference.qualified_name = qname
                 logger.info(
                     f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}"
