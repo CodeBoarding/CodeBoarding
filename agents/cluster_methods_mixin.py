@@ -17,8 +17,13 @@ from static_analyzer.cluster_helpers import (
     get_all_cluster_ids,
     get_files_for_cluster_ids,
 )
+from static_analyzer.cluster_relations import (
+    build_component_relations,
+    build_node_to_component_map,
+    merge_relations,
+)
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -440,3 +445,24 @@ class ClusterMethodsMixin:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
 
         self._log_node_coverage(analysis, len(all_nodes))
+
+    def build_static_relations(
+        self,
+        analysis: AnalysisInsights,
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> None:
+        """Build inter-component relations from CFG edges and merge with LLM relations.
+
+        Replaces LLM-only relations with statically-backed ones:
+        - LLM + static match: keep LLM label, attach edge_count
+        - LLM only (no static backing): drop
+        - Static only: add with auto-label "calls"
+
+        If cfg_graphs is not provided, builds them from self.static_analysis.
+        """
+        if cfg_graphs is None:
+            cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        node_to_component = build_node_to_component_map(analysis)
+        static_relations = build_component_relations(node_to_component, cfg_graphs)
+        analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
+        analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)

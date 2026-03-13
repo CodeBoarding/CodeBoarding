@@ -138,16 +138,19 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Assign deterministic component IDs (must happen before methods that key on component_id)
+        # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
         assign_component_ids(analysis)
         # Step 4: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
         # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 6: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 6: Build static inter-component relations from CFG edges
+        self.build_static_relations(analysis)
+
+        # Step 7: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 7: Ensure unique key entities across components
+        # Step 8: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results
