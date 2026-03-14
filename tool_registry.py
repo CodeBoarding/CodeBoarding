@@ -24,11 +24,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
-from vscode_constants import find_runnable
 
 import requests
 
-from vscode_constants import VSCODE_CONFIG
+from vscode_constants import VSCODE_CONFIG, find_runnable
 
 logger = logging.getLogger(__name__)
 
@@ -215,11 +214,16 @@ def build_config() -> dict[str, Any]:
     servers = get_servers_dir()
     config = resolve_config(servers)
     path_config = resolve_config_from_path()
-    # For any entry still pointing to a bare name (not found in servers dir), try system PATH
+    # For any entry still pointing to a bare name (not found in servers dir), try system PATH.
+    # Skip entries where resolve_config() already resolved the tool (e.g. on Windows, Node tools
+    # use [node, /absolute/path/to/entry.mjs, ...] — cmd[0] is "node" but cmd[1] is absolute).
     for section in ("lsp_servers", "tools"):
         for key, entry in config[section].items():
             cmd = entry.get("command", [])
-            if cmd and not Path(cmd[0]).is_absolute():
+            if not cmd:
+                continue
+            has_absolute = any(Path(c).is_absolute() for c in cmd)
+            if not has_absolute:
                 path_cmd = path_config[section][key].get("command", [])
                 if path_cmd and Path(path_cmd[0]).is_absolute():
                     entry["command"] = list(path_cmd)
@@ -306,7 +310,20 @@ def resolve_config_from_path() -> dict[str, Any]:
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-            cmd[0] = path
+            if platform.system() == "Windows" and dep.kind is ToolKind.NODE and dep.js_entry_file:
+                # On Windows, bypass .cmd wrappers found on PATH — same rationale
+                # as resolve_config(): .cmd wrappers cause pipe buffering issues.
+                # Walk up from the resolved binary to find the JS entry point.
+                bin_dir = str(Path(path).parent.parent)  # .../node_modules/.bin -> .../node_modules/..
+                js_entry = find_runnable(bin_dir, dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
+                if js_entry:
+                    node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                    cmd[0] = js_entry
+                    cmd.insert(0, node_path)
+                else:
+                    cmd[0] = path
+            else:
+                cmd[0] = path
 
     return config
 

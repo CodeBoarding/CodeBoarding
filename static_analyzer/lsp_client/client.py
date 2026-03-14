@@ -778,6 +778,7 @@ class LSPClient(ABC):
             }
 
             # Collect results as they complete
+            files_done = 0
             with tqdm(total=total_files, desc="[Unified Analysis] Processing files") as pbar:
                 for future in as_completed(future_to_file):
                     file_path = future_to_file[future]
@@ -789,9 +790,6 @@ class LSPClient(ABC):
                             logger.error(f"Error processing {file_path}: {result.error}")
                         else:
                             successful_results.append(result)
-                        completed = len(successful_results)
-                        if completed % 10 == 0 or completed == total_files:
-                            logger.info(f"Static analysis progress: {completed}/{total_files} files processed")
                     except TimeoutError:
                         logger.error(
                             f"Timeout (300s) processing {file_path} - worker thread may be hung on LSP request"
@@ -799,7 +797,10 @@ class LSPClient(ABC):
                     except Exception as e:
                         logger.error(f"Exception processing {file_path}: {e}")
                     finally:
+                        files_done += 1
                         pbar.update(1)
+                        if files_done % 10 == 0 or files_done == total_files:
+                            logger.info(f"Static analysis progress: {files_done}/{total_files} files done")
 
         logger.info(f"Successfully processed {len(successful_results)} files")
 
