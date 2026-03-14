@@ -343,7 +343,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def generate_analysis(self) -> list[Path]:
+    def generate_analysis(self) -> Path:
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
@@ -387,7 +387,7 @@ class DiagramGenerator:
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
                 file_coverage_summary=file_coverage_summary,
-            )
+            ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
 
@@ -397,7 +397,7 @@ class DiagramGenerator:
             # Save manifest for incremental updates
             self._save_manifest(analysis, expanded_components)
 
-            return [analysis_path]
+            return analysis_path
 
     def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
         """Save the analysis manifest for incremental updates."""
@@ -419,12 +419,12 @@ class DiagramGenerator:
         except Exception as e:
             logger.warning(f"Failed to save manifest: {e}")
 
-    def try_incremental_update(self) -> list[Path] | None:
+    def try_incremental_update(self) -> Path | None:
         """
         Attempt an incremental update if possible.
 
         Returns:
-            List of updated file paths if incremental update succeeded,
+            Path to the analysis output if incremental update succeeded,
             None if full analysis is needed.
         """
         if self.force_full_analysis:
@@ -469,7 +469,7 @@ class DiagramGenerator:
 
         if impact.action == UpdateAction.NONE:
             logger.info("No changes detected, analysis is up to date")
-            return [self.output_dir / "analysis.json"]
+            return self.output_dir / "analysis.json"
 
         # For structural changes, recompute which components are actually affected
         # after static analysis has been updated with cluster matching
@@ -492,13 +492,13 @@ class DiagramGenerator:
                 )
                 self._write_file_coverage()
 
-            return [self.output_dir / "analysis.json"]
+            return self.output_dir / "analysis.json"
 
         # Incremental update failed or not possible
         logger.info("Incremental update not possible, falling back to full analysis")
         return None
 
-    def generate_analysis_smart(self) -> list[Path]:
+    def generate_analysis_smart(self) -> Path:
         """
         Smart analysis that tries incremental first, falls back to full.
 

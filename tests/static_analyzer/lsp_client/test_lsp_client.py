@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch, mock_open
 
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 from static_analyzer.lsp_client.client import LSPClient, FileAnalysisResult, uri_to_path
 from static_analyzer.scanner import ProgrammingLanguage
 
@@ -211,7 +213,7 @@ class TestLSPClient(unittest.TestCase):
         mock_popen.return_value = mock_process
 
         client = LSPClient(self.project_path, self.mock_language)
-        client.symbol_kinds = [5, 12]  # Class and Function kinds
+        client.symbol_kinds = [NodeType.CLASS, NodeType.FUNCTION]
 
         symbols = [
             {"kind": 5, "name": "Class1"},
