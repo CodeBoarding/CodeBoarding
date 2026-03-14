@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import platform
 import subprocess
 import threading
 import time
@@ -105,6 +106,9 @@ class LSPClient(ABC):
         self._responses: dict[int, dict] = {}
         self._notifications: list[dict] = []
         self._lock = threading.RLock()
+        # Separate lock for stdin writes to avoid holding _lock during
+        # potentially blocking I/O (pipe buffer full on Windows).
+        self._stdin_lock = threading.Lock()
         self._response_condition = threading.Condition(self._lock)
 
         # Initialize CallGraph
@@ -152,16 +156,17 @@ class LSPClient(ABC):
             message_id = self._message_id
             self._message_id += 1
 
-            request = {
-                "jsonrpc": "2.0",
-                "id": message_id,
-                "method": method,
-                "params": params,
-            }
+        request = {
+            "jsonrpc": "2.0",
+            "id": message_id,
+            "method": method,
+            "params": params,
+        }
 
-            body = json.dumps(request)
-            message = f"Content-Length: {len(body)}\r\n\r\n{body}"
+        body = json.dumps(request)
+        message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
+        with self._stdin_lock:
             if self._process and self._process.stdin:
                 self._process.stdin.write(message.encode("utf-8"))
                 self._process.stdin.flush()
@@ -178,7 +183,7 @@ class LSPClient(ABC):
         body = json.dumps(notification)
         message = f"Content-Length: {len(body)}\r\n\r\n{body}"
 
-        with self._lock:
+        with self._stdin_lock:
             if self._process and self._process.stdin:
                 self._process.stdin.write(message.encode("utf-8"))
                 self._process.stdin.flush()
@@ -396,7 +401,7 @@ class LSPClient(ABC):
         body_bytes = body.encode("utf-8")
         header = f"Content-Length: {len(body_bytes)}\r\n\r\n"
 
-        with self._lock:
+        with self._stdin_lock:
             if self._process and self._process.stdin:
                 self._process.stdin.write(header.encode("utf-8") + body_bytes)
                 self._process.stdin.flush()
@@ -754,7 +759,16 @@ class LSPClient(ABC):
         logger.info(f"Found {len(all_classes)} classes in workspace")
 
         cpu_count = os.cpu_count()
-        max_workers = max(1, cpu_count - 1) if cpu_count else 1  # Use the number of cores but reserve one
+        if platform.system() == "Windows":
+            # On Windows, limit to 1 worker to prevent pipe buffer deadlock.
+            # Multiple concurrent stdin writes can fill the 4KB pipe buffer;
+            # if the LSP server then sends a request (e.g. workspace/configuration)
+            # and blocks waiting for our response, but we can't write it because
+            # the pipe is full, we deadlock.  Sequential writes avoid this.
+            max_workers = 1
+        else:
+            max_workers = max(1, cpu_count - 1) if cpu_count else 1
+        logger.info(f"Starting file analysis with {max_workers} workers for {total_files} files...")
         successful_results = []
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -775,6 +789,9 @@ class LSPClient(ABC):
                             logger.error(f"Error processing {file_path}: {result.error}")
                         else:
                             successful_results.append(result)
+                        completed = len(successful_results)
+                        if completed % 10 == 0 or completed == total_files:
+                            logger.info(f"Static analysis progress: {completed}/{total_files} files processed")
                     except TimeoutError:
                         logger.error(
                             f"Timeout (300s) processing {file_path} - worker thread may be hung on LSP request"
