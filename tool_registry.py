@@ -27,7 +27,7 @@ from typing import Any, cast
 
 import requests
 
-from vscode_constants import VSCODE_CONFIG
+from vscode_constants import VSCODE_CONFIG, find_runnable
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,8 @@ class ToolDependency:
         npm_packages: npm packages to install for node tools.
         archive_asset: Asset name for archive tools (e.g. "jdtls.tar.gz").
         archive_subdir: Subdirectory name under bin/ for archive extraction.
+        js_entry_file: JS entry point filename for Windows direct execution (e.g. "cli.mjs").
+        js_entry_parent: Parent directory substring to locate the entry point (e.g. "typescript-language-server").
     """
 
     key: str
@@ -87,6 +89,8 @@ class ToolDependency:
     npm_packages: list[str] = field(default_factory=list)
     archive_asset: str = ""
     archive_subdir: str = ""
+    js_entry_file: str = ""
+    js_entry_parent: str = ""
 
 
 TOOL_REGISTRY: list[ToolDependency] = [
@@ -110,6 +114,8 @@ TOOL_REGISTRY: list[ToolDependency] = [
         kind=ToolKind.NODE,
         config_section=ConfigSection.LSP_SERVERS,
         npm_packages=["pyright"],
+        js_entry_file="langserver.index.js",
+        js_entry_parent="pyright",
     ),
     ToolDependency(
         key="typescript",  # javascript uses the same LSP as typescript
@@ -117,6 +123,8 @@ TOOL_REGISTRY: list[ToolDependency] = [
         kind=ToolKind.NODE,
         config_section=ConfigSection.LSP_SERVERS,
         npm_packages=["typescript-language-server", "typescript"],
+        js_entry_file="cli.mjs",
+        js_entry_parent="typescript-language-server",
     ),
     ToolDependency(
         key="php",
@@ -124,6 +132,8 @@ TOOL_REGISTRY: list[ToolDependency] = [
         kind=ToolKind.NODE,
         config_section=ConfigSection.LSP_SERVERS,
         npm_packages=["intelephense"],
+        js_entry_file="intelephense.js",
+        js_entry_parent="intelephense",
     ),
     ToolDependency(
         key="java",
@@ -204,11 +214,16 @@ def build_config() -> dict[str, Any]:
     servers = get_servers_dir()
     config = resolve_config(servers)
     path_config = resolve_config_from_path()
-    # For any entry still pointing to a bare name (not found in servers dir), try system PATH
+    # For any entry still pointing to a bare name (not found in servers dir), try system PATH.
+    # Skip entries where resolve_config() already resolved the tool (e.g. on Windows, Node tools
+    # use [node, /absolute/path/to/entry.mjs, ...] — cmd[0] is "node" but cmd[1] is absolute).
     for section in ("lsp_servers", "tools"):
         for key, entry in config[section].items():
             cmd = entry.get("command", [])
-            if cmd and not Path(cmd[0]).is_absolute():
+            if not cmd:
+                continue
+            has_absolute = any(Path(c).is_absolute() for c in cmd)
+            if not has_absolute:
                 path_cmd = path_config[section][key].get("command", [])
                 if path_cmd and Path(path_cmd[0]).is_absolute():
                     entry["command"] = list(path_cmd)
@@ -262,7 +277,20 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
             binary_path = base_dir / "node_modules" / ".bin" / f"{dep.binary_name}{node_ext}"
             if binary_path.exists():
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-                cmd[0] = str(binary_path)
+                if platform.system() == "Windows" and dep.js_entry_file:
+                    # On Windows, bypass .cmd wrappers — they go through cmd.exe
+                    # which causes pipe buffering issues with subprocess.Popen.
+                    # Instead, find the actual .mjs/.js entry point and run it
+                    # directly with Node.js (from CODEBOARDING_NODE_PATH or PATH).
+                    js_entry = find_runnable(str(base_dir), dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
+                    if js_entry:
+                        node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                        cmd[0] = js_entry
+                        cmd.insert(0, node_path)
+                    else:
+                        cmd[0] = str(binary_path)
+                else:
+                    cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
@@ -282,7 +310,20 @@ def resolve_config_from_path() -> dict[str, Any]:
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-            cmd[0] = path
+            if platform.system() == "Windows" and dep.kind is ToolKind.NODE and dep.js_entry_file:
+                # On Windows, bypass .cmd wrappers found on PATH — same rationale
+                # as resolve_config(): .cmd wrappers cause pipe buffering issues.
+                # Walk up from the resolved binary to find the JS entry point.
+                bin_dir = str(Path(path).parent.parent)  # .../node_modules/.bin -> .../node_modules/..
+                js_entry = find_runnable(bin_dir, dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
+                if js_entry:
+                    node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                    cmd[0] = js_entry
+                    cmd.insert(0, node_path)
+                else:
+                    cmd[0] = path
+            else:
+                cmd[0] = path
 
     return config
 
