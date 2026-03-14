@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-13T14:20:35.300225+00:00",
+  "timestamp": "2026-03-14T23:18:48.169424+00:00",
   "overall_score": 0.9612147822905233,
   "check_summaries": [
     {
@@ -20,16 +20,16 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 908,
-              "line_end": 1215,
+              "line_start": 926,
+              "line_end": 1233,
               "metric_value": 307
             },
             {
               "entity_name": "static_analyzer.lsp_client.client.build_static_analysis",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 708,
-              "line_end": 906,
-              "metric_value": 198
+              "line_start": 713,
+              "line_end": 924,
+              "metric_value": 211
             },
             {
               "entity_name": "static_analyzer.incremental_orchestrator._perform_incremental_update",
@@ -73,8 +73,8 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 908,
-              "line_end": 1215,
+              "line_start": 926,
+              "line_end": 1233,
               "metric_value": 16
             }
           ]
@@ -98,15 +98,15 @@
             {
               "entity_name": "static_analyzer.lsp_client.client._send_request",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 148,
-              "line_end": 168,
+              "line_start": 152,
+              "line_end": 173,
               "metric_value": 22
             },
             {
               "entity_name": "static_analyzer.lsp_client.client._wait_for_response",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 226,
-              "line_end": 237,
+              "line_start": 231,
+              "line_end": 242,
               "metric_value": 17
             },
             {
@@ -119,22 +119,22 @@
             {
               "entity_name": "static_analyzer.lsp_client.client.uri_to_path",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 26,
-              "line_end": 41,
+              "line_start": 27,
+              "line_end": 42,
               "metric_value": 13
             },
             {
               "entity_name": "static_analyzer.lsp_client.client._send_notification",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 170,
-              "line_end": 183,
+              "line_start": 175,
+              "line_end": 188,
               "metric_value": 12
             },
             {
               "entity_name": "static_analyzer.lsp_client.client._create_qualified_name",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 651,
-              "line_end": 659,
+              "line_start": 656,
+              "line_end": 664,
               "metric_value": 12
             }
           ]
@@ -167,8 +167,8 @@
       "check_type": "circular_dependencies",
       "cycles": [
         "core -> health -> core",
-        "static_analyzer -> agents -> static_analyzer",
-        "caching -> agents -> caching"
+        "agents -> caching -> agents",
+        "agents -> static_analyzer -> agents"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -379,34 +379,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"AnalysisManifest\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"IncrementalUpdater\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 9,
@@ -467,6 +439,34 @@
               "file_path": "monitoring/context.py",
               "line_start": 33,
               "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"AnalysisManifest\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"IncrementalUpdater\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
               "metric_value": 0.0
             },
             {
@@ -611,37 +611,37 @@
             },
             {
               "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 310,
-              "line_end": 310,
+              "line_start": 315,
+              "line_end": 315,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 570,
-              "line_end": 570,
+              "line_start": 575,
+              "line_end": 575,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_path\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 604,
-              "line_end": 604,
+              "line_start": 609,
+              "line_end": 609,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"all_classes\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 1427,
-              "line_end": 1427,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"method\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/typescript_client.py",
-              "line_start": 16,
-              "line_end": 16,
+              "line_start": 1445,
+              "line_end": 1445,
               "metric_value": 0.0
             }
           ]
@@ -661,34 +661,6 @@
             {
               "entity_name": "[unused_import] Import \"os\" is not accessed",
               "file_path": "agents/validation.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"configure_models\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
               "line_start": 4,
               "line_end": 4,
               "metric_value": 0.0
@@ -726,6 +698,34 @@
               "file_path": "monitoring/paths.py",
               "line_start": 1,
               "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
               "metric_value": 0.0
             },
             {
@@ -901,13 +901,13 @@
       "composite_risk_score": 90.0
     },
     {
-      "file_path": "diagram_analysis/__init__.py",
+      "file_path": "monitoring/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "monitoring/__init__.py",
+      "file_path": "diagram_analysis/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0

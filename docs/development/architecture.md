@@ -441,18 +441,15 @@ Primary entry point for the CodeBoarding tool; parses CLI arguments, validates e
 
 ```mermaid
 graph LR
-    Main_Orchestrator["Main Orchestrator"]
-    Repository_Manager["Repository Manager"]
-    Change_Detector["Change Detector"]
-    Tooling_Registry["Tooling Registry"]
-    Persistence_Manager["Persistence Manager"]
-    Configuration_Provider["Configuration Provider"]
-    Main_Orchestrator -- "invokes" --> Tooling_Registry
-    Main_Orchestrator -- "triggers" --> Repository_Manager
-    Repository_Manager -- "utilizes" --> Change_Detector
-    Main_Orchestrator -- "records" --> Persistence_Manager
-    Change_Detector -- "queries" --> Persistence_Manager
-    Main_Orchestrator -- "retrieves" --> Configuration_Provider
+    Application_Orchestrator_Repository_Manager["Application Orchestrator & Repository Manager"]
+    Static_Analysis_Environment_Manager["Static Analysis & Environment Manager"]
+    Analysis_Synthesizer["Analysis Synthesizer"]
+    Metadata_Persistence_Store["Metadata & Persistence Store"]
+    Telemetry_Monitoring_Service["Telemetry & Monitoring Service"]
+    Application_Orchestrator_Repository_Manager -- "triggers environment verification and initiates static analysis" --> Static_Analysis_Environment_Manager
+    Application_Orchestrator_Repository_Manager -- "records job start/end times and updates status" --> Metadata_Persistence_Store
+    Static_Analysis_Environment_Manager -- "passes raw structural data and LSP outputs for normalization" --> Analysis_Synthesizer
+    Telemetry_Monitoring_Service -- "provides MonitorContext that wraps execution steps to capture performance and token metrics" --> Application_Orchestrator_Repository_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -461,61 +458,60 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Main Orchestrator
-Acts as the central controller; validates CLI arguments and coordinates the sequential pipeline (Clone → Analyze → Generate).
+### Application Orchestrator & Repository Manager
+Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It acts as the primary control surface for CLI and remote processing.
 
 
 **Related Classes/Methods**:
 
-- `main:MainOrchestrator`
-- `health_main:HealthOrchestrator`
+- `repos.codeboarding.main.main`
+- `repos.codeboarding.repository.RepositoryManager`
+- `repos.codeboarding.repository.ChangeDetector`
+- `repos.codeboarding.config.UserConfig`
 
 
-### Repository Manager
-Manages the physical lifecycle of the target codebase, including URL sanitization, cloning, and local path management.
-
-
-**Related Classes/Methods**:
-
-- `repo_utils.change_detector:RepositoryManager`
-
-
-### Change Detector
-Implements incremental analysis logic by comparing versions and generating a ChangeSet to identify structural modifications.
+### Static Analysis & Environment Manager
+Ensures the execution environment is ready by downloading/installing Language Server Protocol (LSP) servers and verifying platform‑specific binaries. It executes deterministic static analysis (LSP/CFG) to extract structural code data.
 
 
 **Related Classes/Methods**:
 
-- `repo_utils.change_detector:ChangeDetector`
+- `repos.codeboarding.tooling.LSPManager`
+- `repos.codeboarding.tooling.BinaryResolver`
+- `repos.codeboarding.analysis.StaticAnalyzer`
 
 
-### Tooling Registry
-Manages external dependencies (LSP servers, Tokei); ensures required binaries are installed and compatible with the host OS.
-
-
-**Related Classes/Methods**:
-
-- `tool_registry:ToolingRegistry`
-- `install:Installer`
-
-
-### Persistence Manager
-Handles state persistence using DuckDB; tracks job history, analysis metadata, and previous repository states.
+### Analysis Synthesizer
+The "brain" of the data layer. It parses raw outputs from various static analysis tools and transforms them into the UnifiedAnalysisJson schema, mapping internal IDs to human‑readable component names.
 
 
 **Related Classes/Methods**:
 
-- `duckdb_crud:PersistenceManager`
+- `repos.codeboarding.synthesizer.AnalysisSynthesizer`
+- `repos.codeboarding.schema.UnifiedAnalysisJson`
+- `repos.codeboarding.synthesizer.ComponentMapper`
 
 
-### Configuration Provider
-Centralizes user-defined settings and environment-specific constants required for orchestrating the workflow.
+### Metadata & Persistence Store
+Provides a persistence layer using DuckDB to track job history, status updates, and analysis metadata. This ensures reproducibility and allows the system to skip analysis for unchanged files.
 
 
 **Related Classes/Methods**:
 
-- `user_config:ConfigurationProvider`
-- `vscode_constants:VSCodeConstants`
+- `repos.codeboarding.store.MetadataStore`
+- `repos.codeboarding.store.JobTracker`
+- `repos.codeboarding.store.DuckDBClient`
+
+
+### Telemetry & Monitoring Service
+A cross‑cutting service that wraps execution steps in a MonitorContext. It specifically tracks LLM token usage and streams real‑time execution statistics to the filesystem for external monitoring.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.telemetry.MonitorContext`
+- `repos.codeboarding.telemetry.TokenUsageTracker`
+- `repos.codeboarding.telemetry.TelemetryStreamer`
 
 
 
@@ -2282,21 +2278,19 @@ A data model encapsulating parsed configuration details of a single Java project
 
 ```mermaid
 graph LR
-    StaticAnalyzer_Façade["StaticAnalyzer Façade"]
-    LSPClient_Engine["LSPClient Engine"]
-    ProjectDiscovery_Config["ProjectDiscovery & Config"]
-    IncrementalOrchestrator["IncrementalOrchestrator"]
-    CallGraph_Topology_Engine["CallGraph & Topology Engine"]
-    StaticAnalysis_Blackboard["StaticAnalysis Blackboard"]
-    HealthCheck_Orchestrator["HealthCheck Orchestrator"]
-    HealthMetrics_Plugin_Suite["HealthMetrics Plugin Suite"]
-    ProjectDiscovery_Config -- "provides the environment configuration and detected language list required to initialize the analysis session" --> StaticAnalyzer_Façade
-    IncrementalOrchestrator -- "supplies the delta of changed files, allowing the Façade to skip analysis for unchanged modules" --> StaticAnalyzer_Façade
-    StaticAnalyzer_Façade -- "commands the engine to start language-specific servers and begin symbol extraction" --> LSPClient_Engine
-    LSPClient_Engine -- "populates the blackboard with raw symbol data and diagnostic information extracted from the LSP servers" --> StaticAnalysis_Blackboard
-    CallGraph_Topology_Engine -- "enriches the blackboard by calculating relationships (edges) and architectural clusters from raw symbols" --> StaticAnalysis_Blackboard
-    HealthCheck_Orchestrator -- "invokes specific metric plugins based on the project configuration" --> HealthMetrics_Plugin_Suite
-    HealthMetrics_Plugin_Suite -- "queries the blackboard's graph and dependency data to identify architectural violations (e.g., high coupling)" --> StaticAnalysis_Blackboard
+    Project_Environment_Scanner["Project Environment Scanner"]
+    LSP_Client_Provider["LSP Client Provider"]
+    Call_Graph_Builder["Call Graph Builder"]
+    Graph_Clustering_Engine["Graph Clustering Engine"]
+    Code_Quality_Analyzer["Code Quality Analyzer"]
+    Analysis_Result_Manager["Analysis Result Manager"]
+    Project_Environment_Scanner -- "identifies technology stack, triggering initialization" --> LSP_Client_Provider
+    LSP_Client_Provider -- "feeds semantic symbols and references" --> Call_Graph_Builder
+    Call_Graph_Builder -- "provides raw graph topology" --> Graph_Clustering_Engine
+    Graph_Clustering_Engine -- "provides clustered boundaries" --> Code_Quality_Analyzer
+    Call_Graph_Builder -- "provides reachability data" --> Code_Quality_Analyzer
+    Code_Quality_Analyzer -- "outputs health reports and diagnostics" --> Analysis_Result_Manager
+    LSP_Client_Provider -- "sends direct file‑level diagnostics and symbol metadata" --> Analysis_Result_Manager
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -2305,92 +2299,63 @@ graph LR
 
 Performs deep structural and behavioral analysis of the codebase across multiple programming languages. It extracts information like call graphs, code structure, and identifies code quality issues, including unused code.
 
-### StaticAnalyzer Façade
-The primary entry point that orchestrates the analysis lifecycle. It manages the creation of language-specific clients and merges their outputs into a unified session.
+### Project Environment Scanner
+Detects project structures (Maven, Gradle, TSConfig) and identifies programming languages to configure the analysis environment.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.static_analysis.StaticAnalyzer`
-- `repos.codeboarding.static_analysis.AnalysisSession`
-- `repos.codeboarding.static_analysis.LanguageClientFactory`
+- `java_config_scanner.ProjectEnvironmentScanner`
 
 
-### LSPClient Engine
-Manages Language Server Protocol (LSP) interactions. It handles server lifecycles and translates raw LSP diagnostics and symbols into the system's internal data models.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.static_analysis.LSPClient`
-- `repos.codeboarding.static_analysis.JavaLSPClient`
-- `repos.codeboarding.static_analysis.TypeScriptLSPClient`
-
-
-### ProjectDiscovery & Config
-Scans the repository to detect languages, identify build systems (Maven/Gradle), and locate necessary binaries (JDK/LSP) to bootstrap the analysis environment.
+### LSP Client Provider
+Orchestrates communication with language‑specific servers to extract semantic symbols, diagnostics, and file‑level metadata.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.static_analysis.ProjectScanner`
-- `repos.codeboarding.static_analysis.LanguageDetector`
-- `repos.codeboarding.static_analysis.BuildSystemIdentifier`
+- `LSPClient`:65-1750
+- `JavaClient`:26-517
+- `TypeScriptClient`:10-235
 
 
-### IncrementalOrchestrator
-Optimizes analysis by using Git diffs to identify changed files. It merges fresh results with cached data to minimize redundant processing and LLM calls.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.static_analysis.IncrementalAnalyzer`
-- `repos.codeboarding.static_analysis.GitDiffProvider`
-- `repos.codeboarding.static_analysis.CacheManager`
-
-
-### CallGraph & Topology Engine
-Constructs the mathematical representation of the codebase. It builds nodes and edges representing calls and dependencies, performing community detection to identify architectural clusters.
+### Call Graph Builder
+Constructs a global structural topology by linking symbols across files, identifying behavioral dependencies.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.static_analysis.CallGraphBuilder`
-- `repos.codeboarding.static_analysis.TopologyAnalyzer`
-- `repos.codeboarding.static_analysis.CommunityDetector`
+- `static_analyzer.java_config_scanner.CallGraphBuilder`
 
 
-### StaticAnalysis Blackboard
-A central data container (StaticAnalysisResults) that stores aggregated call-graphs, class hierarchies, and dependencies for consumption by AI agents.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.static_analysis.StaticAnalysisResults`
-- `repos.codeboarding.static_analysis.ReferenceResolver`
-- `repos.codeboarding.static_analysis.DependencyMap`
-
-
-### HealthCheck Orchestrator
-Drives the execution of software quality checks. It loads configurations like .healthignore and aggregates findings from various plugins into a final report.
+### Graph Clustering Engine
+Applies adaptive clustering algorithms to the call graph to group code into logical, high‑level functional modules.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.health_check.HealthCheckEngine`
-- `repos.codeboarding.health_check.HealthReport`
-- `repos.codeboarding.health_check.IgnoreFilter`
+- `adaptive_clustering`:240-303
+- `ClusterResult`:13-32
 
 
-### HealthMetrics Plugin Suite
-A collection of specialized analyzers that compute specific quality metrics such as God Classes, coupling, and unused code.
+### Code Quality Analyzer
+Performs deep behavioral analysis to identify dead (unused) code and structural smells such as God Classes or high coupling.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.health_check.UnusedCodeAnalyzer`
-- `repos.codeboarding.health_check.GodClassAnalyzer`
-- `repos.codeboarding.health_check.CouplingMetric`
+- `UnusedCodeAnalyzer`
+- `HealthCheckRunner`
+
+
+### Analysis Result Manager
+Serializes findings into a unified model and manages the AnalysisCache to enable incremental re‑analysis.
+
+
+**Related Classes/Methods**:
+
+- `StaticAnalysisResults`:53-269
+- `ResultPersistenceManager`
 
 
 

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-03-13T14:22:41.068036+00:00",
+    "generated_at": "2026-03-14T23:22:25.744149+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -63,98 +63,107 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Main Orchestrator",
-          "description": "Acts as the central controller; validates CLI arguments and coordinates the sequential pipeline (Clone → Analyze → Generate).",
+          "name": "Application Orchestrator & Repository Manager",
+          "description": "Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It acts as the primary control surface for CLI and remote processing.",
           "key_entities": [
             {
-              "qualified_name": "main:MainOrchestrator",
+              "qualified_name": "repos.codeboarding.main.main",
               "reference_file": "main.py"
             },
             {
-              "qualified_name": "health_main:HealthOrchestrator",
-              "reference_file": "health_main.py"
+              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
+              "reference_file": "repo_utils/change_detector.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.config.UserConfig",
+              "reference_file": "main.py"
             }
           ],
           "assigned_files": [
-            "health_main.py",
             "main.py",
-            "diagram_analysis/analysis_json.py",
-            "monitoring/__init__.py",
-            "monitoring/callbacks.py",
-            "monitoring/context.py",
-            "monitoring/mixin.py",
-            "monitoring/paths.py",
-            "monitoring/stats.py",
-            "monitoring/writers.py",
+            "repo_utils/change_detector.py",
+            "constants.py",
+            "health_main.py",
+            "logging_config.py",
+            "repo_utils/__init__.py",
+            "repo_utils/errors.py",
+            "repo_utils/git_diff.py",
+            "repo_utils/ignore.py",
+            "user_config.py",
             "utils.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "b31b6826ba3631a9",
+          "component_id": "bbb45874eb523b48",
           "can_expand": true
         },
         {
-          "name": "Repository Manager",
-          "description": "Manages the physical lifecycle of the target codebase, including URL sanitization, cloning, and local path management.",
+          "name": "Static Analysis & Environment Manager",
+          "description": "Ensures the execution environment is ready by downloading/installing Language Server Protocol (LSP) servers and verifying platform‑specific binaries. It executes deterministic static analysis (LSP/CFG) to extract structural code data.",
           "key_entities": [
             {
-              "qualified_name": "repo_utils.change_detector:RepositoryManager",
-              "reference_file": "repo_utils/change_detector.py"
-            }
-          ],
-          "assigned_files": [
-            "repo_utils/change_detector.py",
-            "repo_utils/__init__.py",
-            "repo_utils/errors.py",
-            "repo_utils/ignore.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "defcdfd415214940",
-          "can_expand": true
-        },
-        {
-          "name": "Change Detector",
-          "description": "Implements incremental analysis logic by comparing versions and generating a ChangeSet to identify structural modifications.",
-          "key_entities": [
-            {
-              "qualified_name": "repo_utils.change_detector:ChangeDetector",
-              "reference_file": "repo_utils/change_detector.py"
-            }
-          ],
-          "assigned_files": [
-            "repo_utils/change_detector.py",
-            "repo_utils/git_diff.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "0c224e15b134016c",
-          "can_expand": true
-        },
-        {
-          "name": "Tooling Registry",
-          "description": "Manages external dependencies (LSP servers, Tokei); ensures required binaries are installed and compatible with the host OS.",
-          "key_entities": [
-            {
-              "qualified_name": "tool_registry:ToolingRegistry",
-              "reference_file": "tool_registry.py"
+              "qualified_name": "repos.codeboarding.tooling.LSPManager",
+              "reference_file": "install.py"
             },
             {
-              "qualified_name": "install:Installer",
+              "qualified_name": "repos.codeboarding.tooling.BinaryResolver",
+              "reference_file": "install.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.analysis.StaticAnalyzer",
               "reference_file": "install.py"
             }
           ],
           "assigned_files": [
             "install.py",
-            "tool_registry.py"
+            "tool_registry.py",
+            "vscode_constants.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "6529287137d88879",
+          "component_id": "3843458e4c0dbd49",
           "can_expand": true
         },
         {
-          "name": "Persistence Manager",
-          "description": "Handles state persistence using DuckDB; tracks job history, analysis metadata, and previous repository states.",
+          "name": "Analysis Synthesizer",
+          "description": "The \"brain\" of the data layer. It parses raw outputs from various static analysis tools and transforms them into the UnifiedAnalysisJson schema, mapping internal IDs to human‑readable component names.",
           "key_entities": [
             {
-              "qualified_name": "duckdb_crud:PersistenceManager",
+              "qualified_name": "repos.codeboarding.synthesizer.AnalysisSynthesizer",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.schema.UnifiedAnalysisJson",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.synthesizer.ComponentMapper",
+              "reference_file": "diagram_analysis/analysis_json.py"
+            }
+          ],
+          "assigned_files": [
+            "diagram_analysis/analysis_json.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "e2356ffdc3ee4259",
+          "can_expand": true
+        },
+        {
+          "name": "Metadata & Persistence Store",
+          "description": "Provides a persistence layer using DuckDB to track job history, status updates, and analysis metadata. This ensures reproducibility and allows the system to skip analysis for unchanged files.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.store.MetadataStore",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.store.JobTracker",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.store.DuckDBClient",
               "reference_file": "duckdb_crud.py"
             }
           ],
@@ -162,75 +171,68 @@
             "duckdb_crud.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "f7f5704ae7c67c05",
+          "component_id": "ccfb6caf4b72ee41",
           "can_expand": true
         },
         {
-          "name": "Configuration Provider",
-          "description": "Centralizes user-defined settings and environment-specific constants required for orchestrating the workflow.",
+          "name": "Telemetry & Monitoring Service",
+          "description": "A cross‑cutting service that wraps execution steps in a MonitorContext. It specifically tracks LLM token usage and streams real‑time execution statistics to the filesystem for external monitoring.",
           "key_entities": [
             {
-              "qualified_name": "user_config:ConfigurationProvider",
-              "reference_file": "user_config.py"
+              "qualified_name": "repos.codeboarding.telemetry.MonitorContext",
+              "reference_file": "monitoring/__init__.py"
             },
             {
-              "qualified_name": "vscode_constants:VSCodeConstants",
-              "reference_file": "vscode_constants.py"
+              "qualified_name": "repos.codeboarding.telemetry.TokenUsageTracker",
+              "reference_file": "monitoring/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.telemetry.TelemetryStreamer",
+              "reference_file": "monitoring/__init__.py"
             }
           ],
           "assigned_files": [
-            "vscode_constants.py",
-            "user_config.py",
-            "constants.py",
-            "logging_config.py"
+            "monitoring/__init__.py",
+            "monitoring/callbacks.py",
+            "monitoring/context.py",
+            "monitoring/mixin.py",
+            "monitoring/paths.py",
+            "monitoring/stats.py",
+            "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "50cf49e46c978cb1",
+          "component_id": "de7807c6a3b39380",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "invokes",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Tooling Registry",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "6529287137d88879"
+          "relation": "triggers environment verification and initiates static analysis",
+          "src_name": "Application Orchestrator & Repository Manager",
+          "dst_name": "Static Analysis & Environment Manager",
+          "src_id": "bbb45874eb523b48",
+          "dst_id": "3843458e4c0dbd49"
         },
         {
-          "relation": "triggers",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Repository Manager",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "defcdfd415214940"
+          "relation": "records job start/end times and updates status",
+          "src_name": "Application Orchestrator & Repository Manager",
+          "dst_name": "Metadata & Persistence Store",
+          "src_id": "bbb45874eb523b48",
+          "dst_id": "ccfb6caf4b72ee41"
         },
         {
-          "relation": "utilizes",
-          "src_name": "Repository Manager",
-          "dst_name": "Change Detector",
-          "src_id": "defcdfd415214940",
-          "dst_id": "0c224e15b134016c"
+          "relation": "passes raw structural data and LSP outputs for normalization",
+          "src_name": "Static Analysis & Environment Manager",
+          "dst_name": "Analysis Synthesizer",
+          "src_id": "3843458e4c0dbd49",
+          "dst_id": "e2356ffdc3ee4259"
         },
         {
-          "relation": "records",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Persistence Manager",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "f7f5704ae7c67c05"
-        },
-        {
-          "relation": "queries",
-          "src_name": "Change Detector",
-          "dst_name": "Persistence Manager",
-          "src_id": "0c224e15b134016c",
-          "dst_id": "f7f5704ae7c67c05"
-        },
-        {
-          "relation": "retrieves",
-          "src_name": "Main Orchestrator",
-          "dst_name": "Configuration Provider",
-          "src_id": "b31b6826ba3631a9",
-          "dst_id": "50cf49e46c978cb1"
+          "relation": "provides MonitorContext that wraps execution steps to capture performance and token metrics",
+          "src_name": "Telemetry & Monitoring Service",
+          "dst_name": "Application Orchestrator & Repository Manager",
+          "src_id": "de7807c6a3b39380",
+          "dst_id": "bbb45874eb523b48"
         }
       ]
     },
@@ -565,45 +567,44 @@
       "can_expand": true,
       "components": [
         {
-          "name": "StaticAnalyzer Façade",
-          "description": "The primary entry point that orchestrates the analysis lifecycle. It manages the creation of language-specific clients and merges their outputs into a unified session.",
+          "name": "Project Environment Scanner",
+          "description": "Detects project structures (Maven, Gradle, TSConfig) and identifies programming languages to configure the analysis environment.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalyzer",
-              "reference_file": "static_analyzer/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.AnalysisSession",
-              "reference_file": "static_analyzer/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.LanguageClientFactory",
-              "reference_file": "static_analyzer/__init__.py"
+              "qualified_name": "java_config_scanner.ProjectEnvironmentScanner",
+              "reference_file": "static_analyzer/programming_language.py"
             }
           ],
           "assigned_files": [
-            "static_analyzer/__init__.py",
-            "static_analyzer/constants.py"
+            "static_analyzer/programming_language.py",
+            "static_analyzer/scanner.py",
+            "static_analyzer/typescript_config_scanner.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "7be1efa2f9ae0fcc",
+          "component_id": "4e4d002334403f07",
           "can_expand": true
         },
         {
-          "name": "LSPClient Engine",
-          "description": "Manages Language Server Protocol (LSP) interactions. It handles server lifecycles and translates raw LSP diagnostics and symbols into the system's internal data models.",
+          "name": "LSP Client Provider",
+          "description": "Orchestrates communication with language‑specific servers to extract semantic symbols, diagnostics, and file‑level metadata.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.LSPClient",
-              "reference_file": "static_analyzer/lsp_client/__init__.py"
+              "qualified_name": "LSPClient",
+              "reference_file": "static_analyzer/lsp_client/client.py",
+              "reference_start_line": 65,
+              "reference_end_line": 1750
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.JavaLSPClient",
-              "reference_file": "static_analyzer/lsp_client/__init__.py"
+              "qualified_name": "JavaClient",
+              "reference_file": "static_analyzer/lsp_client/java_client.py",
+              "reference_start_line": 26,
+              "reference_end_line": 517
             },
             {
-              "qualified_name": "repos.codeboarding.static_analysis.TypeScriptLSPClient",
-              "reference_file": "static_analyzer/lsp_client/__init__.py"
+              "qualified_name": "TypeScriptClient",
+              "reference_file": "static_analyzer/lsp_client/typescript_client.py",
+              "reference_start_line": 10,
+              "reference_end_line": 235
             }
           ],
           "assigned_files": [
@@ -615,158 +616,67 @@
             "static_analyzer/lsp_client/typescript_client.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "686014a4f3936360",
+          "component_id": "f47123c3d6342dd2",
           "can_expand": true
         },
         {
-          "name": "ProjectDiscovery & Config",
-          "description": "Scans the repository to detect languages, identify build systems (Maven/Gradle), and locate necessary binaries (JDK/LSP) to bootstrap the analysis environment.",
+          "name": "Call Graph Builder",
+          "description": "Constructs a global structural topology by linking symbols across files, identifying behavioral dependencies.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.static_analysis.ProjectScanner",
-              "reference_file": "static_analyzer/java_config_scanner.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.LanguageDetector",
-              "reference_file": "static_analyzer/java_config_scanner.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.BuildSystemIdentifier",
+              "qualified_name": "static_analyzer.java_config_scanner.CallGraphBuilder",
               "reference_file": "static_analyzer/java_config_scanner.py"
             }
           ],
           "assigned_files": [
             "static_analyzer/java_config_scanner.py",
+            "static_analyzer/graph.py",
             "static_analyzer/java_utils.py",
-            "static_analyzer/programming_language.py",
-            "static_analyzer/scanner.py",
-            "static_analyzer/typescript_config_scanner.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "8c1283fb4860b62b",
-          "can_expand": true
-        },
-        {
-          "name": "IncrementalOrchestrator",
-          "description": "Optimizes analysis by using Git diffs to identify changed files. It merges fresh results with cached data to minimize redundant processing and LLM calls.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.IncrementalAnalyzer",
-              "reference_file": "static_analyzer/git_diff_analyzer.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.GitDiffProvider",
-              "reference_file": "static_analyzer/git_diff_analyzer.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.CacheManager",
-              "reference_file": "static_analyzer/git_diff_analyzer.py"
-            }
-          ],
-          "assigned_files": [
-            "static_analyzer/git_diff_analyzer.py",
-            "static_analyzer/incremental_orchestrator.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "bbeac4ff88db882b",
-          "can_expand": true
-        },
-        {
-          "name": "CallGraph & Topology Engine",
-          "description": "Constructs the mathematical representation of the codebase. It builds nodes and edges representing calls and dependencies, performing community detection to identify architectural clusters.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.CallGraphBuilder",
-              "reference_file": "static_analyzer/cluster_helpers.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.TopologyAnalyzer",
-              "reference_file": "static_analyzer/cluster_helpers.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.CommunityDetector",
-              "reference_file": "static_analyzer/cluster_helpers.py"
-            }
-          ],
-          "assigned_files": [
-            "static_analyzer/cluster_helpers.py",
-            "static_analyzer/graph.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "d4b0c49792f1ec65",
-          "can_expand": true
-        },
-        {
-          "name": "StaticAnalysis Blackboard",
-          "description": "A central data container (StaticAnalysisResults) that stores aggregated call-graphs, class hierarchies, and dependencies for consumption by AI agents.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.StaticAnalysisResults",
-              "reference_file": "static_analyzer/analysis_result.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.ReferenceResolver",
-              "reference_file": "static_analyzer/analysis_result.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.static_analysis.DependencyMap",
-              "reference_file": "static_analyzer/analysis_result.py"
-            }
-          ],
-          "assigned_files": [
-            "static_analyzer/analysis_result.py",
             "static_analyzer/reference_resolve_mixin.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "107ac9e3617a9a60",
+          "component_id": "63d55755b1a3d052",
           "can_expand": true
         },
         {
-          "name": "HealthCheck Orchestrator",
-          "description": "Drives the execution of software quality checks. It loads configurations like .healthignore and aggregates findings from various plugins into a final report.",
+          "name": "Graph Clustering Engine",
+          "description": "Applies adaptive clustering algorithms to the call graph to group code into logical, high‑level functional modules.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.health_check.HealthCheckEngine",
+              "qualified_name": "adaptive_clustering",
+              "reference_file": "static_analyzer/graph.py",
+              "reference_start_line": 240,
+              "reference_end_line": 303
+            },
+            {
+              "qualified_name": "ClusterResult",
+              "reference_file": "static_analyzer/graph.py",
+              "reference_start_line": 13,
+              "reference_end_line": 32
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/cluster_helpers.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "bc3153d10ef94bb2",
+          "can_expand": true
+        },
+        {
+          "name": "Code Quality Analyzer",
+          "description": "Performs deep behavioral analysis to identify dead (unused) code and structural smells such as God Classes or high coupling.",
+          "key_entities": [
+            {
+              "qualified_name": "UnusedCodeAnalyzer",
               "reference_file": "health/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.health_check.HealthReport",
-              "reference_file": "health/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.health_check.IgnoreFilter",
+              "qualified_name": "HealthCheckRunner",
               "reference_file": "health/__init__.py"
             }
           ],
           "assigned_files": [
             "health/__init__.py",
-            "health/config.py",
-            "health/constants.py",
-            "health/models.py",
-            "health/runner.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "2bdd60b81ceb9e09",
-          "can_expand": true
-        },
-        {
-          "name": "HealthMetrics Plugin Suite",
-          "description": "A collection of specialized analyzers that compute specific quality metrics such as God Classes, coupling, and unused code.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.health_check.UnusedCodeAnalyzer",
-              "reference_file": "health/checks/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.health_check.GodClassAnalyzer",
-              "reference_file": "health/checks/__init__.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.health_check.CouplingMetric",
-              "reference_file": "health/checks/__init__.py"
-            }
-          ],
-          "assigned_files": [
             "health/checks/__init__.py",
             "health/checks/circular_deps.py",
             "health/checks/cohesion.py",
@@ -775,62 +685,92 @@
             "health/checks/god_class.py",
             "health/checks/inheritance.py",
             "health/checks/instability.py",
-            "health/checks/unused_code_diagnostics.py"
+            "health/checks/unused_code_diagnostics.py",
+            "health/config.py",
+            "health/constants.py",
+            "health/models.py",
+            "health/runner.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "c458ce9566942228",
+          "component_id": "f603535bcb663102",
+          "can_expand": true
+        },
+        {
+          "name": "Analysis Result Manager",
+          "description": "Serializes findings into a unified model and manages the AnalysisCache to enable incremental re‑analysis.",
+          "key_entities": [
+            {
+              "qualified_name": "StaticAnalysisResults",
+              "reference_file": "static_analyzer/analysis_result.py",
+              "reference_start_line": 53,
+              "reference_end_line": 269
+            },
+            {
+              "qualified_name": "ResultPersistenceManager",
+              "reference_file": "static_analyzer/__init__.py"
+            }
+          ],
+          "assigned_files": [
+            "static_analyzer/__init__.py",
+            "static_analyzer/analysis_result.py",
+            "static_analyzer/constants.py",
+            "static_analyzer/git_diff_analyzer.py",
+            "static_analyzer/incremental_orchestrator.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "8529f791007e4a8c",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "provides the environment configuration and detected language list required to initialize the analysis session",
-          "src_name": "ProjectDiscovery & Config",
-          "dst_name": "StaticAnalyzer Façade",
-          "src_id": "8c1283fb4860b62b",
-          "dst_id": "7be1efa2f9ae0fcc"
+          "relation": "identifies technology stack, triggering initialization",
+          "src_name": "Project Environment Scanner",
+          "dst_name": "LSP Client Provider",
+          "src_id": "4e4d002334403f07",
+          "dst_id": "f47123c3d6342dd2"
         },
         {
-          "relation": "supplies the delta of changed files, allowing the Façade to skip analysis for unchanged modules",
-          "src_name": "IncrementalOrchestrator",
-          "dst_name": "StaticAnalyzer Façade",
-          "src_id": "bbeac4ff88db882b",
-          "dst_id": "7be1efa2f9ae0fcc"
+          "relation": "feeds semantic symbols and references",
+          "src_name": "LSP Client Provider",
+          "dst_name": "Call Graph Builder",
+          "src_id": "f47123c3d6342dd2",
+          "dst_id": "63d55755b1a3d052"
         },
         {
-          "relation": "commands the engine to start language-specific servers and begin symbol extraction",
-          "src_name": "StaticAnalyzer Façade",
-          "dst_name": "LSPClient Engine",
-          "src_id": "7be1efa2f9ae0fcc",
-          "dst_id": "686014a4f3936360"
+          "relation": "provides raw graph topology",
+          "src_name": "Call Graph Builder",
+          "dst_name": "Graph Clustering Engine",
+          "src_id": "63d55755b1a3d052",
+          "dst_id": "bc3153d10ef94bb2"
         },
         {
-          "relation": "populates the blackboard with raw symbol data and diagnostic information extracted from the LSP servers",
-          "src_name": "LSPClient Engine",
-          "dst_name": "StaticAnalysis Blackboard",
-          "src_id": "686014a4f3936360",
-          "dst_id": "107ac9e3617a9a60"
+          "relation": "provides clustered boundaries",
+          "src_name": "Graph Clustering Engine",
+          "dst_name": "Code Quality Analyzer",
+          "src_id": "bc3153d10ef94bb2",
+          "dst_id": "f603535bcb663102"
         },
         {
-          "relation": "enriches the blackboard by calculating relationships (edges) and architectural clusters from raw symbols",
-          "src_name": "CallGraph & Topology Engine",
-          "dst_name": "StaticAnalysis Blackboard",
-          "src_id": "d4b0c49792f1ec65",
-          "dst_id": "107ac9e3617a9a60"
+          "relation": "provides reachability data",
+          "src_name": "Call Graph Builder",
+          "dst_name": "Code Quality Analyzer",
+          "src_id": "63d55755b1a3d052",
+          "dst_id": "f603535bcb663102"
         },
         {
-          "relation": "invokes specific metric plugins based on the project configuration",
-          "src_name": "HealthCheck Orchestrator",
-          "dst_name": "HealthMetrics Plugin Suite",
-          "src_id": "2bdd60b81ceb9e09",
-          "dst_id": "c458ce9566942228"
+          "relation": "outputs health reports and diagnostics",
+          "src_name": "Code Quality Analyzer",
+          "dst_name": "Analysis Result Manager",
+          "src_id": "f603535bcb663102",
+          "dst_id": "8529f791007e4a8c"
         },
         {
-          "relation": "queries the blackboard's graph and dependency data to identify architectural violations (e.g., high coupling)",
-          "src_name": "HealthMetrics Plugin Suite",
-          "dst_name": "StaticAnalysis Blackboard",
-          "src_id": "c458ce9566942228",
-          "dst_id": "107ac9e3617a9a60"
+          "relation": "sends direct file‑level diagnostics and symbol metadata",
+          "src_name": "LSP Client Provider",
+          "dst_name": "Analysis Result Manager",
+          "src_id": "f47123c3d6342dd2",
+          "dst_id": "8529f791007e4a8c"
         }
       ]
     },
