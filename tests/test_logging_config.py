@@ -1,7 +1,6 @@
 import codecs
 import io
 import logging
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -107,19 +106,11 @@ class TestLoggingConfig(unittest.TestCase):
 
             logs_dir = temp_path / "logs"
             log_files = list(logs_dir.glob("*.log"))
-            # Filter out _latest.log
-            timestamped_files = [f for f in log_files if f.name != "_latest.log"]
 
-            self.assertEqual(len(timestamped_files), 1)
-            filename = timestamped_files[0].name
+            self.assertEqual(len(log_files), 1)
+            filename = log_files[0].name
             # Expected format: YYYYMMDD_HHMMSS.log
             self.assertEqual(len(filename), len("YYYYMMDD_HHMMSS.log"))
-
-            # Check _latest.log
-            latest_log = logs_dir / "_latest.log"
-            self.assertTrue(latest_log.exists())
-            if latest_log.is_symlink():
-                self.assertEqual(os.readlink(latest_log), filename)
 
             self._clean_logging_handlers()
 
@@ -130,11 +121,9 @@ class TestLoggingConfig(unittest.TestCase):
 
             logs_dir = temp_path / "logs"
             log_files = list(logs_dir.glob("*.log"))
-            # Filter out _latest.log
-            timestamped_files = [f for f in log_files if f.name != "_latest.log"]
 
-            self.assertEqual(len(timestamped_files), 1)
-            self.assertEqual(len(timestamped_files[0].name), len("YYYYMMDD_HHMMSS.log"))
+            self.assertEqual(len(log_files), 1)
+            self.assertEqual(len(log_files[0].name), len("YYYYMMDD_HHMMSS.log"))
 
             self._clean_logging_handlers()
 
@@ -151,8 +140,7 @@ class TestLoggingConfig(unittest.TestCase):
             self.assertFalse((logs_path / "logs").exists())
             # But the log file should be inside logs_path
             log_files = list(logs_path.glob("*.log"))
-            timestamped_files = [f for f in log_files if f.name != "_latest.log"]
-            self.assertEqual(len(timestamped_files), 1)
+            self.assertEqual(len(log_files), 1)
 
             self._clean_logging_handlers()
 
