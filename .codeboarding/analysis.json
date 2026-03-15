@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-03-15T01:03:44.465187+00:00",
+    "generated_at": "2026-03-15T18:54:49.045436+00:00",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -63,83 +63,102 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Application Orchestrator & Repository Manager",
-          "description": "Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It acts as the primary control surface for CLI and remote processing.",
+          "name": "Application Orchestrator",
+          "description": "The central entry point that manages the CLI lifecycle. It validates user configurations (LLM providers, paths) and coordinates the high-level execution flow from repository ingestion to final documentation generation.",
           "key_entities": [
             {
               "qualified_name": "repos.codeboarding.main.main",
-              "reference_file": "main.py"
+              "reference_file": "constants.py"
             },
             {
-              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
-              "reference_file": "repo_utils/change_detector.py"
+              "qualified_name": "repos.codeboarding.core.config.ConfigProvider",
+              "reference_file": "constants.py"
             },
             {
-              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
-              "reference_file": "repo_utils/change_detector.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.config.UserConfig",
-              "reference_file": "main.py"
+              "qualified_name": "repos.codeboarding.core.registry.PluginLoader",
+              "reference_file": "constants.py"
             }
           ],
           "assigned_files": [
-            "main.py",
-            "repo_utils/change_detector.py",
             "constants.py",
             "health_main.py",
             "logging_config.py",
-            "repo_utils/__init__.py",
-            "repo_utils/errors.py",
-            "repo_utils/git_diff.py",
-            "repo_utils/ignore.py",
+            "main.py",
+            "tool_registry.py",
             "user_config.py",
-            "utils.py"
+            "utils.py",
+            "vscode_constants.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "bbb45874eb523b48",
+          "component_id": "bab486ce1131be53",
           "can_expand": true
         },
         {
-          "name": "Static Analysis & Environment Manager",
-          "description": "Ensures the execution environment is ready by downloading/installing Language Server Protocol (LSP) servers and verifying platform‑specific binaries. It executes deterministic static analysis (LSP/CFG) to extract structural code data.",
+          "name": "Repository & Change Manager",
+          "description": "Handles all filesystem and Git operations. It clones/updates repositories and utilizes an incremental change detector to compare Git diffs against historical states, ensuring only modified files are processed.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.tooling.LSPManager",
+              "qualified_name": "repos.codeboarding.repository.RepositoryManager",
+              "reference_file": "repo_utils/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.ChangeDetector",
+              "reference_file": "repo_utils/__init__.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.repository.PathNormalizer",
+              "reference_file": "repo_utils/__init__.py"
+            }
+          ],
+          "assigned_files": [
+            "repo_utils/__init__.py",
+            "repo_utils/change_detector.py",
+            "repo_utils/errors.py",
+            "repo_utils/git_diff.py",
+            "repo_utils/ignore.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "a1bfa3bf5fc50391",
+          "can_expand": true
+        },
+        {
+          "name": "LSP Environment Manager",
+          "description": "Manages the lifecycle of Language Server Protocol (LSP) binaries. It handles platform-specific binary downloads, Node/NPM environment resolution, and executes static analysis to extract raw code symbols.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.lsp.LSPManager",
               "reference_file": "install.py"
             },
             {
-              "qualified_name": "repos.codeboarding.tooling.BinaryResolver",
+              "qualified_name": "repos.codeboarding.lsp.BinaryDownloader",
               "reference_file": "install.py"
             },
             {
-              "qualified_name": "repos.codeboarding.analysis.StaticAnalyzer",
+              "qualified_name": "repos.codeboarding.lsp.EnvironmentResolver",
               "reference_file": "install.py"
             }
           ],
           "assigned_files": [
-            "install.py",
-            "tool_registry.py",
-            "vscode_constants.py"
+            "install.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "3843458e4c0dbd49",
+          "component_id": "b9f71175c04b0412",
           "can_expand": true
         },
         {
-          "name": "Analysis Synthesizer",
-          "description": "The \"brain\" of the data layer. It parses raw outputs from various static analysis tools and transforms them into the UnifiedAnalysisJson schema, mapping internal IDs to human‑readable component names.",
+          "name": "Analysis Transformer",
+          "description": "Normalizes raw, language-specific LSP data into a UnifiedAnalysisJson format. It maps code components to documentation schemas and calculates structural metrics like recursion depth and ID assignment.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.synthesizer.AnalysisSynthesizer",
+              "qualified_name": "repos.codeboarding.analysis.Transformer",
               "reference_file": "diagram_analysis/analysis_json.py"
             },
             {
-              "qualified_name": "repos.codeboarding.schema.UnifiedAnalysisJson",
+              "qualified_name": "repos.codeboarding.analysis.SchemaMapper",
               "reference_file": "diagram_analysis/analysis_json.py"
             },
             {
-              "qualified_name": "repos.codeboarding.synthesizer.ComponentMapper",
+              "qualified_name": "repos.codeboarding.analysis.UnifiedAnalysisJson",
               "reference_file": "diagram_analysis/analysis_json.py"
             }
           ],
@@ -147,47 +166,23 @@
             "diagram_analysis/analysis_json.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "e2356ffdc3ee4259",
+          "component_id": "98f20cfb02340f73",
           "can_expand": true
         },
         {
-          "name": "Metadata & Persistence Store",
-          "description": "Provides a persistence layer using DuckDB to track job history, status updates, and analysis metadata. This ensures reproducibility and allows the system to skip analysis for unchanged files.",
+          "name": "Execution Context Manager",
+          "description": "The \"Brain\" of the agentic workflow. It tracks the reasoning loop, manages function-calling traces, records LLM token usage, and maintains the state of the current analysis run.",
           "key_entities": [
             {
-              "qualified_name": "repos.codeboarding.store.MetadataStore",
-              "reference_file": "duckdb_crud.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.store.JobTracker",
-              "reference_file": "duckdb_crud.py"
-            },
-            {
-              "qualified_name": "repos.codeboarding.store.DuckDBClient",
-              "reference_file": "duckdb_crud.py"
-            }
-          ],
-          "assigned_files": [
-            "duckdb_crud.py"
-          ],
-          "source_cluster_ids": [],
-          "component_id": "ccfb6caf4b72ee41",
-          "can_expand": true
-        },
-        {
-          "name": "Telemetry & Monitoring Service",
-          "description": "A cross‑cutting service that wraps execution steps in a MonitorContext. It specifically tracks LLM token usage and streams real‑time execution statistics to the filesystem for external monitoring.",
-          "key_entities": [
-            {
-              "qualified_name": "repos.codeboarding.telemetry.MonitorContext",
+              "qualified_name": "repos.codeboarding.core.context.ExecutionContext",
               "reference_file": "monitoring/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.telemetry.TokenUsageTracker",
+              "qualified_name": "repos.codeboarding.agents.AgentCore",
               "reference_file": "monitoring/__init__.py"
             },
             {
-              "qualified_name": "repos.codeboarding.telemetry.TelemetryStreamer",
+              "qualified_name": "repos.codeboarding.core.stats.UsageTracker",
               "reference_file": "monitoring/__init__.py"
             }
           ],
@@ -201,38 +196,76 @@
             "monitoring/writers.py"
           ],
           "source_cluster_ids": [],
-          "component_id": "de7807c6a3b39380",
+          "component_id": "3a7455c31f2fc9ff",
+          "can_expand": true
+        },
+        {
+          "name": "State Persistence Layer",
+          "description": "Manages the long-term storage of analysis metadata and job history using DuckDB. It provides the CRUD interface for incremental runs to look up previous file hashes and analysis results.",
+          "key_entities": [
+            {
+              "qualified_name": "repos.codeboarding.database.DuckDBInterface",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.database.StateStore",
+              "reference_file": "duckdb_crud.py"
+            },
+            {
+              "qualified_name": "repos.codeboarding.database.MetadataManager",
+              "reference_file": "duckdb_crud.py"
+            }
+          ],
+          "assigned_files": [
+            "duckdb_crud.py"
+          ],
+          "source_cluster_ids": [],
+          "component_id": "f6a530662840b3a6",
           "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "triggers environment verification and initiates static analysis",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Static Analysis & Environment Manager",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "3843458e4c0dbd49"
+          "relation": "triggers",
+          "src_name": "Application Orchestrator",
+          "dst_name": "Repository & Change Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "a1bfa3bf5fc50391"
         },
         {
-          "relation": "records job start/end times and updates status",
-          "src_name": "Application Orchestrator & Repository Manager",
-          "dst_name": "Metadata & Persistence Store",
-          "src_id": "bbb45874eb523b48",
-          "dst_id": "ccfb6caf4b72ee41"
+          "relation": "initializes",
+          "src_name": "Application Orchestrator",
+          "dst_name": "LSP Environment Manager",
+          "src_id": "bab486ce1131be53",
+          "dst_id": "b9f71175c04b0412"
         },
         {
-          "relation": "passes raw structural data and LSP outputs for normalization",
-          "src_name": "Static Analysis & Environment Manager",
-          "dst_name": "Analysis Synthesizer",
-          "src_id": "3843458e4c0dbd49",
-          "dst_id": "e2356ffdc3ee4259"
+          "relation": "queries",
+          "src_name": "Repository & Change Manager",
+          "dst_name": "State Persistence Layer",
+          "src_id": "a1bfa3bf5fc50391",
+          "dst_id": "f6a530662840b3a6"
         },
         {
-          "relation": "provides MonitorContext that wraps execution steps to capture performance and token metrics",
-          "src_name": "Telemetry & Monitoring Service",
-          "dst_name": "Application Orchestrator & Repository Manager",
-          "src_id": "de7807c6a3b39380",
-          "dst_id": "bbb45874eb523b48"
+          "relation": "feeds",
+          "src_name": "LSP Environment Manager",
+          "dst_name": "Analysis Transformer",
+          "src_id": "b9f71175c04b0412",
+          "dst_id": "98f20cfb02340f73"
+        },
+        {
+          "relation": "pushes",
+          "src_name": "Analysis Transformer",
+          "dst_name": "Execution Context Manager",
+          "src_id": "98f20cfb02340f73",
+          "dst_id": "3a7455c31f2fc9ff"
+        },
+        {
+          "relation": "flushes",
+          "src_name": "Execution Context Manager",
+          "dst_name": "State Persistence Layer",
+          "src_id": "3a7455c31f2fc9ff",
+          "dst_id": "f6a530662840b3a6"
         }
       ]
     },

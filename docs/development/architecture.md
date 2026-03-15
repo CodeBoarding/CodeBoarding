@@ -441,15 +441,18 @@ Primary entry point for the CodeBoarding tool; parses CLI arguments, validates e
 
 ```mermaid
 graph LR
-    Application_Orchestrator_Repository_Manager["Application Orchestrator & Repository Manager"]
-    Static_Analysis_Environment_Manager["Static Analysis & Environment Manager"]
-    Analysis_Synthesizer["Analysis Synthesizer"]
-    Metadata_Persistence_Store["Metadata & Persistence Store"]
-    Telemetry_Monitoring_Service["Telemetry & Monitoring Service"]
-    Application_Orchestrator_Repository_Manager -- "triggers environment verification and initiates static analysis" --> Static_Analysis_Environment_Manager
-    Application_Orchestrator_Repository_Manager -- "records job start/end times and updates status" --> Metadata_Persistence_Store
-    Static_Analysis_Environment_Manager -- "passes raw structural data and LSP outputs for normalization" --> Analysis_Synthesizer
-    Telemetry_Monitoring_Service -- "provides MonitorContext that wraps execution steps to capture performance and token metrics" --> Application_Orchestrator_Repository_Manager
+    Application_Orchestrator["Application Orchestrator"]
+    Repository_Change_Manager["Repository & Change Manager"]
+    LSP_Environment_Manager["LSP Environment Manager"]
+    Analysis_Transformer["Analysis Transformer"]
+    Execution_Context_Manager["Execution Context Manager"]
+    State_Persistence_Layer["State Persistence Layer"]
+    Application_Orchestrator -- "triggers" --> Repository_Change_Manager
+    Application_Orchestrator -- "initializes" --> LSP_Environment_Manager
+    Repository_Change_Manager -- "queries" --> State_Persistence_Layer
+    LSP_Environment_Manager -- "feeds" --> Analysis_Transformer
+    Analysis_Transformer -- "pushes" --> Execution_Context_Manager
+    Execution_Context_Manager -- "flushes" --> State_Persistence_Layer
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -458,60 +461,70 @@ graph LR
 
 Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It also handles the initial setup and environment configuration for the analysis tools.
 
-### Application Orchestrator & Repository Manager
-Manages the overall application lifecycle, including project initialization, repository operations (cloning, updating), change detection, and orchestrating the analysis workflow. It acts as the primary control surface for CLI and remote processing.
+### Application Orchestrator
+The central entry point that manages the CLI lifecycle. It validates user configurations (LLM providers, paths) and coordinates the high-level execution flow from repository ingestion to final documentation generation.
 
 
 **Related Classes/Methods**:
 
 - `repos.codeboarding.main.main`
+- `repos.codeboarding.core.config.ConfigProvider`
+- `repos.codeboarding.core.registry.PluginLoader`
+
+
+### Repository & Change Manager
+Handles all filesystem and Git operations. It clones/updates repositories and utilizes an incremental change detector to compare Git diffs against historical states, ensuring only modified files are processed.
+
+
+**Related Classes/Methods**:
+
 - `repos.codeboarding.repository.RepositoryManager`
 - `repos.codeboarding.repository.ChangeDetector`
-- `repos.codeboarding.config.UserConfig`
+- `repos.codeboarding.repository.PathNormalizer`
 
 
-### Static Analysis & Environment Manager
-Ensures the execution environment is ready by downloading/installing Language Server Protocol (LSP) servers and verifying platform‑specific binaries. It executes deterministic static analysis (LSP/CFG) to extract structural code data.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.tooling.LSPManager`
-- `repos.codeboarding.tooling.BinaryResolver`
-- `repos.codeboarding.analysis.StaticAnalyzer`
-
-
-### Analysis Synthesizer
-The "brain" of the data layer. It parses raw outputs from various static analysis tools and transforms them into the UnifiedAnalysisJson schema, mapping internal IDs to human‑readable component names.
+### LSP Environment Manager
+Manages the lifecycle of Language Server Protocol (LSP) binaries. It handles platform-specific binary downloads, Node/NPM environment resolution, and executes static analysis to extract raw code symbols.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.synthesizer.AnalysisSynthesizer`
-- `repos.codeboarding.schema.UnifiedAnalysisJson`
-- `repos.codeboarding.synthesizer.ComponentMapper`
+- `repos.codeboarding.lsp.LSPManager`
+- `repos.codeboarding.lsp.BinaryDownloader`
+- `repos.codeboarding.lsp.EnvironmentResolver`
 
 
-### Metadata & Persistence Store
-Provides a persistence layer using DuckDB to track job history, status updates, and analysis metadata. This ensures reproducibility and allows the system to skip analysis for unchanged files.
-
-
-**Related Classes/Methods**:
-
-- `repos.codeboarding.store.MetadataStore`
-- `repos.codeboarding.store.JobTracker`
-- `repos.codeboarding.store.DuckDBClient`
-
-
-### Telemetry & Monitoring Service
-A cross‑cutting service that wraps execution steps in a MonitorContext. It specifically tracks LLM token usage and streams real‑time execution statistics to the filesystem for external monitoring.
+### Analysis Transformer
+Normalizes raw, language-specific LSP data into a UnifiedAnalysisJson format. It maps code components to documentation schemas and calculates structural metrics like recursion depth and ID assignment.
 
 
 **Related Classes/Methods**:
 
-- `repos.codeboarding.telemetry.MonitorContext`
-- `repos.codeboarding.telemetry.TokenUsageTracker`
-- `repos.codeboarding.telemetry.TelemetryStreamer`
+- `repos.codeboarding.analysis.Transformer`
+- `repos.codeboarding.analysis.SchemaMapper`
+- `repos.codeboarding.analysis.UnifiedAnalysisJson`
+
+
+### Execution Context Manager
+The "Brain" of the agentic workflow. It tracks the reasoning loop, manages function-calling traces, records LLM token usage, and maintains the state of the current analysis run.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.core.context.ExecutionContext`
+- `repos.codeboarding.agents.AgentCore`
+- `repos.codeboarding.core.stats.UsageTracker`
+
+
+### State Persistence Layer
+Manages the long-term storage of analysis metadata and job history using DuckDB. It provides the CRUD interface for incremental runs to look up previous file hashes and analysis results.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.database.DuckDBInterface`
+- `repos.codeboarding.database.StateStore`
+- `repos.codeboarding.database.MetadataManager`
 
 
 
