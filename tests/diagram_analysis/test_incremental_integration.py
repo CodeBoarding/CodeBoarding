@@ -197,7 +197,7 @@ class TestIncrementalUpdaterIntegration:
         # Save analysis but NOT manifest
         save_analysis(sample_analysis, output_dir)
 
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
 
         assert not updater.can_run_incremental()
 
@@ -226,7 +226,7 @@ class TestIncrementalUpdaterIntegration:
         run_git(git_repo, "commit", "-m", "Rename module_a")
 
         # Run incremental updater
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
         assert updater.can_run_incremental()
 
         impact = updater.analyze()
@@ -277,7 +277,7 @@ class TestIncrementalUpdaterIntegration:
 
         # No changes made
 
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
         assert updater.can_run_incremental()
 
         impact = updater.analyze()
@@ -308,7 +308,7 @@ class TestIncrementalUpdaterIntegration:
         run_git(git_repo, "add", ".")
         run_git(git_repo, "commit", "-m", "Modify module_a")
 
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
         assert updater.can_run_incremental()
         impact = updater.analyze()
 
@@ -347,7 +347,7 @@ class TestEndToEndScenarios:
         run_git(git_repo, "commit", "-m", "Rename for clarity")
 
         # Run incremental update
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
         assert updater.can_run_incremental()
 
         impact = updater.analyze()
@@ -388,7 +388,7 @@ class TestEndToEndScenarios:
         run_git(git_repo, "add", ".")
         run_git(git_repo, "commit", "-m", "Add helper")
 
-        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir)
+        updater = IncrementalUpdater(repo_dir=git_repo, output_dir=output_dir, run_id="test-run-id")
         assert updater.can_run_incremental()
         impact = updater.analyze()
 

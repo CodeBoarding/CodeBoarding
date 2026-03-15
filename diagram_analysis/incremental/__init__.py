@@ -10,7 +10,7 @@ This package provides functionality to:
 Usage:
     from diagram_analysis.incremental import IncrementalUpdater, analyze_impact
 
-    updater = IncrementalUpdater(repo_dir, output_dir)
+    updater = IncrementalUpdater(repo_dir, output_dir, run_id="example-run-id")
     if updater.can_run_incremental():
         impact = updater.analyze()
         success = updater.execute()

@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -9,9 +8,9 @@ def get_monitoring_base_dir() -> Path:
     return get_project_root() / "runs"
 
 
-def get_monitoring_run_dir(run_id: str, create: bool = True) -> Path:
+def get_monitoring_run_dir(log_path: str, create: bool = True) -> Path:
     runs_dir = get_monitoring_base_dir()
-    run_dir = runs_dir / run_id
+    run_dir = runs_dir / log_path
 
     if create:
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -19,7 +18,7 @@ def get_monitoring_run_dir(run_id: str, create: bool = True) -> Path:
     return run_dir
 
 
-def generate_run_id(name: str) -> str:
+def generate_log_path(name: str) -> str:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return f"{name}/{timestamp}"
 

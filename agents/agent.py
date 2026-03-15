@@ -217,7 +217,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt, type):
+    def _parse_invoke(self, prompt: str, type: type):
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
