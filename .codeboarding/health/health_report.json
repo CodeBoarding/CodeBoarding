@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-14T23:37:19.437294+00:00",
+  "timestamp": "2026-03-15T01:03:43.661456+00:00",
   "overall_score": 0.9612147822905233,
   "check_summaries": [
     {
@@ -167,8 +167,8 @@
       "check_type": "circular_dependencies",
       "cycles": [
         "core -> health -> core",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents"
+        "caching -> agents -> caching",
+        "static_analyzer -> agents -> static_analyzer"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -232,17 +232,17 @@
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
-              "file_path": "main.py",
-              "line_start": 169,
-              "line_end": 169,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"result\" is not accessed",
               "file_path": "install.py",
               "line_start": 75,
               "line_end": 75,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"comp_id\" is not accessed",
+              "file_path": "main.py",
+              "line_start": 169,
+              "line_end": 169,
               "metric_value": 0.0
             },
             {
@@ -344,6 +344,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"_kwargs\" is not accessed",
               "file_path": "monitoring/callbacks.py",
               "line_start": 43,
@@ -432,13 +439,6 @@
               "file_path": "monitoring/__init__.py",
               "line_start": 12,
               "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 1,
-              "line_end": 1,
               "metric_value": 0.0
             },
             {
@@ -611,6 +611,13 @@
             },
             {
               "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
               "line_start": 315,
               "line_end": 315,
@@ -636,13 +643,6 @@
               "line_start": 1445,
               "line_end": 1445,
               "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"method\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/typescript_client.py",
-              "line_start": 16,
-              "line_end": 16,
-              "metric_value": 0.0
             }
           ]
         },
@@ -663,6 +663,13 @@
               "file_path": "agents/validation.py",
               "line_start": 4,
               "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
@@ -719,13 +726,6 @@
               "file_path": "monitoring/__init__.py",
               "line_start": 12,
               "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 1,
-              "line_end": 1,
               "metric_value": 0.0
             },
             {
