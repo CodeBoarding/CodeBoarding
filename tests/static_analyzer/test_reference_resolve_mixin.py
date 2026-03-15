@@ -205,7 +205,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         # Should find the directory path
         self.assertIsNotNone(reference.reference_file)
         assert reference.reference_file is not None
-        self.assertTrue(reference.reference_file.endswith("nested/deep/module"))
+        self.assertTrue(reference.reference_file.endswith(os.path.join("nested", "deep", "module")))
 
     def test_relative_paths_conversion(self):
         """Test conversion of absolute paths to relative paths"""
