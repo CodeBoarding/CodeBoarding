@@ -1,7 +1,9 @@
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import install
 
@@ -57,43 +59,56 @@ class TestResolveNpmAvailability(unittest.TestCase):
 
 class TestInstallNpmWithNodeenv(unittest.TestCase):
     @patch("install.check_npm", return_value=True)
-    @patch("install._ensure_local_nodeenv_on_path")
-    @patch("install._run_nodeenv")
-    @patch("install._has_active_python_virtualenv", return_value=True)
-    def test_uses_python_virtualenv_when_available(
-        self,
-        mock_virtualenv,
-        mock_run_nodeenv,
-        mock_ensure_local_nodeenv_on_path,
-        mock_check_npm,
-    ):
-        target_dir = Path("/tmp/codeboarding-servers")
+    @patch("install.requests.get")
+    @patch("install.preferred_node_path", return_value="/custom/node")
+    def test_bootstraps_npm_cli_when_missing(self, mock_preferred_node_path, mock_requests_get, mock_check_npm):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, {}, clear=True):
+            target_dir = Path(temp_dir)
 
-        result = install.install_npm_with_nodeenv(target_dir=target_dir)
+            metadata_response = Mock()
+            metadata_response.raise_for_status.return_value = None
+            metadata_response.json.return_value = {
+                "dist": {"tarball": "https://registry.npmjs.org/npm/-/npm-1.0.0.tgz"}
+            }
+            tarball_response = Mock()
+            tarball_response.raise_for_status.return_value = None
+            tarball_response.content = b"fake-tarball"
+            mock_requests_get.side_effect = [metadata_response, tarball_response]
+
+            with patch("install.extract_tarball_safely") as mock_extract, patch("install.shutil.rmtree") as mock_rmtree:
+                result = install.install_npm_with_nodeenv(target_dir=target_dir)
+                self.assertEqual(os.environ["CODEBOARDING_NODE_PATH"], "/custom/node")
 
         self.assertTrue(result)
-        mock_virtualenv.assert_called_once()
-        mock_run_nodeenv.assert_called_once_with(["--python-virtualenv"])
-        mock_ensure_local_nodeenv_on_path.assert_called_once_with(target_dir.resolve())
+        mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
+        mock_requests_get.assert_any_call("https://registry.npmjs.org/npm/latest", timeout=30)
+        mock_requests_get.assert_any_call("https://registry.npmjs.org/npm/-/npm-1.0.0.tgz", timeout=60)
+        mock_rmtree.assert_called_once_with(target_dir.resolve() / "npm", ignore_errors=True)
+        mock_extract.assert_called_once()
         mock_check_npm.assert_called_once_with(target_dir.resolve())
 
     @patch("install.check_npm", return_value=True)
-    @patch("install._ensure_local_nodeenv_on_path")
-    @patch("install._run_nodeenv")
-    @patch("install._has_active_python_virtualenv", return_value=False)
-    def test_uses_standalone_nodeenv_when_no_virtualenv(
-        self,
-        mock_virtualenv,
-        mock_run_nodeenv,
-        mock_ensure_local_nodeenv_on_path,
-        mock_check_npm,
-    ):
-        target_dir = Path("/tmp/codeboarding-servers")
+    @patch("install.requests.get")
+    @patch("install.preferred_node_path", return_value="/custom/node")
+    def test_uses_existing_bootstrapped_npm_cli(self, mock_preferred_node_path, mock_requests_get, mock_check_npm):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, {}, clear=True):
+            target_dir = Path(temp_dir)
+            npm_cli = install.bootstrapped_npm_cli_path(target_dir)
+            npm_cli.parent.mkdir(parents=True, exist_ok=True)
+            npm_cli.write_text("", encoding="utf-8")
 
-        result = install.install_npm_with_nodeenv(target_dir=target_dir)
+            result = install.install_npm_with_nodeenv(target_dir=target_dir)
 
         self.assertTrue(result)
-        mock_virtualenv.assert_called_once()
-        mock_run_nodeenv.assert_called_once_with([str(target_dir.resolve() / "nodeenv")])
-        mock_ensure_local_nodeenv_on_path.assert_called_once_with(target_dir.resolve())
+        mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
+        mock_requests_get.assert_not_called()
         mock_check_npm.assert_called_once_with(target_dir.resolve())
+
+    @patch("install.preferred_node_path", return_value=None)
+    def test_returns_false_when_no_node_runtime_is_available(self, mock_preferred_node_path):
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, {}, clear=True):
+            target_dir = Path(temp_dir)
+            result = install.install_npm_with_nodeenv(target_dir=target_dir)
+
+        self.assertFalse(result)
+        mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
