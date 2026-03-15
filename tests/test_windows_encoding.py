@@ -20,7 +20,7 @@ class TestWindowsEncoding(unittest.TestCase):
             rel = py_file.relative_to(repo_root)
             parts = rel.parts
             if any(
-                p.startswith(".") or p in ("__pycache__", ".venv", "venv", "node_modules", "build", "dist")
+                p.startswith(".") or p in ("__pycache__", ".venv", "venv", "node_modules", "build", "dist", "repos")
                 for p in parts
             ):
                 continue

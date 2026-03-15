@@ -47,7 +47,7 @@ class TestJavaProjectConfig(unittest.TestCase):
         repr_str = repr(config)
 
         self.assertIn("JavaProjectConfig", repr_str)
-        self.assertIn("/project", repr_str)
+        self.assertIn(str(Path("/project")), repr_str)
         self.assertIn("gradle", repr_str)
         self.assertIn("False", repr_str)
 

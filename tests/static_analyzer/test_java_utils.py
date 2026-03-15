@@ -469,7 +469,7 @@ class TestCreateJdtlsCommand(unittest.TestCase):
         command = create_jdtls_command(jdtls_root, workspace_dir, java_home=custom_java)
 
         # Should use custom Java home
-        self.assertIn("/custom/java-21/bin/java", command[0])
+        self.assertIn(str(Path("/custom/java-21/bin/java")), command[0])
         # Should not call find_java_21_or_later
         mock_java.assert_not_called()
 

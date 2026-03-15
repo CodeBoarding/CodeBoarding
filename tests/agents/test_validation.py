@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from agents.validation import (
@@ -395,6 +396,14 @@ class TestValidateFileClassifications(unittest.TestCase):
 
     def test_path_normalization_with_repo_dir(self):
         """Test path normalization when repo_dir is provided."""
+        # Use platform-appropriate absolute paths so is_absolute() works on Windows too
+        if os.name == "nt":
+            repo_dir = "C:\\repo"
+            abs_file = "C:\\repo\\src\\file1.py"
+        else:
+            repo_dir = "/repo"
+            abs_file = "/repo/src/file1.py"
+
         component_files = ComponentFiles(
             file_paths=[
                 FileClassification(file_path="src/file1.py", component_name="ComponentA"),
@@ -402,14 +411,14 @@ class TestValidateFileClassifications(unittest.TestCase):
         )
 
         context = ValidationContext(
-            expected_files={"/repo/src/file1.py"},  # Absolute path
+            expected_files={abs_file},  # Absolute path
             valid_component_names={"ComponentA"},
-            repo_dir="/repo",
+            repo_dir=repo_dir,
         )
 
         result = validate_file_classifications(component_files, context)
 
-        self.assertTrue(result.is_valid)  # Should normalize /repo/src/file1.py to src/file1.py
+        self.assertTrue(result.is_valid)  # Should normalize absolute path to src/file1.py
 
     def test_truncate_long_error_lists(self):
         """Test that long error lists are truncated."""
