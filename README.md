@@ -1,281 +1,149 @@
-# <img src="./icon.svg" alt="CodeBoarding Logo" width="30" height="30" style="vertical-align: middle;"> CodeBoarding
+# CodeBoarding
 
-[![Website](https://img.shields.io/badge/Site-CodeBoarding.org-5865F2?style=for-the-badge&logoColor=white)](https://codeboarding.org)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?style=for-the-badge&logoColor=white)](https://discord.gg/T5zHTJYFuy)
-[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/i/Codeboarding.codeboarding?style=for-the-badge&logo=visual-studio-code&logoColor=white&label=VS%20Code%20Extension&color=blue)](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding)
-[![AI IDE Extension](https://img.shields.io/open-vsx/v/CodeBoarding/codeboarding?style=for-the-badge&logo=visual-studio-code&label=AI%20IDE%20Extension)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
+See what your AI is building before it breaks.
 
+CodeBoarding gives developers and coding agents a visual map of a codebase. It combines static analysis with LLM reasoning to generate architecture diagrams, component-level documentation, and navigable outputs you can use in your IDE, CI, and docs.
 
+[Website](https://codeboarding.org) · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) · [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) ·[Discord](https://discord.gg/T5zHTJYFuy)
 
-**Supported Languages:**
+[![CodeBoarding demo](docs/assets/codeboarding-demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
 
-[![Python Support](https://img.shields.io/badge/Python-Supported-green?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![TypeScript Support](https://img.shields.io/badge/TypeScript-Supported-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![JavaScript Support](https://img.shields.io/badge/JavaScript-Supported-yellow?style=for-the-badge&logo=javascript&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![Java Support](https://img.shields.io/badge/Java-Supported-orange?style=for-the-badge&logo=java&logoColor=white)](https://www.java.com/)
-[![Go Support](https://img.shields.io/badge/Go-Supported-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
-[![PHP Support](https://img.shields.io/badge/PHP-Supported-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
+Install the extension from Open VSX.
 
-**CodeBoarding** is an open-source codebase analysis tool that generates high-level diagram representations of codebases
-using static analysis and LLM agents, that humans and agents can interact with.  
-It’s designed to support onboarding, documentation, and comprehension for large, complex systems.
+[![JavaScript](https://img.shields.io/badge/JavaScript-222222?style=flat-square&logo=javascript&logoColor=F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Java](https://img.shields.io/badge/Java-E76F00?style=flat-square&logo=openjdk&logoColor=white)](https://www.java.com/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
+[![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 
-- Extract modules and their relationships based on the control flow graph of the project.
-- Builds different levels of abstraction with an LLM agent (multi-provider support) using remote or local inference.
-- Outputs interactive diagrams (Mermaid.js) for integration into docs, IDEs, CI/CD.
+## Why developers use it
 
-📄 Existing visual generations: [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings)  
-🌐 Try for your open-source project: [www.codeboarding.org/diagrams](https://www.codeboarding.org/diagrams)
+- Keep architecture visible while agents code.
+- Review AI-generated changes with system context before they turn into hidden debt.
+- Understand large repositories faster with layered diagrams and component breakdowns.
+- Share the same visual model across local workflows, IDEs, pull requests, and docs.
 
-## 🧩 How it works
+## What CodeBoarding generates
 
-For detailed architecture information, see our [diagram documentation](.codeboarding/overview.md).
+- High-level system architecture diagrams.
+- Deeper component diagrams for important subsystems.
+- Markdown documentation in `.codeboarding/`.
+- Mermaid output that is easy to embed in docs and PRs.
+- Incremental updates when only part of the codebase changes.
+
+## How it works
 
 ```mermaid
 graph LR
-    API_Service["API Service"]
-    Job_Database["Job Database"]
-    Orchestration_Engine["Orchestration Engine"]
-    Repository_Manager["Repository Manager"]
-    Static_Analysis_Engine["Static Analysis Engine"]
-    AI_Interpretation_Layer["AI Interpretation Layer"]
-    Output_Generation_Engine["Output Generation Engine"]
-    Unclassified["Unclassified"]
-    API_Service -- " Initiates Job " --> Job_Database
-    API_Service -- " Triggers Analysis " --> Orchestration_Engine
-    Orchestration_Engine -- " Manages Job State " --> Job_Database
-    Orchestration_Engine -- " Requests Code " --> Repository_Manager
-    Repository_Manager -- " Provides Code " --> Orchestration_Engine
-    Orchestration_Engine -- " Requests Static Analysis " --> Static_Analysis_Engine
-    Static_Analysis_Engine -- " Provides Richer Analysis Results " --> Orchestration_Engine
-    Orchestration_Engine -- " Feeds Rich Analysis Data " --> AI_Interpretation_Layer
-    AI_Interpretation_Layer -- " Returns Enhanced Architectural Insights " --> Orchestration_Engine
-    AI_Interpretation_Layer -- " Queries Diff " --> Repository_Manager
-    Orchestration_Engine -- " Passes Enhanced Insights for Generation " --> Output_Generation_Engine
-    Output_Generation_Engine -- " Delivers Documentation " --> API_Service
-    click Job_Database href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Job_Database.md" "Details"
-    click Orchestration_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Orchestration_Engine.md" "Details"
-    click Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Repository_Manager.md" "Details"
-    click Static_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Analysis_Engine.md" "Details"
-    click AI_Interpretation_Layer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/AI_Interpretation_Layer.md" "Details"
-    click Output_Generation_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Output_Generation_Engine.md" "Details"
+    Application_Orchestrator_Repository_Manager["Application Orchestrator & Repository Manager"]
+    LLM_Agent_Core["LLM Agent Core"]
+    Static_Code_Analyzer["Static Code Analyzer"]
+    Agent_Tooling_Interface["Agent Tooling Interface"]
+    Incremental_Analysis_Engine["Incremental Analysis Engine"]
+    Documentation_Diagram_Generator["Documentation & Diagram Generator"]
+    Application_Orchestrator_Repository_Manager -- "Orchestrator initiates analysis workflow, leveraging incremental updates based on detected code changes." --> Incremental_Analysis_Engine
+    Application_Orchestrator_Repository_Manager -- "Orchestrator passes project context and triggers the main analysis workflow for the LLM Agent." --> LLM_Agent_Core
+    Incremental_Analysis_Engine -- "Incremental engine requests static analysis for specific code segments (new or changed)." --> Static_Code_Analyzer
+    Static_Code_Analyzer -- "Static analyzer provides analysis results to the incremental engine for caching." --> Incremental_Analysis_Engine
+    LLM_Agent_Core -- "LLM Agent invokes specialized tools to interact with the codebase and analysis data." --> Agent_Tooling_Interface
+    Agent_Tooling_Interface -- "Agent tools query the static analysis engine for detailed code insights." --> Static_Code_Analyzer
+    Static_Code_Analyzer -- "Static analysis engine provides requested data to the agent tools." --> Agent_Tooling_Interface
+    LLM_Agent_Core -- "LLM Agent delivers structured analysis insights for documentation and diagram generation." --> Documentation_Diagram_Generator
+    click Application_Orchestrator_Repository_Manager href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Application_Orchestrator_Repository_Manager.md" "Details"
+    click LLM_Agent_Core href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/LLM_Agent_Core.md" "Details"
+    click Static_Code_Analyzer href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Static_Code_Analyzer.md" "Details"
+    click Agent_Tooling_Interface href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Agent_Tooling_Interface.md" "Details"
+    click Incremental_Analysis_Engine href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Incremental_Analysis_Engine.md" "Details"
+    click Documentation_Diagram_Generator href "https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboarding/Documentation_Diagram_Generator.md" "Details"
 ```
 
-## 📌 Setup
+For a deeper architecture walkthrough, see [`.codeboarding/overview.md`](.codeboarding/overview.md).
 
-First, make sure you have uv installed. Check the official installation guide: [Installing UV](https://docs.astral.sh/uv/getting-started/installation/).
+## Quick start
 
-Set up the environment:
+### Run from source
 
 ```bash
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python install.py
+python main.py --local /path/to/repo
 ```
 
-> [!IMPORTANT]
-> `python install.py` downloads language server binaries to `~/.codeboarding/servers/` (shared across all projects).
-> `npm` is required (used for Python, TypeScript, JavaScript, and PHP language servers). If `npm` is not found, you will be prompted to install it via `nodeenv`; declining will abort setup.
+### Use the packaged CLI
 
-### Configuration
+```bash
+pip install codeboarding
+codeboarding-setup
+codeboarding --local /path/to/repo
+```
 
-LLM provider keys and model overrides live in `~/.codeboarding/config.toml`, created automatically on first run:
+Output is written to `/path/to/repo/.codeboarding/`.
+
+`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. `npm` is required for Python, TypeScript, JavaScript, and PHP language servers; if it is missing, setup can install it via `nodeenv`.
+
+## Configuration
+
+On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provider there or use environment variables.
 
 ```toml
-# ~/.codeboarding/config.toml
-
 [provider]
-# Uncomment exactly one provider key
-# openai_api_key    = "sk-..."
-# anthropic_api_key = "sk-ant-..."
-# google_api_key    = "AIza..."
-# vercel_api_key    = "vck_..."
-# ollama_base_url   = "http://localhost:11434"
+# openai_api_key            = "sk-..."
+# anthropic_api_key         = "sk-ant-..."
+# google_api_key            = "AIza..."
+# vercel_api_key            = "vck_..."
+# aws_bearer_token_bedrock  = "..."
+# ollama_base_url           = "http://localhost:11434"
+# openrouter_api_key        = "sk-..."
 
 [llm]
-# Optional: override the default model for your active provider
 # agent_model   = "gemini-3-flash"
 # parsing_model = "gemini-3-flash"
 ```
 
-Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes.
+Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
 
-For private repositories, set `GITHUB_TOKEN` in your environment.
-
-> 💡 **Tip:** Our experience has shown that using **Google Gemini‑2.5‑Pro** yields the best results for complex diagram
-> generation tasks.
-
-### Run it
-
-#### Basic Usage
-
-```bash
-# Analyze a local repository (output written to /path/to/repo/.codeboarding/)
-python main.py --local /path/to/repo
-
-# Analyze a remote repository (cloned to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/)
-python main.py https://github.com/user/repo
-```
-
-#### Command-Line Arguments
-
-**Repository selection (required, choose one):**
-- `<repository_url> ...` — One or more GitHub repository URLs to analyze
-- `--local <path>` — Path to a local repository
-
-**Analysis options:**
-- `--depth-level <int>` — Diagram depth (default: `1`)
-- `--incremental` — Smart incremental update (re-analyze changed files only)
-- `--full` — Force full reanalysis, skip incremental detection
-- `--partial-component-id <id>` — Update a single component by its ID (local repos only)
-
-**Advanced:**
-- `--binary-location <path>` — Custom path to language server binaries (overrides `~/.codeboarding/servers/`)
-- `--upload` — Upload results to GeneratedOnBoardings repo (remote repos only)
-- `--enable-monitoring` — Enable run monitoring
-
-#### Examples
+## Common commands
 
 ```bash
 # Analyze a local repository
 python main.py --local ./my-project
 
-# Analyze with custom depth
+# Increase diagram depth
 python main.py --local ./my-project --depth-level 2
 
-# Analyze a remote repository
-python main.py https://github.com/pytorch/pytorch
-
-# Analyze multiple remote repositories
-python main.py https://github.com/user/repo1 https://github.com/user/repo2
-
-# Incremental update (re-analyze only changed components)
+# Re-analyze only changed parts when possible
 python main.py --local ./my-project --incremental
 
 # Update a single component by ID
 python main.py --local ./my-project --partial-component-id "a3f2b1c4d5e6f789"
+
+# Analyze a remote GitHub repository
+python main.py https://github.com/pytorch/pytorch
 ```
 
-## 🖥️ Examples:
+## Where to use it
 
-We have visualized **over 800+ popular open-source projects**. See examples:
+- [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
+- [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) for in-editor visual architecture.
+- [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) to keep diagrams updated in CI.
 
-### PyTorch:
+## Supported stack
 
-```mermaid
-graph LR
-    Tensor_Operations_Core["Tensor Operations & Core"]
-    Automatic_Differentiation_Autograd_Engine_["Automatic Differentiation (Autograd Engine)"]
-    Neural_Network_Modules_torch_nn_["Neural Network Modules (torch.nn)"]
-    Optimizers_torch_optim_["Optimizers (torch.optim)"]
-    Data_Utilities_torch_utils_data_["Data Utilities (torch.utils.data)"]
-    JIT_Compiler_Scripting_TorchScript_["JIT Compiler & Scripting (TorchScript)"]
-    Hardware_Backends["Hardware Backends"]
-    Data_Utilities_torch_utils_data_ -- " provides data to " --> Tensor_Operations_Core
-    Tensor_Operations_Core -- " provides primitives for " --> Neural_Network_Modules_torch_nn_
-    Tensor_Operations_Core -- " leverages " --> Hardware_Backends
-    Neural_Network_Modules_torch_nn_ -- " performs operations on " --> Tensor_Operations_Core
-    Neural_Network_Modules_torch_nn_ -- " operations recorded by " --> Automatic_Differentiation_Autograd_Engine_
-    Neural_Network_Modules_torch_nn_ -- " exported to " --> JIT_Compiler_Scripting_TorchScript_
-    Automatic_Differentiation_Autograd_Engine_ -- " computes gradients for " --> Optimizers_torch_optim_
-    Optimizers_torch_optim_ -- " updates parameters of " --> Neural_Network_Modules_torch_nn_
-    Hardware_Backends -- " executes computations for " --> Tensor_Operations_Core
-    click Tensor_Operations_Core href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Tensor_Operations_Core.md" "Details"
-    click Automatic_Differentiation_Autograd_Engine_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Automatic_Differentiation_Autograd_Engine_.md" "Details"
-    click Neural_Network_Modules_torch_nn_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Neural_Network_Modules_torch_nn_.md" "Details"
-    click Optimizers_torch_optim_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Optimizers_torch_optim_.md" "Details"
-    click Data_Utilities_torch_utils_data_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Data_Utilities_torch_utils_data_.md" "Details"
-    click JIT_Compiler_Scripting_TorchScript_ href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/JIT_Compiler_Scripting_TorchScript_.md" "Details"
-    click Hardware_Backends href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/pytorch/Hardware_Backends.md" "Details"
-```
+- Languages: Python, TypeScript, JavaScript, Java, Go, PHP.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
 
-### FastAPI:
+## Examples
 
-```mermaid
-graph LR
-    Application_Core["Application Core"]
-    Middleware["Middleware"]
-    Routing["Routing"]
-    Request_Handling_Validation["Request Handling & Validation"]
-    Dependency_Injection["Dependency Injection"]
-    Security["Security"]
-    Response_Handling["Response Handling"]
-    API_Documentation["API Documentation"]
-    Application_Core -- " sends request to " --> Middleware
-    Middleware -- " forwards request to " --> Routing
-    Routing -- " uses " --> Request_Handling_Validation
-    Routing -- " uses " --> Dependency_Injection
-    Routing -- " provides data for " --> Response_Handling
-    Dependency_Injection -- " enables " --> Security
-    Response_Handling -- " sends response to " --> Middleware
-    API_Documentation -- " inspects " --> Routing
-    API_Documentation -- " inspects " --> Request_Handling_Validation
-    click Application_Core href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Application_Core.md" "Details"
-    click Middleware href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Middleware.md" "Details"
-    click Routing href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Routing.md" "Details"
-    click Request_Handling_Validation href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Request_Handling_Validation.md" "Details"
-    click Dependency_Injection href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Dependency_Injection.md" "Details"
-    click Security href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/Security.md" "Details"
-    click API_Documentation href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main/fastapi/API_Documentation.md" "Details"
-```
+- Visualized 800+ open-source repositories.
+- Browse generated examples in [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings).
+- Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams).
 
-### ChatTTS:
+## Contributing
 
-```mermaid
-graph LR
-    ChatTTS_Core_Orchestrator["ChatTTS Core Orchestrator"]
-    Text_Processing_Module["Text Processing Module"]
-    Speech_Synthesis_Models["Speech Synthesis Models"]
-    Velocity_Inference_Engine["Velocity Inference Engine"]
-    System_Utilities_Configuration["System Utilities & Configuration"]
-    ChatTTS_Core_Orchestrator -- " Orchestrates Text Flow " --> Text_Processing_Module
-    ChatTTS_Core_Orchestrator -- " Receives Processed Text " --> Text_Processing_Module
-    ChatTTS_Core_Orchestrator -- " Orchestrates Synthesis Flow " --> Speech_Synthesis_Models
-    ChatTTS_Core_Orchestrator -- " Receives Audio Output " --> Speech_Synthesis_Models
-    ChatTTS_Core_Orchestrator -- " Initializes & Configures " --> System_Utilities_Configuration
-    ChatTTS_Core_Orchestrator -- " Loads Assets " --> System_Utilities_Configuration
-    Text_Processing_Module -- " Receives Raw Text " --> ChatTTS_Core_Orchestrator
-    Text_Processing_Module -- " Provides Processed Text " --> ChatTTS_Core_Orchestrator
-    Speech_Synthesis_Models -- " Receives Processed Data " --> ChatTTS_Core_Orchestrator
-    Speech_Synthesis_Models -- " Generates Audio Output " --> ChatTTS_Core_Orchestrator
-    Speech_Synthesis_Models -- " Delegates Inference To " --> Velocity_Inference_Engine
-    Speech_Synthesis_Models -- " Receives Inference Results " --> Velocity_Inference_Engine
-    Speech_Synthesis_Models -- " Utilizes GPU Resources " --> System_Utilities_Configuration
-    Speech_Synthesis_Models -- " Accesses Model Config " --> System_Utilities_Configuration
-    Velocity_Inference_Engine -- " Executes Model Inference " --> Speech_Synthesis_Models
-    Velocity_Inference_Engine -- " Returns Inference Output " --> Speech_Synthesis_Models
-    Velocity_Inference_Engine -- " Receives Engine Configuration " --> System_Utilities_Configuration
-    System_Utilities_Configuration -- " Provides Assets & Config " --> ChatTTS_Core_Orchestrator
-    System_Utilities_Configuration -- " Provides GPU & Config " --> Speech_Synthesis_Models
-    System_Utilities_Configuration -- " Provides Engine Config " --> Velocity_Inference_Engine
-    click ChatTTS_Core_Orchestrator href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/ChatTTS_Core_Orchestrator.md" "Details"
-    click Text_Processing_Module href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Text_Processing_Module.md" "Details"
-    click Speech_Synthesis_Models href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Speech_Synthesis_Models.md" "Details"
-    click Velocity_Inference_Engine href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/Velocity_Inference_Engine.md" "Details"
-    click System_Utilities_Configuration href "https://github.com/CodeBoarding/GeneratedOnBoardings/blob/main//ChatTTS/System_Utilities_Configuration.md" "Details"
-```
+If you want to improve CodeBoarding, open an [issue](https://github.com/CodeBoarding/CodeBoarding/issues) or send a pull request. We welcome improvements to analysis quality, output generators, integrations, and developer experience.
 
-Browse more examples: [GeneratedOnBoardings Repository](https://github.com/CodeBoarding/GeneratedOnBoardings)
+## Vision
 
-## 🚀 Integrations
-
-Codeboarding is integrated with everything we use:
-
-- 📦 [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding): Interact
-  with the diagram directly in your IDE.
-- ⚙️ [**GitHub Action**](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation): Automate
-  diagram generation in CI/CD.
-- 🔗 [**MCP Server**](https://github.com/CodeBoarding/CodeBoarding-MCP): Serves the concise documentation to your AI
-  Agent assistant (ClaudeCode, VSCode, Cursor, etc.)
-
-## 🤝 Contributing
-
-We’re just getting started and would love your help!
-If you have ideas, spot bugs, or want to improve anything -
-please [open an issue](https://github.com/CodeBoarding/CodeBoarding/issues) or tackle an existing one.
-We actively track suggestions and welcome pull requests of all sizes.
-
-## 🔮 Vision
-
-**Unified high-level representation for codebases that is accurate** (hence static analysis). This representation is
-used by both people and agents → fully integrated in IDEs, MCP servers, and development workflows.
+CodeBoarding is building an open standard for code understanding: a visual, accurate, high-level representation of a codebase that both humans and agents can use.
