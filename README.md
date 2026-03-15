@@ -17,7 +17,7 @@ Install the extension from Open VSX.
 [![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 
-## Why developers use it
+## Few use cases:
 
 - Keep architecture visible while agents code.
 - Review AI-generated changes with system context before they turn into hidden debt.
