@@ -19,6 +19,7 @@ from tool_registry import (
     install_archive_tool,
     install_native_tools,
     install_node_tools,
+    npm_subprocess_env,
     platform_bin_dir,
     preferred_node_path,
     preferred_npm_command,
@@ -55,7 +56,8 @@ def check_npm(target_dir: Path | None = None) -> bool:
 
     if npm_command:
         try:
-            result = subprocess.run([*npm_command, "--version"], capture_output=True, text=True, check=True)
+            env = npm_subprocess_env(target)
+            result = subprocess.run([*npm_command, "--version"], capture_output=True, text=True, check=True, env=env)
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
         except Exception as e:
@@ -84,8 +86,8 @@ def extract_tarball_safely(fileobj: io.BytesIO, destination: Path) -> None:
         tar.extractall(destination)
 
 
-def install_npm_with_nodeenv(target_dir: Path | None = None) -> bool:
-    """Bootstrap npm locally and invoke it through the configured Node.js runtime."""
+def bootstrap_npm(target_dir: Path | None = None) -> bool:
+    """Download npm from the registry and invoke it through the configured Node.js runtime."""
     target = (target_dir or get_servers_dir()).resolve()
     target.mkdir(parents=True, exist_ok=True)
     node_path = preferred_node_path(target)
@@ -142,29 +144,24 @@ def is_non_interactive_mode() -> bool:
 
 
 def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
-    """Prompt the user to install npm; abort if they decline or if non-interactive.
+    """Try to bootstrap npm; fall back gracefully if it cannot be obtained.
 
-    Returns True only when npm becomes available. Raises SystemExit if the user
-    declines or if running non-interactively, because npm is required.
+    Returns True when npm becomes available, False otherwise.
+    In non-interactive mode (VS Code extension / CI) the function never raises —
+    a missing npm just means Node-based language servers will be unavailable.
     """
     print("Step: npm required for TypeScript/JavaScript/PHP/Python language servers")
 
-    if auto_install_npm:
-        installed = install_npm_with_nodeenv(target_dir=target_dir)
+    if auto_install_npm or is_non_interactive_mode():
+        installed = bootstrap_npm(target_dir=target_dir)
         if not installed:
-            print("Error: npm installation failed. Install Node.js from https://nodejs.org/en/download and retry.")
-            raise SystemExit(1)
-        return True
-
-    if is_non_interactive_mode():
-        print("Error: npm is required but not found and cannot be installed non-interactively.")
-        print("   Re-run with --auto-install-npm to bootstrap npm with the configured Node.js runtime,")
-        print("   or install Node.js manually from: https://nodejs.org/en/download")
-        raise SystemExit(1)
+            print("Warning: npm bootstrap failed. Node-based language servers will be unavailable.")
+            print("   Install Node.js from https://nodejs.org/en/download to enable them.")
+        return installed
 
     choice = input("npm is missing. Install it now using the configured Node.js runtime? [y/N]: ").strip().lower()
     if choice in {"y", "yes"}:
-        installed = install_npm_with_nodeenv(target_dir=target_dir)
+        installed = bootstrap_npm(target_dir=target_dir)
         if not installed:
             print("Error: npm installation failed. Install Node.js from https://nodejs.org/en/download and retry.")
             raise SystemExit(1)
@@ -190,7 +187,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--auto-install-npm",
         action="store_true",
-        help="Automatically install npm via nodeenv when npm is missing",
+        help="Automatically bootstrap npm when missing (downloads from registry, runs via Node.js)",
     )
     parser.add_argument(
         "--auto-install-vcpp",

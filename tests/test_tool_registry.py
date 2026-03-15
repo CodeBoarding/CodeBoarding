@@ -65,6 +65,29 @@ class TestToolRegistry(unittest.TestCase):
             second_command = mock_run.call_args_list[1].args[0]
             self.assertEqual(first_command[0], str(nodeenv_bin / "npm"))
             self.assertEqual(second_command[0], str(nodeenv_bin / "npm"))
+            # Verify env is passed with ELECTRON_RUN_AS_NODE
+            for call in mock_run.call_args_list:
+                env = call.kwargs.get("env", {})
+                self.assertEqual(env.get("ELECTRON_RUN_AS_NODE"), "1")
+
+    @patch("tool_registry.subprocess.run")
+    @patch("platform.system", return_value="Linux")
+    @patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": "/vscode/node"}, clear=False)
+    def test_install_node_tools_uses_bootstrapped_npm_cli(self, mock_system, mock_run):
+        """When only a bootstrapped npm-cli.js exists, use [node, npm-cli.js, ...]."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            npm_cli = base_dir / "npm" / "package" / "bin" / "npm-cli.js"
+            npm_cli.parent.mkdir(parents=True)
+            npm_cli.write_text("")
+
+            node_deps = [dep for dep in TOOL_REGISTRY if dep.kind is ToolKind.NODE]
+            install_node_tools(base_dir, node_deps)
+
+            self.assertGreaterEqual(mock_run.call_count, 2)
+            first_command = mock_run.call_args_list[0].args[0]
+            self.assertEqual(first_command[0], "/vscode/node")
+            self.assertEqual(first_command[1], str(npm_cli))
 
 
 if __name__ == "__main__":
