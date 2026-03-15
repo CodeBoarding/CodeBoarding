@@ -223,10 +223,21 @@ def preferred_npm_command(base_dir: Path) -> list[str] | None:
     return None
 
 
-def preferred_npm_path(base_dir: Path) -> str | None:
-    """Return the preferred npm binary for installing JS-based language servers."""
-    npm_command = preferred_npm_command(base_dir)
-    return npm_command[0] if npm_command and len(npm_command) == 1 else None
+def npm_subprocess_env(base_dir: Path) -> dict[str, str]:
+    """Return environment variables needed for npm subprocess calls.
+
+    When the Node.js runtime is VS Code's Electron binary, we must set
+    ELECTRON_RUN_AS_NODE=1 so it behaves as plain Node.  We also put the
+    node binary's directory on PATH so npm's internal child processes
+    (lifecycle scripts, etc.) can find ``node``.
+    """
+    env = dict(os.environ)
+    node = preferred_node_path(base_dir)
+    if node:
+        env["ELECTRON_RUN_AS_NODE"] = "1"
+        node_dir = str(Path(node).parent)
+        env["PATH"] = node_dir + os.pathsep + env.get("PATH", "")
+    return env
 
 
 def _installed_version() -> str:
@@ -384,10 +395,10 @@ def resolve_config_from_path() -> dict[str, Any]:
                 # Walk up from the resolved binary to find the JS entry point.
                 bin_dir = str(Path(path).parent.parent)  # .../node_modules/.bin -> .../node_modules/..
                 js_entry = find_runnable(bin_dir, dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
-                if js_entry:
-                    node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                node = preferred_node_path(get_servers_dir())
+                if js_entry and node:
                     cmd[0] = js_entry
-                    cmd.insert(0, node_path)
+                    cmd.insert(0, node)
                 else:
                     cmd[0] = path
             else:
@@ -495,16 +506,20 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
     if not all_packages:
         return
 
+    env = npm_subprocess_env(target_dir)
     logger.info("Installing Node.js packages: %s", all_packages)
     try:
         if not (target_dir / "package.json").exists():
-            subprocess.run([*npm_command, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True)
+            subprocess.run(
+                [*npm_command, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True, env=env
+            )
         subprocess.run(
             [*npm_command, "install", *all_packages],
             cwd=target_dir,
             check=True,
             capture_output=True,
             text=True,
+            env=env,
         )
         logger.info("Node.js packages installed successfully")
     except subprocess.CalledProcessError:

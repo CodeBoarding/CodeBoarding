@@ -54,7 +54,6 @@ dependencies = [
     "markitdown>=0.1",
     "matplotlib>=3.10",
     "networkx>=3.4",
-    "nodeenv>=1.9",
     "openpyxl>=3.1",
     "pandas>=2.2",
     "pathspec>=0.12",

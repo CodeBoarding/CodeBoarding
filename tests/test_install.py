@@ -21,20 +21,26 @@ class TestParseArgs(unittest.TestCase):
 
 
 class TestResolveMissingNpm(unittest.TestCase):
-    @patch("install.install_npm_with_nodeenv", return_value=True)
-    def test_auto_install_mode_uses_nodeenv(self, mock_install_npm):
+    @patch("install.bootstrap_npm", return_value=True)
+    def test_auto_install_mode_bootstraps_npm(self, mock_bootstrap):
         target_dir = Path("/tmp/codeboarding-servers")
         result = install.resolve_missing_npm(auto_install_npm=True, target_dir=target_dir)
         self.assertTrue(result)
-        mock_install_npm.assert_called_once_with(target_dir=target_dir)
+        mock_bootstrap.assert_called_once_with(target_dir=target_dir)
 
+    @patch("install.bootstrap_npm", return_value=False)
     @patch("install.is_non_interactive_mode", return_value=True)
-    @patch("install.install_npm_with_nodeenv")
-    def test_non_interactive_without_auto_install_raises(self, mock_install_npm, mock_non_interactive):
-        with self.assertRaises(SystemExit):
-            install.resolve_missing_npm(auto_install_npm=False)
-        mock_non_interactive.assert_called_once()
-        mock_install_npm.assert_not_called()
+    def test_non_interactive_falls_back_gracefully(self, mock_non_interactive, mock_bootstrap):
+        """Non-interactive mode should not raise SystemExit — just return False."""
+        result = install.resolve_missing_npm(auto_install_npm=False)
+        self.assertFalse(result)
+        mock_bootstrap.assert_called_once()
+
+    @patch("install.bootstrap_npm", return_value=False)
+    def test_auto_install_failure_degrades_gracefully(self, mock_bootstrap):
+        """When auto_install is True but bootstrap fails, return False (don't crash server)."""
+        result = install.resolve_missing_npm(auto_install_npm=True, target_dir=Path("/tmp/test"))
+        self.assertFalse(result)
 
 
 class TestResolveNpmAvailability(unittest.TestCase):
@@ -57,7 +63,7 @@ class TestResolveNpmAvailability(unittest.TestCase):
         mock_resolve_missing_npm.assert_called_once_with(auto_install_npm=True, target_dir=target_dir)
 
 
-class TestInstallNpmWithNodeenv(unittest.TestCase):
+class TestBootstrapNpm(unittest.TestCase):
     @patch("install.check_npm", return_value=True)
     @patch("install.requests.get")
     @patch("install.preferred_node_path", return_value="/custom/node")
@@ -76,7 +82,7 @@ class TestInstallNpmWithNodeenv(unittest.TestCase):
             mock_requests_get.side_effect = [metadata_response, tarball_response]
 
             with patch("install.extract_tarball_safely") as mock_extract, patch("install.shutil.rmtree") as mock_rmtree:
-                result = install.install_npm_with_nodeenv(target_dir=target_dir)
+                result = install.bootstrap_npm(target_dir=target_dir)
                 self.assertEqual(os.environ["CODEBOARDING_NODE_PATH"], "/custom/node")
 
         self.assertTrue(result)
@@ -97,7 +103,7 @@ class TestInstallNpmWithNodeenv(unittest.TestCase):
             npm_cli.parent.mkdir(parents=True, exist_ok=True)
             npm_cli.write_text("", encoding="utf-8")
 
-            result = install.install_npm_with_nodeenv(target_dir=target_dir)
+            result = install.bootstrap_npm(target_dir=target_dir)
 
         self.assertTrue(result)
         mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
@@ -108,7 +114,7 @@ class TestInstallNpmWithNodeenv(unittest.TestCase):
     def test_returns_false_when_no_node_runtime_is_available(self, mock_preferred_node_path):
         with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, {}, clear=True):
             target_dir = Path(temp_dir)
-            result = install.install_npm_with_nodeenv(target_dir=target_dir)
+            result = install.bootstrap_npm(target_dir=target_dir)
 
         self.assertFalse(result)
         mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
