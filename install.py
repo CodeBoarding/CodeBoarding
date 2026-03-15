@@ -5,6 +5,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from tool_registry import (
     install_native_tools,
     install_node_tools,
     platform_bin_dir,
+    preferred_node_path,
+    preferred_npm_command,
 )
 from user_config import ensure_config_template
 
@@ -43,15 +46,16 @@ class LanguageSupportCheck:
         return False, reason
 
 
-def check_npm():
-    """Check if npm is installed on the system."""
+def check_npm(target_dir: Path | None = None) -> bool:
+    """Check if npm is available via the configured Node.js runtime or PATH."""
     print("Step: npm check started")
 
-    npm_path = shutil.which("npm")
+    target = (target_dir or get_servers_dir()).resolve()
+    npm_command = preferred_npm_command(target)
 
-    if npm_path:
+    if npm_command:
         try:
-            result = subprocess.run([npm_path, "--version"], capture_output=True, text=True, check=True)
+            result = subprocess.run([*npm_command, "--version"], capture_output=True, text=True, check=True)
             print(f"Step: npm check finished: success (version {result.stdout.strip()})")
             return True
         except Exception as e:
@@ -59,31 +63,71 @@ def check_npm():
                 f"Step: npm check finished: failure - npm command failed ({e}). Skipping Language Servers installation."
             )
             return False
-    else:
-        print("Step: npm check finished: failure - npm not found")
-        return False
+
+    print("Step: npm check finished: failure - npm not found")
+    return False
 
 
-def install_npm_with_nodeenv() -> bool:
-    """Install npm locally in the active Python virtual environment using nodeenv."""
-    command = [sys.executable, "-m", "nodeenv", "--python-virtualenv"]
+def bootstrapped_npm_cli_path(target_dir: Path) -> Path:
+    """Return the npm CLI entrypoint inside the target directory."""
+    return target_dir / "npm" / "package" / "bin" / "npm-cli.js"
+
+
+def extract_tarball_safely(fileobj: io.BytesIO, destination: Path) -> None:
+    """Extract a tarball while rejecting path traversal entries."""
+    destination = destination.resolve()
+    with tarfile.open(fileobj=fileobj, mode="r:gz") as tar:
+        for member in tar.getmembers():
+            member_path = (destination / member.name).resolve()
+            if not member_path.is_relative_to(destination):
+                raise ValueError(f"Unsafe tar entry: {member.name}")
+        tar.extractall(destination)
+
+
+def install_npm_with_nodeenv(target_dir: Path | None = None) -> bool:
+    """Bootstrap npm locally and invoke it through the configured Node.js runtime."""
+    target = (target_dir or get_servers_dir()).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    node_path = preferred_node_path(target)
+
     print("Step: npm remediation started")
-    print(f"   command: {' '.join(command)}")
-    print("   impact: installs Node.js + npm into the active Python virtual environment")
+    print(f"   target: {target}")
+    print("   impact: installs npm into the CodeBoarding tools directory and invokes it via Node.js")
 
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Step: npm remediation finished: failure - {e}")
-        if e.stderr:
-            print(f"   {e.stderr.strip()}")
-        print("   You can install Node.js manually from: https://nodejs.org/en/download")
-        print("   Then verify with: npm --version")
+    if not node_path:
+        print("Step: npm remediation finished: failure - no Node.js runtime available")
+        print("   Set CODEBOARDING_NODE_PATH or install Node.js from: https://nodejs.org/en/download")
         return False
 
-    npm_available = check_npm()
+    os.environ.setdefault("CODEBOARDING_NODE_PATH", node_path)
+    print(f"   node: {os.environ['CODEBOARDING_NODE_PATH']}")
+
+    npm_cli = bootstrapped_npm_cli_path(target)
+    if not npm_cli.exists():
+        npm_root = npm_cli.parent.parent.parent
+        metadata_url = "https://registry.npmjs.org/npm/latest"
+        try:
+            metadata_response = requests.get(metadata_url, timeout=30)
+            metadata_response.raise_for_status()
+            metadata = metadata_response.json()
+            tarball_url = metadata["dist"]["tarball"]
+            print(f"   source: {tarball_url}")
+
+            tarball_response = requests.get(tarball_url, timeout=60)
+            tarball_response.raise_for_status()
+
+            shutil.rmtree(npm_root, ignore_errors=True)
+            npm_root.mkdir(parents=True, exist_ok=True)
+            extract_tarball_safely(io.BytesIO(tarball_response.content), npm_root)
+        except (requests.RequestException, KeyError, OSError, ValueError, tarfile.TarError) as e:
+            print(f"Step: npm remediation finished: failure - {e}")
+            print("   Install Node.js manually from: https://nodejs.org/en/download")
+            print("   Then verify with: npm --version")
+            return False
+
+    npm_available = check_npm(target)
     if not npm_available:
-        print("Step: npm remediation finished: failure - npm still not found after nodeenv install")
+        print("Step: npm remediation finished: failure - npm still not found after bootstrap")
         print("   You can install Node.js manually from: https://nodejs.org/en/download")
         print("   Then verify with: npm --version")
         return False
@@ -97,7 +141,7 @@ def is_non_interactive_mode() -> bool:
     return bool(os.getenv("CI")) or not sys.stdin.isatty()
 
 
-def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
+def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
     """Prompt the user to install npm; abort if they decline or if non-interactive.
 
     Returns True only when npm becomes available. Raises SystemExit if the user
@@ -106,7 +150,7 @@ def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
     print("Step: npm required for TypeScript/JavaScript/PHP/Python language servers")
 
     if auto_install_npm:
-        installed = install_npm_with_nodeenv()
+        installed = install_npm_with_nodeenv(target_dir=target_dir)
         if not installed:
             print("Error: npm installation failed. Install Node.js from https://nodejs.org/en/download and retry.")
             raise SystemExit(1)
@@ -114,13 +158,13 @@ def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
 
     if is_non_interactive_mode():
         print("Error: npm is required but not found and cannot be installed non-interactively.")
-        print("   Re-run with --auto-install-npm to install npm in this virtual environment,")
+        print("   Re-run with --auto-install-npm to bootstrap npm with the configured Node.js runtime,")
         print("   or install Node.js manually from: https://nodejs.org/en/download")
         raise SystemExit(1)
 
-    choice = input("npm is missing. Install it now using nodeenv in this virtual environment? [y/N]: ").strip().lower()
+    choice = input("npm is missing. Install it now using the configured Node.js runtime? [y/N]: ").strip().lower()
     if choice in {"y", "yes"}:
-        installed = install_npm_with_nodeenv()
+        installed = install_npm_with_nodeenv(target_dir=target_dir)
         if not installed:
             print("Error: npm installation failed. Install Node.js from https://nodejs.org/en/download and retry.")
             raise SystemExit(1)
@@ -130,12 +174,12 @@ def resolve_missing_npm(auto_install_npm: bool = False) -> bool:
     raise SystemExit(1)
 
 
-def resolve_npm_availability(auto_install_npm: bool = False) -> bool:
+def resolve_npm_availability(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
     """Determine npm availability and run remediation when needed."""
-    npm_available = check_npm()
+    npm_available = check_npm(target_dir)
 
     if not npm_available:
-        npm_available = resolve_missing_npm(auto_install_npm=auto_install_npm)
+        npm_available = resolve_missing_npm(auto_install_npm=auto_install_npm, target_dir=target_dir)
 
     return npm_available
 
@@ -483,7 +527,7 @@ def run_install(
 
     ensure_config_template()
 
-    npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm)
+    npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
     if npm_available:
         install_node_servers(target)
 

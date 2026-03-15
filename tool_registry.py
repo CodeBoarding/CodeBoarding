@@ -159,6 +159,76 @@ def get_servers_dir() -> Path:
     return user_data_dir() / "servers"
 
 
+def nodeenv_root_dir(base_dir: Path) -> Path:
+    """Return the standalone nodeenv directory under a tool install root."""
+    return base_dir / "nodeenv"
+
+
+def nodeenv_bin_dir(base_dir: Path) -> Path:
+    """Return the bin/Scripts directory for a standalone nodeenv install."""
+    scripts_dir = "Scripts" if platform.system() == "Windows" else "bin"
+    return nodeenv_root_dir(base_dir) / scripts_dir
+
+
+def embedded_node_path(base_dir: Path) -> str | None:
+    """Return the node binary from a standalone nodeenv install, if present."""
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    node_path = nodeenv_bin_dir(base_dir) / f"node{suffix}"
+    return str(node_path) if node_path.exists() else None
+
+
+def embedded_npm_path(base_dir: Path) -> str | None:
+    """Return the npm binary from a standalone nodeenv install, if present."""
+    suffix = ".cmd" if platform.system() == "Windows" else ""
+    npm_path = nodeenv_bin_dir(base_dir) / f"npm{suffix}"
+    return str(npm_path) if npm_path.exists() else None
+
+
+def embedded_npm_cli_path(base_dir: Path) -> str | None:
+    """Return a bootstrapped npm CLI JS entrypoint, if present."""
+    npm_cli = base_dir / "npm" / "package" / "bin" / "npm-cli.js"
+    return str(npm_cli) if npm_cli.exists() else None
+
+
+def preferred_node_path(base_dir: Path) -> str | None:
+    """Return the preferred Node.js binary for running JS-based language servers."""
+    return os.environ.get("CODEBOARDING_NODE_PATH") or embedded_node_path(base_dir) or shutil.which("node")
+
+
+def sibling_npm_path(node_path: str | None) -> str | None:
+    """Return an npm executable located next to the provided node binary, if present."""
+    if not node_path:
+        return None
+
+    node_dir = Path(node_path).parent
+    candidates = ["npm.cmd", "npm.exe", "npm"] if platform.system() == "Windows" else ["npm"]
+    for candidate_name in candidates:
+        candidate = node_dir / candidate_name
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def preferred_npm_command(base_dir: Path) -> list[str] | None:
+    """Return the preferred command prefix for invoking npm."""
+    if npm_path := embedded_npm_path(base_dir):
+        return [npm_path]
+    if npm_path := sibling_npm_path(os.environ.get("CODEBOARDING_NODE_PATH")):
+        return [npm_path]
+    if node_path := preferred_node_path(base_dir):
+        if npm_cli_path := embedded_npm_cli_path(base_dir):
+            return [node_path, npm_cli_path]
+    if npm_path := shutil.which("npm"):
+        return [npm_path]
+    return None
+
+
+def preferred_npm_path(base_dir: Path) -> str | None:
+    """Return the preferred npm binary for installing JS-based language servers."""
+    npm_command = preferred_npm_command(base_dir)
+    return npm_command[0] if npm_command and len(npm_command) == 1 else None
+
+
 def _installed_version() -> str:
     try:
         return importlib.metadata.version("codeboarding")
@@ -277,14 +347,12 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
             binary_path = base_dir / "node_modules" / ".bin" / f"{dep.binary_name}{node_ext}"
             if binary_path.exists():
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-                if platform.system() == "Windows" and dep.js_entry_file:
-                    # On Windows, bypass .cmd wrappers — they go through cmd.exe
-                    # which causes pipe buffering issues with subprocess.Popen.
-                    # Instead, find the actual .mjs/.js entry point and run it
-                    # directly with Node.js (from CODEBOARDING_NODE_PATH or PATH).
+                if dep.js_entry_file:
                     js_entry = find_runnable(str(base_dir), dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
-                    if js_entry:
-                        node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                    node_path = preferred_node_path(base_dir)
+                    if js_entry and node_path:
+                        # Run the JS entry file with an explicit Node.js path so frozen
+                        # wrapper binaries can use their bundled/embedded Node runtime too.
                         cmd[0] = js_entry
                         cmd.insert(0, node_path)
                     else:
@@ -414,8 +482,8 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
 
 def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
     """Install Node.js tools via npm."""
-    npm_path = shutil.which("npm")
-    if not npm_path:
+    npm_command = preferred_npm_command(target_dir)
+    if not npm_command:
         logger.warning("npm not found. Skipping Node.js tool installation.")
         return
 
@@ -430,9 +498,9 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
     logger.info("Installing Node.js packages: %s", all_packages)
     try:
         if not (target_dir / "package.json").exists():
-            subprocess.run([npm_path, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True)
+            subprocess.run([*npm_command, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True)
         subprocess.run(
-            [npm_path, "install", *all_packages],
+            [*npm_command, "install", *all_packages],
             cwd=target_dir,
             check=True,
             capture_output=True,
