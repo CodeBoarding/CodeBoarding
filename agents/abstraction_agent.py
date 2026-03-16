@@ -138,7 +138,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
+        # Step 3: Assign hierarchical component IDs ("1", "2", "3", "1.1", "1.2", ...)
         assign_component_ids(analysis)
         # Step 4: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
