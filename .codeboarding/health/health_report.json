@@ -1,16 +1,16 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-15T18:52:34.568500+00:00",
-  "overall_score": 0.9612147822905233,
+  "timestamp": "2026-03-16T12:09:32.156297+00:00",
+  "overall_score": 0.9616636528028933,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 814,
+      "total_entities_checked": 825,
       "findings_count": 4,
       "warning_count": 4,
-      "score": 0.995085995085995,
+      "score": 0.9951515151515151,
       "finding_groups": [
         {
           "severity": "warning",
@@ -53,10 +53,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 814,
+      "total_entities_checked": 825,
       "findings_count": 2,
       "warning_count": 2,
-      "score": 0.9975429975429976,
+      "score": 0.9975757575757576,
       "finding_groups": [
         {
           "severity": "warning",
@@ -85,10 +85,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 814,
-      "findings_count": 6,
-      "warning_count": 6,
-      "score": 0.9926289926289926,
+      "total_entities_checked": 825,
+      "findings_count": 7,
+      "warning_count": 7,
+      "score": 0.9915151515151515,
       "finding_groups": [
         {
           "severity": "warning",
@@ -136,6 +136,13 @@
               "line_start": 656,
               "line_end": 664,
               "metric_value": 12
+            },
+            {
+              "entity_name": "tool_registry.get_servers_dir",
+              "file_path": "tool_registry.py",
+              "line_start": 156,
+              "line_end": 158,
+              "metric_value": 11
             }
           ]
         }
@@ -168,7 +175,7 @@
       "cycles": [
         "health -> core -> health",
         "static_analyzer -> agents -> static_analyzer",
-        "caching -> agents -> caching"
+        "agents -> caching -> agents"
       ],
       "packages_checked": 25,
       "packages_in_cycles": 5
@@ -221,8 +228,8 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 90,
-      "findings_count": 90,
+      "total_entities_checked": 89,
+      "findings_count": 89,
       "warning_count": 31,
       "score": 0.0,
       "finding_groups": [
@@ -236,13 +243,6 @@
               "file_path": "main.py",
               "line_start": 169,
               "line_end": 169,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"result\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 75,
-              "line_end": 75,
               "metric_value": 0.0
             },
             {
@@ -386,34 +386,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"AnalysisManifest\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"IncrementalUpdater\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 9,
@@ -467,6 +439,34 @@
               "file_path": "monitoring/context.py",
               "line_start": 33,
               "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"AnalysisManifest\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"IncrementalUpdater\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
               "metric_value": 0.0
             },
             {
@@ -673,34 +673,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"configure_models\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 9,
@@ -726,6 +698,34 @@
               "file_path": "monitoring/__init__.py",
               "line_start": 12,
               "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
               "metric_value": 0.0
             },
             {
@@ -901,13 +901,13 @@
       "composite_risk_score": 90.0
     },
     {
-      "file_path": "diagram_analysis/__init__.py",
+      "file_path": "monitoring/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "monitoring/__init__.py",
+      "file_path": "diagram_analysis/__init__.py",
       "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
@@ -997,13 +997,13 @@
       "composite_risk_score": 20.0
     },
     {
-      "file_path": "static_analyzer/constants.py",
+      "file_path": "tool_registry.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
     },
     {
-      "file_path": "repo_utils/__init__.py",
+      "file_path": "static_analyzer/constants.py",
       "total_findings": 1,
       "warning_findings": 1,
       "composite_risk_score": 15.0
