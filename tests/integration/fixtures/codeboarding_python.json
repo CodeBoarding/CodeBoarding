@@ -10,8 +10,8 @@
     "references_count": 2559,
     "classes_count": 111,
     "packages_count": 20,
-    "call_graph_nodes": 2563,
-    "call_graph_edges": 723,
+    "call_graph_nodes": 614,
+    "call_graph_edges": 564,
     "source_files_count": 80,
     "execution_time_seconds": 60
   },
