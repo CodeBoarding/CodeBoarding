@@ -465,4 +465,3 @@ class ClusterMethodsMixin:
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
-        analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)

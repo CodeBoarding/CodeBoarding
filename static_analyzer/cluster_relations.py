@@ -95,7 +95,7 @@ def merge_relations(
     - LLM only (no static backing): keep with is_static=False
     - Static only (no LLM label): add with auto-generated label "calls" + edge_count
 
-    Matching is done by component name (src_name, dst_name).
+    Matching is done by component ID in the same direction (src -> dst).
     """
     # Build name-to-id mapping
     name_to_id: dict[str, str] = {}
@@ -111,11 +111,6 @@ def merge_relations(
     for sr in static_relations:
         static_by_ids[(sr.src_cluster_id, sr.dst_cluster_id)] = sr
 
-    # Also index by (src_id, dst_id) reversed for bidirectional matching
-    static_by_ids_rev: dict[tuple[str, str], ClusterRelation] = {}
-    for sr in static_relations:
-        static_by_ids_rev[(sr.dst_cluster_id, sr.src_cluster_id)] = sr
-
     merged: list[Relation] = []
     matched_static_keys: set[tuple[str, str]] = set()
 
@@ -123,8 +118,8 @@ def merge_relations(
         src_id = name_to_id.get(llm_rel.src_name, "")
         dst_id = name_to_id.get(llm_rel.dst_name, "")
 
-        # Try to find matching static relation (either direction)
-        static_rel = static_by_ids.get((src_id, dst_id)) or static_by_ids_rev.get((src_id, dst_id))
+        # Match static relation in the same direction only
+        static_rel = static_by_ids.get((src_id, dst_id))
 
         if static_rel:
             # LLM relation backed by static evidence — keep with static info

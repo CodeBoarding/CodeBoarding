@@ -193,8 +193,8 @@ class CallGraph:
         for src, dst in relevant_edges:
             filtered_edges.append(Edge(self.nodes[src], self.nodes[dst]))
 
-        # Create new graph
-        sub_graph = CallGraph()
+        # Create new graph, preserving the source language
+        sub_graph = CallGraph(language=self.language)
         sub_graph.nodes = relevant_nodes
         sub_graph.edges = filtered_edges
 

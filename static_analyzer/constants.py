@@ -36,7 +36,7 @@ class ClusteringConfig:
     DEFAULT_MIN_CLUSTER_SIZE = 2  # Avoid singleton clusters that don't show relationships
 
     # Quality thresholds for determining "good" clustering
-    MIN_COVERAGE_RATIO = 0.75  # At least 50% of nodes should be in meaningful clusters
+    MIN_COVERAGE_RATIO = 0.75  # At least 75% of nodes should be in meaningful clusters
 
     # Display limits
     MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
