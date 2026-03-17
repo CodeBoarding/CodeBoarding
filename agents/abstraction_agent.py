@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
 
-from langchain_core.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
+from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
@@ -11,24 +11,27 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     assign_component_ids,
 )
+from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
-    get_system_message,
     get_cluster_grouping_message,
     get_final_analysis_message,
+    get_system_message,
 )
-from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_relation_component_names,
     validate_qualified_names,
+    validate_relation_component_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_helpers import (
+    build_all_cluster_results,
+    get_all_cluster_ids,
+)
 from static_analyzer.graph import ClusterResult
-from static_analyzer.cluster_helpers import build_all_cluster_results, get_all_cluster_ids
 
 logger = logging.getLogger(__name__)
 
@@ -138,16 +141,22 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Assign deterministic component IDs (must happen before methods that key on component_id)
+        # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
         assign_component_ids(analysis)
         # Step 4: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
         # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 6: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 6: Build static inter-component relations from CFG edges
+        self.build_static_relations(analysis)
+
+        # Step 7: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 7: Ensure unique key entities across components
+        # Step 8: Ensure unique key entities across components
+        self._ensure_unique_key_entities(analysis)
+
+        return analysis, cluster_results
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results

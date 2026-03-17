@@ -1,5 +1,4 @@
 import abc
-import hashlib
 import logging
 from abc import abstractmethod
 from typing import get_origin, Optional
@@ -7,9 +6,6 @@ from typing import get_origin, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-
-ROOT_PARENT_ID = "ROOT"
-COMPONENT_ID_BYTES = 8
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -94,6 +90,8 @@ class Relation(LLMBaseModel):
     dst_name: str = Field(description="Target component name")
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
+    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
+    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
 
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
@@ -224,27 +222,19 @@ class AnalysisInsights(LLMBaseModel):
         return title + body + relations
 
 
-def hash_component_id(parent_id: str, name: str, sibling_index: int = 0) -> str:
-    """Hash a deterministic component ID from parent ID, name, and sibling index.
+def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:
+    """Assign hierarchical component IDs based on sibling index.
 
-    Note:
-        The ID is a compact, 64-bit prefix of SHA-256 (8 bytes -> 16 hex chars).
-        Truncation happens at the byte level to keep the representation explicit.
+    IDs encode structural position in the component tree:
+    - Top-level (parent_id=""): "1", "2", "3"
+    - Under "1" (parent_id="1"): "1.1", "1.2"
+    - Under "1.2" (parent_id="1.2"): "1.2.1", "1.2.2"
+
+    These IDs serve as both component identifiers and cluster IDs,
+    enabling hierarchical relationship generalization.
     """
-    raw = f"{parent_id}:{name}:{sibling_index}".encode("utf-8")
-    return hashlib.sha256(raw).digest()[:COMPONENT_ID_BYTES].hex()
-
-
-def assign_component_ids(analysis: AnalysisInsights, parent_id: str = ROOT_PARENT_ID) -> None:
-    """Assign deterministic component IDs to all components in an analysis.
-
-    Handles same-named siblings by using a sibling index tiebreaker.
-    """
-    name_counts: dict[str, int] = {}
-    for component in analysis.components:
-        count = name_counts.get(component.name, 0)
-        component.component_id = hash_component_id(parent_id, component.name, count)
-        name_counts[component.name] = count + 1
+    for idx, component in enumerate(analysis.components, start=1):
+        component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
     # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
     name_to_id: dict[str, str] = {}

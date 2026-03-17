@@ -29,13 +29,11 @@ from agents.agent_responses import (
     FileMethodGroup,
     Relation,
     SourceCodeReference,
-    hash_component_id,
-    ROOT_PARENT_ID,
 )
 
 
-COMP_A_ID = hash_component_id(ROOT_PARENT_ID, "ComponentA")
-COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_A_ID = "1"
+COMP_B_ID = "2"
 
 
 @pytest.fixture

@@ -17,7 +17,6 @@
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.additionalanswers.additionalanswers",
-    "mockito-core.src.main.java.org.mockito.additionalanswers.additionalanswers()",
     "mockito-core.src.main.java.org.mockito.additionalanswers.answer(answer1<t, a>) <t, a>",
     "mockito-core.src.main.java.org.mockito.additionalanswers.answer(answer2<t, a, b>) <t, a, b>",
     "mockito-core.src.main.java.org.mockito.additionalanswers.answer(answer3<t, a, b, c>) <t, a, b, c>",

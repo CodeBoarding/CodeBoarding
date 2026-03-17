@@ -7,6 +7,7 @@ from agents.validation import (
     ValidationContext,
     validate_key_entities,
     validate_qualified_names,
+    validate_relation_component_names,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
@@ -30,7 +31,7 @@ def validate_incremental_update(analysis: AnalysisInsights, static_analysis: Sta
         static_analysis=static_analysis,
     )
 
-    validators = [validate_key_entities, validate_qualified_names]
+    validators = [validate_key_entities, validate_qualified_names, validate_relation_component_names]
     all_valid = True
 
     for validator in validators:
