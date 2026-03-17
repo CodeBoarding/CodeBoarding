@@ -174,15 +174,20 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].edge_count, 5)
         self.assertTrue(merged[0].is_static)
 
-    def test_llm_without_static_backing_dropped(self):
-        """LLM relation with no static evidence should be dropped."""
+    def test_llm_without_static_backing_kept(self):
+        """LLM relation with no static evidence should be kept as LLM-only."""
         analysis = self._make_analysis()
         llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
         static_rels: list[ClusterRelation] = []  # No static evidence
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        self.assertEqual(len(merged), 0)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].relation, "uses")
+        self.assertEqual(merged[0].src_name, "A")
+        self.assertEqual(merged[0].dst_name, "B")
+        self.assertEqual(merged[0].edge_count, 0)
+        self.assertFalse(merged[0].is_static)
 
     def test_static_only_auto_labeled(self):
         """Static relation without LLM label should get auto-label 'calls'."""
@@ -225,14 +230,16 @@ class TestMergeRelations(unittest.TestCase):
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # A->B (backed) + B->C (static-only) = 2 relations, A->C dropped
-        self.assertEqual(len(merged), 2)
-        labels = {r.relation for r in merged}
-        self.assertIn("calls", labels)  # both A->B and B->C have "calls"
+        # A->B (backed) + A->C (LLM-only) + B->C (static-only) = 3 relations
+        self.assertEqual(len(merged), 3)
         src_dst = {(r.src_name, r.dst_name) for r in merged}
         self.assertIn(("A", "B"), src_dst)
+        self.assertIn(("A", "C"), src_dst)
         self.assertIn(("B", "C"), src_dst)
-        self.assertNotIn(("A", "C"), src_dst)
+        # A->C should be LLM-only (not static)
+        ac_rel = [r for r in merged if r.src_name == "A" and r.dst_name == "C"][0]
+        self.assertFalse(ac_rel.is_static)
+        self.assertEqual(ac_rel.edge_count, 0)
 
     def test_empty_inputs(self):
         """Empty LLM and static relations should produce empty result."""

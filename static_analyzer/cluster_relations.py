@@ -92,7 +92,7 @@ def merge_relations(
 
     Strategy (Supplement):
     - Static + matching LLM: keep LLM's human-readable label, attach edge_count, is_static=True
-    - LLM only (no static backing): drop it
+    - LLM only (no static backing): keep with is_static=False
     - Static only (no LLM label): add with auto-generated label "calls" + edge_count
 
     Matching is done by component name (src_name, dst_name).
@@ -127,7 +127,7 @@ def merge_relations(
         static_rel = static_by_ids.get((src_id, dst_id)) or static_by_ids_rev.get((src_id, dst_id))
 
         if static_rel:
-            # LLM relation backed by static evidence — keep it
+            # LLM relation backed by static evidence — keep with static info
             merged.append(
                 Relation(
                     relation=llm_rel.relation,
@@ -140,7 +140,19 @@ def merge_relations(
                 )
             )
             matched_static_keys.add((static_rel.src_cluster_id, static_rel.dst_cluster_id))
-        # else: LLM relation with no static backing — drop it
+        else:
+            # LLM relation with no static backing — keep as LLM-only
+            merged.append(
+                Relation(
+                    relation=llm_rel.relation,
+                    src_name=llm_rel.src_name,
+                    dst_name=llm_rel.dst_name,
+                    src_id=src_id,
+                    dst_id=dst_id,
+                    edge_count=0,
+                    is_static=False,
+                )
+            )
 
     # Add static relations that weren't matched by any LLM relation
     for (src_id, dst_id), sr in static_by_ids.items():
@@ -162,7 +174,7 @@ def merge_relations(
     logger.info(
         f"Merged relations: {len(merged)} total "
         f"({len(matched_static_keys)} LLM+static, "
-        f"{len(merged) - len(matched_static_keys)} static-only, "
-        f"{len(llm_relations) - len(matched_static_keys)} LLM dropped)"
+        f"{len(merged) - len(matched_static_keys) - (len(llm_relations) - len(matched_static_keys))} static-only, "
+        f"{len(llm_relations) - len(matched_static_keys)} LLM-only)"
     )
     return merged
