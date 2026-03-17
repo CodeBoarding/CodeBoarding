@@ -233,8 +233,8 @@ class TestEdgeCases:
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
         expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
-        missing = sorted(f"{s} → {d}" for s, d in expected_edges - actual_edges)
-        unexpected = sorted(f"{s} → {d}" for s, d in actual_edges - expected_edges)
+        missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
+        unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
         errors = []
         if missing:
             errors.append(f"Missing {len(missing)} expected edges:\n" + "\n".join(f"  - {e}" for e in missing))

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _PAREN_EXPR_RE = re.compile(r"\([^)]*\)")
 
 # Matches Java/Kotlin generic type parameters to be stripped from method signatures,
-# e.g. "<Animal>" in "List<Animal>" → "List", or trailing " <T, R>" → "".
+# e.g. "<Animal>" in "List<Animal>" -> "List", or trailing " <T, R>" -> "".
 _JAVA_GENERIC_RE = re.compile(r"<[^<>]*>")
 
 # Matches a trailing type-parameter declaration that JDTLS appends to generic methods,
@@ -38,11 +38,11 @@ def _strip_java_generics(name: str) -> str:
 
     Steps:
     1. Extract type-param names from the trailing JDTLS type-param declaration
-       (e.g. ``"firstordefault(t[], t) <t>"`` → type params = {``t``}).
+       (e.g. ``"firstordefault(t[], t) <t>"`` -> type params = {``t``}).
     1b. Also detect single-letter standalone tokens inside ``(…)`` as type params
         (e.g. ``"firstordefault(t[], t)"`` where there is no trailing ``<t>``).
     2. Replace those bare type-param names inside ``(…)`` with ``object`` so that
-       ``firstordefault(t[], t)`` → ``firstordefault(object[], object)``.
+       ``firstordefault(t[], t)`` -> ``firstordefault(object[], object)``.
     3. Strip all ``<…>`` groups (including nested ones) until stable.
     4. Right-strip any residual whitespace.
     """
@@ -50,7 +50,7 @@ def _strip_java_generics(name: str) -> str:
     type_params: set[str] = set()
     m = _JAVA_TRAILING_TYPEPARAM_RE.search(name)
     if m:
-        # e.g. "t" or "t extends animal" → take the first token of each comma-separated part
+        # e.g. "t" or "t extends animal" -> take the first token of each comma-separated part
         for token_group in m.group(1).split(","):
             first_token = token_group.strip().split()[0]
             # Only single-letter or all-caps short tokens are generic type params

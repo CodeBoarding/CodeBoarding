@@ -79,7 +79,7 @@ def classify_edges(cfg: CallGraph) -> dict:
 
 
 def build_directory_components(cfg: CallGraph, repo_path: Path) -> dict[str, str]:
-    """Build a node→component map using top-level directories as components.
+    """Build a node->component map using top-level directories as components.
 
     Each top-level directory becomes a component. Files at the root become
     the "root" component.
@@ -146,7 +146,7 @@ def analyze_component_coverage(cfg: CallGraph, node_to_component: dict[str, str]
 
 
 def _extract_package(qualified_name: str) -> str:
-    """Extract package from a qualified name like 'agents.abstraction_agent.run' → 'agents'."""
+    """Extract package from a qualified name like 'agents.abstraction_agent.run' -> 'agents'."""
     parts = qualified_name.split(".")
     return parts[0] if parts else ""
 
@@ -182,19 +182,19 @@ def print_report(edge_info: dict, coverage: dict, node_count: int) -> None:
             coverage["cross_component_pairs"].items(),
             key=lambda x: -len(x[1]),
         ):
-            print(f"  {src_comp} → {dst_comp}: {len(edges)} edges")
+            print(f"  {src_comp} -> {dst_comp}: {len(edges)} edges")
             for src, dst in edges[:3]:
-                print(f"    e.g. {src} → {dst}")
+                print(f"    e.g. {src} -> {dst}")
 
     if edge_info["cross_package_edges"]:
         print(f"\n--- Sample Cross-Package Edges ({len(edge_info['cross_package_edges'])} total) ---")
         for src, dst in edge_info["cross_package_edges"][:15]:
-            print(f"  {src} → {dst}")
+            print(f"  {src} -> {dst}")
 
     if coverage["unmapped_sample"]:
         print(f"\n--- Sample Unmapped Edges ---")
         for src, dst, reason in coverage["unmapped_sample"]:
-            print(f"  [{reason}] {src} → {dst}")
+            print(f"  [{reason}] {src} -> {dst}")
 
     print("\n" + "=" * 70)
 
@@ -230,9 +230,9 @@ def main():
 
         print(f"\n--- build_component_relations result: {len(relations)} relations ---")
         for rel in sorted(relations, key=lambda r: -r.edge_count):
-            print(f"  {rel.src_cluster_id} → {rel.dst_cluster_id}: {rel.edge_count} edges")
+            print(f"  {rel.src_cluster_id} -> {rel.dst_cluster_id}: {rel.edge_count} edges")
             for src, dst in rel.sample_edges[:2]:
-                print(f"    e.g. {src} → {dst}")
+                print(f"    e.g. {src} -> {dst}")
 
 
 if __name__ == "__main__":

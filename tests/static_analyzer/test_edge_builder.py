@@ -201,7 +201,7 @@ class TestBestCandidate:
 
 class TestBuildEdgesViaDefinitions:
     def test_resolves_call_site_to_edge(self, tmp_path: Path):
-        """Definition query resolves a call site → produces an edge."""
+        """Definition query resolves a call site -> produces an edge."""
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table

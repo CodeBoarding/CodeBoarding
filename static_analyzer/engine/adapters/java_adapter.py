@@ -115,9 +115,9 @@ class JavaAdapter(LanguageAdapter):
         clean_name = self._clean_symbol_name(symbol_name)
 
         if parent_chain:
-            # In Java, the filename IS the top-level class name (e.g., Dog.java → module "...Dog").
+            # In Java, the filename IS the top-level class name (e.g., Dog.java -> module "...Dog").
             # Skip the first parent if it matches the last module component to avoid
-            # doubled names like "core.Dog.Dog.speak()" → "core.Dog.speak()".
+            # doubled names like "core.Dog.Dog.speak()" -> "core.Dog.speak()".
             module_last = module.rsplit(".", 1)[-1] if "." in module else module
             effective_parents = list(parent_chain)
             if effective_parents and self._clean_symbol_name(effective_parents[0][0]) == module_last:
