@@ -1,5 +1,4 @@
 import abc
-import hashlib
 import logging
 from abc import abstractmethod
 from typing import get_origin, Optional
@@ -7,9 +6,6 @@ from typing import get_origin, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-
-ROOT_PARENT_ID = "ROOT"
-COMPONENT_ID_BYTES = 8
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -94,6 +90,8 @@ class Relation(LLMBaseModel):
     dst_name: str = Field(description="Target component name")
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
+    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
+    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
 
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
@@ -102,16 +100,19 @@ class Relation(LLMBaseModel):
 class ClustersComponent(LLMBaseModel):
     """A grouped component from cluster analysis - may contain multiple clusters."""
 
+    name: str = Field(
+        description="Short, descriptive name for this cluster group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')"
+    )
     cluster_ids: list[int] = Field(
         description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
     )
     description: str = Field(
-        description="Explanation of what this component does, its main flow, and WHY these clusters are grouped together"
+        description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, and how it interacts with other cluster groups"
     )
 
     def llm_str(self):
         ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
-        return f"**Clusters [{ids_str}]**\n   {self.description}"
+        return f"**{self.name}** (cluster_ids: [{ids_str}])\n   {self.description}"
 
 
 class ClusterAnalysis(LLMBaseModel):
@@ -129,6 +130,33 @@ class ClusterAnalysis(LLMBaseModel):
         return title + body
 
 
+class MethodEntry(BaseModel):
+    """A single method/function within a file, with its location and identity."""
+
+    qualified_name: str = Field(description="Fully qualified name of the method or function.")
+    start_line: int = Field(description="Starting line number in the file.")
+    end_line: int = Field(description="Ending line number in the file.")
+    node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
+
+    def __hash__(self) -> int:
+        return hash(self.qualified_name)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MethodEntry):
+            return NotImplemented
+        return self.qualified_name == other.qualified_name
+
+
+class FileMethodGroup(BaseModel):
+    """All methods/functions belonging to a component within a single file."""
+
+    file_path: str = Field(description="Relative path to the source file.")
+    methods: list[MethodEntry] = Field(
+        default_factory=list,
+        description="Methods and functions in this file that belong to the component, sorted by start_line.",
+    )
+
+
 class Component(LLMBaseModel):
     """A software component with name, description, and key entities."""
 
@@ -140,16 +168,21 @@ class Component(LLMBaseModel):
         description="The most important/critical classes and methods that represent this component's core functionality. Pick 2-5 key entities."
     )
 
-    # Deterministic from static analysis: ALL files belonging to this component
-    assigned_files: list[str] = Field(
-        description="All source files assigned to this component (populated deterministically).",
+    source_group_names: list[str] = Field(
+        description="Names of the cluster groups from the grouping analysis that this component encompasses.",
+        default_factory=list,
+    )
+
+    source_cluster_ids: list[int] = Field(
+        description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
         default_factory=list,
         exclude=True,
     )
 
-    source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses.",
+    file_methods: list[FileMethodGroup] = Field(
+        description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
         default_factory=list,
+        exclude=True,
     )
 
     component_id: str = Field(
@@ -161,11 +194,14 @@ class Component(LLMBaseModel):
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
+        sg = ""
+        if self.source_group_names:
+            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
         qn = ""
         if self.key_entities:
             qn += "   - *Key Entities*: "
             qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
-        return "\n".join([n, d, qn]).strip()
+        return "\n".join([n, d, sg, qn]).strip()
 
 
 class AnalysisInsights(LLMBaseModel):
@@ -180,33 +216,25 @@ class AnalysisInsights(LLMBaseModel):
     def llm_str(self):
         if not self.components:
             return "No abstract components found."
-        title = "# 📦 Abstract Components Overview\n"
+        title = "# Abstract Components Overview\n"
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
 
 
-def hash_component_id(parent_id: str, name: str, sibling_index: int = 0) -> str:
-    """Hash a deterministic component ID from parent ID, name, and sibling index.
+def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:
+    """Assign hierarchical component IDs based on sibling index.
 
-    Note:
-        The ID is a compact, 64-bit prefix of SHA-256 (8 bytes -> 16 hex chars).
-        Truncation happens at the byte level to keep the representation explicit.
+    IDs encode structural position in the component tree:
+    - Top-level (parent_id=""): "1", "2", "3"
+    - Under "1" (parent_id="1"): "1.1", "1.2"
+    - Under "1.2" (parent_id="1.2"): "1.2.1", "1.2.2"
+
+    These IDs serve as both component identifiers and cluster IDs,
+    enabling hierarchical relationship generalization.
     """
-    raw = f"{parent_id}:{name}:{sibling_index}".encode("utf-8")
-    return hashlib.sha256(raw).digest()[:COMPONENT_ID_BYTES].hex()
-
-
-def assign_component_ids(analysis: AnalysisInsights, parent_id: str = ROOT_PARENT_ID) -> None:
-    """Assign deterministic component IDs to all components in an analysis.
-
-    Handles same-named siblings by using a sibling index tiebreaker.
-    """
-    name_counts: dict[str, int] = {}
-    for component in analysis.components:
-        count = name_counts.get(component.name, 0)
-        component.component_id = hash_component_id(parent_id, component.name, count)
-        name_counts[component.name] = count + 1
+    for idx, component in enumerate(analysis.components, start=1):
+        component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
     # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
     name_to_id: dict[str, str] = {}
@@ -251,7 +279,7 @@ class CFGAnalysisInsights(LLMBaseModel):
     def llm_str(self):
         if not self.components:
             return "No abstract components found in the CFG."
-        title = "# 📦 Abstract Components Overview from CFG\n"
+        title = "# Abstract Components Overview from CFG\n"
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
@@ -309,7 +337,7 @@ class MetaAnalysisInsights(LLMBaseModel):
     )
 
     def llm_str(self):
-        title = "# 🎯 Project Metadata Analysis\n"
+        title = "# Project Metadata Analysis\n"
         content = f"""
 **Project Type:** {self.project_type}
 **Domain:** {self.domain}
@@ -341,7 +369,7 @@ class ComponentFiles(LLMBaseModel):
     def llm_str(self):
         if not self.file_paths:
             return "No files classified."
-        title = "# 📄 Component File Classifications\n"
+        title = "# Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
 

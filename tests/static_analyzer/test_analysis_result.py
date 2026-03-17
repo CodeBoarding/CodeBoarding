@@ -1,7 +1,8 @@
 import unittest
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Node
+from static_analyzer.constants import NodeType
+from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph
 
 
@@ -33,8 +34,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_cfg_storage_and_retrieval(self):
         cfg = CallGraph()
-        node1 = Node("test.func1", 12, "test.py", 1, 5)
-        node2 = Node("test.func2", 12, "test.py", 6, 10)
+        node1 = Node("test.func1", NodeType.FUNCTION, "test.py", 1, 5)
+        node2 = Node("test.func2", NodeType.FUNCTION, "test.py", 6, 10)
         cfg.add_node(node1)
         cfg.add_node(node2)
         cfg.add_edge("test.func1", "test.func2")
@@ -50,8 +51,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertEqual(retrieved, deps)
 
     def test_references_case_insensitive_lookup(self):
-        node1 = Node("MyClass.method", 6, "test.py", 1, 5)
-        node2 = Node("utils.helper", 12, "utils.py", 10, 15)
+        node1 = Node("MyClass.method", NodeType.METHOD, "test.py", 1, 5)
+        node2 = Node("utils.helper", NodeType.FUNCTION, "utils.py", 10, 15)
         self.results.add_references("python", [node1, node2])
         retrieved = self.results.get_reference("python", "myclass.method")
         self.assertEqual(retrieved.fully_qualified_name, "MyClass.method")
@@ -69,13 +70,13 @@ class TestStaticAnalysisResults(unittest.TestCase):
             self.results.get_reference("nonexistent", "any")
 
     def test_reference_file_path_error(self):
-        node = Node("mymodule.file.Class", 5, "mymodule/file.py", 1, 5)
+        node = Node("mymodule.file.Class", NodeType.CLASS, "mymodule/file.py", 1, 5)
         self.results.add_references("python", [node])
         with self.assertRaises(FileExistsError):
             self.results.get_reference("python", "mymodule.file")
 
     def test_loose_reference_matching(self):
-        node = Node("mypackage.module.MyClass.method", 6, "test.py", 1, 5)
+        node = Node("mypackage.module.MyClass.method", NodeType.METHOD, "test.py", 1, 5)
         self.results.add_references("python", [node])
         message, retrieved = self.results.get_loose_reference("python", "myclass.method")
         self.assertIsNotNone(retrieved)
@@ -83,7 +84,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertEqual(retrieved.fully_qualified_name, "mypackage.module.MyClass.method")
 
     def test_loose_reference_unique_substring(self):
-        node = Node("mypackage.unique_function", 12, "test.py", 1, 5)
+        node = Node("mypackage.unique_function", NodeType.FUNCTION, "test.py", 1, 5)
         self.results.add_references("python", [node])
         message, retrieved = self.results.get_loose_reference("python", "unique")
         self.assertIsNotNone(retrieved)
@@ -91,7 +92,7 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertEqual(retrieved.fully_qualified_name, "mypackage.unique_function")
 
     def test_loose_reference_not_found(self):
-        node = Node("mypackage.module.Class", 5, "test.py", 1, 5)
+        node = Node("mypackage.module.Class", NodeType.CLASS, "test.py", 1, 5)
         self.results.add_references("python", [node])
         message, retrieved = self.results.get_loose_reference("python", "nonexistent")
         self.assertIsNone(retrieved)
@@ -144,15 +145,15 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_cfg_merge_multiple_projects(self):
         cfg1 = CallGraph()
-        node1 = Node("project1.func1", 10, "project1/file.py", 1, 5)
-        node2 = Node("project1.func2", 10, "project1/file.py", 6, 10)
+        node1 = Node("project1.func1", NodeType.FUNCTION, "project1/file.py", 1, 5)
+        node2 = Node("project1.func2", NodeType.FUNCTION, "project1/file.py", 6, 10)
         cfg1.add_node(node1)
         cfg1.add_node(node2)
         cfg1.add_edge("project1.func1", "project1.func2")
 
         cfg2 = CallGraph()
-        node3 = Node("project2.func3", 10, "project2/file.py", 1, 5)
-        node4 = Node("project2.func4", 10, "project2/file.py", 6, 10)
+        node3 = Node("project2.func3", NodeType.FUNCTION, "project2/file.py", 1, 5)
+        node4 = Node("project2.func4", NodeType.FUNCTION, "project2/file.py", 6, 10)
         cfg2.add_node(node3)
         cfg2.add_node(node4)
         cfg2.add_edge("project2.func3", "project2.func4")
@@ -166,8 +167,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_cfg_merge_duplicate_edges(self):
         cfg1 = CallGraph()
-        node1 = Node("func1", 10, "file.py", 1, 5)
-        node2 = Node("func2", 10, "file.py", 6, 10)
+        node1 = Node("func1", NodeType.FUNCTION, "file.py", 1, 5)
+        node2 = Node("func2", NodeType.FUNCTION, "file.py", 6, 10)
         cfg1.add_node(node1)
         cfg1.add_node(node2)
         cfg1.add_edge("func1", "func2")
@@ -194,8 +195,8 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertIn("pkg2", retrieved)
 
     def test_references_merge_multiple_projects(self):
-        node1 = Node("project1.Class.method", 6, "project1/file.py", 1, 5)
-        node2 = Node("project2.OtherClass.method", 6, "project2/file.py", 1, 5)
+        node1 = Node("project1.Class.method", NodeType.METHOD, "project1/file.py", 1, 5)
+        node2 = Node("project2.OtherClass.method", NodeType.METHOD, "project2/file.py", 1, 5)
         self.results.add_references("python", [node1])
         self.results.add_references("python", [node2])
         retrieved1 = self.results.get_reference("python", "project1.class.method")

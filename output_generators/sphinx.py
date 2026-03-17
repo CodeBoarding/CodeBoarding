@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
+from static_analyzer.constants import NodeType
 from utils import sanitize
 
 
@@ -130,6 +131,27 @@ def generate_rst(
             lines.append("**Related Classes/Methods**: *None*")
             lines.append("")
 
+        if comp.file_methods:
+            lines.append("**Source Files:**")
+            lines.append("")
+            url = "/".join(repo_ref.split("/")[:7]) if repo_ref else ""
+            for group in comp.file_methods:
+                if url:
+                    lines.append(f"* `{group.file_path} <{url}/{group.file_path}>`_")
+                else:
+                    lines.append(f"* ``{group.file_path}``")
+                for method in group.methods:
+                    # https://github.com/owner/repo/blob/branch -> 7 segments; file path follows after
+                    label = NodeType.from_name(method.node_type).label()
+                    line_ref = f"L{method.start_line}-L{method.end_line}"
+                    if url:
+                        lines.append(
+                            f"   * ``{method.qualified_name}`` (`{line_ref} <{url}/{group.file_path}#L{method.start_line}-L{method.end_line}>`_) - {label}"
+                        )
+                    else:
+                        lines.append(f"   * ``{method.qualified_name}`` ({line_ref}) - {label}")
+            lines.append("")
+
     return "\n".join(lines)
 
 
@@ -156,7 +178,7 @@ def generate_rst_file(
         repo_path=repo_path,
     )
     rst_file = temp_dir / f"{file_name}.rst"
-    with open(rst_file, "w") as f:
+    with open(rst_file, "w", encoding="utf-8") as f:
         f.write(content)
     return rst_file
 

@@ -123,19 +123,19 @@ def get_tree_string(
         entries = sorted([p for p in startpath.iterdir() if not (ignore_manager and ignore_manager.should_ignore(p))])
     except (PermissionError, FileNotFoundError):
         # Handle permission errors or non-existent directories
-        return [indent + "└── [Error reading directory]"]
+        return [indent + "`--[Error reading directory]"]
 
     for i, entry_path in enumerate(entries):
         # Check if we've exceeded the maximum number of lines
         if len(tree_lines) >= max_lines:
-            tree_lines.append(indent + "└── [Output truncated due to size limits]")
+            tree_lines.append(indent + "`-- [Output truncated due to size limits]")
             return tree_lines
 
-        connector = "└── " if i == len(entries) - 1 else "├── "
+        connector = "`-- " if i == len(entries) - 1 else "|-- "
         tree_lines.append(indent + connector + entry_path.name)
 
         if entry_path.is_dir():
-            extension = "    " if i == len(entries) - 1 else "│   "
+            extension = "    " if i == len(entries) - 1 else "|   "
             subtree = get_tree_string(
                 entry_path,
                 indent + extension,
@@ -148,8 +148,8 @@ def get_tree_string(
 
             # Check again after adding subtree
             if len(tree_lines) >= max_lines:
-                if tree_lines[-1] != indent + "└── [Output truncated due to size limits]":
-                    tree_lines.append(indent + "└── [Output truncated due to size limits]")
+                if tree_lines[-1] != indent + "`-- [Output truncated due to size limits]":
+                    tree_lines.append(indent + "`-- [Output truncated due to size limits]")
                 return tree_lines
 
     return tree_lines

@@ -1,7 +1,6 @@
+import io
 import logging
 import logging.config
-import os
-import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -17,7 +16,6 @@ def setup_logging(
     Configure:
       - Console output at INFO level
       - Rotating file handler at DEBUG level writing into timestamped log files in logs directory
-      - Updates a '_latest.log' symlink to point to the current log file
     """
     # Define both handlers from the beginning
     handlers = ["console", "file"]
@@ -87,19 +85,15 @@ def setup_logging(
 
     logging.config.dictConfig(config)
 
-    # Handle _latest.log symlink
-    latest_log_path = logs_dir / "_latest.log"
-    try:
-        if latest_log_path.exists() or latest_log_path.is_symlink():
-            latest_log_path.unlink()
-
-        # Try to create a symlink (works on Unix and Windows with Developer Mode)
-        # Use relative path for portability
-        os.symlink(filename, latest_log_path)
-    except (OSError, AttributeError):
-        # Fallback to copying the file if symlinking fails
-        try:
-            shutil.copy2(log_file_path, latest_log_path)
-        except Exception:
-            # We don't want to crash the whole app if _latest.log fails
-            pass
+    # Reconfigure the console handler's stream to use 'replace' error handling
+    # so that non-encodable Unicode characters (e.g. \u2011 on Windows cp1251)
+    # don't crash the logging system.
+    for handler in logging.root.handlers:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            stream = handler.stream
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(errors="replace")
+            elif hasattr(stream, "encoding") and stream.encoding and stream.encoding.lower() != "utf-8":
+                handler.stream = io.TextIOWrapper(
+                    stream.buffer, encoding=stream.encoding, errors="replace", line_buffering=stream.line_buffering
+                )

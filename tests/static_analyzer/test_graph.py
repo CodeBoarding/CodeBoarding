@@ -3,7 +3,8 @@ from unittest.mock import patch, Mock
 
 import networkx as nx
 
-from static_analyzer.constants import Node
+from static_analyzer.constants import NodeType
+from static_analyzer.node import Node
 from static_analyzer.graph import Edge, CallGraph, ClusterResult
 
 
@@ -12,14 +13,14 @@ class TestNode(unittest.TestCase):
         # Test creating a Node
         node = Node(
             fully_qualified_name="module.Class.method",
-            node_type=12,
+            node_type=NodeType.FUNCTION,
             file_path="/path/to/file.py",
             line_start=10,
             line_end=20,
         )
 
         self.assertEqual(node.fully_qualified_name, "module.Class.method")
-        self.assertEqual(node.type, 12)
+        self.assertEqual(node.type, NodeType.FUNCTION)
         self.assertEqual(node.file_path, "/path/to/file.py")
         self.assertEqual(node.line_start, 10)
         self.assertEqual(node.line_end, 20)
@@ -241,7 +242,7 @@ class TestCallGraph(unittest.TestCase):
         # Check node attributes
         self.assertEqual(nx_graph.nodes["module.func1"]["file_path"], "/file.py")
         self.assertEqual(nx_graph.nodes["module.func1"]["line_start"], 1)
-        self.assertEqual(nx_graph.nodes["module.func1"]["type"], 12)
+        self.assertEqual(nx_graph.nodes["module.func1"]["type"], NodeType.FUNCTION)
 
     def test_str_empty_graph(self):
         # Test string representation of empty graph
@@ -328,11 +329,11 @@ class TestCallGraph(unittest.TestCase):
 
         result = graph.llm_str(size_limit=10000)
 
-        # Should use default string representation
+        # Should use detailed representation (level 1)
         self.assertIn("module.src", result)
         self.assertIn("module.dst", result)
-        self.assertIn("calling", result)
-        self.assertNotIn("grouped view", result)
+        self.assertIn("calls:", result)
+        self.assertNotIn("class-level summary", result)
 
     def test_llm_str_large_graph(self):
         # Test LLM string for large graph (exceeds size limit)
@@ -340,18 +341,18 @@ class TestCallGraph(unittest.TestCase):
 
         # Create many method nodes (type "6")
         for i in range(50):
-            node = Node(f"class{i % 5}.ClassA.method{i}", 6, "/file.py", i * 10, i * 10 + 5)
+            node = Node(f"class{i % 5}.ClassA.method{i}", NodeType.METHOD, "/file.py", i * 10, i * 10 + 5)
             graph.add_node(node)
 
         # Add edges to create relationships
         for i in range(49):
             graph.add_edge(f"class{i % 5}.ClassA.method{i}", f"class{(i+1) % 5}.ClassA.method{i+1}")
 
-        # Use very small size limit to trigger grouping
+        # Use very small size limit to trigger class-level summary
         result = graph.llm_str(size_limit=100)
 
-        # Should use grouped view
-        self.assertIn("grouped view", result)
+        # Should use class-level summary
+        self.assertIn("class-level summary", result)
         self.assertIn("Class", result)
 
     def test_llm_str_with_functions(self):
@@ -384,12 +385,15 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.func1", "module.func2")
         graph.add_edge("module.func2", "module.func3")
 
-        # Skip node2
+        # Skip node2 — func1 still shows its call to func2 (stored in methods_called_by_me),
+        # but func2's own outgoing call to func3 is suppressed
         result = graph.llm_str(skip_nodes=[node2])
 
-        # node2 should not appear in grouped output
         self.assertIn("module.func1", result)
-        self.assertIn("module.func3", result)
+        # func1 still lists func2 as a call target (it's in func1.methods_called_by_me)
+        self.assertIn("module.func2", result)
+        # The header should reflect 2 active nodes (func1 + func3), not 3
+        self.assertIn("2 nodes", result)
 
     def test_cluster_str_static_method(self):
         # Test __cluster_str static method

@@ -10,7 +10,7 @@ from diagram_analysis.incremental.scoped_analysis import (
 )
 from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.manifest import AnalysisManifest
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup
 from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
 
 
@@ -58,14 +58,17 @@ def sample_analysis() -> AnalysisInsights:
                 name="ComponentA",
                 description="First component",
                 key_entities=[],
-                assigned_files=["src/module_a.py", "src/module_a_utils.py"],
+                file_methods=[
+                    FileMethodGroup(file_path="src/module_a.py"),
+                    FileMethodGroup(file_path="src/module_a_utils.py"),
+                ],
                 source_cluster_ids=[1],
             ),
             Component(
                 name="ComponentB",
                 description="Second component",
                 key_entities=[],
-                assigned_files=["src/module_b.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                 source_cluster_ids=[2],
             ),
         ],

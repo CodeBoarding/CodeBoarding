@@ -58,11 +58,11 @@ class ChangeImpact:
             f"Dirty components: {self.dirty_components}",
         ]
         if self.components_needing_reexpansion:
-            lines.append(f"🔄 Components needing re-expansion: {self.components_needing_reexpansion}")
+            lines.append(f"Components needing re-expansion: {self.components_needing_reexpansion}")
         if self.architecture_dirty:
-            lines.append("⚠️ Architecture refresh needed")
+            lines.append("WARNING: Architecture refresh needed")
         if self.unassigned_files:
-            lines.append(f"⚠️ Unassigned files: {self.unassigned_files}")
+            lines.append(f"WARNING: Unassigned files: {self.unassigned_files}")
         return "\n".join(lines)
 
 

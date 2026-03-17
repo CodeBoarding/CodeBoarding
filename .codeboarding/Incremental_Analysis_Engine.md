@@ -1,17 +1,17 @@
 ```mermaid
 graph LR
-    Incremental_Update_Orchestrator["Incremental Update Orchestrator"]
-    Static_Analysis_Cache_Manager["Static Analysis Cache Manager"]
-    Structural_Change_Analyzer["Structural Change Analyzer"]
-    Agentic_Re_expansion_Engine["Agentic Re‑expansion Engine"]
-    File_Path_Patching_Service["File & Path Patching Service"]
-    Incremental_Persistence_Layer["Incremental Persistence Layer"]
-    Integrity_Validator["Integrity Validator"]
-    Incremental_Update_Orchestrator -- "triggers analysis to define UpdateAction" --> Structural_Change_Analyzer
-    Incremental_Update_Orchestrator -- "invokes engine when changes exceed SMALL threshold" --> Agentic_Re_expansion_Engine
-    Agentic_Re_expansion_Engine -- "streams updated component fragments to persistence layer" --> Incremental_Persistence_Layer
-    File_Path_Patching_Service -- "directly modifies cache's file‑to‑component mappings" --> Static_Analysis_Cache_Manager
-    Integrity_Validator -- "inspects final state of cache before update completion" --> Static_Analysis_Cache_Manager
+    IncrementalUpdater["IncrementalUpdater"]
+    AnalysisCache["AnalysisCache"]
+    StateValidator["StateValidator"]
+    ClusterChangeAnalyzer["ClusterChangeAnalyzer"]
+    DependencyImpactMapper["DependencyImpactMapper"]
+    DeltaTaskGenerator["DeltaTaskGenerator"]
+    IncrementalUpdater -- "invokes to determine which files have physically changed since the last run" --> StateValidator
+    StateValidator -- "retrieves historical hashes and metadata to perform delta detection" --> AnalysisCache
+    IncrementalUpdater -- "passes the detected file deltas to assess high-level architectural impact" --> ClusterChangeAnalyzer
+    ClusterChangeAnalyzer -- "traces how low-level code changes propagate through the dependency graph" --> DependencyImpactMapper
+    DependencyImpactMapper -- "queries the existing relationship graph to reconstruct the "blast zone" of a change" --> AnalysisCache
+    IncrementalUpdater -- "provides the final list of affected entities to create a minimized analysis queue for the AI agents" --> DeltaTaskGenerator
 ```
 
 [![CodeBoarding](https://img.shields.io/badge/Generated%20by-CodeBoarding-9cf?style=flat-square)](https://github.com/CodeBoarding/CodeBoarding)[![Demo](https://img.shields.io/badge/Try%20our-Demo-blue?style=flat-square)](https://www.codeboarding.org/diagrams)[![Contact](https://img.shields.io/badge/Contact%20us%20-%20contact@codeboarding.org-lightgrey?style=flat-square)](mailto:contact@codeboarding.org)
@@ -20,67 +20,71 @@ graph LR
 
 Optimizes analysis performance by managing the caching of static analysis results and orchestrating re-analysis only for changed parts of the codebase, ensuring efficiency and speed.
 
-### Incremental Update Orchestrator
-Central controller (IncrementalUpdater) that manages the update lifecycle, deciding between patching, re‑expansion, or full re‑analysis.
+### IncrementalUpdater
+The central orchestrator that manages the lifecycle of an incremental update. It coordinates between state validation, impact analysis, and task generation.
 
 
 **Related Classes/Methods**:
 
-- `diagram_analysis.incremental.updater.IncrementalUpdater`
+- `repos.codeboarding.incremental.IncrementalUpdater`
+- `repos.codeboarding.incremental.IncrementalUpdater.run_update`
+- `repos.codeboarding.incremental.IncrementalUpdater._identify_changes`
 
 
-### Static Analysis Cache Manager
-Manages the AnalysisCache, acting as the source‑of‑truth for call graphs, class hierarchies, and previous diagnostics.
-
-
-**Related Classes/Methods**:
-
-- `diagram_analysis.incremental.updater.AnalysisCache`
-
-
-### Structural Change Analyzer
-Evaluates differences (ClusterChangeAnalyzer) between iterations to classify changes (SMALL/MEDIUM/BIG) and map file diffs to architectural impacts.
+### AnalysisCache
+Manages the persistence and retrieval of previous analysis results, including file hashes, metadata, and the existing architectural graph stored in DuckDB.
 
 
 **Related Classes/Methods**:
 
-- `diagram_analysis.incremental.updater.ClusterChangeAnalyzer`
+- `repos.codeboarding.incremental.AnalysisCache`
+- `repos.codeboarding.incremental.AnalysisCache.get_metadata`
+- `repos.codeboarding.incremental.AnalysisCache.save_state`
+- `repos.codeboarding.incremental.AnalysisCache.query_hashes`
 
 
-### Agentic Re‑expansion Engine
-LLM‑driven component that re‑synthesizes descriptions and relationships for "dirty" components using meta‑agents.
-
-
-**Related Classes/Methods**:
-
-- `diagram_analysis.incremental.updater.AgenticReexpansionEngine`
-
-
-### File & Path Patching Service
-Handles low‑level state updates such as file renames and deletions that do not require LLM intervention.
+### StateValidator
+Performs granular comparison of current file system states against the AnalysisCache to identify added, modified, or deleted files.
 
 
 **Related Classes/Methods**:
 
-- `diagram_analysis.incremental.updater.FilePathPatchingService`
+- `repos.codeboarding.incremental.StateValidator`
+- `repos.codeboarding.incremental.StateValidator.validate_hashes`
+- `repos.codeboarding.incremental.StateValidator.detect_deltas`
 
 
-### Incremental Persistence Layer
-Provides thread‑safe I/O (_AnalysisFileStore) for atomic loading and saving of root and sub‑analysis fragments.
-
-
-**Related Classes/Methods**:
-
-- `diagram_analysis.incremental.updater._AnalysisFileStore`
-
-
-### Integrity Validator
-Performs post‑update consistency checks on the merged call graph and component mappings to prevent state corruption.
+### ClusterChangeAnalyzer
+Evaluates logical groupings (clusters) of code to determine if a change in one module necessitates the re-analysis of its parent or sibling clusters.
 
 
 **Related Classes/Methods**:
 
-- `diagram_analysis.incremental.updater.IntegrityValidator`
+- `repos.codeboarding.incremental.ClusterChangeAnalyzer`
+- `repos.codeboarding.incremental.ClusterChangeAnalyzer.analyze_impact`
+- `repos.codeboarding.incremental.ClusterChangeAnalyzer.get_affected_clusters`
+
+
+### DependencyImpactMapper
+Maps code-level changes to the high-level architectural graph to identify "blast zones"—unchanged areas that require documentation updates due to dependency shifts.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.incremental.DependencyImpactMapper`
+- `repos.codeboarding.incremental.DependencyImpactMapper.map_dependencies`
+- `repos.codeboarding.incremental.DependencyImpactMapper.calculate_blast_zone`
+
+
+### DeltaTaskGenerator
+Translates the identified impact areas into a prioritized execution plan for the Static Analysis Engine and AI Agents.
+
+
+**Related Classes/Methods**:
+
+- `repos.codeboarding.incremental.DeltaTaskGenerator`
+- `repos.codeboarding.incremental.DeltaTaskGenerator.generate_tasks`
+- `repos.codeboarding.incremental.DeltaTaskGenerator.prioritize_queue`
 
 
 

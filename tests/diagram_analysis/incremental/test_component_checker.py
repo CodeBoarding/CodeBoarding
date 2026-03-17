@@ -8,8 +8,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    hash_component_id,
-    ROOT_PARENT_ID,
+    FileMethodGroup,
 )
 from diagram_analysis.incremental.component_checker import (
     is_expanded_component,
@@ -21,8 +20,8 @@ from diagram_analysis.incremental.models import ChangeImpact, UpdateAction
 from diagram_analysis.manifest import AnalysisManifest
 
 
-COMP_A_ID = hash_component_id(ROOT_PARENT_ID, "ComponentA")
-COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
+COMP_A_ID = "1"
+COMP_B_ID = "2"
 
 
 @pytest.fixture
@@ -74,7 +73,7 @@ def sample_analysis() -> AnalysisInsights:
                 component_id=COMP_A_ID,
                 description="Test component A",
                 key_entities=[],
-                assigned_files=["src/module_a.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_a.py")],
                 source_cluster_ids=[1],
             ),
             Component(
@@ -82,7 +81,7 @@ def sample_analysis() -> AnalysisInsights:
                 component_id=COMP_B_ID,
                 description="Test component B",
                 key_entities=[],
-                assigned_files=["src/module_b.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                 source_cluster_ids=[2],
             ),
         ],
@@ -301,7 +300,7 @@ class TestCanPatchSubAnalysis:
                     name="SubComponent",
                     description="Sub",
                     key_entities=[],
-                    assigned_files=["src/module_a.py"],
+                    file_methods=[FileMethodGroup(file_path="src/module_a.py")],
                     source_cluster_ids=[1],
                 )
             ],
@@ -345,7 +344,7 @@ class TestCanPatchSubAnalysis:
                     name="SubComponent",
                     description="Sub",
                     key_entities=[],
-                    assigned_files=["src/module_a.py"],
+                    file_methods=[FileMethodGroup(file_path="src/module_a.py")],
                     source_cluster_ids=[1],
                 )
             ],

@@ -14,17 +14,16 @@ import pytest
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
     Relation,
     SourceCodeReference,
-    hash_component_id,
-    ROOT_PARENT_ID,
 )
 from diagram_analysis.incremental.io_utils import save_analysis, save_sub_analysis, load_sub_analysis
 
 
-COMP_B_ID = hash_component_id(ROOT_PARENT_ID, "ComponentB")
-COMP_C_ID = hash_component_id(ROOT_PARENT_ID, "ComponentC")
-COMP_D_ID = hash_component_id(ROOT_PARENT_ID, "ComponentD")
+COMP_B_ID = "1"
+COMP_C_ID = "2"
+COMP_D_ID = "3"
 NAME_TO_ID = {"ComponentB": COMP_B_ID, "ComponentC": COMP_C_ID, "ComponentD": COMP_D_ID}
 
 
@@ -44,7 +43,7 @@ def _make_sub_analysis(component_name: str) -> AnalysisInsights:
                         reference_end_line=10,
                     )
                 ],
-                assigned_files=[f"src/{component_name.lower()}_sub1.py"],
+                file_methods=[FileMethodGroup(file_path=f"src/{component_name.lower()}_sub1.py")],
                 source_cluster_ids=[],
             ),
         ],
@@ -81,7 +80,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                assigned_files=["src/module_b.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_b.py")],
                 source_cluster_ids=[1],
             ),
             Component(
@@ -96,7 +95,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                assigned_files=["src/module_c.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_c.py")],
                 source_cluster_ids=[2],
             ),
             Component(
@@ -111,7 +110,7 @@ def root_analysis() -> AnalysisInsights:
                         reference_end_line=20,
                     )
                 ],
-                assigned_files=["src/module_d.py"],
+                file_methods=[FileMethodGroup(file_path="src/module_d.py")],
                 source_cluster_ids=[3],
             ),
         ],
@@ -193,9 +192,9 @@ class TestConcurrentSaveSubAnalysis:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        root_id = hash_component_id(ROOT_PARENT_ID, "RootComponent")
-        child_expandable_id = hash_component_id(root_id, "ChildExpandable")
-        child_leaf_id = hash_component_id(root_id, "ChildLeaf")
+        root_id = "1"
+        child_expandable_id = "1.1"
+        child_leaf_id = "1.2"
 
         root_analysis = AnalysisInsights(
             description="Root analysis",
@@ -205,7 +204,7 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=root_id,
                     description="Root",
                     key_entities=[],
-                    assigned_files=["src/root.py"],
+                    file_methods=[FileMethodGroup(file_path="src/root.py")],
                     source_cluster_ids=[1],
                 )
             ],
@@ -220,7 +219,7 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=child_expandable_id,
                     description="Expandable child",
                     key_entities=[],
-                    assigned_files=["src/child_expandable.py"],
+                    file_methods=[FileMethodGroup(file_path="src/child_expandable.py")],
                     source_cluster_ids=[10],
                 ),
                 Component(
@@ -228,7 +227,6 @@ class TestConcurrentSaveSubAnalysis:
                     component_id=child_leaf_id,
                     description="Leaf child",
                     key_entities=[],
-                    assigned_files=[],
                     source_cluster_ids=[],
                 ),
             ],

@@ -23,7 +23,7 @@ def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights,
 
     Returns the root analysis as 'overview' plus one entry per expanded component.
     """
-    with open(analysis_path, "r") as f:
+    with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     root_analysis, sub_analyses = parse_unified_analysis(data)
@@ -156,10 +156,7 @@ def generate_analysis(
     )
 
     # Use smart analysis: tries incremental first, falls back to full
-    analysis_files = generator.generate_analysis_smart()
-
-    # The generator now returns a single analysis.json path
-    analysis_path = analysis_files[0]
+    analysis_path = generator.generate_analysis_smart()
 
     # Now generate the output docs:
     match extension:

@@ -116,7 +116,7 @@ class DiagramGenerator:
         )
         if health_report is not None:
             health_path = Path(self.output_dir) / "health" / "health_report.json"
-            with open(health_path, "w") as f:
+            with open(health_path, "w", encoding="utf-8") as f:
                 f.write(health_report.model_dump_json(indent=2, exclude_none=True))
             logger.info(f"Health report written to {health_path} (score: {health_report.overall_score:.3f})")
         else:
@@ -147,7 +147,7 @@ class DiagramGenerator:
         )
 
         coverage_path = Path(self.output_dir) / "file_coverage.json"
-        with open(coverage_path, "w") as f:
+        with open(coverage_path, "w", encoding="utf-8") as f:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
@@ -236,7 +236,7 @@ class DiagramGenerator:
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
         version_file = Path(self.output_dir) / "codeboarding_version.json"
-        with open(version_file, "w") as f:
+        with open(version_file, "w", encoding="utf-8") as f:
             f.write(
                 Version(
                     commit_hash=get_git_commit_hash(self.repo_location),
@@ -250,7 +250,7 @@ class DiagramGenerator:
 
             # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
-            with open(code_stats_file, "w") as f:
+            with open(code_stats_file, "w", encoding="utf-8") as f:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
@@ -340,7 +340,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def generate_analysis(self) -> list[Path]:
+    def generate_analysis(self) -> Path:
         """
         Generate the graph analysis for the given repository.
         The output is stored in a single analysis.json file in output_dir.
@@ -384,7 +384,7 @@ class DiagramGenerator:
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
                 file_coverage_summary=file_coverage_summary,
-            )
+            ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
 
@@ -394,7 +394,7 @@ class DiagramGenerator:
             # Save manifest for incremental updates
             self._save_manifest(analysis, expanded_components)
 
-            return [analysis_path]
+            return analysis_path
 
     def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
         """Save the analysis manifest for incremental updates."""
@@ -416,12 +416,12 @@ class DiagramGenerator:
         except Exception as e:
             logger.warning(f"Failed to save manifest: {e}")
 
-    def try_incremental_update(self) -> list[Path] | None:
+    def try_incremental_update(self) -> Path | None:
         """
         Attempt an incremental update if possible.
 
         Returns:
-            List of updated file paths if incremental update succeeded,
+            Path to the analysis output if incremental update succeeded,
             None if full analysis is needed.
         """
         if self.force_full_analysis:
@@ -467,7 +467,7 @@ class DiagramGenerator:
 
         if impact.action == UpdateAction.NONE:
             logger.info("No changes detected, analysis is up to date")
-            return [self.output_dir / "analysis.json"]
+            return self.output_dir / "analysis.json"
 
         # For structural changes, recompute which components are actually affected
         # after static analysis has been updated with cluster matching
@@ -490,13 +490,13 @@ class DiagramGenerator:
                 )
                 self._write_file_coverage()
 
-            return [self.output_dir / "analysis.json"]
+            return self.output_dir / "analysis.json"
 
         # Incremental update failed or not possible
         logger.info("Incremental update not possible, falling back to full analysis")
         return None
 
-    def generate_analysis_smart(self) -> list[Path]:
+    def generate_analysis_smart(self) -> Path:
         """
         Smart analysis that tries incremental first, falls back to full.
 

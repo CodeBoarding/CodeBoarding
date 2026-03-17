@@ -1,9 +1,11 @@
+import os
 import unittest
 
 from health.models import HealthCheckConfig, StandardCheckSummary
 from health.runner import run_health_checks
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, Node
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 
 
 def _make_node(fqn: str, file_path: str, line_start: int, line_end: int) -> Node:
@@ -184,23 +186,32 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_relative_paths_when_repo_path_provided(self):
         """Test that file paths are relative to repo_path when provided."""
+        if os.name == "nt":
+            project_root = "C:\\home\\user\\project"
+            src_mod = "C:\\home\\user\\project\\src\\mod.py"
+            lib_utils = "C:\\home\\user\\project\\lib\\utils.py"
+        else:
+            project_root = "/home/user/project"
+            src_mod = "/home/user/project/src/mod.py"
+            lib_utils = "/home/user/project/lib/utils.py"
+
         graph = CallGraph(language="python")
-        graph.add_node(_make_node("mod.func1", "/home/user/project/src/mod.py", 0, 120))
-        graph.add_node(_make_node("mod.func2", "/home/user/project/src/mod.py", 120, 250))
-        graph.add_node(_make_node("utils.helper", "/home/user/project/lib/utils.py", 0, 10))
+        graph.add_node(_make_node("mod.func1", src_mod, 0, 120))
+        graph.add_node(_make_node("mod.func2", src_mod, 120, 250))
+        graph.add_node(_make_node("utils.helper", lib_utils, 0, 10))
 
         results = StaticAnalysisResults()
         results.add_cfg("python", graph)
         results.add_references("python", list(graph.nodes.values()))
         results.add_source_files(
             "python",
-            ["/home/user/project/src/mod.py", "/home/user/project/lib/utils.py"],
+            [src_mod, lib_utils],
         )
 
         config = HealthCheckConfig(
             function_size_max=100,
         )
-        report = run_health_checks(results, "test", config=config, repo_path="/home/user/project")
+        report = run_health_checks(results, "test", config=config, repo_path=project_root)
         assert report is not None
 
         # All file paths in findings should be relative
@@ -210,7 +221,7 @@ class TestHealthRunner(unittest.TestCase):
                     for entity in group.entities:
                         if entity.file_path is not None:
                             self.assertFalse(
-                                entity.file_path.startswith("/home/user/project"),
+                                entity.file_path.startswith(project_root),
                                 f"Expected relative path, got: {entity.file_path}",
                             )
 

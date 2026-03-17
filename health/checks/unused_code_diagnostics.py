@@ -136,13 +136,17 @@ class LSPDiagnosticsCollector:
         """Process all collected diagnostics and convert to issues."""
         self.issues = []
         skipped = 0
-        seen_issues: set[tuple[str, str, int]] = set()  # (file_path, code, line_start)
+        seen_issues: set[tuple[str, str, int]] = set()  # (file_path, category, line_start)
 
         for item in self.diagnostics:
             issue = self._convert_to_issue(item.file_path, item.diagnostic)
             if issue:
-                # Deduplicate: same file, code, and line
-                key = (issue.file_path, issue.code or "", issue.line_start)
+                # Deduplicate: same file, category, and line.
+                # Using category instead of code prevents duplicates from the same
+                # LSP server reporting the same issue under different diagnostic codes
+                # (e.g. Pyright reports unused variables both via reportUnusedVariable
+                # and via the "Unnecessary" tag with different messages).
+                key = (issue.file_path, issue.category.value, issue.line_start)
                 if key not in seen_issues:
                     seen_issues.add(key)
                     self.issues.append(issue)
@@ -187,8 +191,8 @@ class LSPDiagnosticsCollector:
 
         return DiagnosticIssue(
             file_path=file_path,
-            line_start=diagnostic.range.start.line,
-            line_end=diagnostic.range.end.line,
+            line_start=diagnostic.range.start.line + 1,  # LSP lines are 0-based, convert to 1-based
+            line_end=diagnostic.range.end.line + 1,  # LSP lines are 0-based, convert to 1-based
             message=message,
             code=code if code else None,
             category=category,

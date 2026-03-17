@@ -77,7 +77,7 @@ def build_manifest_from_analysis(
     Build a manifest from an AnalysisInsights object.
 
     Args:
-        analysis: The analysis containing components with assigned_files
+        analysis: The analysis containing components with file_methods
         repo_state_hash: Current repo state hash
         base_commit: Current commit hash
         expanded_components: List of component IDs that have sub-analysis JSONs
@@ -88,7 +88,8 @@ def build_manifest_from_analysis(
     file_to_component: dict[str, str] = {}
 
     for component in analysis.components:
-        for file_path in component.assigned_files:
+        for fmg in component.file_methods:
+            file_path = fmg.file_path
             # Normalize path (remove leading ./ if present)
             normalized_path = file_path.lstrip("./")
             file_to_component[normalized_path] = component.component_id
@@ -109,7 +110,7 @@ def save_manifest(manifest: AnalysisManifest, output_dir: Path) -> Path:
     """
     manifest_path = output_dir / MANIFEST_FILENAME
 
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(manifest.model_dump_json(indent=2))
 
     logger.info(f"Saved analysis manifest to {manifest_path}")
@@ -129,7 +130,7 @@ def load_manifest(output_dir: Path) -> AnalysisManifest | None:
         return None
 
     try:
-        with open(manifest_path, "r") as f:
+        with open(manifest_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         manifest = AnalysisManifest.model_validate(data)

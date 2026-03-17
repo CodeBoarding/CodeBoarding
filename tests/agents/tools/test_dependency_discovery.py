@@ -27,7 +27,7 @@ class TestDependencyDiscovery(unittest.TestCase):
             for discovered in discover_dependency_files(self.temp_dir, self.ignore_manager, **kwargs)
         ]
 
-    # ── Root-level discovery ──
+    # -- Root-level discovery --
 
     def test_discovers_root_dependency_candidates(self):
         (self.temp_dir / "requirements.txt").touch()
@@ -58,7 +58,7 @@ class TestDependencyDiscovery(unittest.TestCase):
 
         self.assertEqual(discovered, [])
 
-    # ── Per-ecosystem root discovery ──
+    # -- Per-ecosystem root discovery --
 
     def test_discovers_go_dependency_files(self):
         (self.temp_dir / "go.mod").touch()
@@ -132,7 +132,7 @@ class TestDependencyDiscovery(unittest.TestCase):
 
         self.assertEqual(discovered, [])
 
-    # ── Nested / monorepo discovery (bounded walk) ──
+    # -- Nested / monorepo discovery (bounded walk) --
 
     def test_discovers_nested_dependency_files(self):
         service_dir = self.temp_dir / "services" / "auth"
@@ -172,7 +172,7 @@ class TestDependencyDiscovery(unittest.TestCase):
 
         self.assertEqual(discovered, ["go.mod"])
 
-    # ── Filtering ──
+    # -- Filtering --
 
     def test_filter_by_role_manifest_only(self):
         (self.temp_dir / "go.mod").touch()
@@ -212,7 +212,7 @@ class TestDependencyDiscovery(unittest.TestCase):
 
         self.assertEqual(discovered, ["package.json"])
 
-    # ── Classified discovery ──
+    # -- Classified discovery --
 
     def test_classified_returns_spec_metadata(self):
         (self.temp_dir / "go.mod").touch()
@@ -235,7 +235,7 @@ class TestDependencyDiscovery(unittest.TestCase):
         ecosystems_found = {d.spec.ecosystem for d in classified}
         self.assertEqual(ecosystems_found, {Ecosystem.JAVA, Ecosystem.NODE, Ecosystem.GO})
 
-    # ── Ignore manager integration ──
+    # -- Ignore manager integration --
 
     def test_respects_ignore_manager_for_files_and_subdirectories(self):
         (self.temp_dir / "requirements.txt").touch()

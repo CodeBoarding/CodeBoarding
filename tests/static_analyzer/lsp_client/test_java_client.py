@@ -2,6 +2,7 @@
 Tests for Java LSP client.
 """
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -633,7 +634,7 @@ class TestJavaClient(unittest.TestCase):
                 jdtls_root = client._find_jdtls_root()
 
                 self.assertIsNotNone(jdtls_root)
-                self.assertTrue(str(jdtls_root).endswith("/.jdtls"))
+                self.assertTrue(str(jdtls_root).endswith(os.sep + ".jdtls"))
 
     def test_find_jdtls_root_not_found(self):
         """Test when JDTLS root is not found."""
